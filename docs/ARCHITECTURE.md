@@ -1,0 +1,173 @@
+# Flirty – Architektur
+
+> Chatbot-/Dialog-Engine für .NET. Der Anwender baut nur noch die UI; Flirty übernimmt
+> Persistenz, Antwort-Parsing/-Validierung, Branching, Loops, Resume, editierbare Antworten
+> und Trigger (Rückkanäle in die Host-App).
+
+## 1. Ziel & Motivation
+
+Wer heute einen Chatbot-Dialog baut, implementiert jedes Mal aufs Neue: Fragen/Antworten
+persistieren, Antworten parsen, Verzweigungslogik (Branching), Wiederaufnahme (Resume) und
+Rückkanäle in die eigene App. Das ist repetitiv und fehleranfällig.
+
+**Flirty** kapselt diese Logik als wiederverwendbare Engine. Dialoge werden über einen
+**Blazor-Designer** konfiguriert (auch von nicht-technischen Nutzern). Die Integration in
+fremde Apps erfolgt über **DI-Extension-Methods** und optional bereitgestellte
+**WebAPI-Endpunkte**. Eine mitgegebene **DB-Connection** wird automatisch migriert.
+
+## 2. Feature-Überblick
+
+| Feature | Umsetzung |
+|---|---|
+| Resume innerhalb eines Dialogs | `DialogSession` + `CurrentQuestionId`, `ResumeDialogQuery` |
+| Fragen wieder bearbeitbar | `EditAnswerCommand` + Pfad-Neuberechnung |
+| Branching (mehrere Zweige) | `Transition` + Expression-Engine (`IConditionEvaluator`) |
+| Loops (Liste bis Breaking Question) | Branching-Zyklus + `LoopDefinition`-Marker, Iterations-Collection |
+| Trigger nach Antwort / Abschluss | Mediator-Notifications (In-Process) + Outbound-Webhooks |
+| Einfache DI-Registrierung | `services.AddFlirty(o => …)` Extension-Methods |
+| DB-Connection + Auto-Migration | `o.UseSqlServer/UsePostgreSql/UseSqlite` + `o.ApplyMigrations()` |
+| Optionale WebAPI-Endpunkte | Paket `Flirty.AspNetCore`, `app.MapFlirtyEndpoints()` |
+| Designer, Multi-DB | Blazor Web App, Connection-Profile + `IDbContextFactory` |
+| Designer CRUD | Dialoge / Fragen / Antworten / Branching / Loops / Trigger |
+
+## 3. Grundsatzentscheidungen
+
+| Thema | Entscheidung |
+|---|---|
+| Target Framework | **.NET 10** (alle Projekte) |
+| DB-Provider | **SQLite + PostgreSQL + SQL Server**, Kern provider-agnostisch via EF Core |
+| Designer-Hosting | **Blazor Web App, Server-interaktiv** |
+| Branching | **Expression-/Script-Engine**, gesandboxt (Default: DynamicExpresso) |
+| Trigger | **In-Process (Mediator-Notifications) + Outbound-Webhooks** |
+| Mediator | **Mediator (martinothamar)** – Source-Generator, MIT |
+| Endpunkte | **Optional**, eigenes Projekt `Flirty.AspNetCore`; Core bleibt **ASP.NET-frei** |
+| NuGet | `Flirty` + `Flirty.AspNetCore` als **veröffentlichbare Packages** |
+| Dokumentation | XML-Docs (CS1591 als Error) + `docs/`-Guides + ADRs, Teil jeder DoD |
+
+## 4. Solution-Struktur
+
+```
+Flirty.sln
+├─ src/
+│  ├─ Flirty              Core-Engine (REINE Class-Library, KEIN ASP.NET):
+│  │                        Domain, Runtime, Persistenz (EF Core),
+│  │                        Mediator-Commands/Queries/Notifications,
+│  │                        Expression-Engine, Trigger, DI-Extensions
+│  ├─ Flirty.AspNetCore   OPTIONAL: WebAPI-Endpunkt-Mapping (MapFlirtyEndpoints),
+│  │                        dünne Schicht über die Mediator-Commands
+│  ├─ Flirty.Designer     Blazor Web App (Server-interaktiv): Dialog-/Frage-/Antwort-/
+│  │                        Branching-/Loop-/Trigger-Konfiguration, Multi-DB
+│  └─ Flirty.Samples      (a) Console-Single-Project (nur Core + eigene Handler)
+│                          (b) Minimal-API + Chat-UI (nutzt Flirty.AspNetCore)
+└─ tests/
+   ├─ Flirty.Tests        xUnit Unit-/Integrationstests (EF Core SQLite in-memory)
+   └─ Flirty.E2E          Playwright-E2E (Designer + Web-Sample)
+```
+
+**Wichtig:** `Flirty` hat **keine** ASP.NET-Abhängigkeit und lässt sich unverändert in eine
+reine Console-/Worker-App hängen. `Flirty.AspNetCore` (`FrameworkReference
+Microsoft.AspNetCore.App`) wird nur referenziert, wenn Web/Endpunkte gewünscht sind.
+
+## 5. Domain-Modell (Konfiguration)
+
+- **Dialog** – `Id`, `Key`, `Name`, `Description`, `Version`, `IsPublished`, `StartQuestionId`, Timestamps.
+- **Question** – `Id`, `DialogId`, `Key`, `Text`, `Type` (SingleChoice, MultiChoice, FreeText, Number, Date, Boolean), `Order`, `IsRequired`, `ValidationRules` (JSON).
+- **AnswerOption** – `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order`.
+- **Transition** – `Id`, `DialogId`, `FromQuestionId`, `ConditionExpression`, `TargetQuestionId`, `Priority`, `IsDefault`. Geordnete Liste bedingter Übergänge je Frage; erste zutreffende gewinnt, sonst Default. Ein `TargetQuestionId` auf eine **frühere** Frage bildet einen **Loop-Zyklus**.
+- **LoopDefinition** – `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` (+ Exit-Transition). Metadaten-/Marker-Ebene über dem Branching für Runtime-Sammlung und Designer-Visualisierung.
+- **TriggerDefinition** – `Id`, `DialogId`, `Scope` (OnDialogStarted/AfterAnswer/AfterQuestion/OnDialogCompleted), `QuestionId?`, `Kind` (InProcess|Webhook), `Config` (JSON), `ConditionExpression?`.
+
+## 6. Runtime-/Session-State
+
+- **DialogSession** – `Id`, `DialogId`, `DialogVersion`, `ExternalUserKey`, `Status` (InProgress/Completed/Abandoned), `CurrentQuestionId`, `StartedAt`, `CompletedAt`. → **Resume**.
+- **SessionAnswer** – `Id`, `SessionId`, `QuestionId`, `Value` (JSON), `AnsweredAt`, `Sequence`, `LoopInstanceId?`, `IterationIndex?`. → editierbare Antworten; Loop-Iterationen erlauben mehrere Antworten pro `QuestionId` (ein Eintrag je Iteration).
+
+## 7. Kern-Services (In-Process-API via Mediator)
+
+Alle Engine-Operationen sind **Mediator-Commands/Queries**; In-Process-Trigger sind
+**Mediator-Notifications**. Host-Apps nutzen entweder die Facade `IFlirtyEngine` oder senden
+Commands direkt per `ISender`.
+
+**Commands/Queries**
+- `StartDialogCommand(dialogKey, externalUserKey, seed?)` → Session + erste Frage (oder Resume).
+- `ResumeDialogQuery(sessionId|externalUserKey)` → Session + aktuelle Frage + bisherige Antworten.
+- `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion → Notifications.
+- `EditAnswerCommand(sessionId, questionId, value)` → zurückspringen, überschreiben, Pfad neu berechnen.
+
+**Notifications (= In-Process-Trigger)** – `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`, `DialogCompletedNotification`. Der Nutzer „hängt seine Handler rein" per `INotificationHandler<T>` (funktioniert 1:1 in einer Console-App).
+
+**Weitere Services**
+- `IConditionEvaluator` – Ausdrucks-Engine. Default `DynamicExpressoConditionEvaluator`. Kontext: `answers` (nach Question-Key), Loop-Collections (nach `CollectionKey`), `iterationIndex`, `now`, `session`.
+- `IAnswerValidator` – Typ + `ValidationRules` (als Mediator-`IPipelineBehavior`).
+- Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
+- `IDialogStore` – Repository über `FlirtyDbContext`.
+
+## 8. Persistenz & Migrationen
+
+- **`FlirtyDbContext`** (EF Core 10), Provider-Wahl via Options.
+- **Migrationen pro Provider** (EF-Anforderung), getrennte Migrations-Ordner/-Assemblies.
+- **Auto-Apply** via `o.ApplyMigrations()` → `FlirtyMigrationHostedService` ruft beim Start `Database.MigrateAsync()`.
+- **Multi-DB im Designer**: Connection-Profile (Provider + ConnectionString) lokal verwaltet, `IDbContextFactory` öffnet zur Laufzeit gegen das gewählte Profil.
+
+## 9. Integrations-API
+
+```csharp
+// Core – reicht für eine reine Console-Single-Project-App
+services.AddFlirty(o => {
+    o.UseSqlServer(conn);                 // oder UsePostgreSql / UseSqlite
+    o.ApplyMigrations();                  // optional: Auto-Migration beim Start
+    o.UseConditionEvaluator<MyEval>();    // Expression-Engine austauschbar
+    o.AddWebhook("order-created", url);   // Outbound-Trigger
+});
+// In-Process-Trigger = Mediator-Notification-Handler:
+services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHandler>();
+
+// NUR bei Web/Endpunkten (Paket Flirty.AspNetCore):
+app.MapFlirtyEndpoints("/flirty");
+```
+
+**Endpunkte** (`Flirty.AspNetCore`): `POST /flirty/sessions`, `GET /flirty/sessions/{id}`,
+`POST /flirty/sessions/{id}/answers`, `PUT /flirty/sessions/{id}/answers/{questionId}`,
+optional Admin-CRUD.
+
+## 10. Loops (Schleifen)
+
+Loops entstehen **über das vorhandene Branching**: eine Transition zeigt auf eine frühere
+Frage (Zyklus). Der `LoopDefinition`-Marker bewirkt zweierlei:
+1. **Runtime** sammelt die Antworten des Bereichs je Iteration in `CollectionKey` (statt zu überschreiben) — `SessionAnswer.IterationIndex` macht mehrere Antworten pro Frage möglich.
+2. **Designer** visualisiert den Zyklus als Loop-Block mit markierter **Breaking Question**.
+
+Die **Breaking Question** ist die Frage, deren Exit-Transition den Zyklus verlässt; danach
+läuft der Dialog normal weiter. Break-Bedingungen und nachgelagertes Branching sehen die
+gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
+
+## 11. Design-Notizen
+
+1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen).
+2. **ASP.NET-frei im Core**: reine Console-/Worker-Nutzung möglich.
+3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IConditionEvaluator` (Alternative: NCalc).
+4. **Dialog-Versionierung**: Sessions pinnen `DialogVersion` → Editieren publizierter Dialoge bricht laufende Sessions nicht.
+5. **Loops = Branching + Marker**: kein separater Runtime-Sonderpfad.
+6. **NuGet-Packaging**: `Flirty` + `Flirty.AspNetCore` mit vollständigen Metadaten, SourceLink, Symbols; übrige Projekte `IsPackable=false`.
+
+## 12. Dokumentation („alles dokumentiert")
+
+Doku ist **Definition-of-Done jedes Issues**:
+- XML-Doc-Kommentare auf allen public Typen/Membern; `GenerateDocumentationFile` + **CS1591 als Error** (zentral in `Directory.Build.props`).
+- `docs/`-Guides: `ARCHITECTURE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
+- ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
+- Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
+
+## 13. Verifikation
+
+- **Build/Test**: `dotnet build Flirty.sln`, `dotnet test` nach jedem Epic.
+- **Kern-Runtime**: Unit-Tests für Branching, Loops, Resume, Edit-Pfad, Trigger (In-Process + Webhook-Mock) gegen SQLite in-memory.
+- **Provider**: Migration + Smoke-CRUD gegen SQLite (optional PostgreSQL/SQL Server via Container).
+- **Console-Nutzung**: Console-Sample ohne ASP.NET-Referenz durchspielen.
+- **Loops**: mehrere Listen-Einträge erfassen, Breaking Question beendet, Collection im Kontext.
+- **Web-E2E**: Web-Sample + Designer via Playwright (Branching, Loop, Resume nach Reload, Edit).
+- **NuGet**: `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`).
+
+---
+
+> Backlog / Issue-Liste siehe [BACKLOG.md](./BACKLOG.md). Entscheidungshistorie unter `docs/adr/`.

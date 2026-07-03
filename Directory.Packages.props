@@ -1,0 +1,25 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <!-- Test-Stack (aus den xUnit-Templates) -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <!--
+    Kommende Kern-Abhängigkeiten: hier zentrale PackageVersion ergänzen und im jeweiligen
+    Projekt per <PackageReference Include="..." /> (OHNE Version) referenzieren, z. B.:
+      Mediator.Abstractions / Mediator.SourceGenerator
+      Microsoft.EntityFrameworkCore, .Sqlite, .SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL
+      DynamicExpresso.Core
+      Microsoft.SourceLink.GitHub
+  -->
+
+</Project>

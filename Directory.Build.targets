@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    Doku-Pflicht ("alles dokumentiert") wird nur für die veröffentlichbaren Library-Packages
+    erzwungen. In .targets ausgewertet, weil IsPackable erst im jeweiligen .csproj gesetzt wird.
+  -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591 = fehlender XML-Kommentar für sichtbaren Typ/Member -> Build-Fehler -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsPackable)' != 'true'">
+    <!-- Apps/Tests/Designer müssen keine XML-Docs tragen. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
