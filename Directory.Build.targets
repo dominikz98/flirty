@@ -1,17 +1,20 @@
 <Project>
 
   <!--
-    Doku-Pflicht ("alles dokumentiert") wird nur für die veröffentlichbaren Library-Packages
-    erzwungen. In .targets ausgewertet, weil IsPackable erst im jeweiligen .csproj gesetzt wird.
+    Doku-PFLICHT ("alle sichtbare API dokumentiert") wird nur für die veröffentlichbaren
+    Library-Packages als Build-Fehler erzwungen. GenerateDocumentationFile steht bewusst in
+    Directory.Build.props (muss früh gesetzt sein); hier wird nur noch entschieden, ob fehlende
+    Docs (CS1591) den Build brechen oder unterdrückt werden. In .targets ausgewertet, weil
+    IsPackable erst im jeweiligen .csproj gesetzt wird.
   -->
   <PropertyGroup Condition="'$(IsPackable)' == 'true'">
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- CS1591 = fehlender XML-Kommentar für sichtbaren Typ/Member -> Build-Fehler -->
+    <!-- CS1591 = fehlender XML-Kommentar für sichtbaren Typ/Member -> Build-Fehler.
+         (TreatWarningsAsErrors greift ohnehin; explizit zur Dokumentation der Konvention.) -->
     <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsPackable)' != 'true'">
-    <!-- Apps/Tests/Designer müssen keine XML-Docs tragen. -->
+    <!-- Apps/Tests/Designer müssen keine XML-Docs tragen: fehlende Docs nicht als Fehler. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 

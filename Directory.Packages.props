@@ -13,13 +13,21 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
 
-  <!--
-    Kommende Kern-Abhängigkeiten: hier zentrale PackageVersion ergänzen und im jeweiligen
-    Projekt per <PackageReference Include="..." /> (OHNE Version) referenzieren, z. B.:
-      Mediator.Abstractions / Mediator.SourceGenerator
-      Microsoft.EntityFrameworkCore, .Sqlite, .SqlServer, Npgsql.EntityFrameworkCore.PostgreSQL
-      DynamicExpresso.Core
-      Microsoft.SourceLink.GitHub
-  -->
+  <!-- Kern-Abhängigkeiten (zentral gepinnt; Verdrahtung per
+       <PackageReference Include="…" /> OHNE Version in Folge-Issues #14/#18/#19/#23). -->
+  <ItemGroup>
+    <!-- Mediator (martinothamar) -->
+    <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
+    <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
+    <!-- EF Core 10 + Provider (Sqlite / SqlServer / PostgreSQL) -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Branching-/Expression-Engine (Default-Evaluator) -->
+    <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
+  </ItemGroup>
+
+  <!-- Microsoft.SourceLink.GitHub folgt mit dem Packaging-Issue #15. -->
 
 </Project>
