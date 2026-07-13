@@ -7,6 +7,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- XML-Doku generieren. MUSS hier (props) stehen, nicht in .targets: Das SDK leitet
+         DocumentationFile (und damit den /doc-Switch) aus GenerateDocumentationFile ab, bevor
+         Directory.Build.targets ausgewertet wird. Ob fehlende Docs (CS1591) den Build brechen
+         oder unterdrückt werden, entscheidet je nach IsPackable Directory.Build.targets. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Standard: nicht paketierbar. Nur Flirty + Flirty.AspNetCore setzen IsPackable=true. -->
     <IsPackable>false</IsPackable>
   </PropertyGroup>
