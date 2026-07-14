@@ -20,6 +20,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <!-- SQLite als reiner Test-Host für FlirtyDbContext-Tests (in-memory, #18).
+       Kein Provider im Core-Projekt selbst – das ist #19. Version zentral. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

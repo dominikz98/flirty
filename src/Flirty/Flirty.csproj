@@ -20,6 +20,9 @@
     </PackageReference>
     <!-- ILogger<> für das LoggingPipelineBehavior. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- EF Core 10 (provider-agnostisch): FlirtyDbContext + Konfigurationen (#18).
+         Provider (Sqlite/SqlServer/Npgsql) + Migrationen kommen erst in #19. Version zentral. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
 
   <!-- Interne Smoke-Test-Typen (Ping) für die Mediator-Pipeline sichtbar machen. -->
