@@ -83,7 +83,13 @@ Für die übrigen vier Projekte entsteht nichts.
 `EmbedUntrackedSources` können Konsumenten in die Paketquellen steppen. Die Symbolpakete (`.snupkg`)
 tragen die zugehörigen PDBs und lassen sich zum Symbol-Server pushen.
 
+## Bauen im CI
+
+Die CI-Pipeline (#16, `.github/workflows/ci.yml`) übernimmt build + test + `dotnet pack` und lädt beide
+`.nupkg` (+ `.snupkg`) als Artefakt hoch. Die Build-/Run-Nummer wird als `BuildRevision` durchgereicht,
+sodass jeder Lauf eine eindeutige Revision erhält. Details: [CI.md](./CI.md).
+
 ## Publizieren
 
 Der eigentliche Push (`dotnet nuget push` auf NuGet.org oder Azure Artifacts) ist bewusst **nicht**
-Teil dieses Issues – er folgt mit der CI-Pipeline (#16) und dem Publish-Issue (#49).
+Teil der CI-Pipeline (#16) – er folgt mit dem Publish-Issue (#49).

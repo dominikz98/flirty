@@ -1,5 +1,7 @@
 # Flirty
 
+[![CI](https://github.com/dominikz98/flirty/actions/workflows/ci.yml/badge.svg)](https://github.com/dominikz98/flirty/actions/workflows/ci.yml)
+
 Chatbot-/Dialog-Engine für .NET. Du baust nur die UI – Flirty übernimmt Persistenz,
 Antwort-Validierung, **Branching**, **Loops**, **Resume**, editierbare Antworten und
 **Trigger** (Rückkanäle in deine App). Dialoge werden über einen **Blazor-Designer**
@@ -41,6 +43,8 @@ app.MapFlirtyEndpoints("/flirty"); // Paket Flirty.AspNetCore
 
 - Architektur: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Backlog / Issues: [`docs/BACKLOG.md`](docs/BACKLOG.md)
+- CI-Pipeline: [`docs/CI.md`](docs/CI.md)
+- NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](docs/NUGET-PACKAGING.md)
 
 ## Build & Test
 

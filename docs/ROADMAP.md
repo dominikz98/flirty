@@ -16,7 +16,11 @@ GitHub-Issues (#12–#52).
 > - `#15` NuGet-Packaging — **erledigt**: vollständige Metadaten inkl. **MIT-Lizenz**, **Icon**,
 >   **SourceLink** und Symbolpaketen (`snupkg`). Versionierung **datumsbasiert** (`JJJJMM.Revision`,
 >   z.B. `202604.1`) statt MinVer. `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`).
->   Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md). `#16` CI-Stub — offen.
+>   Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
+> - `#16` CI-Stub — **erledigt**: GitHub-Actions-Workflow `.github/workflows/ci.yml`
+>   (build + test + `dotnet pack` auf `ubuntu-latest`, SDK aus `global.json`) läuft bei Push/PR auf
+>   `main` und lädt beide `.nupkg` (+ `.snupkg`) als Artefakt hoch. Push zu NuGet folgt in `#49`.
+>   Details: [CI.md](./CI.md).
 > - `#14` Mediator-Setup im Core — **umgesetzt**: `AddFlirty()`-Stub verdrahtet den Mediator und
 >   die Basis-Pipeline-Behaviors (Logging/Validierung); Dummy-Command läuft durch die Pipeline
 >   (Tests grün). Siehe [MEDIATOR.md](./MEDIATOR.md).
@@ -35,7 +39,7 @@ flowchart TD
     F --> E17["#17 Domain-Entities"]
     F --> E22["#22 IConditionEvaluator"]
     F --> E15["#15 NuGet-Packaging"]:::done
-    F --> E16["#16 CI-Stub"]
+    F --> E16["#16 CI-Stub"]:::done
 
     %% Strang A – Persistenz (EPIC 1)
     E17 --> E18["#18 FlirtyDbContext"]
