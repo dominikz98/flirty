@@ -16,4 +16,25 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- Gemeinsame Paket-Metadaten. Auf Nicht-Paket-Projekten inert, daher bewusst unbedingt (die
+       IsPackable-abhängige Paket-Verdrahtung steht in Directory.Build.targets, weil IsPackable erst
+       im jeweiligen .csproj gesetzt wird). -->
+  <PropertyGroup>
+    <Authors>Dominik Zettl</Authors>
+    <Product>Flirty</Product>
+    <Copyright>© 2026 Dominik Zettl</Copyright>
+    <PackageProjectUrl>https://github.com/dominikz98/flirty</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dominikz98/flirty</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <!-- SourceLink (GitHub) repo-weit; auf Nicht-Paket-Projekten harmlos. Version zentral gepinnt. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+  </ItemGroup>
+
 </Project>

@@ -1,20 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Gemeinsame Properties (TFM, Nullable, ImplicitUsings, WarnAsError) kommen aus Directory.Build.props. -->
+  <!-- Gemeinsame Properties (TFM, Nullable, WarnAsError) + Paket-Metadaten/Symbols/Version/README/Icon
+       kommen zentral aus Directory.Build.props/Directory.Build.targets. Hier nur die Paket-Identität. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>Flirty</PackageId>
     <Description>Chatbot-/Dialog-Engine für .NET: Persistenz, Branching, Loops, Resume und Trigger. ASP.NET-frei nutzbar.</Description>
-    <Authors>Flirty</Authors>
     <PackageTags>chatbot;dialog;conversation;engine;branching;mediator</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
-  </ItemGroup>
 
   <!-- Mediator (martinothamar): Abstractions als Laufzeit-Abhängigkeit, Source-Generator als
        Analyzer (PrivateAssets=all -> wird nicht als Paket-Abhängigkeit veröffentlicht).

@@ -18,4 +18,33 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
+  <!--
+    Paket-Verdrahtung nur für veröffentlichbare Packages. In .targets (nach dem .csproj), damit
+    das dort gesetzte IsPackable ausgewertet werden kann – gleiches Muster wie CS1591 oben.
+  -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <!-- Symbolpakete (.snupkg) für Debugging. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Deterministische Pfade nur im CI (SourceLink); lokal aus, damit Pack warnungsfrei bleibt. -->
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Datum-basierte NuGet-Version JJJJMM.Revision (z.B. 202604.1).
+         Revision via -p:BuildRevision=N (CI-Build-Nummer) überschreibbar. -->
+    <BuildRevision Condition="'$(BuildRevision)' == ''">1</BuildRevision>
+    <Version>$([System.DateTime]::UtcNow.ToString(yyyyMM)).$(BuildRevision)</Version>
+    <!-- AssemblyVersion/FileVersion-Segmente sind UInt16 (max 65535) -> JJJJMM passt nicht.
+         Deshalb entkoppelt zu Jahr.Monat.Revision.0 (z.B. 2026.07.1.0).
+         Monat als "MM" (nicht "M": ein einzelnes "M" ist der Standard-Spezifizierer Monat+Tag). -->
+    <AssemblyVersion>$([System.DateTime]::UtcNow.ToString(yyyy)).$([System.DateTime]::UtcNow.ToString(MM)).$(BuildRevision).0</AssemblyVersion>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
+  </PropertyGroup>
+
+  <!-- README + Icon aus dem Repo-Root ins Paket. $(MSBuildThisFileDirectory) = Root (Ablage dieser Datei). -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
 </Project>
