@@ -16,4 +16,22 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
+  <!-- Mediator (martinothamar): Abstractions als Laufzeit-Abhängigkeit, Source-Generator als
+       Analyzer (PrivateAssets=all -> wird nicht als Paket-Abhängigkeit veröffentlicht).
+       Versionen zentral in Directory.Packages.props. -->
+  <ItemGroup>
+    <PackageReference Include="Mediator.Abstractions" />
+    <PackageReference Include="Mediator.SourceGenerator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <!-- ILogger<> für das LoggingPipelineBehavior. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <!-- Interne Smoke-Test-Typen (Ping) für die Mediator-Pipeline sichtbar machen. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Flirty.Tests" />
+  </ItemGroup>
+
 </Project>

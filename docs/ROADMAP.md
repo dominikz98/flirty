@@ -14,9 +14,12 @@ GitHub-Issues (#12–#52).
 >   gepinnt** in `Directory.Packages.props`. Die Verdrahtung in die Projekte (`<PackageReference>`
 >   ohne Version) folgt in den Fach-Issues `#14` / EPIC 1 / EPIC 2.
 > - `#15` NuGet-Packaging — teilweise (Metadaten + Symbols da; Lizenz/Icon/SourceLink/MinVer offen).
->   `#14` Mediator-Setup und `#16` CI-Stub — offen.
+>   `#16` CI-Stub — offen.
+> - `#14` Mediator-Setup im Core — **umgesetzt**: `AddFlirty()`-Stub verdrahtet den Mediator und
+>   die Basis-Pipeline-Behaviors (Logging/Validierung); Dummy-Command läuft durch die Pipeline
+>   (Tests grün). Siehe [MEDIATOR.md](./MEDIATOR.md).
 >
-> **Echter Startpunkt bleibt `#14`, `#17` und `#22`** (alle noch offen).
+> **Nächster Startpunkt sind `#17` und `#22`** (beide noch offen).
 
 ---
 
@@ -26,7 +29,7 @@ GitHub-Issues (#12–#52).
 flowchart TD
     F["Bootstrap: #13 ✓ · #12 ✓"]:::done
 
-    F --> E14["#14 Mediator-Setup"]
+    F --> E14["#14 Mediator-Setup"]:::done
     F --> E17["#17 Domain-Entities"]
     F --> E22["#22 IConditionEvaluator"]
     F --> E15["#15 NuGet-Packaging"]

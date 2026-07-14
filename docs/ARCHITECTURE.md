@@ -143,7 +143,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 ## 11. Design-Notizen
 
-1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen).
+1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen). **Umgesetzt in #14:** der `AddFlirty()`-Stub verdrahtet den Mediator (`ServiceLifetime.Scoped`) und registriert die offen-generischen Basis-Behaviors `LoggingPipelineBehavior<,>` und `ValidationPipelineBehavior<,>` (manuelle Registrierung – martinothamar-Vorgabe). Der Source-Generator läuft im Core, daher muss der `AddMediator`-Aufruf im Core liegen. Details siehe [MEDIATOR.md](./MEDIATOR.md).
 2. **ASP.NET-frei im Core**: reine Console-/Worker-Nutzung möglich.
 3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IConditionEvaluator` (Alternative: NCalc).
 4. **Dialog-Versionierung**: Sessions pinnen `DialogVersion` → Editieren publizierter Dialoge bricht laufende Sessions nicht.
@@ -154,7 +154,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 Doku ist **Definition-of-Done jedes Issues**:
 - XML-Doc-Kommentare auf allen public Typen/Membern; `GenerateDocumentationFile` + **CS1591 als Error** (zentral in `Directory.Build.props`).
-- `docs/`-Guides: `ARCHITECTURE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
+- `docs/`-Guides: `ARCHITECTURE.md`, `MEDIATOR.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
 - ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
 
