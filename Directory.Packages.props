@@ -32,6 +32,10 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
   </ItemGroup>
 
-  <!-- Microsoft.SourceLink.GitHub folgt mit dem Packaging-Issue #15. -->
+  <!-- SourceLink: bettet GitHub-Quellverweise für Debugging ein (Packaging-Issue #15).
+       Verdrahtung repo-weit in Directory.Build.props (PrivateAssets=all). -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  </ItemGroup>
 
 </Project>

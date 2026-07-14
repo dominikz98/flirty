@@ -13,8 +13,10 @@ GitHub-Issues (#12–#52).
 >   **Kern-Package-Versionen (Mediator, EF Core 10 + Provider, DynamicExpresso) sind jetzt zentral
 >   gepinnt** in `Directory.Packages.props`. Die Verdrahtung in die Projekte (`<PackageReference>`
 >   ohne Version) folgt in den Fach-Issues `#14` / EPIC 1 / EPIC 2.
-> - `#15` NuGet-Packaging — teilweise (Metadaten + Symbols da; Lizenz/Icon/SourceLink/MinVer offen).
->   `#16` CI-Stub — offen.
+> - `#15` NuGet-Packaging — **erledigt**: vollständige Metadaten inkl. **MIT-Lizenz**, **Icon**,
+>   **SourceLink** und Symbolpaketen (`snupkg`). Versionierung **datumsbasiert** (`JJJJMM.Revision`,
+>   z.B. `202604.1`) statt MinVer. `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`).
+>   Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md). `#16` CI-Stub — offen.
 > - `#14` Mediator-Setup im Core — **umgesetzt**: `AddFlirty()`-Stub verdrahtet den Mediator und
 >   die Basis-Pipeline-Behaviors (Logging/Validierung); Dummy-Command läuft durch die Pipeline
 >   (Tests grün). Siehe [MEDIATOR.md](./MEDIATOR.md).
@@ -32,7 +34,7 @@ flowchart TD
     F --> E14["#14 Mediator-Setup"]:::done
     F --> E17["#17 Domain-Entities"]
     F --> E22["#22 IConditionEvaluator"]
-    F --> E15["#15 NuGet-Packaging"]
+    F --> E15["#15 NuGet-Packaging"]:::done
     F --> E16["#16 CI-Stub"]
 
     %% Strang A – Persistenz (EPIC 1)

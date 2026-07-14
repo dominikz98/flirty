@@ -148,7 +148,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IConditionEvaluator` (Alternative: NCalc).
 4. **Dialog-Versionierung**: Sessions pinnen `DialogVersion` → Editieren publizierter Dialoge bricht laufende Sessions nicht.
 5. **Loops = Branching + Marker**: kein separater Runtime-Sonderpfad.
-6. **NuGet-Packaging**: `Flirty` + `Flirty.AspNetCore` mit vollständigen Metadaten, SourceLink, Symbols; übrige Projekte `IsPackable=false`.
+6. **NuGet-Packaging**: `Flirty` + `Flirty.AspNetCore` mit vollständigen Metadaten (MIT-Lizenz, Icon, README), SourceLink und Symbolpaketen (`snupkg`); übrige Projekte `IsPackable=false`. Paketversion **datumsbasiert** (`JJJJMM.Revision`, z.B. `202604.1`), Assembly-Version davon entkoppelt (`Jahr.Monat.Revision`, UInt16-Grenze). Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
 ## 12. Dokumentation („alles dokumentiert")
 
