@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # MSBuild liest Env-Variablen als Properties -> ueberschreibt die Default-Revision (1)
+  # aus Directory.Build.targets konsistent fuer build UND pack (Assembly- + Paketversion gleich).
+  BuildRevision: ${{ github.run_number }}
+
+jobs:
+  build:
+    name: build · test · pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (aus global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Flirty.sln
+
+      - name: Build (Release)
+        run: dotnet build Flirty.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test Flirty.sln -c Release --no-build
+
+      - name: Pack (beide NuGet-Pakete)
+        run: dotnet pack Flirty.sln -c Release --no-build -o artifacts
+
+      - name: Upload NuGet-Artefakte
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
