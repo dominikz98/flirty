@@ -26,6 +26,10 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <!-- Branching-/Expression-Engine (Default-Evaluator) -->
     <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
+    <!-- Microsoft.Extensions (Logging/DI) – an die .NET-10-Linie (EF Core 10.0.9) angeglichen. -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
   </ItemGroup>
 
   <!-- Microsoft.SourceLink.GitHub folgt mit dem Packaging-Issue #15. -->
