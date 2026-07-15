@@ -1,3 +1,5 @@
+using Flirty.Hosting;
+using Flirty.Persistence;
 using Flirty.Pipeline;
 using Mediator;
 
@@ -17,8 +19,10 @@ public static class FlirtyServiceCollectionExtensions
     /// </summary>
     /// <remarks>
     /// Stub aus Issue #14: stellt die minimale Mediator-Verdrahtung des Cores bereit.
-    /// Issue #34 erweitert diese Registrierung zum vollständigen <c>AddFlirty(o =&gt; …)</c>
-    /// (Provider-Wahl, Auto-Migration, Webhooks, austauschbarer Condition-Evaluator).
+    /// Der Options-Overload <see cref="AddFlirty(IServiceCollection, Action{FlirtyOptions})"/> (Issue #20)
+    /// baut hierauf auf und aktiviert bei <c>o.ApplyMigrations()</c> die Auto-Migration. Issue #34 erweitert
+    /// <see cref="FlirtyOptions"/> additiv um Provider-Wahl (inkl. <see cref="FlirtyDbContext"/>-Registrierung),
+    /// Webhooks und austauschbaren Condition-Evaluator.
     /// Offen-generische Pipeline-Behaviors werden bei Mediator bewusst manuell registriert.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
@@ -31,6 +35,38 @@ public static class FlirtyServiceCollectionExtensions
 
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(LoggingPipelineBehavior<,>));
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registriert die Flirty-Engine wie <see cref="AddFlirty(IServiceCollection)"/> und wertet zusätzlich
+    /// die über <paramref name="configure"/> gesetzten <see cref="FlirtyOptions"/> aus.
+    /// </summary>
+    /// <remarks>
+    /// In Issue #20 steuert die einzige Option <see cref="FlirtyOptions.ApplyMigrations"/>, ob der
+    /// <see cref="FlirtyMigrationHostedService"/> registriert wird (Auto-Migration beim Host-Start).
+    /// Voraussetzung dafür ist ein bereits registrierter <see cref="FlirtyDbContext"/> (Provider +
+    /// <c>MigrationsAssembly</c>); die komfortable Provider-Wahl <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c>
+    /// folgt in #34.
+    /// </remarks>
+    /// <param name="services">Die zu erweiternde Service-Collection.</param>
+    /// <param name="configure">Delegat zum Konfigurieren der <see cref="FlirtyOptions"/>.</param>
+    /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
+    public static IServiceCollection AddFlirty(this IServiceCollection services, Action<FlirtyOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        services.AddFlirty();
+
+        var options = new FlirtyOptions();
+        configure(options);
+
+        if (options.MigrationsEnabled)
+        {
+            services.AddHostedService<FlirtyMigrationHostedService>();
+        }
 
         return services;
     }

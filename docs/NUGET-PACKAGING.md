@@ -77,6 +77,28 @@ Für die übrigen vier Projekte entsteht nichts.
 > Hinweis: `TreatWarningsAsErrors=true` gilt repo-weit und greift auch bei NuGet-Pack-Warnungen
 > (NU5xxx). Lizenz, Icon und README sind deshalb vollständig gesetzt – fehlten sie, bräche `pack`.
 
+## Mitgebündelte Migrations-DLLs (#20)
+
+Das `Flirty`-Paket liefert die drei provider-getrennten Migrations-Assemblies mit, damit
+Paket-Konsumenten via `o.ApplyMigrations()` auto-migrieren können, ohne die (In-Repo-,
+`IsPackable=false`) Migrations-Projekte selbst zu referenzieren:
+
+```
+lib/net10.0/Flirty.dll
+lib/net10.0/Flirty.Migrations.Sqlite.dll
+lib/net10.0/Flirty.Migrations.PostgreSql.dll
+lib/net10.0/Flirty.Migrations.SqlServer.dll
+```
+
+Ein `ProjectReference` von `Flirty` auf die Migrations-Projekte ist unmöglich (sie referenzieren
+`Flirty` bereits → Build-Graph-Zyklus, auch mit `ReferenceOutputAssembly=false`). Deshalb baut ein
+Pack-Target in `src/Flirty/Flirty.csproj` die drei Projekte per `<MSBuild>`-Task on-demand (nicht Teil
+des statischen Build-Graphen) und speist ihre Output-DLLs über
+`TargetsForTfmSpecificBuildOutput` → `BuildOutputInPackage` nach `lib/<tfm>/`. `Configuration` wird
+explizit durchgereicht, damit im Release-Paket keine Debug-DLLs landen. Zur Laufzeit lädt EF Core die
+per Name gewählte Assembly (`MigrationsAssembly("Flirty.Migrations.<Provider>")`) aus dem
+Probing-Pfad des Konsumenten. Fachlicher Hintergrund: [PERSISTENCE.md](./PERSISTENCE.md).
+
 ## SourceLink & Debugging
 
 `Microsoft.SourceLink.GitHub` bettet die GitHub-Quellverweise ein; mit `PublishRepositoryUrl` und

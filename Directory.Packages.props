@@ -41,10 +41,14 @@
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Branching-/Expression-Engine (Default-Evaluator) -->
     <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
-    <!-- Microsoft.Extensions (Logging/DI) – an die .NET-10-Linie (EF Core 10.0.9) angeglichen. -->
+    <!-- Microsoft.Extensions (Logging/DI/Hosting) – an die .NET-10-Linie (EF Core 10.0.9) angeglichen. -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <!-- IHostedService + AddHostedService für die Auto-Migration (#20, FlirtyMigrationHostedService).
+         Wird NICHT transitiv über EF Core gezogen, daher explizit. Echte Laufzeit-Abhängigkeit des
+         Flirty-Pakets. -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
   </ItemGroup>
 
   <!-- SourceLink: bettet GitHub-Quellverweise für Debugging ein (Packaging-Issue #15).

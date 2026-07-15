@@ -37,8 +37,9 @@ new DbContextOptionsBuilder<FlirtyDbContext>()
     .Options;
 ```
 
-Diese Projekte sind `IsPackable=false` (nur In-Repo, für `dotnet ef` und Tests). Das Bündeln der
-Migrationen in das `Flirty`-NuGet-Paket ist Teil der Auto-Migration in **#20**.
+Diese Projekte sind `IsPackable=false` (nur In-Repo, für `dotnet ef` und Tests). Ihre DLLs werden
+jedoch beim Packen ins `Flirty`-NuGet-Paket **mitgebündelt** (siehe [Auto-Migration](#auto-migration-beim-start-20)),
+damit auch reine Paket-Konsumenten migrieren können.
 
 ## Projekt-Layout
 
@@ -78,6 +79,41 @@ dotnet ef migrations script \
   --project src/Flirty.Migrations.PostgreSql \
   --startup-project src/Flirty.Migrations.PostgreSql --idempotent
 ```
+
+## Auto-Migration beim Start (#20)
+
+Statt `Database.Migrate()` manuell aufzurufen, kann Flirty die ausstehenden Migrationen beim
+**Host-Start** automatisch anwenden. Aktiviert wird das über die Options-API:
+
+```csharp
+services.AddDbContext<FlirtyDbContext>(o =>
+    o.UseSqlite(connectionString, sqlite => sqlite.MigrationsAssembly("Flirty.Migrations.Sqlite")));
+services.AddFlirty(o => o.ApplyMigrations());
+```
+
+`o.ApplyMigrations()` registriert den `FlirtyMigrationHostedService` – ein `IHostedService`, das in
+`StartAsync` einen eigenen DI-Scope öffnet, den `FlirtyDbContext` auflöst und `Database.MigrateAsync()`
+ausführt. Bewusst `IHostedService` (nicht `BackgroundService`): der Host **awaited** alle `StartAsync`,
+bevor er als gestartet gilt (bei ASP.NET Core, bevor Kestrel Requests annimmt). So ist das Schema vor
+dem ersten Request migriert, und ein Migrationsfehler bricht den Start fail-fast ab. Der DbContext wird
+per `IServiceScopeFactory` aufgelöst (nicht injiziert), weil der Hosted Service Singleton, der Context
+aber scoped ist.
+
+> `o.ApplyMigrations()` setzt einen registrierten `FlirtyDbContext` inkl. Provider und
+> `MigrationsAssembly` voraus. Die komfortable Provider-Wahl `o.UseSqlite/UsePostgreSql/UseSqlServer`
+> (die den Context selbst registriert) folgt in **#34**; bis dahin wird der Context wie oben per
+> `AddDbContext` verdrahtet.
+
+### Bündelung der Migrations-DLLs ins NuGet-Paket
+
+Damit ein Konsument des `Flirty`-Pakets auto-migrieren kann, müssen die drei Migrations-Assemblies mit
+ausgeliefert werden. `Flirty` kann sie aber **nicht** per `ProjectReference` einbinden: die
+Migrations-Projekte referenzieren bereits `Flirty`, ein Rückverweis (auch mit
+`ReferenceOutputAssembly=false`) wäre ein Build-Graph-Zyklus. Deshalb baut ein Pack-Target in
+`Flirty.csproj` die drei Projekte per `<MSBuild>`-Task (nicht Teil des statischen Build-Graphen) und legt
+ihre DLLs über `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage` nach `lib/net10.0/`. Zur Laufzeit
+lädt EF Core die per Name gewählte Migrations-Assembly (`MigrationsAssembly("Flirty.Migrations.<Provider>")`)
+aus dem Probing-Pfad des Konsumenten. Details zum Packaging: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
 ## Test-Strategie
 
@@ -119,6 +155,8 @@ Security-Advisories (NU1903) einschleppen.
 ## Abgrenzung
 
 - **Auto-Migration** (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) und das **Bündeln** der
-  Migrations-Assemblies ins NuGet-Paket: **#20**.
-- **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)`: **#34**.
+  Migrations-Assemblies ins NuGet-Paket: **#20** – umgesetzt (siehe oben). Das minimale
+  `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
+- **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
+  `FlirtyDbContext`-Registrierung, Webhooks, `UseConditionEvaluator`): **#34**.
 - Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md).
