@@ -20,18 +20,31 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
-  <!-- SQLite als reiner Test-Host für FlirtyDbContext-Tests (in-memory, #18).
-       Kein Provider im Core-Projekt selbst – das ist #19. Version zentral. -->
+  <!-- SQLite als Test-Host für die FlirtyDbContext-Tests (in-memory, #18); der Provider kommt seit
+       #19 auch transitiv über Flirty, die explizite Referenz bleibt zur Klarheit. Version zentral. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
+  <!-- Testcontainers: reale PostgreSQL-/SQL-Server-Datenbanken für die Provider-Migrationstests (#19).
+       Brauchen ein laufendes Docker; ohne Docker werden die betroffenen Tests zur Laufzeit übersprungen. -->
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Xunit.SkippableFact" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Core + die drei provider-getrennten Migrations-Assemblies (#19): Letztere liefern die
+       InitialCreate-Migrationen, die die Tests via Database.Migrate() gegen jeden Provider anwenden. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flirty\Flirty.csproj" />
+    <ProjectReference Include="..\..\src\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Flirty.Migrations.PostgreSql\Flirty.Migrations.PostgreSql.csproj" />
+    <ProjectReference Include="..\..\src\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
   </ItemGroup>
 
 </Project>

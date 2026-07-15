@@ -69,8 +69,8 @@ Loop-Iteration); außerhalb einer Schleife sind beide `null`.
 Der `FlirtyDbContext` (Namespace `Flirty.Persistence`, Ordner `src/Flirty/Persistence/`) ist
 **provider-agnostisch**: er besitzt nur den Options-Konstruktor
 `FlirtyDbContext(DbContextOptions<FlirtyDbContext>)` und legt keinen Provider fest. Die
-Provider-Wahl (SQLite/PostgreSQL/SQL Server) und die Migrationen erfolgen in Issue #19
-(vgl. [ARCHITECTURE.md](./ARCHITECTURE.md) §8).
+Provider-Wahl (SQLite/PostgreSQL/SQL Server) und die Migrationen je Provider sind in Issue #19
+umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.md](./ARCHITECTURE.md) §8).
 
 - **DbSets nur für die Aggregat-Roots** – `Dialogs` und `DialogSessions`. Die Kind-Entities werden
   über ihre Navigationen bzw. `Set<T>()` erreicht (spiegelt die Aggregatgrenzen wider).
@@ -82,7 +82,7 @@ Provider-Wahl (SQLite/PostgreSQL/SQL Server) und die Migrationen erfolgen in Iss
 - **JSON-Spalten = einfache Textspalten** – `SessionAnswer.Value`, `TriggerDefinition.Config`
   (Pflicht) und `Question.ValidationRules` (optional) tragen anwendungsseitig serialisiertes JSON und
   werden als unbegrenzte Textspalten (ohne `MaxLength`) gespeichert. Provider-native `json`/`jsonb`-
-  Typen sind bewusst nicht gesetzt (provider-spezifisch → #19).
+  Typen sind bewusst nicht gesetzt (kleinster gemeinsamer Nenner aller Provider; bestätigt in #19).
 - **Skalare `Guid`-Verweise ohne Fremdschlüssel** – die oben unter *Bewusst ohne Navigation*
   gelisteten Verweise bleiben einfache Spalten (keine Relationship, kein Shadow-FK).
 - **Kaskadierendes Löschen** – innerhalb beider Aggregate (`Dialog` → Questions/Options/Transitions/
@@ -107,5 +107,5 @@ indizierbar bleiben. **Kein** eindeutiger Index über `SessionAnswer(SessionId, 
 Loop-Iterationen erlauben mehrere Antworten pro Frage. Eindeutige Indizes werden generell nicht über
 `null`-fähige Spalten gelegt (divergente Null-Semantik zwischen SQL Server und SQLite/PostgreSQL).
 
-> **Zeitstempel UTC-normalisiert speichern.** Der PostgreSQL-Provider (Npgsql, ab #19) mappt
+> **Zeitstempel UTC-normalisiert speichern.** Der PostgreSQL-Provider (Npgsql) mappt
 > `DateTimeOffset` auf `timestamptz` und verlangt Offset == UTC. Zeitstempel daher als UTC ablegen.
