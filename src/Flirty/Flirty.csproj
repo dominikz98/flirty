@@ -44,7 +44,12 @@
     (auch mit ReferenceOutputAssembly=false) wäre ein Build-Graph-Zyklus. Deshalb baut ein <MSBuild>-Task
     (nicht Teil des statischen Build-Graphen) die Projekte on-demand und legt ihre Output-DLLs über
     TargetsForTfmSpecificBuildOutput nach lib/<tfm>/. Configuration wird explizit durchgereicht, sonst
-    landeten Debug-DLLs im Release-Paket. Siehe docs/PERSISTENCE.md und docs/NUGET-PACKAGING.md.
+    landeten Debug-DLLs im Release-Paket. RemoveProperties="NoBuild" ist nötig, weil die CI im
+    NoBuild-Modus packt (dotnet pack ohne Rebuild): die globale NoBuild=true-Property würde sonst an
+    diesen Task weitervererbt und der Build-Target-Aufruf auf den Migrations-Projekten mit NETSDK1085
+    abbrechen. Ohne NoBuild ist der Aufruf ein inkrementeller No-op (die Projekte sind durch den
+    vorherigen Solution-Build bereits aktuell) und liefert nur die Output-Pfade. Siehe
+    docs/PERSISTENCE.md und docs/NUGET-PACKAGING.md.
   -->
   <ItemGroup>
     <FlirtyMigrationProject Include="..\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
@@ -59,7 +64,8 @@
   <Target Name="IncludeFlirtyMigrationAssemblies">
     <MSBuild Projects="@(FlirtyMigrationProject)"
              Targets="Build"
-             Properties="Configuration=$(Configuration)">
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="NoBuild">
       <Output TaskParameter="TargetOutputs" ItemName="_FlirtyMigrationDll" />
     </MSBuild>
     <ItemGroup>
