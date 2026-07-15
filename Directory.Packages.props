@@ -11,6 +11,13 @@
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- Bedingtes Überspringen zur Laufzeit (xUnit v2 hat kein Assert.Skip): die Docker-abhängigen
+         Provider-Tests (#19) werden ohne Docker sauber übersprungen statt zu scheitern. -->
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
+    <!-- Testcontainers: reale PostgreSQL-/SQL-Server-Datenbanken für die Provider-Migrationstests
+         (#19, "DB wird gegen jeden der drei Provider erzeugt"). Nur im Testprojekt, brauchen Docker. -->
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.MsSql" Version="4.13.0" />
   </ItemGroup>
 
   <!-- Kern-Abhängigkeiten (zentral gepinnt; Verdrahtung per
@@ -24,6 +31,9 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Design-Time-Tooling (dotnet ef): Erzeugen der Migrationen je Provider (#19).
+         Nur als PrivateAssets=all in den Migrations-Projekten referenziert. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
     <!-- Natives SQLite-Binary (transitiv über EF Core Sqlite, nur im Test-Host).
          Auf die gepatchte, ABI-kompatible Version gehoben: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11
          hat eine High-Severity-Schwachstelle (GHSA-2m69-gcr7-jv3q); NU1903 bricht sonst den Build

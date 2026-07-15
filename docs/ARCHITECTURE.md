@@ -105,8 +105,10 @@ Commands direkt per `ISender`.
 ## 8. Persistenz & Migrationen
 
 - **`FlirtyDbContext`** (EF Core 10), Provider-Wahl via Options.
-- **Migrationen pro Provider** (EF-Anforderung), getrennte Migrations-Ordner/-Assemblies.
-- **Auto-Apply** via `o.ApplyMigrations()` → `FlirtyMigrationHostedService` ruft beim Start `Database.MigrateAsync()`.
+- **Migrationen pro Provider** (EF-Anforderung): getrennte Migrations-Assemblies
+  `Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`; zur Laufzeit über `MigrationsAssembly` selektiert
+  (umgesetzt in #19, siehe [PERSISTENCE.md](./PERSISTENCE.md) inkl. [ADR 0001](./adr/0001-migrationen-pro-provider.md)).
+- **Auto-Apply** via `o.ApplyMigrations()` → `FlirtyMigrationHostedService` ruft beim Start `Database.MigrateAsync()` (#20).
 - **Multi-DB im Designer**: Connection-Profile (Provider + ConnectionString) lokal verwaltet, `IDbContextFactory` öffnet zur Laufzeit gegen das gewählte Profil.
 
 ## 9. Integrations-API
@@ -154,7 +156,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 Doku ist **Definition-of-Done jedes Issues**:
 - XML-Doc-Kommentare auf allen public Typen/Membern; `GenerateDocumentationFile` + **CS1591 als Error** (zentral in `Directory.Build.props`).
-- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
+- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
 - ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
 

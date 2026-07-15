@@ -13,9 +13,6 @@ namespace Flirty.Tests.Persistence;
 /// </summary>
 public sealed class FlirtyDbContextTests : IDisposable
 {
-    // Deterministischer, UTC-normalisierter Zeitstempel (Npgsql verlangt in #19 Offset == UTC).
-    private static readonly DateTimeOffset SampleTime = new(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
-
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
@@ -48,7 +45,7 @@ public sealed class FlirtyDbContextTests : IDisposable
 
         using (var context = CreateContext())
         {
-            context.Dialogs.Add(BuildFullDialog(dialogId, out _));
+            context.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out _));
             context.SaveChanges();
         }
 
@@ -89,19 +86,19 @@ public sealed class FlirtyDbContextTests : IDisposable
                 ExternalUserKey = "user-42",
                 Status = SessionStatus.InProgress,
                 CurrentQuestionId = questionId,
-                StartedAt = SampleTime,
+                StartedAt = TestDialogFactory.SampleTime,
                 Answers =
                 {
                     new SessionAnswer
                     {
                         Id = Guid.NewGuid(), SessionId = sessionId, QuestionId = questionId,
-                        Value = "\"A\"", AnsweredAt = SampleTime, Sequence = 0,
+                        Value = "\"A\"", AnsweredAt = TestDialogFactory.SampleTime, Sequence = 0,
                         LoopInstanceId = loopInstanceId, IterationIndex = 0,
                     },
                     new SessionAnswer
                     {
                         Id = Guid.NewGuid(), SessionId = sessionId, QuestionId = questionId,
-                        Value = "\"B\"", AnsweredAt = SampleTime, Sequence = 1,
+                        Value = "\"B\"", AnsweredAt = TestDialogFactory.SampleTime, Sequence = 1,
                         LoopInstanceId = loopInstanceId, IterationIndex = 1,
                     },
                 },
@@ -140,7 +137,7 @@ public sealed class FlirtyDbContextTests : IDisposable
 
         using (var context = CreateContext())
         {
-            var dialog = BuildFullDialog(dialogId, out var questionId);
+            var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
             dialog.Questions.Single(question => question.Id == questionId).Type = QuestionType.Number;
             context.Dialogs.Add(dialog);
             context.SaveChanges();
@@ -167,7 +164,7 @@ public sealed class FlirtyDbContextTests : IDisposable
 
         using (var context = CreateContext())
         {
-            var dialog = BuildFullDialog(dialogId, out var questionId);
+            var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
             dialog.Questions.Single(question => question.Id == questionId).ValidationRules = validationJson;
             dialog.Triggers.Single().Config = triggerJson;
             context.Dialogs.Add(dialog);
@@ -189,15 +186,15 @@ public sealed class FlirtyDbContextTests : IDisposable
     {
         using var context = CreateContext();
 
-        context.Dialogs.Add(NewDialog("duplicate", version: 1, name: "Erster"));
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "Erster"));
         context.SaveChanges();
 
         // Andere Version desselben Key ist erlaubt.
-        context.Dialogs.Add(NewDialog("duplicate", version: 2, name: "Zweiter"));
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 2, name: "Zweiter"));
         context.SaveChanges();
 
         // Gleicher Key UND gleiche Version verletzt den Unique-Index.
-        context.Dialogs.Add(NewDialog("duplicate", version: 1, name: "Kollision"));
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "Kollision"));
         Assert.Throws<DbUpdateException>(() => context.SaveChanges());
     }
 
@@ -208,7 +205,7 @@ public sealed class FlirtyDbContextTests : IDisposable
 
         using (var context = CreateContext())
         {
-            context.Dialogs.Add(BuildFullDialog(dialogId, out _));
+            context.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out _));
             context.SaveChanges();
         }
 
@@ -249,80 +246,4 @@ public sealed class FlirtyDbContextTests : IDisposable
 
     private static Type? ProviderTypeOf<TEntity>(FlirtyDbContext context, string propertyName)
         => context.Model.FindEntityType(typeof(TEntity))!.FindProperty(propertyName)!.GetProviderClrType();
-
-    private static Dialog NewDialog(string key, int version, string name) => new()
-    {
-        Id = Guid.NewGuid(),
-        Key = key,
-        Name = name,
-        Version = version,
-        CreatedAt = SampleTime,
-        UpdatedAt = SampleTime,
-    };
-
-    /// <summary>
-    /// Baut ein vollständiges Dialog-Aggregat mit je einem Kind pro Navigation (Frage mit zwei
-    /// Optionen, Übergang, Schleife, Trigger). Liefert die Id der einzigen Frage über
-    /// <paramref name="questionId"/> zurück.
-    /// </summary>
-    private static Dialog BuildFullDialog(Guid dialogId, out Guid questionId)
-    {
-        questionId = Guid.NewGuid();
-        var qId = questionId;
-
-        return new Dialog
-        {
-            Id = dialogId,
-            Key = "onboarding",
-            Name = "Onboarding",
-            Version = 1,
-            IsPublished = true,
-            StartQuestionId = qId,
-            CreatedAt = SampleTime,
-            UpdatedAt = SampleTime,
-            Questions =
-            {
-                new Question
-                {
-                    Id = qId,
-                    DialogId = dialogId,
-                    Key = "role",
-                    Text = "Welche Rolle?",
-                    Type = QuestionType.SingleChoice,
-                    Order = 0,
-                    IsRequired = true,
-                    ValidationRules = "{\"maxLength\":50}",
-                    Options =
-                    {
-                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = qId, Key = "dev", Label = "Entwickler", Value = "dev", Order = 0 },
-                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = qId, Key = "pm", Label = "Product Manager", Value = "pm", Order = 1 },
-                    },
-                },
-            },
-            Transitions =
-            {
-                new Transition
-                {
-                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = qId,
-                    TargetQuestionId = Guid.NewGuid(), Priority = 0, IsDefault = true,
-                },
-            },
-            Loops =
-            {
-                new LoopDefinition
-                {
-                    Id = Guid.NewGuid(), DialogId = dialogId, CollectionKey = "positions",
-                    EntryQuestionId = qId, BreakingQuestionId = Guid.NewGuid(),
-                },
-            },
-            Triggers =
-            {
-                new TriggerDefinition
-                {
-                    Id = Guid.NewGuid(), DialogId = dialogId, Scope = TriggerScope.OnDialogCompleted,
-                    Kind = TriggerKind.Webhook, Config = "{\"url\":\"https://example.test/hook\"}",
-                },
-            },
-        };
-    }
 }

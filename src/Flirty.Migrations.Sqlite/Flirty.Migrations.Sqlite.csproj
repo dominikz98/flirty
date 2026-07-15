@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Migrations-Assembly für den SQLite-Provider (#19). EF Core ordnet Migrationen dem
+    FlirtyDbContext provider-unabhängig zu; damit alle drei Provider koexistieren können, liegt
+    jede Provider-Migration in einem eigenen Assembly (ARCHITECTURE.md §8, docs/PERSISTENCE.md).
+    IsPackable=false (aus Directory.Build.props) – die NuGet-Bündelung der Migrationen folgt in #20.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Flirty.Migrations.Sqlite</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bringt FlirtyDbContext + die drei Provider transitiv (Flirty referenziert sie ungeschützt). -->
+    <ProjectReference Include="..\Flirty\Flirty.csproj" />
+    <!-- Design-Time-Tooling für `dotnet ef`; nicht laufzeitrelevant, daher PrivateAssets=all. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

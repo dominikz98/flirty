@@ -1,0 +1,124 @@
+# Persistenz: Provider & Migrationen
+
+Wie Flirty EF Core an **SQLite**, **PostgreSQL** und **SQL Server** anbindet und die Migrationen je
+Provider verwaltet. Umgesetzt in Issue **#19**. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §8,
+Modell-Details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
+
+## Überblick
+
+Der Kern (`src/Flirty`) bleibt **provider-agnostisch**: `FlirtyDbContext` besitzt nur den
+Options-Konstruktor und legt keinen Provider fest. Alle drei EF-Core-Provider werden mit dem
+`Flirty`-NuGet-Paket ausgeliefert; der Konsument wählt zur Laufzeit einen davon aus.
+
+| Provider | NuGet-Paket | Migrations-Assembly |
+|---|---|---|
+| SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | `Flirty.Migrations.Sqlite` |
+| PostgreSQL | `Npgsql.EntityFrameworkCore.PostgreSQL` | `Flirty.Migrations.PostgreSql` |
+| SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | `Flirty.Migrations.SqlServer` |
+
+Die Provider-`Use…`-Methoden (`UseSqlite`, `UseNpgsql`, `UseSqlServer`) stammen aus den
+EF-Core-Provider-Paketen selbst. Die komfortable Options-API `AddFlirty(o => o.UseSqlite(…))` samt
+Auto-Migration folgt in **#34** (Provider-Wahl) bzw. **#20** (`o.ApplyMigrations()` →
+`FlirtyMigrationHostedService`).
+
+## Warum getrennte Migrations-Assemblies?
+
+EF Core ordnet Migrationen dem `FlirtyDbContext` **provider-unabhängig** zu und scannt beim
+Anwenden das gesamte Migrations-Assembly. Lägen die `InitialCreate`-Migrationen aller drei Provider
+im selben Assembly, käme es zu doppelten Migrations-IDs, und `Database.Migrate()` würde versuchen,
+provider-fremdes SQL (z. B. SQLite-DDL gegen PostgreSQL) anzuwenden.
+
+Deshalb liegt **jede Provider-Migration in einem eigenen Assembly** (`src/Flirty.Migrations.<Provider>`).
+Zur Laufzeit wählt der Aufruf die passende Migrations-Assembly:
+
+```csharp
+new DbContextOptionsBuilder<FlirtyDbContext>()
+    .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly("Flirty.Migrations.PostgreSql"))
+    .Options;
+```
+
+Diese Projekte sind `IsPackable=false` (nur In-Repo, für `dotnet ef` und Tests). Das Bündeln der
+Migrationen in das `Flirty`-NuGet-Paket ist Teil der Auto-Migration in **#20**.
+
+## Projekt-Layout
+
+```
+src/
+├─ Flirty                     Core: FlirtyDbContext + Konfigurationen, referenziert alle 3 Provider
+├─ Flirty.Migrations.Sqlite       InitialCreate + SqliteDesignTimeDbContextFactory
+├─ Flirty.Migrations.PostgreSql   InitialCreate + PostgreSqlDesignTimeDbContextFactory
+└─ Flirty.Migrations.SqlServer    InitialCreate + SqlServerDesignTimeDbContextFactory
+```
+
+Jedes Migrations-Projekt referenziert `Flirty` (bringt Context + Provider transitiv) und
+`Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`). Eine `internal sealed`
+`IDesignTimeDbContextFactory<FlirtyDbContext>` konfiguriert den jeweiligen Provider samt
+`MigrationsAssembly`, damit `dotnet ef` den Context ohne laufende App bauen kann (der
+Connection-String darin ist ein Platzhalter – `migrations add`/`script` verbinden nicht).
+
+## Migrationen erzeugen
+
+`dotnet ef` ist als lokales Tool gepinnt (`.config/dotnet-tools.json`); einmalig
+`dotnet tool restore` genügt. Eine neue/aktualisierte Migration wird **für jeden Provider einzeln**
+erzeugt (gleicher Name, damit die Sets synchron bleiben):
+
+```bash
+dotnet ef migrations add InitialCreate \
+  --project src/Flirty.Migrations.Sqlite \
+  --startup-project src/Flirty.Migrations.Sqlite \
+  --context FlirtyDbContext --output-dir Migrations
+# analog für Flirty.Migrations.PostgreSql und Flirty.Migrations.SqlServer
+```
+
+Nach jeder Modelländerung müssen **alle drei** Sets neu erzeugt werden. Das SQL je Provider lässt
+sich ohne Datenbank prüfen (SQLite unterstützt kein `--idempotent`):
+
+```bash
+dotnet ef migrations script \
+  --project src/Flirty.Migrations.PostgreSql \
+  --startup-project src/Flirty.Migrations.PostgreSql --idempotent
+```
+
+## Test-Strategie
+
+Akzeptanzkriterium: *„DB wird gegen jeden der drei Provider erzeugt."* Die Tests (`tests/Flirty.Tests`,
+Ordner `Persistence/`) wenden je Provider die `InitialCreate`-Migration via `Database.Migrate()` an
+und prüfen einen vollständigen Aggregat-Round-Trip (`ProviderMigrationAssertions`,
+Beispieldaten aus `TestDialogFactory`):
+
+- **SQLite** – reale in-memory-DB über eine offen gehaltene `SqliteConnection` (keine externe
+  Abhängigkeit, läuft überall).
+- **PostgreSQL / SQL Server** – reale Datenbanken über **Testcontainers** (`Testcontainers.PostgreSql`,
+  `Testcontainers.MsSql`). Diese benötigen ein laufendes **Docker**. Fehlt Docker (lokaler Lauf ohne
+  Docker), werden die beiden Tests via `[SkippableFact]` + `Skip.IfNot(DockerAvailability.IsAvailable, …)`
+  sauber **übersprungen** statt zu scheitern. Auf CI (`ubuntu-latest`) ist Docker vorhanden, sodass beide
+  Provider dort real getestet werden.
+
+## Provider-spezifische Fallstricke
+
+- **Zeitstempel UTC.** Npgsql mappt `DateTimeOffset` auf `timestamptz` und verlangt Offset == UTC.
+  Timestamps daher stets UTC-normalisiert ablegen (siehe `TestDialogFactory.SampleTime`).
+- **Index-Schlüssellänge 256.** Fachliche Schlüssel (`Dialog.Key`, `Question.Key`, …) sind auf 256
+  Zeichen begrenzt, weil SQL Server `nvarchar(max)` nicht als Indexschlüssel zulässt.
+- **JSON als Textspalten.** `Value`/`Config`/`ValidationRules` werden als unbegrenzte Textspalten
+  gespeichert – bewusst **ohne** provider-native `json`/`jsonb`-Typen, damit die Konfiguration der
+  kleinste gemeinsame Nenner aller Provider bleibt.
+- **Keine Unique-Indizes über `null`-fähige Spalten** – divergente Null-Semantik zwischen SQL Server
+  und SQLite/PostgreSQL.
+- **`DateTimeOffset`-Speicherung** unterscheidet sich je Provider: SQL Server `datetimeoffset`,
+  PostgreSQL `timestamp with time zone`, SQLite `TEXT`. Der obige UTC-Grundsatz hält das konsistent.
+
+## Paketversionen (Central Package Management)
+
+Alle Versionen sind zentral in `Directory.Packages.props` gepinnt: die drei EF-Core-10-Provider
+(`10.0.9` bzw. Npgsql `10.0.3`), `Microsoft.EntityFrameworkCore.Design` (`10.0.9`) sowie die
+Test-Abhängigkeiten `Testcontainers.PostgreSql`/`Testcontainers.MsSql` und `Xunit.SkippableFact`.
+`TreatWarningsAsErrors=true` gilt repo-weit – neue transitive Pakete dürfen keine
+Security-Advisories (NU1903) einschleppen.
+
+## Abgrenzung
+
+- **Auto-Migration** (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) und das **Bündeln** der
+  Migrations-Assemblies ins NuGet-Paket: **#20**.
+- **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)`: **#34**.
+- Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md).
