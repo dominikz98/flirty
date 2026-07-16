@@ -97,7 +97,7 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
 
         PersistAnswer(session, command);
 
-        var target = ResolveTransitionTarget(dialog, session, command.QuestionId);
+        var target = new TransitionResolver(_evaluator).ResolveTransitionTarget(dialog, session, command.QuestionId);
         if (target is null)
         {
             Complete(session);
@@ -130,78 +130,6 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             AnsweredAt = DateTimeOffset.UtcNow,
             Sequence = nextSequence,
         });
-    }
-
-    /// <summary>
-    /// Wertet die ausgehenden Übergänge der beantworteten Frage aus und liefert die Ziel-Frage-Id des
-    /// greifenden Übergangs. Zurückgegeben wird <see langword="null"/>, wenn die Frage <b>keine</b>
-    /// ausgehenden Übergänge besitzt (regulärer Abschluss). Existieren Übergänge, greift aber weder ein
-    /// bedingter Übergang noch ein Default, wird der Dialog als fehlkonfiguriert abgelehnt.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// Übergänge sind vorhanden, aber keiner greift und es gibt keinen Default, oder die Zielfrage des
-    /// greifenden Übergangs gehört nicht zum Dialog-Graphen.
-    /// </exception>
-    private Guid? ResolveTransitionTarget(Dialog dialog, DialogSession session, Guid questionId)
-    {
-        var outgoing = dialog.Transitions
-            .Where(transition => transition.FromQuestionId == questionId)
-            .OrderBy(transition => transition.Priority)
-            .ToList();
-
-        if (outgoing.Count == 0)
-        {
-            return null;
-        }
-
-        var context = BuildContext(dialog, session);
-        var match = outgoing.FirstOrDefault(transition => !transition.IsDefault && ConditionHolds(transition, context))
-            ?? outgoing.FirstOrDefault(transition => transition.IsDefault);
-
-        if (match is null)
-        {
-            throw new InvalidOperationException(
-                $"Für die Frage '{questionId}' im Dialog '{dialog.Key}' trifft kein Übergang zu und es "
-                + "ist kein Default-Übergang konfiguriert.");
-        }
-
-        if (dialog.Questions.All(question => question.Id != match.TargetQuestionId))
-        {
-            throw new InvalidOperationException(
-                $"Der Übergang '{match.Id}' im Dialog '{dialog.Key}' zeigt auf die unbekannte Zielfrage "
-                + $"'{match.TargetQuestionId}'.");
-        }
-
-        return match.TargetQuestionId;
-    }
-
-    /// <summary>
-    /// Prüft, ob der Übergang greift: Ein <see langword="null"/>er/leerer Ausdruck gilt als
-    /// bedingungslos zutreffend (Kurzschluss liegt bei der Runtime); andernfalls entscheidet der
-    /// <see cref="IExpressionEvaluator"/>.
-    /// </summary>
-    private bool ConditionHolds(Transition transition, ExpressionContext context)
-        => string.IsNullOrWhiteSpace(transition.Expression)
-            || _evaluator.Evaluate(transition.Expression, context);
-
-    /// <summary>
-    /// Baut den <see cref="ExpressionContext"/> aus den bisherigen Antworten der Session. Je Frage wird
-    /// die zuletzt gegebene Antwort (höchste <see cref="SessionAnswer.Sequence"/>) auf den fachlichen
-    /// <see cref="Question.Key"/> abgebildet. Loop-Collections und Iterationsindex bleiben in #26 leer
-    /// bzw. <see langword="null"/> (Loop-Runtime folgt in #29).
-    /// </summary>
-    private static ExpressionContext BuildContext(Dialog dialog, DialogSession session)
-    {
-        var keyByQuestionId = dialog.Questions.ToDictionary(question => question.Id, question => question.Key);
-
-        var answers = session.Answers
-            .Where(answer => keyByQuestionId.ContainsKey(answer.QuestionId))
-            .GroupBy(answer => answer.QuestionId)
-            .ToDictionary(
-                group => keyByQuestionId[group.Key],
-                group => (string?)group.OrderByDescending(answer => answer.Sequence).First().Value);
-
-        return new ExpressionContext(session, DateTimeOffset.UtcNow, answers);
     }
 
     /// <summary>Schließt die Session ab: Status, Abschlusszeitpunkt und Löschen der offenen Frage.</summary>
