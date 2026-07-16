@@ -232,10 +232,10 @@ namespace Flirty.Migrations.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ConditionExpression")
+                    b.Property<Guid>("DialogId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("DialogId")
+                    b.Property<string>("Expression")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("FromQuestionId")
@@ -263,14 +263,14 @@ namespace Flirty.Migrations.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ConditionExpression")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Config")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("DialogId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Expression")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Kind")

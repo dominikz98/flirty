@@ -37,7 +37,7 @@ flowchart TD
 
     F --> E14["#14 Mediator-Setup"]:::done
     F --> E17["#17 Domain-Entities"]
-    F --> E22["#22 IConditionEvaluator"]
+    F --> E22["#22 IExpressionEvaluator"]
     F --> E15["#15 NuGet-Packaging"]:::done
     F --> E16["#16 CI-Stub"]:::done
 
@@ -81,7 +81,7 @@ Nach dem Fundament können diese **parallel** begonnen werden:
 | Strang | Start-Issue | Begründung |
 |---|---|---|
 | **A – Persistenz** | `#17` Domain-Entities + Enums | Wurzel für Runtime, Store und Trigger. Rein im Core. |
-| **B – Expression-Engine** | `#22` IConditionEvaluator + Kontext-Modell | Interface + Kontext-DTO ohne Persistenz baubar. |
+| **B – Expression-Engine** | `#22` IExpressionEvaluator + Kontext-Modell | Interface + Kontext-DTO ohne Persistenz baubar. |
 | **C – Infra/Enabler** | `#14` Mediator-Setup *(zuerst)*, `#15` Packaging, `#16` CI-Stub | `#14` ist Enabler für die Runtime; `#15`/`#16` völlig entkoppelt. |
 
 ### Welle 2 — baut auf Welle 1

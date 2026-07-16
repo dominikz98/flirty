@@ -43,9 +43,9 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 | `Dialog` | `Id`, `Key`, `Name`, `Description?`, `Version`, `IsPublished`, `StartQuestionId?`, `CreatedAt`, `UpdatedAt` | `Questions`, `Transitions`, `Loops`, `Triggers` |
 | `Question` | `Id`, `DialogId`, `Key`, `Text`, `Type`, `Order`, `IsRequired`, `ValidationRules?` (JSON) | `Dialog`, `Options` |
 | `AnswerOption` | `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order` | `Question` |
-| `Transition` | `Id`, `DialogId`, `FromQuestionId`, `ConditionExpression?`, `TargetQuestionId`, `Priority`, `IsDefault` | `Dialog` |
+| `Transition` | `Id`, `DialogId`, `FromQuestionId`, `Expression?`, `TargetQuestionId`, `Priority`, `IsDefault` | `Dialog` |
 | `LoopDefinition` | `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` | `Dialog` |
-| `TriggerDefinition` | `Id`, `DialogId`, `Scope`, `QuestionId?`, `Kind`, `Config` (JSON), `ConditionExpression?` | `Dialog` |
+| `TriggerDefinition` | `Id`, `DialogId`, `Scope`, `QuestionId?`, `Kind`, `Config` (JSON), `Expression?` | `Dialog` |
 
 ## Runtime-Entities
 

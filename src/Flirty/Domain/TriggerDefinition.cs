@@ -32,10 +32,10 @@ public sealed class TriggerDefinition
     public required string Config { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IConditionEvaluator"/>
+    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IExpressionEvaluator"/>
     /// ausgewertet wird und über das Auslösen entscheidet.
     /// </summary>
-    public string? ConditionExpression { get; set; }
+    public string? Expression { get; set; }
 
     /// <summary>Der Dialog, zu dem diese Trigger-Definition gehört.</summary>
     public Dialog Dialog { get; set; } = null!;

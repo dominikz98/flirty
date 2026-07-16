@@ -1,6 +1,6 @@
-# Branching & Expressions: Condition-Engine
+# Branching & Expressions: Expression-Engine
 
-Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IConditionEvaluator`
+Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IExpressionEvaluator`
 und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2). Referenz:
 [ARCHITECTURE.md](./ARCHITECTURE.md) §7/§10/§11, Modell-Details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
 
@@ -8,19 +8,19 @@ und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2).
 
 Verzweigungen (Branching) und Schleifen (Loops) hängen an **booleschen Bedingungsausdrücken**:
 
-- `Transition.ConditionExpression` – entscheidet, welcher Übergang von einer Frage greift.
-- `TriggerDefinition.ConditionExpression` – entscheidet, ob ein Trigger auslöst.
+- `Transition.Expression` – entscheidet, welcher Übergang von einer Frage greift.
+- `TriggerDefinition.Expression` – entscheidet, ob ein Trigger auslöst.
 
-Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IConditionEvaluator`
+Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IExpressionEvaluator`
 (Namespace `Flirty.Expressions`). Der Kern legt in #22 nur die Abstraktion fest; die konkrete,
 gesandboxte Engine und der Validierungs-Pfad folgen in eigenen Issues (siehe [Ausblick](#ausblick)).
 
-## `IConditionEvaluator`
+## `IExpressionEvaluator`
 
 ```csharp
 namespace Flirty.Expressions;
 
-public interface IConditionEvaluator
+public interface IExpressionEvaluator
 {
     bool Evaluate(string expression, ExpressionContext context);
 }
@@ -28,7 +28,7 @@ public interface IConditionEvaluator
 
 - **Synchron:** Die Auswertung ist eine reine In-Memory-Operation (die Default-Engine DynamicExpresso
   arbeitet synchron) – daher kein `async`/`CancellationToken`.
-- **Null/leerer Ausdruck:** Ein `null`er oder leerer `ConditionExpression` gilt fachlich als
+- **Null/leerer Ausdruck:** Ein `null`er oder leerer `Expression` gilt fachlich als
   *bedingungslos zutreffend*. Diese Kurzschluss-Behandlung liegt bei der **Runtime**, nicht beim
   Evaluator; Implementierungen dürfen einen nicht-leeren Ausdruck erwarten.
 
@@ -73,9 +73,9 @@ age > 18                 // Verzweigung nach numerischer Antwort
 positions.Count > 0      // Break-Bedingung einer Schleife über die gesammelte Collection
 ```
 
-## Default-Engine: `DynamicExpressoConditionEvaluator` (#23)
+## Default-Engine: `DynamicExpressoExpressionEvaluator` (#23)
 
-Die gesandboxte Default-Implementierung von `IConditionEvaluator` (Namespace `Flirty.Expressions`)
+Die gesandboxte Default-Implementierung von `IExpressionEvaluator` (Namespace `Flirty.Expressions`)
 setzt auf [DynamicExpresso](https://github.com/dynamicexpresso/DynamicExpresso) auf. Sie ist
 **synchron** und **zustandslos** (je Auswertung ein frischer, isolierter Interpreter) und damit als
 Singleton nutzbar.
@@ -111,15 +111,63 @@ verwendet. Dadurch werten `age > 18` (bei `"42"`) und `name == "Ada"` (bei `"\"A
   (`EnableAssignment(AssignmentOperators.None)`). Zugreifbar sind nur die injizierten Variablen und
   deren Instanz-Member. Nicht gewhitelistete Typen (z. B. `System.IO.File`) sind unerreichbar.
 - **Fail-loud:** Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen und nicht-boolesche
-  Ergebnisse werfen eine `ConditionEvaluationException` (kapselt die Engine-Ursache in
-  `InnerException`, hält die Engine austauschbar). Das *Validieren* beim Speichern (#24) baut hierauf
-  auf; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der Runtime.
+  Ergebnisse werfen eine `ExpressionEvaluationException` (kapselt die Engine-Ursache in
+  `InnerException`, hält die Engine austauschbar). Der *Compile-Check* beim Speichern (siehe
+  [Validierung / Compile-Check](#validierung--compile-check-24)) nutzt dieselbe Sandbox, meldet Fehler
+  aber als Ergebnis statt per Exception; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der
+  Runtime.
+
+## Validierung / Compile-Check (#24)
+
+Für den Designer stellt die Engine neben `Evaluate` einen **Compile-Check** bereit: `Validate`
+**kompiliert** einen Ausdruck (DynamicExpresso `Parse`), **führt ihn aber nicht aus**. So lassen sich
+Ausdrücke bereits **beim Speichern** prüfen und Fehler melden – ohne Exception, mit strukturiertem
+Ergebnis.
+
+```csharp
+public interface IExpressionEvaluator
+{
+    bool Evaluate(string expression, ExpressionContext context);
+
+    // kompiliert, führt nicht aus:
+    ExpressionValidationResult Validate(string expression, ExpressionContext context);
+}
+```
+
+`ExpressionValidationResult` trägt:
+
+| Property | Typ | Bedeutung |
+|---|---|---|
+| `IsValid` | `bool` | ob der Ausdruck kompilierbar ist |
+| `Error` | `string?` | menschlesbare Fehlermeldung (`null`, wenn gültig) |
+| `ErrorPosition` | `int?` | nullbasierte Fehlerposition im Ausdruck (soweit gemeldet), z. B. zum Unterstreichen im Designer |
+
+Der übergebene `ExpressionContext` liefert die verfügbaren Variablen (und deren Typen) für die Prüfung –
+die Validierung nutzt **dieselbe Sandbox und Variablen-Bindung wie `Evaluate`**. Erkannt werden damit:
+
+- **Syntaxfehler** und ungültige Operator-Verwendung,
+- **unbekannte Bezeichner** (Variablen, die der Kontext nicht kennt),
+- **Injection-/Sandbox-Verletzungen** (Reflection, nicht gewhitelistete Typen wie `System.IO.File`),
+- ein **nicht-boolesches** Ergebnis.
+
+Verhalten:
+
+- Ein `null`er/leerer Ausdruck gilt als **gültig** („bedingungslos zutreffend", konsistent zur Runtime).
+- `Validate` **wirft nie** für einen fehlerhaften Ausdruck – Fehler landen im Ergebnis. Einzige Ausnahme:
+  ein `null`er Kontext (`ArgumentNullException`).
+
+```csharp
+// Designer beim Speichern:
+var result = evaluator.Validate(transition.Expression, context);
+if (!result.IsValid)
+{
+    ShowError(result.Error, result.ErrorPosition);
+}
+```
 
 ## Ausblick
 
-Darauf bauen auf:
+Darauf baut auf:
 
-- **#24 – Expression-Validierung / Compile-Check:** Ausdrücke werden im Designer beim Speichern
-  kompiliert/validiert (Operatoren, UND/ODER, Fehlerfälle, Injection-Abwehr).
 - **#34 – DI-Integration:** Registrierung und Austausch der Engine über
-  `services.AddFlirty(o => o.UseConditionEvaluator<MyEval>())` (Alternative z. B. NCalc).
+  `services.AddFlirty(o => o.UseExpressionEvaluator<MyEval>())` (Alternative z. B. NCalc).

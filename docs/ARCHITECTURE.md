@@ -21,7 +21,7 @@ fremde Apps erfolgt über **DI-Extension-Methods** und optional bereitgestellte
 |---|---|
 | Resume innerhalb eines Dialogs | `DialogSession` + `CurrentQuestionId`, `ResumeDialogQuery` |
 | Fragen wieder bearbeitbar | `EditAnswerCommand` + Pfad-Neuberechnung |
-| Branching (mehrere Zweige) | `Transition` + Expression-Engine (`IConditionEvaluator`) |
+| Branching (mehrere Zweige) | `Transition` + Expression-Engine (`IExpressionEvaluator`) |
 | Loops (Liste bis Breaking Question) | Branching-Zyklus + `LoopDefinition`-Marker, Iterations-Collection |
 | Trigger nach Antwort / Abschluss | Mediator-Notifications (In-Process) + Outbound-Webhooks |
 | Einfache DI-Registrierung | `services.AddFlirty(o => …)` Extension-Methods |
@@ -73,9 +73,9 @@ Microsoft.AspNetCore.App`) wird nur referenziert, wenn Web/Endpunkte gewünscht 
 - **Dialog** – `Id`, `Key`, `Name`, `Description`, `Version`, `IsPublished`, `StartQuestionId`, Timestamps.
 - **Question** – `Id`, `DialogId`, `Key`, `Text`, `Type` (SingleChoice, MultiChoice, FreeText, Number, Date, Boolean), `Order`, `IsRequired`, `ValidationRules` (JSON).
 - **AnswerOption** – `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order`.
-- **Transition** – `Id`, `DialogId`, `FromQuestionId`, `ConditionExpression`, `TargetQuestionId`, `Priority`, `IsDefault`. Geordnete Liste bedingter Übergänge je Frage; erste zutreffende gewinnt, sonst Default. Ein `TargetQuestionId` auf eine **frühere** Frage bildet einen **Loop-Zyklus**.
+- **Transition** – `Id`, `DialogId`, `FromQuestionId`, `Expression`, `TargetQuestionId`, `Priority`, `IsDefault`. Geordnete Liste bedingter Übergänge je Frage; erste zutreffende gewinnt, sonst Default. Ein `TargetQuestionId` auf eine **frühere** Frage bildet einen **Loop-Zyklus**.
 - **LoopDefinition** – `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` (+ Exit-Transition). Metadaten-/Marker-Ebene über dem Branching für Runtime-Sammlung und Designer-Visualisierung.
-- **TriggerDefinition** – `Id`, `DialogId`, `Scope` (OnDialogStarted/AfterAnswer/AfterQuestion/OnDialogCompleted), `QuestionId?`, `Kind` (InProcess|Webhook), `Config` (JSON), `ConditionExpression?`.
+- **TriggerDefinition** – `Id`, `DialogId`, `Scope` (OnDialogStarted/AfterAnswer/AfterQuestion/OnDialogCompleted), `QuestionId?`, `Kind` (InProcess|Webhook), `Config` (JSON), `Expression?`.
 
 ## 6. Runtime-/Session-State
 
@@ -97,7 +97,7 @@ Commands direkt per `ISender`.
 **Notifications (= In-Process-Trigger)** – `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`, `DialogCompletedNotification`. Der Nutzer „hängt seine Handler rein" per `INotificationHandler<T>` (funktioniert 1:1 in einer Console-App).
 
 **Weitere Services**
-- `IConditionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoConditionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md).
+- `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md).
 - `IAnswerValidator` – Typ + `ValidationRules` (als Mediator-`IPipelineBehavior`).
 - Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
@@ -118,7 +118,7 @@ Commands direkt per `ISender`.
 services.AddFlirty(o => {
     o.UseSqlServer(conn);                 // oder UsePostgreSql / UseSqlite
     o.ApplyMigrations();                  // optional: Auto-Migration beim Start
-    o.UseConditionEvaluator<MyEval>();    // Expression-Engine austauschbar
+    o.UseExpressionEvaluator<MyEval>();    // Expression-Engine austauschbar
     o.AddWebhook("order-created", url);   // Outbound-Trigger
 });
 // In-Process-Trigger = Mediator-Notification-Handler:
@@ -147,7 +147,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen). **Umgesetzt in #14:** der `AddFlirty()`-Stub verdrahtet den Mediator (`ServiceLifetime.Scoped`) und registriert die offen-generischen Basis-Behaviors `LoggingPipelineBehavior<,>` und `ValidationPipelineBehavior<,>` (manuelle Registrierung – martinothamar-Vorgabe). Der Source-Generator läuft im Core, daher muss der `AddMediator`-Aufruf im Core liegen. Details siehe [MEDIATOR.md](./MEDIATOR.md).
 2. **ASP.NET-frei im Core**: reine Console-/Worker-Nutzung möglich.
-3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IConditionEvaluator` (Alternative: NCalc).
+3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IExpressionEvaluator` (Alternative: NCalc).
 4. **Dialog-Versionierung**: Sessions pinnen `DialogVersion` → Editieren publizierter Dialoge bricht laufende Sessions nicht.
 5. **Loops = Branching + Marker**: kein separater Runtime-Sonderpfad.
 6. **NuGet-Packaging**: `Flirty` + `Flirty.AspNetCore` mit vollständigen Metadaten (MIT-Lizenz, Icon, README), SourceLink und Symbolpaketen (`snupkg`); übrige Projekte `IsPackable=false`. Paketversion **datumsbasiert** (`JJJJMM.Revision`, z.B. `202604.1`), Assembly-Version davon entkoppelt (`Jahr.Monat.Revision`, UInt16-Grenze). Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).

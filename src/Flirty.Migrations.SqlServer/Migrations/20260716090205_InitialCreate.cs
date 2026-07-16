@@ -100,7 +100,7 @@ namespace Flirty.Migrations.SqlServer.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     DialogId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FromQuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ConditionExpression = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Expression = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     TargetQuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Priority = table.Column<int>(type: "int", nullable: false),
                     IsDefault = table.Column<bool>(type: "bit", nullable: false)
@@ -126,7 +126,7 @@ namespace Flirty.Migrations.SqlServer.Migrations
                     QuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Kind = table.Column<int>(type: "int", nullable: false),
                     Config = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ConditionExpression = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Expression = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {

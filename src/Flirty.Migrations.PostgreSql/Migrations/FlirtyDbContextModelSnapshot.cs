@@ -237,11 +237,11 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ConditionExpression")
-                        .HasColumnType("text");
-
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Expression")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("FromQuestionId")
                         .HasColumnType("uuid");
@@ -268,15 +268,15 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ConditionExpression")
-                        .HasColumnType("text");
-
                     b.Property<string>("Config")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Expression")
+                        .HasColumnType("text");
 
                     b.Property<int>("Kind")
                         .HasColumnType("integer");

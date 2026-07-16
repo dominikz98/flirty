@@ -92,7 +92,7 @@ Repository über `FlirtyDbContext`. `test` Store-Tests (SQLite in-memory).
 
 ## EPIC 2 – Expression-/Condition-Engine `type:epic` `area:core`
 
-### IConditionEvaluator + Kontext-Modell
+### IExpressionEvaluator + Kontext-Modell
 `type:feature` `area:core`
 Kontext: `answers`, Loop-Collections (`CollectionKey`), `iterationIndex`, `now`, `session`.
 
@@ -160,7 +160,7 @@ Eingebauter `INotificationHandler` (IHttpClientFactory + Retry/Timeout, `Trigger
 ### AddFlirty(...) Extension-Method
 `type:feature` `area:core`
 Mediator-Registrierung, Provider-Wahl, `ApplyMigrations`, Webhook-Registrierung,
-`UseConditionEvaluator`.
+`UseExpressionEvaluator`.
 `test` Registrierungs-/Resolve-Tests inkl. reinem Console-Setup ohne ASP.NET.
 
 ---
@@ -193,7 +193,7 @@ Typ, Reihenfolge, Validierung, Antwortoptionen.
 
 ### Branching-Editor
 `type:feature` `area:designer`
-Transitions + Expression-Builder + Live-Validierung via `IConditionEvaluator`.
+Transitions + Expression-Builder + Live-Validierung via `IExpressionEvaluator`.
 
 ### Loop-Visualisierung
 `type:feature` `area:designer`

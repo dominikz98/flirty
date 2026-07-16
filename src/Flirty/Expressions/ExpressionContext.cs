@@ -4,7 +4,7 @@ using Flirty.Domain;
 namespace Flirty.Expressions;
 
 /// <summary>
-/// Der unveränderliche Auswertungskontext, gegen den ein <see cref="IConditionEvaluator"/> einen
+/// Der unveränderliche Auswertungskontext, gegen den ein <see cref="IExpressionEvaluator"/> einen
 /// Bedingungsausdruck auswertet. Bündelt die zum Auswertungszeitpunkt sichtbaren Daten einer
 /// laufenden <see cref="DialogSession"/>: die bisherigen Antworten (nach Frage-Schlüssel), die je
 /// Iteration gesammelten Loop-Collections (nach <c>CollectionKey</c>), den aktuellen

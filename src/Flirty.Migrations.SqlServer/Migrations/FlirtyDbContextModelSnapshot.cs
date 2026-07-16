@@ -237,11 +237,11 @@ namespace Flirty.Migrations.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ConditionExpression")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Expression")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("FromQuestionId")
                         .HasColumnType("uniqueidentifier");
@@ -268,15 +268,15 @@ namespace Flirty.Migrations.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ConditionExpression")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Config")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Expression")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Kind")
                         .HasColumnType("int");

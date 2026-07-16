@@ -201,7 +201,7 @@ Security-Advisories (NU1903) einschleppen.
   Migrations-Assemblies ins NuGet-Paket: **#20** – umgesetzt (siehe oben). Das minimale
   `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
 - **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
-  `FlirtyDbContext`-Registrierung, Webhooks, `UseConditionEvaluator`): **#34**.
+  `FlirtyDbContext`-Registrierung, Webhooks, `UseExpressionEvaluator`): **#34**.
 - **`IDialogStore`** (Repository über `FlirtyDbContext`, inkl. DI-Registrierung in `AddFlirty()`):
   **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit)
   folgen in **#25**.

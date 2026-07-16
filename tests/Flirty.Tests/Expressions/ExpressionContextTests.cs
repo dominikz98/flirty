@@ -7,7 +7,7 @@ namespace Flirty.Tests.Expressions;
 /// Verifiziert das Kontext-Modell aus Issue #22: den unveränderlichen <see cref="ExpressionContext"/>
 /// (Guard auf die Session, leere Default-Sammlungen, Zugriff auf Antworten nach Frage-Schlüssel und
 /// auf Loop-Collections nach <c>CollectionKey</c>) sowie die Implementier- und Nutzbarkeit des
-/// <see cref="IConditionEvaluator"/>-Vertrags.
+/// <see cref="IExpressionEvaluator"/>-Vertrags.
 /// </summary>
 public sealed class ExpressionContextTests
 {
@@ -99,7 +99,7 @@ public sealed class ExpressionContextTests
     [Fact]
     public void Fake_Evaluator_erhaelt_Ausdruck_und_Kontext()
     {
-        var evaluator = new SpyConditionEvaluator();
+        var evaluator = new SpyExpressionEvaluator();
         var context = new ExpressionContext(NewSession(), DateTimeOffset.UnixEpoch);
 
         var result = evaluator.Evaluate("age > 18", context);
@@ -110,10 +110,10 @@ public sealed class ExpressionContextTests
     }
 
     /// <summary>
-    /// Minimaler Test-Fake, der belegt, dass der <see cref="IConditionEvaluator"/>-Vertrag von
+    /// Minimaler Test-Fake, der belegt, dass der <see cref="IExpressionEvaluator"/>-Vertrag von
     /// außerhalb des Cores implementier- und aufrufbar ist (Signatur-Smoke-Test für Issue #34).
     /// </summary>
-    private sealed class SpyConditionEvaluator : IConditionEvaluator
+    private sealed class SpyExpressionEvaluator : IExpressionEvaluator
     {
         public string? LastExpression { get; private set; }
 
@@ -124,6 +124,13 @@ public sealed class ExpressionContextTests
             LastExpression = expression;
             LastContext = context;
             return true;
+        }
+
+        public ExpressionValidationResult Validate(string expression, ExpressionContext context)
+        {
+            LastExpression = expression;
+            LastContext = context;
+            return ExpressionValidationResult.Valid;
         }
     }
 }

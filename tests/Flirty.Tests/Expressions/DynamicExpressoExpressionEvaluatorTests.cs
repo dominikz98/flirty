@@ -5,13 +5,13 @@ namespace Flirty.Tests.Expressions;
 
 /// <summary>
 /// Verifiziert die gesandboxte Default-Engine aus Issue #23
-/// (<see cref="DynamicExpressoConditionEvaluator"/>): typisierte Auswertung von Antworten und
+/// (<see cref="DynamicExpressoExpressionEvaluator"/>): typisierte Auswertung von Antworten und
 /// Loop-Collections, UND/ODER-Verknüpfungen, Zugriff auf die Kontext-Variablen sowie die
 /// Sandbox-/Injection-Abwehr (keine Reflection, keine nicht gewhitelisteten Typen, keine Zuweisung).
 /// </summary>
-public sealed class DynamicExpressoConditionEvaluatorTests
+public sealed class DynamicExpressoExpressionEvaluatorTests
 {
-    private static readonly DynamicExpressoConditionEvaluator Evaluator = new();
+    private static readonly DynamicExpressoExpressionEvaluator Evaluator = new();
 
     private static DialogSession NewSession() => new()
     {
@@ -126,7 +126,7 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     [InlineData("unknownVariable > 1")]                                 // unbekannter Bezeichner
     public void Nicht_gewhitelistete_oder_ungueltige_Ausdruecke_werfen(string expression)
     {
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate(expression, Context()));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate(expression, Context()));
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate("age = 99", context));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate("age = 99", context));
     }
 
     [Fact]
@@ -142,13 +142,13 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate("age", context));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate("age", context));
     }
 
     [Fact]
     public void Geworfene_Exception_traegt_den_Ausdruck()
     {
-        var exception = Assert.Throws<ConditionEvaluationException>(
+        var exception = Assert.Throws<ExpressionEvaluationException>(
             () => Evaluator.Evaluate("unknownVariable > 1", Context()));
 
         Assert.Equal("unknownVariable > 1", exception.Expression);
@@ -171,5 +171,117 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     public void Null_Kontext_wirft_ArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => Evaluator.Evaluate("age > 18", null!));
+    }
+
+    // ---- Validierung / Compile-Check (Issue #24) ----
+
+    private static ExpressionContext ValidationContext() => Context(
+        answers: new Dictionary<string, string?>
+        {
+            ["age"] = "42",
+            ["verified"] = "true",
+            ["name"] = "\"Ada\"",
+        },
+        collections: new Dictionary<string, IReadOnlyList<string?>>
+        {
+            ["positions"] = ["{\"title\":\"Dev\"}"],
+        },
+        now: new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
+
+    [Theory]
+    [InlineData("age > 18")]                     // Vergleichsoperator
+    [InlineData("age > 18 && verified == true")] // UND-Verknüpfung
+    [InlineData("age > 100 || age > 18")]        // ODER-Verknüpfung
+    [InlineData("verified")]                      // boolesche Antwort direkt
+    [InlineData("positions.Count > 0")]          // Loop-Collection
+    [InlineData("name == \"Ada\"")]              // String-Vergleich
+    [InlineData("now.Year == 2026")]             // Kontext-Variable
+    public void Validate_gueltiger_Ausdruck_ist_valide(string expression)
+    {
+        var result = Evaluator.Validate(expression, ValidationContext());
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.Error);
+        Assert.Null(result.ErrorPosition);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Validate_leerer_Ausdruck_ist_valide(string? expression)
+    {
+        // Null/leer gilt als „bedingungslos zutreffend" (konsistent zur Runtime-Semantik).
+        var result = Evaluator.Validate(expression!, ValidationContext());
+
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("age > > 18")] // doppelter Operator
+    [InlineData("(age > 18")]  // unbalancierte Klammer
+    public void Validate_syntaxfehler_ist_ungueltig(string expression)
+    {
+        var result = Evaluator.Validate(expression, ValidationContext());
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.Error);
+    }
+
+    [Theory]
+    [InlineData("System.IO.File.ReadAllText(\"secret.txt\") != null")] // nicht gewhitelisteter Typ
+    [InlineData("\"x\".GetType().Assembly != null")]                    // Reflection ist blockiert
+    [InlineData("typeof(System.Environment) != null")]                  // Typ-/Reflection-Zugriff
+    public void Validate_injection_ist_ungueltig(string expression)
+    {
+        var result = Evaluator.Validate(expression, ValidationContext());
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.Error);
+    }
+
+    [Fact]
+    public void Validate_unbekannter_Bezeichner_ist_ungueltig_mit_Position()
+    {
+        var result = Evaluator.Validate("unknownVariable > 1", Context());
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.Error);
+        Assert.NotNull(result.ErrorPosition);
+    }
+
+    [Fact]
+    public void Validate_Zuweisung_ist_ungueltig()
+    {
+        var result = Evaluator.Validate("age = 99", ValidationContext());
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.Error);
+    }
+
+    [Theory]
+    [InlineData("age")] // long-Ergebnis
+    [InlineData("42")]  // int-Ergebnis
+    public void Validate_nicht_boolescher_Ausdruck_ist_ungueltig(string expression)
+    {
+        var result = Evaluator.Validate(expression, ValidationContext());
+
+        Assert.False(result.IsValid);
+        Assert.Contains("boolesch", result.Error!);
+    }
+
+    [Fact]
+    public void Validate_wirft_nicht_bei_fehlerhaftem_Ausdruck()
+    {
+        var exception = Record.Exception(
+            () => Evaluator.Validate("System.IO.File.ReadAllText(\"x\")", Context()));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_null_Kontext_wirft_ArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => Evaluator.Validate("age > 18", null!));
     }
 }
