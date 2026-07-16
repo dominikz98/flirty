@@ -35,7 +35,7 @@ public static IServiceCollection AddFlirty(this IServiceCollection services)
 
 > **Hinweis:** `AddFlirty()` ist aktuell ein **#14-Stub**. Issue #34 erweitert die Methode zur
 > vollständigen `AddFlirty(o => …)`-Registrierung (DB-Provider, Auto-Migration, Webhooks,
-> austauschbarer Condition-Evaluator).
+> austauschbarer Expression-Evaluator).
 
 Nutzung (z. B. in einer Console-App – der Core ist ASP.NET-frei):
 

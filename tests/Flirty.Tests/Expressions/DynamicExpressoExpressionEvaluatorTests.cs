@@ -5,13 +5,13 @@ namespace Flirty.Tests.Expressions;
 
 /// <summary>
 /// Verifiziert die gesandboxte Default-Engine aus Issue #23
-/// (<see cref="DynamicExpressoConditionEvaluator"/>): typisierte Auswertung von Antworten und
+/// (<see cref="DynamicExpressoExpressionEvaluator"/>): typisierte Auswertung von Antworten und
 /// Loop-Collections, UND/ODER-Verknüpfungen, Zugriff auf die Kontext-Variablen sowie die
 /// Sandbox-/Injection-Abwehr (keine Reflection, keine nicht gewhitelisteten Typen, keine Zuweisung).
 /// </summary>
-public sealed class DynamicExpressoConditionEvaluatorTests
+public sealed class DynamicExpressoExpressionEvaluatorTests
 {
-    private static readonly DynamicExpressoConditionEvaluator Evaluator = new();
+    private static readonly DynamicExpressoExpressionEvaluator Evaluator = new();
 
     private static DialogSession NewSession() => new()
     {
@@ -126,7 +126,7 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     [InlineData("unknownVariable > 1")]                                 // unbekannter Bezeichner
     public void Nicht_gewhitelistete_oder_ungueltige_Ausdruecke_werfen(string expression)
     {
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate(expression, Context()));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate(expression, Context()));
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate("age = 99", context));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate("age = 99", context));
     }
 
     [Fact]
@@ -142,13 +142,13 @@ public sealed class DynamicExpressoConditionEvaluatorTests
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
-        Assert.Throws<ConditionEvaluationException>(() => Evaluator.Evaluate("age", context));
+        Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate("age", context));
     }
 
     [Fact]
     public void Geworfene_Exception_traegt_den_Ausdruck()
     {
-        var exception = Assert.Throws<ConditionEvaluationException>(
+        var exception = Assert.Throws<ExpressionEvaluationException>(
             () => Evaluator.Evaluate("unknownVariable > 1", Context()));
 
         Assert.Equal("unknownVariable > 1", exception.Expression);

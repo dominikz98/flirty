@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Flirty.Migrations.PostgreSql.Migrations
+namespace Flirty.Migrations.Sqlite.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration
@@ -15,15 +15,15 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "Dialogs",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Key = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Description = table.Column<string>(type: "text", nullable: true),
-                    Version = table.Column<int>(type: "integer", nullable: false),
-                    IsPublished = table.Column<bool>(type: "boolean", nullable: false),
-                    StartQuestionId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Key = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    Description = table.Column<string>(type: "TEXT", nullable: true),
+                    Version = table.Column<int>(type: "INTEGER", nullable: false),
+                    IsPublished = table.Column<bool>(type: "INTEGER", nullable: false),
+                    StartQuestionId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -34,14 +34,14 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "DialogSessions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogId = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogVersion = table.Column<int>(type: "integer", nullable: false),
-                    ExternalUserKey = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Status = table.Column<int>(type: "integer", nullable: false),
-                    CurrentQuestionId = table.Column<Guid>(type: "uuid", nullable: true),
-                    StartedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    CompletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogVersion = table.Column<int>(type: "INTEGER", nullable: false),
+                    ExternalUserKey = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    Status = table.Column<int>(type: "INTEGER", nullable: false),
+                    CurrentQuestionId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    StartedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    CompletedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -52,11 +52,11 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "LoopDefinition",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CollectionKey = table.Column<string>(type: "text", nullable: false),
-                    EntryQuestionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    BreakingQuestionId = table.Column<Guid>(type: "uuid", nullable: false)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    CollectionKey = table.Column<string>(type: "TEXT", nullable: false),
+                    EntryQuestionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    BreakingQuestionId = table.Column<Guid>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -73,14 +73,14 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "Question",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Key = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Text = table.Column<string>(type: "text", nullable: false),
-                    Type = table.Column<int>(type: "integer", nullable: false),
-                    Order = table.Column<int>(type: "integer", nullable: false),
-                    IsRequired = table.Column<bool>(type: "boolean", nullable: false),
-                    ValidationRules = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Key = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    Text = table.Column<string>(type: "TEXT", nullable: false),
+                    Type = table.Column<int>(type: "INTEGER", nullable: false),
+                    Order = table.Column<int>(type: "INTEGER", nullable: false),
+                    IsRequired = table.Column<bool>(type: "INTEGER", nullable: false),
+                    ValidationRules = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -97,13 +97,13 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "Transition",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogId = table.Column<Guid>(type: "uuid", nullable: false),
-                    FromQuestionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ConditionExpression = table.Column<string>(type: "text", nullable: true),
-                    TargetQuestionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Priority = table.Column<int>(type: "integer", nullable: false),
-                    IsDefault = table.Column<bool>(type: "boolean", nullable: false)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    FromQuestionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Expression = table.Column<string>(type: "TEXT", nullable: true),
+                    TargetQuestionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Priority = table.Column<int>(type: "INTEGER", nullable: false),
+                    IsDefault = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -120,13 +120,13 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "TriggerDefinition",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DialogId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Scope = table.Column<int>(type: "integer", nullable: false),
-                    QuestionId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Kind = table.Column<int>(type: "integer", nullable: false),
-                    Config = table.Column<string>(type: "text", nullable: false),
-                    ConditionExpression = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    DialogId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Scope = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuestionId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    Kind = table.Column<int>(type: "INTEGER", nullable: false),
+                    Config = table.Column<string>(type: "TEXT", nullable: false),
+                    Expression = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -143,14 +143,14 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "SessionAnswer",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    SessionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    QuestionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Value = table.Column<string>(type: "text", nullable: false),
-                    AnsweredAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    Sequence = table.Column<int>(type: "integer", nullable: false),
-                    LoopInstanceId = table.Column<Guid>(type: "uuid", nullable: true),
-                    IterationIndex = table.Column<int>(type: "integer", nullable: true)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    SessionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    QuestionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Value = table.Column<string>(type: "TEXT", nullable: false),
+                    AnsweredAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    Sequence = table.Column<int>(type: "INTEGER", nullable: false),
+                    LoopInstanceId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    IterationIndex = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -167,12 +167,12 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                 name: "AnswerOption",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    QuestionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Key = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Label = table.Column<string>(type: "text", nullable: false),
-                    Value = table.Column<string>(type: "text", nullable: false),
-                    Order = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    QuestionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Key = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    Label = table.Column<string>(type: "TEXT", nullable: false),
+                    Value = table.Column<string>(type: "TEXT", nullable: false),
+                    Order = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {

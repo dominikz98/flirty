@@ -22,7 +22,7 @@ public static class FlirtyServiceCollectionExtensions
     /// Der Options-Overload <see cref="AddFlirty(IServiceCollection, Action{FlirtyOptions})"/> (Issue #20)
     /// baut hierauf auf und aktiviert bei <c>o.ApplyMigrations()</c> die Auto-Migration. Issue #34 erweitert
     /// <see cref="FlirtyOptions"/> additiv um Provider-Wahl (inkl. <see cref="FlirtyDbContext"/>-Registrierung),
-    /// Webhooks und austauschbaren Condition-Evaluator.
+    /// Webhooks und austauschbaren Expression-Evaluator.
     /// Offen-generische Pipeline-Behaviors werden bei Mediator bewusst manuell registriert.
     /// Seit Issue #21 wird zusätzlich <see cref="IDialogStore"/> (Implementierung
     /// <see cref="DialogStore"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – dieselbe

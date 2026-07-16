@@ -7,7 +7,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Bewusst minimal in Issue #20 gehalten: bislang nur <see cref="ApplyMigrations"/>. Issue #34 erweitert
 /// dieselbe Klasse <b>additiv</b> um die Provider-Wahl (<c>UseSqlite</c>/<c>UsePostgreSql</c>/<c>UseSqlServer</c>
 /// inkl. <see cref="Flirty.Persistence.FlirtyDbContext"/>-Registrierung), Outbound-Webhooks und einen
-/// austauschbaren Condition-Evaluator – ohne die bestehende Oberfläche zu brechen.
+/// austauschbaren Expression-Evaluator – ohne die bestehende Oberfläche zu brechen.
 /// </remarks>
 public sealed class FlirtyOptions
 {

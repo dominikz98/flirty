@@ -18,10 +18,10 @@ public sealed class Transition
     public Guid FromQuestionId { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IConditionEvaluator"/>
+    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IExpressionEvaluator"/>
     /// ausgewertet wird. Ist er <see langword="null"/>/leer, gilt der Übergang als bedingungslos zutreffend.
     /// </summary>
-    public string? ConditionExpression { get; set; }
+    public string? Expression { get; set; }
 
     /// <summary>Verweis auf die Zielfrage (<see cref="Question.Id"/>).</summary>
     public Guid TargetQuestionId { get; set; }

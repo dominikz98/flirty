@@ -4,7 +4,7 @@ using DynamicExpresso;
 namespace Flirty.Expressions;
 
 /// <summary>
-/// Gesandboxte Default-Implementierung von <see cref="IConditionEvaluator"/> auf Basis von
+/// Gesandboxte Default-Implementierung von <see cref="IExpressionEvaluator"/> auf Basis von
 /// DynamicExpresso (Issue #23). Wertet boolesche Bedingungsausdrücke wie <c>age &gt; 18</c> oder
 /// <c>positions.Count &gt; 0</c> aus, ohne beliebige Code-Ausführung zuzulassen: Es steht nur eine
 /// Member-Whitelist zur Verfügung (kein roher C#-<c>eval</c>).
@@ -29,7 +29,7 @@ namespace Flirty.Expressions;
 /// und damit als Singleton nutzbar (DI-Verdrahtung folgt in Issue #34).
 /// </para>
 /// </remarks>
-public sealed class DynamicExpressoConditionEvaluator : IConditionEvaluator
+public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
 {
     private const InterpreterOptions SandboxOptions =
         InterpreterOptions.PrimitiveTypes | InterpreterOptions.SystemKeywords;
@@ -37,7 +37,7 @@ public sealed class DynamicExpressoConditionEvaluator : IConditionEvaluator
     /// <inheritdoc/>
     /// <exception cref="ArgumentException"><paramref name="expression"/> ist <see langword="null"/>, leer oder nur Leerraum.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="context"/> ist <see langword="null"/>.</exception>
-    /// <exception cref="ConditionEvaluationException">
+    /// <exception cref="ExpressionEvaluationException">
     /// Der Ausdruck konnte nicht zu einem booleschen Ergebnis ausgewertet werden – z. B. bei
     /// Syntaxfehlern, unbekannten Bezeichnern, nicht gewhitelisteten Typen/Membern (Sandbox-Verletzung)
     /// oder einem nicht-booleschen Ergebnis.
@@ -76,9 +76,9 @@ public sealed class DynamicExpressoConditionEvaluator : IConditionEvaluator
         {
             return interpreter.Eval<bool>(expression);
         }
-        catch (Exception ex) when (ex is not ConditionEvaluationException)
+        catch (Exception ex) when (ex is not ExpressionEvaluationException)
         {
-            throw new ConditionEvaluationException(
+            throw new ExpressionEvaluationException(
                 expression,
                 $"Der Bedingungsausdruck '{expression}' konnte nicht ausgewertet werden: {ex.Message}",
                 ex);

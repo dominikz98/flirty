@@ -1,6 +1,6 @@
 # Branching & Expressions: Condition-Engine
 
-Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IConditionEvaluator`
+Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IExpressionEvaluator`
 und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2). Referenz:
 [ARCHITECTURE.md](./ARCHITECTURE.md) §7/§10/§11, Modell-Details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
 
@@ -8,19 +8,19 @@ und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2).
 
 Verzweigungen (Branching) und Schleifen (Loops) hängen an **booleschen Bedingungsausdrücken**:
 
-- `Transition.ConditionExpression` – entscheidet, welcher Übergang von einer Frage greift.
-- `TriggerDefinition.ConditionExpression` – entscheidet, ob ein Trigger auslöst.
+- `Transition.Expression` – entscheidet, welcher Übergang von einer Frage greift.
+- `TriggerDefinition.Expression` – entscheidet, ob ein Trigger auslöst.
 
-Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IConditionEvaluator`
+Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IExpressionEvaluator`
 (Namespace `Flirty.Expressions`). Der Kern legt in #22 nur die Abstraktion fest; die konkrete,
 gesandboxte Engine und der Validierungs-Pfad folgen in eigenen Issues (siehe [Ausblick](#ausblick)).
 
-## `IConditionEvaluator`
+## `IExpressionEvaluator`
 
 ```csharp
 namespace Flirty.Expressions;
 
-public interface IConditionEvaluator
+public interface IExpressionEvaluator
 {
     bool Evaluate(string expression, ExpressionContext context);
 }
@@ -28,7 +28,7 @@ public interface IConditionEvaluator
 
 - **Synchron:** Die Auswertung ist eine reine In-Memory-Operation (die Default-Engine DynamicExpresso
   arbeitet synchron) – daher kein `async`/`CancellationToken`.
-- **Null/leerer Ausdruck:** Ein `null`er oder leerer `ConditionExpression` gilt fachlich als
+- **Null/leerer Ausdruck:** Ein `null`er oder leerer `Expression` gilt fachlich als
   *bedingungslos zutreffend*. Diese Kurzschluss-Behandlung liegt bei der **Runtime**, nicht beim
   Evaluator; Implementierungen dürfen einen nicht-leeren Ausdruck erwarten.
 
@@ -73,9 +73,9 @@ age > 18                 // Verzweigung nach numerischer Antwort
 positions.Count > 0      // Break-Bedingung einer Schleife über die gesammelte Collection
 ```
 
-## Default-Engine: `DynamicExpressoConditionEvaluator` (#23)
+## Default-Engine: `DynamicExpressoExpressionEvaluator` (#23)
 
-Die gesandboxte Default-Implementierung von `IConditionEvaluator` (Namespace `Flirty.Expressions`)
+Die gesandboxte Default-Implementierung von `IExpressionEvaluator` (Namespace `Flirty.Expressions`)
 setzt auf [DynamicExpresso](https://github.com/dynamicexpresso/DynamicExpresso) auf. Sie ist
 **synchron** und **zustandslos** (je Auswertung ein frischer, isolierter Interpreter) und damit als
 Singleton nutzbar.
@@ -111,7 +111,7 @@ verwendet. Dadurch werten `age > 18` (bei `"42"`) und `name == "Ada"` (bei `"\"A
   (`EnableAssignment(AssignmentOperators.None)`). Zugreifbar sind nur die injizierten Variablen und
   deren Instanz-Member. Nicht gewhitelistete Typen (z. B. `System.IO.File`) sind unerreichbar.
 - **Fail-loud:** Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen und nicht-boolesche
-  Ergebnisse werfen eine `ConditionEvaluationException` (kapselt die Engine-Ursache in
+  Ergebnisse werfen eine `ExpressionEvaluationException` (kapselt die Engine-Ursache in
   `InnerException`, hält die Engine austauschbar). Das *Validieren* beim Speichern (#24) baut hierauf
   auf; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der Runtime.
 
@@ -122,4 +122,4 @@ Darauf bauen auf:
 - **#24 – Expression-Validierung / Compile-Check:** Ausdrücke werden im Designer beim Speichern
   kompiliert/validiert (Operatoren, UND/ODER, Fehlerfälle, Injection-Abwehr).
 - **#34 – DI-Integration:** Registrierung und Austausch der Engine über
-  `services.AddFlirty(o => o.UseConditionEvaluator<MyEval>())` (Alternative z. B. NCalc).
+  `services.AddFlirty(o => o.UseExpressionEvaluator<MyEval>())` (Alternative z. B. NCalc).
