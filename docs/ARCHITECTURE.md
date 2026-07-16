@@ -86,10 +86,12 @@ Microsoft.AspNetCore.App`) wird nur referenziert, wenn Web/Endpunkte gewünscht 
 
 Alle Engine-Operationen sind **Mediator-Commands/Queries**; In-Process-Trigger sind
 **Mediator-Notifications**. Host-Apps nutzen entweder die Facade `IFlirtyEngine` oder senden
-Commands direkt per `ISender`.
+Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [RUNTIME.md](./RUNTIME.md)).
 
 **Commands/Queries**
-- `StartDialogCommand(dialogKey, externalUserKey, seed?)` → Session + erste Frage (oder Resume).
+- `StartDialogCommand(dialogKey, externalUserKey)` → Session + erste Frage (oder Resume). Facade:
+  `IFlirtyEngine.StartDialogAsync`. Umgesetzt in #25, Details in [RUNTIME.md](./RUNTIME.md).
+  *(Optionaler `seed?` folgt, sobald #26 ihn auswertet.)*
 - `ResumeDialogQuery(sessionId|externalUserKey)` → Session + aktuelle Frage + bisherige Antworten.
 - `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion → Notifications.
 - `EditAnswerCommand(sessionId, questionId, value)` → zurückspringen, überschreiben, Pfad neu berechnen.
