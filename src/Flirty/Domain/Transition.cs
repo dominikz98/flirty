@@ -18,8 +18,8 @@ public sealed class Transition
     public Guid FromQuestionId { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <c>IConditionEvaluator</c> ausgewertet wird.
-    /// Ist er <see langword="null"/>/leer, gilt der Übergang als bedingungslos zutreffend.
+    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IConditionEvaluator"/>
+    /// ausgewertet wird. Ist er <see langword="null"/>/leer, gilt der Übergang als bedingungslos zutreffend.
     /// </summary>
     public string? ConditionExpression { get; set; }
 
