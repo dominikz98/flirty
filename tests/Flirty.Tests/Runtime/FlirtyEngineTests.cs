@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
@@ -116,6 +117,52 @@ public sealed class FlirtyEngineTests : IDisposable
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await engine.SubmitAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
+    }
+
+    /// <summary>
+    /// Die Facade liest nach Start und einer eingereichten Antwort den Session-Zustand: Status, die nun
+    /// aktuelle Frage und die bisher gegebene Antwort.
+    /// </summary>
+    [Fact]
+    public async Task ResumeDialogAsync_liefert_Zustand_und_bisherige_Antworten()
+    {
+        var dialogId = Guid.NewGuid();
+        BranchingDialogIds ids;
+        using (var seed = new FlirtyDbContext(_options))
+        {
+            seed.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(dialogId, out ids));
+            seed.SaveChanges();
+        }
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("branching", "user-1");
+        await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
+
+        var result = await engine.ResumeDialogAsync(start.SessionId);
+
+        Assert.Equal(start.SessionId, result.SessionId);
+        Assert.Equal(SessionStatus.InProgress, result.Status);
+        Assert.NotNull(result.CurrentQuestion);
+        Assert.Equal(ids.DevQuestionId, result.CurrentQuestion.Id);
+
+        var answer = Assert.Single(result.Answers);
+        Assert.Equal("role", answer.QuestionKey);
+        Assert.Equal("\"dev\"", answer.Value);
+    }
+
+    /// <summary>Eine unbekannte Session lässt <c>ResumeDialogAsync</c> mit <see cref="SessionNotFoundException"/> fehlschlagen.</summary>
+    [Fact]
+    public async Task ResumeDialogAsync_unbekannte_Session_wirft_SessionNotFoundException()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        await Assert.ThrowsAsync<SessionNotFoundException>(
+            async () => await engine.ResumeDialogAsync(Guid.NewGuid()));
     }
 
     /// <summary><c>AddFlirty()</c> registriert <see cref="IFlirtyEngine"/> als <see cref="FlirtyEngine"/>.</summary>
