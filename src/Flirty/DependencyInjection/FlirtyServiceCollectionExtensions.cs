@@ -1,6 +1,7 @@
 using Flirty.Hosting;
 using Flirty.Persistence;
 using Flirty.Pipeline;
+using Flirty.Runtime;
 using Mediator;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,9 @@ public static class FlirtyServiceCollectionExtensions
     /// selbst ist inert; aufgelöst werden kann <see cref="IDialogStore"/> erst, sobald ein
     /// <see cref="FlirtyDbContext"/> (Provider + <c>MigrationsAssembly</c>) registriert ist – komfortabel
     /// via <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c> ab #34, bis dahin per <c>AddDbContext</c>.
+    /// Seit Issue #25 wird zusätzlich die Runtime-Facade <see cref="IFlirtyEngine"/> (Implementierung
+    /// <see cref="FlirtyEngine"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – dieselbe
+    /// Lebensdauer wie Mediator und <see cref="IDialogStore"/>, die sie mittelbar nutzt.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
     /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
@@ -43,6 +47,7 @@ public static class FlirtyServiceCollectionExtensions
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
 
         services.AddScoped<IDialogStore, DialogStore>();
+        services.AddScoped<IFlirtyEngine, FlirtyEngine>();
 
         return services;
     }
