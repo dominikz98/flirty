@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DynamicExpresso;
+using DynamicExpresso.Exceptions;
 
 namespace Flirty.Expressions;
 
@@ -47,6 +48,66 @@ public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
         ArgumentException.ThrowIfNullOrWhiteSpace(expression);
         ArgumentNullException.ThrowIfNull(context);
 
+        var interpreter = BuildInterpreter(context);
+
+        try
+        {
+            return interpreter.Eval<bool>(expression);
+        }
+        catch (Exception ex) when (ex is not ExpressionEvaluationException)
+        {
+            throw new ExpressionEvaluationException(
+                expression,
+                $"Der Bedingungsausdruck '{expression}' konnte nicht ausgewertet werden: {ex.Message}",
+                ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> ist <see langword="null"/>.</exception>
+    public ExpressionValidationResult Validate(string expression, ExpressionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // Null/leer gilt fachlich als „bedingungslos zutreffend" (konsistent zur Runtime) -> gültig.
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return ExpressionValidationResult.Valid;
+        }
+
+        var interpreter = BuildInterpreter(context);
+
+        try
+        {
+            // Parse kompiliert den Ausdruck zu einer Lambda, führt ihn aber nicht aus.
+            var lambda = interpreter.Parse(expression);
+
+            return lambda.ReturnType == typeof(bool)
+                ? ExpressionValidationResult.Valid
+                : ExpressionValidationResult.Invalid(
+                    $"Der Ausdruck ergibt kein boolesches Ergebnis (Typ: {lambda.ReturnType.Name}).");
+        }
+        catch (ParseException ex)
+        {
+            // Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen (Reflection/nicht gewhitelistete
+            // Typen), deaktivierte Zuweisung – alle mit gemeldeter Position.
+            return ExpressionValidationResult.Invalid(ex.Message, ex.Position);
+        }
+        catch (Exception ex)
+        {
+            // Sicherheitsnetz: Validate soll für einen fehlerhaften Ausdruck nie werfen.
+            return ExpressionValidationResult.Invalid(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Baut einen frischen, gesandboxten <see cref="Interpreter"/> und bindet die Kontext-Variablen
+    /// (Antworten, Loop-Collections, <c>now</c>, <c>iterationIndex</c>, <c>session</c>). Wird von
+    /// <see cref="Evaluate"/> und <see cref="Validate"/> gemeinsam genutzt, damit Auswertung und
+    /// Compile-Check exakt dieselbe Sandbox und Variablen-Bindung verwenden.
+    /// </summary>
+    private static Interpreter BuildInterpreter(ExpressionContext context)
+    {
         var interpreter = new Interpreter(SandboxOptions);
         interpreter.EnableAssignment(AssignmentOperators.None);
 
@@ -72,17 +133,7 @@ public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
         interpreter.SetVariable("iterationIndex", context.IterationIndex, typeof(int?));
         interpreter.SetVariable("session", context.Session);
 
-        try
-        {
-            return interpreter.Eval<bool>(expression);
-        }
-        catch (Exception ex) when (ex is not ExpressionEvaluationException)
-        {
-            throw new ExpressionEvaluationException(
-                expression,
-                $"Der Bedingungsausdruck '{expression}' konnte nicht ausgewertet werden: {ex.Message}",
-                ex);
-        }
+        return interpreter;
     }
 
     /// <summary>

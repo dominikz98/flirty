@@ -1,4 +1,4 @@
-# Branching & Expressions: Condition-Engine
+# Branching & Expressions: Expression-Engine
 
 Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IExpressionEvaluator`
 und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2). Referenz:
@@ -112,14 +112,62 @@ verwendet. Dadurch werten `age > 18` (bei `"42"`) und `name == "Ada"` (bei `"\"A
   deren Instanz-Member. Nicht gewhitelistete Typen (z. B. `System.IO.File`) sind unerreichbar.
 - **Fail-loud:** Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen und nicht-boolesche
   Ergebnisse werfen eine `ExpressionEvaluationException` (kapselt die Engine-Ursache in
-  `InnerException`, hält die Engine austauschbar). Das *Validieren* beim Speichern (#24) baut hierauf
-  auf; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der Runtime.
+  `InnerException`, hält die Engine austauschbar). Der *Compile-Check* beim Speichern (siehe
+  [Validierung / Compile-Check](#validierung--compile-check-24)) nutzt dieselbe Sandbox, meldet Fehler
+  aber als Ergebnis statt per Exception; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der
+  Runtime.
+
+## Validierung / Compile-Check (#24)
+
+Für den Designer stellt die Engine neben `Evaluate` einen **Compile-Check** bereit: `Validate`
+**kompiliert** einen Ausdruck (DynamicExpresso `Parse`), **führt ihn aber nicht aus**. So lassen sich
+Ausdrücke bereits **beim Speichern** prüfen und Fehler melden – ohne Exception, mit strukturiertem
+Ergebnis.
+
+```csharp
+public interface IExpressionEvaluator
+{
+    bool Evaluate(string expression, ExpressionContext context);
+
+    // kompiliert, führt nicht aus:
+    ExpressionValidationResult Validate(string expression, ExpressionContext context);
+}
+```
+
+`ExpressionValidationResult` trägt:
+
+| Property | Typ | Bedeutung |
+|---|---|---|
+| `IsValid` | `bool` | ob der Ausdruck kompilierbar ist |
+| `Error` | `string?` | menschlesbare Fehlermeldung (`null`, wenn gültig) |
+| `ErrorPosition` | `int?` | nullbasierte Fehlerposition im Ausdruck (soweit gemeldet), z. B. zum Unterstreichen im Designer |
+
+Der übergebene `ExpressionContext` liefert die verfügbaren Variablen (und deren Typen) für die Prüfung –
+die Validierung nutzt **dieselbe Sandbox und Variablen-Bindung wie `Evaluate`**. Erkannt werden damit:
+
+- **Syntaxfehler** und ungültige Operator-Verwendung,
+- **unbekannte Bezeichner** (Variablen, die der Kontext nicht kennt),
+- **Injection-/Sandbox-Verletzungen** (Reflection, nicht gewhitelistete Typen wie `System.IO.File`),
+- ein **nicht-boolesches** Ergebnis.
+
+Verhalten:
+
+- Ein `null`er/leerer Ausdruck gilt als **gültig** („bedingungslos zutreffend", konsistent zur Runtime).
+- `Validate` **wirft nie** für einen fehlerhaften Ausdruck – Fehler landen im Ergebnis. Einzige Ausnahme:
+  ein `null`er Kontext (`ArgumentNullException`).
+
+```csharp
+// Designer beim Speichern:
+var result = evaluator.Validate(transition.Expression, context);
+if (!result.IsValid)
+{
+    ShowError(result.Error, result.ErrorPosition);
+}
+```
 
 ## Ausblick
 
-Darauf bauen auf:
+Darauf baut auf:
 
-- **#24 – Expression-Validierung / Compile-Check:** Ausdrücke werden im Designer beim Speichern
-  kompiliert/validiert (Operatoren, UND/ODER, Fehlerfälle, Injection-Abwehr).
 - **#34 – DI-Integration:** Registrierung und Austausch der Engine über
   `services.AddFlirty(o => o.UseExpressionEvaluator<MyEval>())` (Alternative z. B. NCalc).

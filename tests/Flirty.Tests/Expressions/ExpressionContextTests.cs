@@ -125,5 +125,12 @@ public sealed class ExpressionContextTests
             LastContext = context;
             return true;
         }
+
+        public ExpressionValidationResult Validate(string expression, ExpressionContext context)
+        {
+            LastExpression = expression;
+            LastContext = context;
+            return ExpressionValidationResult.Valid;
+        }
     }
 }

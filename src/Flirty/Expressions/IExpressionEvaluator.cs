@@ -27,4 +27,24 @@ public interface IExpressionEvaluator
     /// <param name="context">Der Auswertungskontext mit Antworten, Loop-Collections, Iterationsindex, Zeitpunkt und Session.</param>
     /// <returns><see langword="true"/>, wenn der Ausdruck zutrifft, andernfalls <see langword="false"/>.</returns>
     bool Evaluate(string expression, ExpressionContext context);
+
+    /// <summary>
+    /// Validiert den Bedingungsausdruck <paramref name="expression"/> gegen den <paramref name="context"/>,
+    /// indem er <b>kompiliert, aber nicht ausgeführt</b> wird (Compile-Check). Gedacht für den Designer,
+    /// um Ausdrücke beim Speichern zu prüfen und Fehler zu melden, ohne dass eine Exception geworfen wird.
+    /// </summary>
+    /// <remarks>
+    /// Der Kontext liefert die verfügbaren Ausdrucks-Variablen (und deren Typen) für die Prüfung – so
+    /// werden neben Syntaxfehlern auch unbekannte Bezeichner, nicht gewhitelistete Typen/Member
+    /// (Injection-Abwehr) und ein nicht-boolesches Ergebnis erkannt. Ein <see langword="null"/>er/leerer
+    /// Ausdruck gilt als gültig („bedingungslos zutreffend", konsistent zur Runtime-Semantik).
+    /// </remarks>
+    /// <param name="expression">Der zu prüfende Bedingungsausdruck; <see langword="null"/>/leer ist gültig.</param>
+    /// <param name="context">Der Kontext, der die verfügbaren Variablen für die Prüfung bereitstellt.</param>
+    /// <returns>
+    /// Ein <see cref="ExpressionValidationResult"/> mit <see cref="ExpressionValidationResult.IsValid"/>
+    /// sowie – bei Fehlern – <see cref="ExpressionValidationResult.Error"/> und
+    /// <see cref="ExpressionValidationResult.ErrorPosition"/>.
+    /// </returns>
+    ExpressionValidationResult Validate(string expression, ExpressionContext context);
 }
