@@ -1,9 +1,11 @@
 # Dialog-Runtime: Start, Resume & Submit
 
 Wie eine Host-App einen Dialog zur Laufzeit **startet** bzw. eine laufende Session **fortsetzt**
-(Resume) und wie sie **Antworten einreicht** (Submit), wodurch der Dialog per Branching bis zum
-Abschluss durchlaufen wird. Umgesetzt in den Issues **#25** (Start/Resume) und **#26** (Submit) –
-EPIC 3 – Dialog-Runtime. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §6/§7, Mediator-Grundlagen in
+(Resume), wie sie **Antworten einreicht** (Submit) – wodurch der Dialog per Branching bis zum
+Abschluss durchlaufen wird – und wie sie den **aktuellen Session-Zustand samt bisheriger Antworten
+liest** (`ResumeDialogQuery`). Umgesetzt in den Issues **#25** (Start/Resume), **#26** (Submit) und
+**#27** (Zustand lesen) – EPIC 3 – Dialog-Runtime. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md)
+§6/§7, Mediator-Grundlagen in
 [MEDIATOR.md](./MEDIATOR.md), Branching/Ausdrücke in
 [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Repository in
 [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21).
@@ -29,11 +31,14 @@ public interface IFlirtyEngine
 
     Task<SubmitAnswerResult> SubmitAnswerAsync(
         Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
+
+    Task<ResumeDialogResult> ResumeDialogAsync(
+        Guid sessionId, CancellationToken cancellationToken = default);
 }
 ```
 
-Die Facade wächst in den Folge-Issues additiv (Resume/Edit). Aktuell bietet sie den Dialog-Start
-(#25) und das Einreichen von Antworten (#26).
+Die Facade wächst in den Folge-Issues additiv (z. B. Edit). Aktuell bietet sie den Dialog-Start (#25),
+das Einreichen von Antworten (#26) und das Lesen des Session-Zustands (#27).
 
 ## StartDialogCommand
 
@@ -173,6 +178,66 @@ Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` 
 | Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
 | `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
 
+## ResumeDialogQuery
+
+```csharp
+public sealed record ResumeDialogQuery(
+    [property: Required] Guid SessionId) : IQuery<ResumeDialogResult>;
+```
+
+- `SessionId` – die auszulesende Session. Die Query ist **rein lesend** (kein `SaveChangesAsync`) und
+  verändert die Session nicht.
+- Erste `IQuery` des Projekts; sie durchläuft dieselbe Pipeline (Logging + Validierung) wie die
+  Commands. `[Required]` greift bei `Guid` (Werttyp) nicht gegen `Guid.Empty` – eine unbekannte Id wird
+  fachlich im Handler mit `SessionNotFoundException` behandelt.
+
+> **Abgrenzung zum Resume von #25:** Das *Resume-oder-Neu* einer Session je Anwender (per `dialogKey`
+> + `externalUserKey`) leistet weiterhin `StartDialogCommand`. `ResumeDialogQuery` ist das rein lesende
+> Gegenstück: „gegeben eine `SessionId`, gib mir Zustand + bisherige Antworten" – z. B. um eine
+> Befragung nach einem Reload der Host-App wiederherzustellen.
+
+### Ergebnis
+
+```csharp
+public sealed record ResumeDialogResult(
+    Guid SessionId,
+    SessionStatus Status,
+    QuestionView? CurrentQuestion,
+    IReadOnlyList<SessionAnswerView> Answers);
+
+public sealed record SessionAnswerView(
+    Guid QuestionId, string QuestionKey, string Value, int Sequence, DateTimeOffset AnsweredAt);
+```
+
+- `Status` – der Domain-Status der Session (`InProgress`/`Completed`/`Abandoned`), direkt durchgereicht.
+- `CurrentQuestion` – die aktuell offene Frage (dieselbe schlanke `QuestionView` wie bei Start/Submit)
+  bzw. `null`, wenn die Session keine offene Frage mehr hat (abgeschlossen/abgebrochen).
+- `Answers` – die bisher gegebenen Antworten in aufsteigender `Sequence` (chronologisch); je Antwort
+  wird der fachliche `QuestionKey` aus der gepinnten Dialogversion aufgelöst. Der `Value` ist der
+  gespeicherte rohe JSON-Text. Loop-Felder (`LoopInstanceId`/`IterationIndex`) sind bewusst noch nicht
+  enthalten und werden mit der Loop-Runtime (#29) ergänzt.
+
+### Ablauf
+
+Der Handler nutzt ausschließlich `IDialogStore` (lesend):
+
+1. **Session laden:** `GetSessionAsync(sessionId)` (inkl. Antworten). Fehlt sie, wirft der Handler
+   `SessionNotFoundException`.
+2. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session gepinnte
+   Version samt Graph (für die Auflösung der fachlichen Frage-Schlüssel und die Frage-Projektion).
+3. **Antworten projizieren:** je `SessionAnswer` → `SessionAnswerView` (Schlüssel via Dialog-Graph),
+   aufsteigend nach `Sequence`.
+4. **Aktuelle Frage projizieren:** hat die Session eine `CurrentQuestionId`, wird die Frage aus dem
+   Graphen projiziert; sonst `null`.
+
+### Fehlerfälle
+
+| Situation | Verhalten |
+|---|---|
+| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
+| Gepinnte Dialogversion existiert nicht mehr | `InvalidOperationException` |
+| Aktuelle Frage nicht im Dialog-Graphen | `InvalidOperationException` (Fehlkonfiguration) |
+
 ## Nutzung
 
 ```csharp
@@ -200,13 +265,17 @@ var next = await engine.SubmitAnswerAsync(
     result.SessionId, result.CurrentQuestion.Id, value: "\"dev\"");
 
 Console.WriteLine(next.IsCompleted ? "Dialog abgeschlossen" : next.NextQuestion!.Text);
+
+// Später (z. B. nach einem Reload) den Zustand samt bisheriger Antworten wiederherstellen:
+var state = await engine.ResumeDialogAsync(result.SessionId);
+Console.WriteLine($"Status: {state.Status}, Antworten bisher: {state.Answers.Count}");
+Console.WriteLine(state.CurrentQuestion?.Text ?? "keine offene Frage (abgeschlossen)");
 ```
 
 ## Geplante Folge-Commands (EPIC 3)
 
 | Issue | Command/Query | Zweck |
 |---|---|---|
-| #27 | `ResumeDialogQuery` | Aktuellen Zustand + bisherige Antworten lesen |
 | #28 | `EditAnswerCommand` | Zurückspringen, überschreiben, nachgelagerten Pfad neu berechnen |
 | #29 | Loop-Runtime | Iterations-Sammlung je `CollectionKey`, Break-Bedingung |
 | #30 | `IAnswerValidator` | Typisierte, regelbasierte Antwort-Validierung (Pipeline-Behavior) |
@@ -217,7 +286,9 @@ Console.WriteLine(next.IsCompleted ? "Dialog abgeschlossen" : next.NextQuestion!
 dotnet test tests/Flirty.Tests
 ```
 
-Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume **und** Submit gegen eine echte
-SQLite-Datenbank durch die volle Mediator-Pipeline via `IFlirtyEngine` (Facade → `ISender` → Handler
-→ `IDialogStore`/`IExpressionEvaluator` → EF Core) und decken Branching (bedingter/Default-Übergang),
-Completion, die fortlaufende Antwort-`Sequence`, die Fehlerfälle sowie die DI-Registrierung ab.
+Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume, Submit **und** das Lesen des
+Session-Zustands (`ResumeDialogQuery`) gegen eine echte SQLite-Datenbank durch die volle
+Mediator-Pipeline via `IFlirtyEngine` (Facade → `ISender` → Handler →
+`IDialogStore`/`IExpressionEvaluator` → EF Core) und decken Branching (bedingter/Default-Übergang),
+Completion, die fortlaufende Antwort-`Sequence`, die chronologische Antwort-Reihenfolge beim Lesen,
+die Fehlerfälle sowie die DI-Registrierung ab.

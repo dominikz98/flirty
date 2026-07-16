@@ -44,4 +44,18 @@ public interface IFlirtyEngine
     /// </exception>
     Task<SubmitAnswerResult> SubmitAnswerAsync(
         Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Liest den aktuellen Zustand einer Session – Status, die (ggf.) aktuell offene Frage und die bisher
+    /// gegebenen Antworten – rein lesend, um eine Befragung z. B. nach einem Reload der Host-App
+    /// wiederherzustellen.
+    /// </summary>
+    /// <param name="sessionId">Der Primärschlüssel der abzufragenden Session.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <returns>Der Zustand der Session samt aktueller Frage und bisheriger Antworten.</returns>
+    /// <exception cref="SessionNotFoundException">
+    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// </exception>
+    Task<ResumeDialogResult> ResumeDialogAsync(
+        Guid sessionId, CancellationToken cancellationToken = default);
 }

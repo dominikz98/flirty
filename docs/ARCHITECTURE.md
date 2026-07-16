@@ -92,7 +92,10 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 - `StartDialogCommand(dialogKey, externalUserKey)` → Session + erste Frage (oder Resume). Facade:
   `IFlirtyEngine.StartDialogAsync`. Umgesetzt in #25, Details in [RUNTIME.md](./RUNTIME.md).
   *(Optionaler `seed?` folgt, sobald #26 ihn auswertet.)*
-- `ResumeDialogQuery(sessionId|externalUserKey)` → Session + aktuelle Frage + bisherige Antworten.
+- `ResumeDialogQuery(sessionId)` → Session-Status + aktuelle Frage + bisherige Antworten (rein lesend).
+  Facade: `IFlirtyEngine.ResumeDialogAsync`. Umgesetzt in #27, Details in [RUNTIME.md](./RUNTIME.md).
+  *(Der Resume-oder-Neu-Pfad je Anwender bleibt bei `StartDialogCommand`; ein zusätzlicher
+  `externalUserKey`-Lookup wird ergänzt, sobald ein Konsument ihn braucht.)*
 - `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion. Facade: `IFlirtyEngine.SubmitAnswerAsync`. Umgesetzt in #26, Details in [RUNTIME.md](./RUNTIME.md). *(Notifications folgen in EPIC 4.)*
 - `EditAnswerCommand(sessionId, questionId, value)` → zurückspringen, überschreiben, Pfad neu berechnen.
 
