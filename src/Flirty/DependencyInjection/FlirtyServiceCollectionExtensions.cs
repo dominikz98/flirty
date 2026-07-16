@@ -24,6 +24,12 @@ public static class FlirtyServiceCollectionExtensions
     /// <see cref="FlirtyOptions"/> additiv um Provider-Wahl (inkl. <see cref="FlirtyDbContext"/>-Registrierung),
     /// Webhooks und austauschbaren Condition-Evaluator.
     /// Offen-generische Pipeline-Behaviors werden bei Mediator bewusst manuell registriert.
+    /// Seit Issue #21 wird zusätzlich <see cref="IDialogStore"/> (Implementierung
+    /// <see cref="DialogStore"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – dieselbe
+    /// Lebensdauer wie der <see cref="FlirtyDbContext"/>, den der Store voraussetzt. Die Registrierung
+    /// selbst ist inert; aufgelöst werden kann <see cref="IDialogStore"/> erst, sobald ein
+    /// <see cref="FlirtyDbContext"/> (Provider + <c>MigrationsAssembly</c>) registriert ist – komfortabel
+    /// via <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c> ab #34, bis dahin per <c>AddDbContext</c>.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
     /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
@@ -35,6 +41,8 @@ public static class FlirtyServiceCollectionExtensions
 
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(LoggingPipelineBehavior<,>));
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+
+        services.AddScoped<IDialogStore, DialogStore>();
 
         return services;
     }

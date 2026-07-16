@@ -100,7 +100,7 @@ Commands direkt per `ISender`.
 - `IConditionEvaluator` – Ausdrucks-Engine. Default `DynamicExpressoConditionEvaluator`. Kontext: `answers` (nach Question-Key), Loop-Collections (nach `CollectionKey`), `iterationIndex`, `now`, `session`.
 - `IAnswerValidator` – Typ + `ValidationRules` (als Mediator-`IPipelineBehavior`).
 - Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
-- `IDialogStore` – Repository über `FlirtyDbContext`.
+- `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
 
 ## 8. Persistenz & Migrationen
 

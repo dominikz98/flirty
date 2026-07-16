@@ -115,6 +115,44 @@ ihre DLLs über `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage` nach `
 lädt EF Core die per Name gewählte Migrations-Assembly (`MigrationsAssembly("Flirty.Migrations.<Provider>")`)
 aus dem Probing-Pfad des Konsumenten. Details zum Packaging: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
+## IDialogStore (Repository) (#21)
+
+Über dem `FlirtyDbContext` liegt das Repository `IDialogStore` (Implementierung `DialogStore`, beide
+`internal` – konsumiert werden sie von der Runtime-Schicht im selben Assembly, nicht von Host-Apps).
+Es kapselt die Lade-/Speicheroperationen, die Start/Resume/Submit/Edit (#25) brauchen, und hält den
+EF-Core-Kontext aus den Mediator-Handlern heraus.
+
+| Methode | Zweck | Tracking |
+|---|---|---|
+| `GetPublishedDialogAsync(key)` | höchste **veröffentlichte** Version zu `key`, voller Graph | ungetrackt |
+| `GetDialogAsync(dialogId)` | exakte, von einer Session **gepinnte** Version per Id (ohne `IsPublished`-Filter) | ungetrackt |
+| `GetSessionAsync(sessionId)` | Session inkl. Antworten | **getrackt** |
+| `FindActiveSessionAsync(dialogId, externalUserKey)` | neueste **laufende** Session eines Anwenders | **getrackt** |
+| `AddSession(session)` | neue Session (inkl. erster Antworten) tracken | – |
+| `SaveChangesAsync()` | Unit-of-Work-Naht: alle Änderungen gebündelt speichern | – |
+
+Wesentliche Entscheidungen:
+
+- **Dialog-Graph ungetrackt + Split-Query.** Der Konfigurationsgraph (Fragen/Optionen, Übergänge,
+  Schleifen, Trigger) ist zur Laufzeit unveränderlich; `AsNoTracking()` spart Overhead. Wegen der vier
+  Geschwister-Collections wird per `AsSplitQuery()` geladen, um ein kartesisches Produkt zu vermeiden.
+- **Session getrackt.** Submit/Edit mutieren die geladene Session – daher **kein** `AsNoTracking`, sonst
+  gingen die Änderungen bei `SaveChangesAsync` still verloren.
+- **Getrennte Loads über die Aggregatgrenze.** `DialogSession.DialogId` ist kein Fremdschlüssel; eine
+  Session lädt ihren Dialog nicht automatisch. Resume/Submit/Edit sind daher zwei Loads
+  (`GetSessionAsync` + `GetDialogAsync(session.DialogId)`).
+- **Aktiv-Session client-seitig sortiert.** `FindActiveSessionAsync` sortiert die Kandidaten in-memory
+  nach `StartedAt`, weil SQLite `DateTimeOffset` (als TEXT gespeichert) nicht in `ORDER BY` übersetzt.
+  Pro (Dialog, Anwender) wird höchstens eine laufende Session erwartet.
+- **Neue Kinder an geladenen Aggregaten.** Beim Anhängen eines `SessionAnswer` an eine bereits
+  **getrackte** Session die `Id` nicht vorbelegen – der Guid-Key ist store-generiert (EF-Konvention);
+  EF vergibt ihn beim `SaveChanges`. Eine vorbelegte Id an einem Kind eines getrackten Aggregats würde
+  als Update statt Insert interpretiert.
+
+Registriert wird `IDialogStore` seit #21 in `AddFlirty()` als `Scoped` (gleiche Lebensdauer wie der
+`FlirtyDbContext`). Aufgelöst werden kann es, sobald ein `FlirtyDbContext` registriert ist (per
+`AddDbContext`; komfortable Provider-Wahl ab #34).
+
 ## Test-Strategie
 
 Akzeptanzkriterium: *„DB wird gegen jeden der drei Provider erzeugt."* Die Tests (`tests/Flirty.Tests`,
@@ -129,6 +167,11 @@ Beispieldaten aus `TestDialogFactory`):
   Docker), werden die beiden Tests via `[SkippableFact]` + `Skip.IfNot(DockerAvailability.IsAvailable, …)`
   sauber **übersprungen** statt zu scheitern. Auf CI (`ubuntu-latest`) ist Docker vorhanden, sodass beide
   Provider dort real getestet werden.
+
+Das `IDialogStore`-Repository (#21) wird zusätzlich in `DialogStoreTests` gegen dieselbe
+SQLite-in-memory-Datenbank geprüft (offene `SqliteConnection` + `EnsureCreated()`): veröffentlicht-
+vs. gepinnt-Laden, die Tracking-Verträge (Dialog ungetrackt, Session getrackt), der Aktiv-Session-Filter
+sowie die Unit-of-Work-Naht (`AddSession` + `SaveChangesAsync`).
 
 ## Provider-spezifische Fallstricke
 
@@ -159,4 +202,7 @@ Security-Advisories (NU1903) einschleppen.
   `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
 - **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
   `FlirtyDbContext`-Registrierung, Webhooks, `UseConditionEvaluator`): **#34**.
+- **`IDialogStore`** (Repository über `FlirtyDbContext`, inkl. DI-Registrierung in `AddFlirty()`):
+  **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit)
+  folgen in **#25**.
 - Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md).
