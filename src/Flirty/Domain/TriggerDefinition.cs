@@ -32,8 +32,8 @@ public sealed class TriggerDefinition
     public required string Config { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <c>IConditionEvaluator</c> ausgewertet wird
-    /// und über das Auslösen entscheidet.
+    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IConditionEvaluator"/>
+    /// ausgewertet wird und über das Auslösen entscheidet.
     /// </summary>
     public string? ConditionExpression { get; set; }
 
