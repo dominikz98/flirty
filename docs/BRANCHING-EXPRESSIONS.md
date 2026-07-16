@@ -165,6 +165,16 @@ if (!result.IsValid)
 }
 ```
 
+## Runtime-Konsum (#26)
+
+Erster Laufzeit-Konsument der Engine ist der `SubmitAnswerCommand`-Handler (#26, siehe
+[RUNTIME.md](./RUNTIME.md#submitanswercommand)): Nach dem Persistieren einer Antwort wertet er die
+ausgehenden `Transition`s der Frage nach `Priority` aus und wählt die erste zutreffende (sonst den
+`IsDefault`-Übergang). Dabei liegt – wie oben beschrieben – das **Kurzschließen** eines `null`en/leeren
+`Expression` (bedingungslos zutreffend) bei der Runtime, nicht beim Evaluator. Der `ExpressionContext`
+wird aus den bisherigen `SessionAnswer`s gebildet (je Frage die zuletzt gegebene Antwort, indiziert
+nach `Question.Key`); seit #26 ist die Default-Engine in `AddFlirty()` als Singleton registriert.
+
 ## Ausblick
 
 Darauf baut auf:

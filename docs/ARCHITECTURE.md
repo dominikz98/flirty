@@ -93,13 +93,13 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
   `IFlirtyEngine.StartDialogAsync`. Umgesetzt in #25, Details in [RUNTIME.md](./RUNTIME.md).
   *(Optionaler `seed?` folgt, sobald #26 ihn auswertet.)*
 - `ResumeDialogQuery(sessionId|externalUserKey)` → Session + aktuelle Frage + bisherige Antworten.
-- `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion → Notifications.
+- `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion. Facade: `IFlirtyEngine.SubmitAnswerAsync`. Umgesetzt in #26, Details in [RUNTIME.md](./RUNTIME.md). *(Notifications folgen in EPIC 4.)*
 - `EditAnswerCommand(sessionId, questionId, value)` → zurückspringen, überschreiben, Pfad neu berechnen.
 
 **Notifications (= In-Process-Trigger)** – `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`, `DialogCompletedNotification`. Der Nutzer „hängt seine Handler rein" per `INotificationHandler<T>` (funktioniert 1:1 in einer Console-App).
 
 **Weitere Services**
-- `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md).
+- `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload folgt in #34.
 - `IAnswerValidator` – Typ + `ValidationRules` (als Mediator-`IPipelineBehavior`).
 - Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).

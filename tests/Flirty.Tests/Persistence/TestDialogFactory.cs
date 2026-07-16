@@ -90,4 +90,75 @@ internal static class TestDialogFactory
             },
         };
     }
+
+    /// <summary>
+    /// Baut einen veröffentlichten Dialog mit Branching für die Submit-Runtime-Tests (#26): eine
+    /// Start-Frage <c>role</c> (SingleChoice, Optionen <c>dev</c>/<c>pm</c>) mit einem bedingten
+    /// Übergang (<c>role == "dev"</c>) auf die Frage <c>devDetail</c> und einem Default-Übergang auf
+    /// <c>pmDetail</c>. Beide Ziel-Fragen sind terminal (keine ausgehenden Übergänge) und lösen daher
+    /// den Abschluss aus. Liefert die Frage-Ids über <paramref name="ids"/> zurück.
+    /// </summary>
+    public static Dialog BuildBranchingDialog(Guid dialogId, out BranchingDialogIds ids)
+    {
+        var roleQuestionId = Guid.NewGuid();
+        var devQuestionId = Guid.NewGuid();
+        var pmQuestionId = Guid.NewGuid();
+        ids = new BranchingDialogIds(roleQuestionId, devQuestionId, pmQuestionId);
+
+        return new Dialog
+        {
+            Id = dialogId,
+            Key = "branching",
+            Name = "Branching",
+            Version = 1,
+            IsPublished = true,
+            StartQuestionId = roleQuestionId,
+            CreatedAt = SampleTime,
+            UpdatedAt = SampleTime,
+            Questions =
+            {
+                new Question
+                {
+                    Id = roleQuestionId, DialogId = dialogId, Key = "role", Text = "Welche Rolle?",
+                    Type = QuestionType.SingleChoice, Order = 0, IsRequired = true,
+                    Options =
+                    {
+                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = roleQuestionId, Key = "dev", Label = "Entwickler", Value = "dev", Order = 0 },
+                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = roleQuestionId, Key = "pm", Label = "Product Manager", Value = "pm", Order = 1 },
+                    },
+                },
+                new Question
+                {
+                    Id = devQuestionId, DialogId = dialogId, Key = "devDetail",
+                    Text = "Welche Programmiersprache?", Type = QuestionType.FreeText, Order = 1,
+                },
+                new Question
+                {
+                    Id = pmQuestionId, DialogId = dialogId, Key = "pmDetail",
+                    Text = "Welches Produkt?", Type = QuestionType.FreeText, Order = 2,
+                },
+            },
+            Transitions =
+            {
+                new Transition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = roleQuestionId,
+                    Expression = "role == \"dev\"", TargetQuestionId = devQuestionId, Priority = 0, IsDefault = false,
+                },
+                new Transition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = roleQuestionId,
+                    TargetQuestionId = pmQuestionId, Priority = 1, IsDefault = true,
+                },
+            },
+        };
+    }
 }
+
+/// <summary>
+/// Die Frage-Ids des von <see cref="TestDialogFactory.BuildBranchingDialog"/> erzeugten Dialogs.
+/// </summary>
+/// <param name="RoleQuestionId">Die Start-/Auswahlfrage <c>role</c>.</param>
+/// <param name="DevQuestionId">Die Ziel-Frage <c>devDetail</c> des bedingten Übergangs.</param>
+/// <param name="PmQuestionId">Die Ziel-Frage <c>pmDetail</c> des Default-Übergangs.</param>
+internal sealed record BranchingDialogIds(Guid RoleQuestionId, Guid DevQuestionId, Guid PmQuestionId);

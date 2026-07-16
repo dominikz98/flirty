@@ -1,3 +1,4 @@
+using Flirty.Expressions;
 using Flirty.Hosting;
 using Flirty.Persistence;
 using Flirty.Pipeline;
@@ -34,6 +35,11 @@ public static class FlirtyServiceCollectionExtensions
     /// Seit Issue #25 wird zusätzlich die Runtime-Facade <see cref="IFlirtyEngine"/> (Implementierung
     /// <see cref="FlirtyEngine"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – dieselbe
     /// Lebensdauer wie Mediator und <see cref="IDialogStore"/>, die sie mittelbar nutzt.
+    /// Seit Issue #26 wird der <see cref="IExpressionEvaluator"/> (Default
+    /// <see cref="DynamicExpressoExpressionEvaluator"/>) als <see cref="ServiceLifetime.Singleton"/>
+    /// registriert – die Engine ist zustandslos und wird vom <see cref="SubmitAnswerCommandHandler"/>
+    /// zur Auswertung der Übergänge (Branching) benötigt. Der austauschbare Overload
+    /// <c>o.UseExpressionEvaluator&lt;T&gt;()</c> folgt in #34.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
     /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
@@ -48,6 +54,8 @@ public static class FlirtyServiceCollectionExtensions
 
         services.AddScoped<IDialogStore, DialogStore>();
         services.AddScoped<IFlirtyEngine, FlirtyEngine>();
+
+        services.AddSingleton<IExpressionEvaluator, DynamicExpressoExpressionEvaluator>();
 
         return services;
     }
