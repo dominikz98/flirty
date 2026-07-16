@@ -22,4 +22,26 @@ public interface IFlirtyEngine
     /// </exception>
     Task<StartDialogResult> StartDialogAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reicht eine Antwort auf die aktuell offene Frage einer laufenden Session ein: persistiert die
+    /// Antwort, wertet die Übergänge (Branching) aus und liefert die nächste Frage bzw. signalisiert den
+    /// Abschluss des Dialogs.
+    /// </summary>
+    /// <param name="sessionId">Der Primärschlüssel der laufenden Session.</param>
+    /// <param name="questionId">
+    /// Die Id der zu beantwortenden Frage; muss der aktuell offenen Frage der Session entsprechen.
+    /// </param>
+    /// <param name="value">Der abgegebene Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <returns>Das Ergebnis mit der nächsten Frage oder dem Abschluss-Signal.</returns>
+    /// <exception cref="SessionNotFoundException">
+    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Die Session ist nicht mehr offen, die angegebene Frage ist nicht die aktuell offene, oder das
+    /// Branching ist fehlkonfiguriert.
+    /// </exception>
+    Task<SubmitAnswerResult> SubmitAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 }

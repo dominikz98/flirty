@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
@@ -81,6 +82,42 @@ public sealed class FlirtyEngineTests : IDisposable
             async () => await engine.StartDialogAsync(string.Empty, "user-1"));
     }
 
+    /// <summary>Die Facade reicht eine Antwort ein und liefert über das Branching die nächste Frage.</summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_reicht_Antwort_ein_und_liefert_naechste_Frage()
+    {
+        var dialogId = Guid.NewGuid();
+        BranchingDialogIds ids;
+        using (var seed = new FlirtyDbContext(_options))
+        {
+            seed.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(dialogId, out ids));
+            seed.SaveChanges();
+        }
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("branching", "user-1");
+        var result = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
+
+        Assert.False(result.IsCompleted);
+        Assert.NotNull(result.NextQuestion);
+        Assert.Equal(ids.DevQuestionId, result.NextQuestion.Id);
+    }
+
+    /// <summary>Ein <c>null</c>-Antwortwert wird durch das <c>ValidationPipelineBehavior</c> abgewiesen.</summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_null_Value_wird_von_der_Pipeline_abgewiesen()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        await Assert.ThrowsAsync<ValidationException>(
+            async () => await engine.SubmitAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
+    }
+
     /// <summary><c>AddFlirty()</c> registriert <see cref="IFlirtyEngine"/> als <see cref="FlirtyEngine"/>.</summary>
     [Fact]
     public void AddFlirty_registriert_IFlirtyEngine()
@@ -94,5 +131,19 @@ public sealed class FlirtyEngineTests : IDisposable
         var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
 
         Assert.IsType<FlirtyEngine>(engine);
+    }
+
+    /// <summary><c>AddFlirty()</c> registriert den Default-<see cref="IExpressionEvaluator"/> (#26).</summary>
+    [Fact]
+    public void AddFlirty_registriert_IExpressionEvaluator()
+    {
+        using var provider = new ServiceCollection()
+            .AddFlirty()
+            .AddDbContext<FlirtyDbContext>(options => options.UseSqlite(_connection))
+            .BuildServiceProvider();
+
+        var evaluator = provider.GetRequiredService<IExpressionEvaluator>();
+
+        Assert.IsType<DynamicExpressoExpressionEvaluator>(evaluator);
     }
 }

@@ -1,9 +1,12 @@
-# Dialog-Runtime: Start & Resume
+# Dialog-Runtime: Start, Resume & Submit
 
 Wie eine Host-App einen Dialog zur Laufzeit **startet** bzw. eine laufende Session **fortsetzt**
-(Resume). Umgesetzt in Issue **#25** (Einstiegspunkt von EPIC 3 – Dialog-Runtime). Referenz:
-[ARCHITECTURE.md](./ARCHITECTURE.md) §6/§7, Mediator-Grundlagen in [MEDIATOR.md](./MEDIATOR.md),
-Repository in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21).
+(Resume) und wie sie **Antworten einreicht** (Submit), wodurch der Dialog per Branching bis zum
+Abschluss durchlaufen wird. Umgesetzt in den Issues **#25** (Start/Resume) und **#26** (Submit) –
+EPIC 3 – Dialog-Runtime. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §6/§7, Mediator-Grundlagen in
+[MEDIATOR.md](./MEDIATOR.md), Branching/Ausdrücke in
+[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Repository in
+[PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21).
 
 ## Überblick
 
@@ -23,11 +26,14 @@ public interface IFlirtyEngine
 {
     Task<StartDialogResult> StartDialogAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default);
+
+    Task<SubmitAnswerResult> SubmitAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 }
 ```
 
-Die Facade wächst in den Folge-Issues additiv (Submit/Resume/Edit). Aktuell (#25) bietet sie den
-Dialog-Start.
+Die Facade wächst in den Folge-Issues additiv (Resume/Edit). Aktuell bietet sie den Dialog-Start
+(#25) und das Einreichen von Antworten (#26).
 
 ## StartDialogCommand
 
@@ -43,10 +49,11 @@ public sealed record StartDialogCommand(
 - Beide sind `[Required]`; leere/`null`-Werte werden vom `ValidationPipelineBehavior` mit einer
   `ValidationException` abgewiesen, bevor der Handler läuft.
 
-> Der in ARCHITECTURE §7 skizzierte optionale `seed?` (initiale Ausdruckskontext-Werte) ist in #25
-> **bewusst noch nicht** enthalten: Es gibt weder einen Speicherort noch einen Konsumenten – die
-> Ausdrucksauswertung (Transitions) beginnt erst mit `SubmitAnswerCommand` (#26). Der Parameter wird
-> ergänzt, sobald er ausgewertet wird.
+> Der in ARCHITECTURE §7 skizzierte optionale `seed?` (initiale Ausdruckskontext-Werte) bleibt auch
+> mit #26 **bewusst noch nicht** enthalten: Die Transition-Auswertung (siehe unten) speist ihren
+> `ExpressionContext` ausschließlich aus den persistierten Antworten der Session; für vorbelegte
+> Startwerte gibt es weiterhin keinen Speicherort. Der Parameter wird ergänzt, sobald ein Konsument
+> ihn tatsächlich auswertet.
 
 ### Ergebnis
 
@@ -94,6 +101,78 @@ ihre `DialogVersion` gebunden und wird durch spätere Dialog-Änderungen nicht g
 | Veröffentlichter Dialog ohne `StartQuestionId` | `InvalidOperationException` (Fehlkonfiguration) |
 | Leerer/`null` `DialogKey`/`ExternalUserKey` | `ValidationException` (aus der Pipeline) |
 
+## SubmitAnswerCommand
+
+```csharp
+public sealed record SubmitAnswerCommand(
+    [property: Required] Guid SessionId,
+    [property: Required] Guid QuestionId,
+    [property: Required] string Value) : ICommand<SubmitAnswerResult>;
+```
+
+- `SessionId` – die laufende Session, in der geantwortet wird.
+- `QuestionId` – die zu beantwortende Frage; muss der aktuell offenen Frage
+  (`DialogSession.CurrentQuestionId`) entsprechen. Das Bearbeiten früherer Antworten ist dem
+  `EditAnswerCommand` (#28) vorbehalten.
+- `Value` – der Antwortwert als **roher JSON-Text** (Format abhängig vom Fragetyp, z. B. der
+  `AnswerOption.Value` einer Auswahl als JSON-String `"\"dev\""`).
+
+> `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
+> `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
+> Handler behandelt (Session-Lookup schlägt fehl bzw. Frage ≠ aktuelle Frage). Die typisierte,
+> regelbasierte Antwort-Validierung (`IAnswerValidator` + `ValidationRules`) folgt in **#30**.
+
+### Ergebnis
+
+```csharp
+public sealed record SubmitAnswerResult(Guid SessionId, bool IsCompleted, QuestionView? NextQuestion);
+```
+
+- `IsCompleted` – `true`, wenn der Dialog mit dieser Antwort abgeschlossen wurde.
+- `NextQuestion` – die als Nächstes zu präsentierende Frage (dieselbe schlanke `QuestionView` wie bei
+  `StartDialogCommand`) bzw. `null` bei Abschluss.
+
+### Ablauf
+
+Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` (Transitions):
+
+1. **Session laden:** `GetSessionAsync(sessionId)` (getrackt, inkl. Antworten). Fehlt sie, wirft der
+   Handler `SessionNotFoundException`.
+2. **Vorbedingungen:** Die Session muss `InProgress` sein und `QuestionId` der aktuell offenen Frage
+   entsprechen; sonst `InvalidOperationException`.
+3. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session
+   gepinnte Version samt Graph.
+4. **Antwort persistieren:** ein neuer `SessionAnswer` wird an die getrackte Session angehängt
+   (`Value`, `AnsweredAt = UtcNow`, fortlaufende `Sequence`) – die `Id` wird **nicht** vorbelegt
+   (store-generiert; vgl. [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
+5. **Transition-Auswertung:** Die ausgehenden Übergänge der Frage werden nach `Priority` geordnet;
+   der erste bedingte Übergang, dessen Ausdruck über den `IExpressionEvaluator` zutrifft, gewinnt,
+   sonst greift der als `IsDefault` markierte. Ein `null`er/leerer `Expression` gilt als bedingungslos
+   zutreffend (Kurzschluss in der Runtime). Der `ExpressionContext` wird aus den bisherigen Antworten
+   der Session gebildet (je Frage die zuletzt gegebene Antwort, indiziert nach `Question.Key`);
+   Loop-Collections/Iterationsindex bleiben in #26 leer (Loop-Runtime folgt in #29).
+6. **Weiterschalten oder Abschluss:**
+   - **Kein ausgehender Übergang** → Abschluss: `Status = Completed`, `CompletedAt = UtcNow`,
+     `CurrentQuestionId = null`.
+   - **Greifender Übergang** → `CurrentQuestionId` = dessen `TargetQuestionId`.
+7. **Speichern:** `SaveChangesAsync()` (Unit-of-Work-Naht).
+
+> **Notifications** (`AnswerSubmittedNotification`, `QuestionAnsweredNotification`,
+> `DialogCompletedNotification`) sind **nicht** Teil von #26. Sie werden zusammen mit ihrer Publikation
+> aus den Command-Handlern im dedizierten Issue *„Notification-Contracts + Publikation"* der
+> **EPIC 4 – Trigger** (Meilenstein M2) umgesetzt.
+
+### Fehlerfälle
+
+| Situation | Verhalten |
+|---|---|
+| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
+| Session nicht `InProgress` (abgeschlossen/abgebrochen) | `InvalidOperationException` |
+| `QuestionId` ≠ aktuell offene Frage | `InvalidOperationException` |
+| Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
+| Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
+| `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
+
 ## Nutzung
 
 ```csharp
@@ -115,16 +194,22 @@ var same = await sender.Send(new StartDialogCommand("onboarding", "user-42"));
 
 Console.WriteLine(result.IsResumed ? "Fortgesetzt" : "Neu gestartet");
 Console.WriteLine(result.CurrentQuestion.Text);
+
+// Antwort auf die aktuelle Frage einreichen → nächste Frage oder Abschluss:
+var next = await engine.SubmitAnswerAsync(
+    result.SessionId, result.CurrentQuestion.Id, value: "\"dev\"");
+
+Console.WriteLine(next.IsCompleted ? "Dialog abgeschlossen" : next.NextQuestion!.Text);
 ```
 
 ## Geplante Folge-Commands (EPIC 3)
 
 | Issue | Command/Query | Zweck |
 |---|---|---|
-| #26 | `SubmitAnswerCommand` | Antwort validieren → persistieren → Transition-Auswertung → nächste Frage/Completion → Notifications |
 | #27 | `ResumeDialogQuery` | Aktuellen Zustand + bisherige Antworten lesen |
 | #28 | `EditAnswerCommand` | Zurückspringen, überschreiben, nachgelagerten Pfad neu berechnen |
 | #29 | Loop-Runtime | Iterations-Sammlung je `CollectionKey`, Break-Bedingung |
+| #30 | `IAnswerValidator` | Typisierte, regelbasierte Antwort-Validierung (Pipeline-Behavior) |
 
 ## Verifikation
 
@@ -132,6 +217,7 @@ Console.WriteLine(result.CurrentQuestion.Text);
 dotnet test tests/Flirty.Tests
 ```
 
-Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start **und** Resume gegen eine echte
+Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume **und** Submit gegen eine echte
 SQLite-Datenbank durch die volle Mediator-Pipeline via `IFlirtyEngine` (Facade → `ISender` → Handler
-→ `IDialogStore` → EF Core) und decken die Fehlerfälle sowie die DI-Registrierung ab.
+→ `IDialogStore`/`IExpressionEvaluator` → EF Core) und decken Branching (bedingter/Default-Übergang),
+Completion, die fortlaufende Antwort-`Sequence`, die Fehlerfälle sowie die DI-Registrierung ab.

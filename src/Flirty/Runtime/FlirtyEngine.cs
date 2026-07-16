@@ -24,4 +24,9 @@ internal sealed class FlirtyEngine : IFlirtyEngine
     public async Task<StartDialogResult> StartDialogAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default)
         => await _sender.Send(new StartDialogCommand(dialogKey, externalUserKey), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<SubmitAnswerResult> SubmitAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default)
+        => await _sender.Send(new SubmitAnswerCommand(sessionId, questionId, value), cancellationToken);
 }

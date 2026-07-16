@@ -57,7 +57,8 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
         if (existing is not null)
         {
             return new StartDialogResult(
-                existing.Id, IsResumed: true, ResolveQuestion(dialog, existing.CurrentQuestionId));
+                existing.Id, IsResumed: true,
+                QuestionProjection.ResolveQuestion(dialog, existing.CurrentQuestionId));
         }
 
         if (dialog.StartQuestionId is null)
@@ -81,25 +82,7 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
         await _store.SaveChangesAsync(cancellationToken);
 
         return new StartDialogResult(
-            session.Id, IsResumed: false, ResolveQuestion(dialog, session.CurrentQuestionId));
-    }
-
-    /// <summary>
-    /// Löst die Frage mit <paramref name="questionId"/> aus dem geladenen <paramref name="dialog"/>-Graphen
-    /// auf und projiziert sie samt Optionen (in <see cref="AnswerOption.Order"/>-Reihenfolge) in eine
-    /// <see cref="QuestionView"/>.
-    /// </summary>
-    private static QuestionView ResolveQuestion(Dialog dialog, Guid? questionId)
-    {
-        var question = dialog.Questions.FirstOrDefault(candidate => candidate.Id == questionId)
-            ?? throw new InvalidOperationException(
-                $"Die aktuelle Frage '{questionId}' gehört nicht zum Dialog '{dialog.Key}'.");
-
-        var options = question.Options
-            .OrderBy(option => option.Order)
-            .Select(option => new AnswerOptionView(option.Id, option.Key, option.Label, option.Value))
-            .ToList();
-
-        return new QuestionView(question.Id, question.Key, question.Text, question.Type, options);
+            session.Id, IsResumed: false,
+            QuestionProjection.ResolveQuestion(dialog, session.CurrentQuestionId));
     }
 }
