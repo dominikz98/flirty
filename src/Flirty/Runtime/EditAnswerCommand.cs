@@ -34,7 +34,7 @@ public sealed record EditAnswerCommand(
     [property: Required] Guid SessionId,
     [property: Required] Guid QuestionId,
     [property: Required] string Value,
-    int? IterationIndex = null) : ICommand<EditAnswerResult>;
+    int? IterationIndex = null) : ICommand<EditAnswerResult>, IAnswerCommand;
 
 /// <summary>
 /// Handler für <see cref="EditAnswerCommand"/>: überschreibt die bestehende Antwort, invalidiert die

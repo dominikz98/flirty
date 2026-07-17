@@ -103,7 +103,7 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 
 **Weitere Services**
 - `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload folgt in #34.
-- `IAnswerValidator` – Typ + `ValidationRules` (als Mediator-`IPipelineBehavior`).
+- `IAnswerValidator` – typisierte, regelbasierte Antwort-Validierung (Typ + `ValidationRules`), als Mediator-`IPipelineBehavior` (`AnswerValidationPipelineBehavior`) vor Submit/Edit. Umgesetzt in #30, Details in [VALIDATION.md](./VALIDATION.md).
 - Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
 

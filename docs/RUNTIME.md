@@ -132,7 +132,8 @@ public sealed record SubmitAnswerCommand(
 > `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
 > `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
 > Handler behandelt (Session-Lookup schlägt fehl bzw. Frage ≠ aktuelle Frage). Die typisierte,
-> regelbasierte Antwort-Validierung (`IAnswerValidator` + `ValidationRules`) folgt in **#30**.
+> regelbasierte Antwort-Validierung (`IAnswerValidator` + `ValidationRules`) greift zusätzlich über das
+> `AnswerValidationPipelineBehavior` **vor** dem Handler (#30, siehe [VALIDATION.md](./VALIDATION.md)).
 
 ### Ergebnis
 
@@ -188,6 +189,7 @@ Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` 
 | Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
 | Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
 | `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
+| `Value` passt nicht zu Typ/Regeln der Frage | `AnswerValidationException` (aus dem `AnswerValidationPipelineBehavior`, #30, siehe [VALIDATION.md](./VALIDATION.md)) |
 
 ## ResumeDialogQuery
 
@@ -331,6 +333,7 @@ editierte Frage mit neuem Wert neu einreichen".**
 | Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
 | Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
 | `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
+| `Value` passt nicht zu Typ/Regeln der Frage | `AnswerValidationException` (aus dem `AnswerValidationPipelineBehavior`, #30, siehe [VALIDATION.md](./VALIDATION.md)) |
 
 > **Loop-Iterationen** (mehrere Antworten pro Frage über `LoopInstanceId`/`IterationIndex`) werden über
 > den optionalen `IterationIndex` gezielt editiert (#29). Die Sequence-basierte Invalidierung verwirft
@@ -380,11 +383,9 @@ Console.WriteLine(edited.IsCompleted ? "Dialog abgeschlossen" : edited.NextQuest
 
 Die **Loop-Runtime (#29)** – Iterations-Sammlung je `CollectionKey`, Break-Bedingung, Editieren einer
 Iteration – ist umgesetzt; sie erweitert Submit/Edit additiv und ist in [LOOPS.md](./LOOPS.md)
-dokumentiert. Noch offen:
-
-| Issue | Command/Query | Zweck |
-|---|---|---|
-| #30 | `IAnswerValidator` | Typisierte, regelbasierte Antwort-Validierung (Pipeline-Behavior) |
+dokumentiert. Die **fachliche Antwort-Validierung (#30)** – `IAnswerValidator` + `ValidationRules` als
+Pipeline-Behavior – ist umgesetzt und in [VALIDATION.md](./VALIDATION.md) dokumentiert. Damit ist
+EPIC 3 abgeschlossen.
 
 ## Verifikation
 

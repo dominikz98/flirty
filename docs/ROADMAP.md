@@ -26,10 +26,11 @@ GitHub-Issues (#12–#52).
 >   (Tests grün). Siehe [MEDIATOR.md](./MEDIATOR.md).
 >
 > **Stand EPIC 3:** EPIC 1 (Persistenz, `#17`–`#21`) und EPIC 2 (Expression-Engine, `#22`–`#24`)
-> sind erledigt. EPIC 3 – Dialog-Runtime läuft: `#25` (StartDialogCommand + `IFlirtyEngine`-Facade),
-> `#26` (SubmitAnswerCommand), `#27` (ResumeDialogQuery – Zustand lesen), `#28` (EditAnswerCommand –
-> Pfad-Neuberechnung) und `#29` (Loop-Runtime – Iterationen/Collections/Break, siehe [LOOPS.md](./LOOPS.md))
-> sind umgesetzt (siehe [RUNTIME.md](./RUNTIME.md)); nächster Schritt ist `#30` IAnswerValidator.
+> sind erledigt. EPIC 3 – Dialog-Runtime ist **abgeschlossen**: `#25` (StartDialogCommand +
+> `IFlirtyEngine`-Facade), `#26` (SubmitAnswerCommand), `#27` (ResumeDialogQuery – Zustand lesen),
+> `#28` (EditAnswerCommand – Pfad-Neuberechnung), `#29` (Loop-Runtime – Iterationen/Collections/Break,
+> siehe [LOOPS.md](./LOOPS.md)) und `#30` (IAnswerValidator – fachliche Antwort-Validierung, siehe
+> [VALIDATION.md](./VALIDATION.md)) sind umgesetzt (siehe [RUNTIME.md](./RUNTIME.md)).
 
 ---
 
