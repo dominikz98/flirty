@@ -74,7 +74,7 @@ Microsoft.AspNetCore.App`) wird nur referenziert, wenn Web/Endpunkte gewünscht 
 - **Question** – `Id`, `DialogId`, `Key`, `Text`, `Type` (SingleChoice, MultiChoice, FreeText, Number, Date, Boolean), `Order`, `IsRequired`, `ValidationRules` (JSON).
 - **AnswerOption** – `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order`.
 - **Transition** – `Id`, `DialogId`, `FromQuestionId`, `Expression`, `TargetQuestionId`, `Priority`, `IsDefault`. Geordnete Liste bedingter Übergänge je Frage; erste zutreffende gewinnt, sonst Default. Ein `TargetQuestionId` auf eine **frühere** Frage bildet einen **Loop-Zyklus**.
-- **LoopDefinition** – `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` (+ Exit-Transition). Metadaten-/Marker-Ebene über dem Branching für Runtime-Sammlung und Designer-Visualisierung.
+- **LoopDefinition** – `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId`. Metadaten-/Marker-Ebene über dem Branching für Runtime-Sammlung und Designer-Visualisierung. Der Exit ist **keine** eigene Eigenschaft, sondern läuft über die normale `Transition`-Mechanik (der Exit-Übergang der Breaking Question).
 - **TriggerDefinition** – `Id`, `DialogId`, `Scope` (OnDialogStarted/AfterAnswer/AfterQuestion/OnDialogCompleted), `QuestionId?`, `Kind` (InProcess|Webhook), `Config` (JSON), `Expression?`.
 
 ## 6. Runtime-/Session-State
@@ -141,7 +141,7 @@ optional Admin-CRUD.
 
 Loops entstehen **über das vorhandene Branching**: eine Transition zeigt auf eine frühere
 Frage (Zyklus). Der `LoopDefinition`-Marker bewirkt zweierlei:
-1. **Runtime** sammelt die Antworten des Bereichs je Iteration in `CollectionKey` (statt zu überschreiben) — `SessionAnswer.IterationIndex` macht mehrere Antworten pro Frage möglich.
+1. **Runtime** sammelt je Iteration die Antwort der Einstiegsfrage unter `CollectionKey` (statt zu überschreiben) — `SessionAnswer.LoopInstanceId`/`IterationIndex` machen mehrere Antworten pro Frage möglich. Umgesetzt in **#29** (Details in [LOOPS.md](./LOOPS.md)).
 2. **Designer** visualisiert den Zyklus als Loop-Block mit markierter **Breaking Question**.
 
 Die **Breaking Question** ist die Frage, deren Exit-Transition den Zyklus verlässt; danach

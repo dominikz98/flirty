@@ -37,6 +37,8 @@ internal sealed class FlirtyEngine : IFlirtyEngine
 
     /// <inheritdoc />
     public async Task<EditAnswerResult> EditAnswerAsync(
-        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default)
-        => await _sender.Send(new EditAnswerCommand(sessionId, questionId, value), cancellationToken);
+        Guid sessionId, Guid questionId, string value, int? iterationIndex = null,
+        CancellationToken cancellationToken = default)
+        => await _sender.Send(
+            new EditAnswerCommand(sessionId, questionId, value, iterationIndex), cancellationToken);
 }

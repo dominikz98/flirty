@@ -39,9 +39,19 @@ public sealed record ResumeDialogResult(
 /// <param name="Value">Der gespeicherte Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
 /// <param name="Sequence">Die fortlaufende Position der Antwort innerhalb der Session (beginnend bei 0).</param>
 /// <param name="AnsweredAt">Der Zeitpunkt, zu dem die Antwort erfasst wurde.</param>
+/// <param name="LoopInstanceId">
+/// Die Instanz-Id der Schleife, zu der die Antwort gehört, oder <see langword="null"/>, wenn die Antwort
+/// außerhalb einer Schleife gegeben wurde.
+/// </param>
+/// <param name="IterationIndex">
+/// Der nullbasierte Iterationsindex innerhalb der Schleife oder <see langword="null"/> außerhalb einer
+/// Schleife.
+/// </param>
 public sealed record SessionAnswerView(
     Guid QuestionId,
     string QuestionKey,
     string Value,
     int Sequence,
-    DateTimeOffset AnsweredAt);
+    DateTimeOffset AnsweredAt,
+    Guid? LoopInstanceId,
+    int? IterationIndex);

@@ -197,6 +197,45 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.Equal(1, result.InvalidatedAnswers);
     }
 
+    /// <summary>
+    /// Die Facade durchläuft eine Schleife über mehrere Iterationen (Loop-Back bei <c>more == "yes"</c>,
+    /// Exit bei <c>"no"</c>), macht die Iterationen über <c>ResumeDialogAsync</c> sichtbar und editiert
+    /// anschließend gezielt die erste Iteration (Issue #29).
+    /// </summary>
+    [Fact]
+    public async Task LoopRuntime_durchlaeuft_Iterationen_und_editiert_gezielt_ueber_die_Facade()
+    {
+        var dialogId = Guid.NewGuid();
+        LoopDialogIds ids;
+        using (var seed = new FlirtyDbContext(_options))
+        {
+            seed.Dialogs.Add(TestDialogFactory.BuildLoopDialog(dialogId, out ids));
+            seed.SaveChanges();
+        }
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("loop", "user-1");
+        await engine.SubmitAnswerAsync(start.SessionId, ids.PositionQuestionId, "\"A\"");
+        var afterFirstMore = await engine.SubmitAnswerAsync(start.SessionId, ids.MoreQuestionId, "\"yes\"");
+        Assert.Equal(ids.PositionQuestionId, afterFirstMore.NextQuestion!.Id);   // Loop-Back
+        await engine.SubmitAnswerAsync(start.SessionId, ids.PositionQuestionId, "\"B\"");
+        var afterSecondMore = await engine.SubmitAnswerAsync(start.SessionId, ids.MoreQuestionId, "\"no\"");
+        Assert.Equal(ids.SummaryQuestionId, afterSecondMore.NextQuestion!.Id);   // Exit
+
+        var state = await engine.ResumeDialogAsync(start.SessionId);
+        var positionAnswers = state.Answers
+            .Where(answer => answer.QuestionKey == "position")
+            .OrderBy(answer => answer.IterationIndex)
+            .ToList();
+        Assert.Equal([0, 1], positionAnswers.Select(answer => answer.IterationIndex));
+
+        var edited = await engine.EditAnswerAsync(start.SessionId, ids.PositionQuestionId, "\"A2\"", iterationIndex: 0);
+        Assert.True(edited.InvalidatedAnswers > 0);
+    }
+
     /// <summary>Ein <c>null</c>-Antwortwert wird bei <c>EditAnswerAsync</c> durch die Pipeline abgewiesen.</summary>
     [Fact]
     public async Task EditAnswerAsync_null_Value_wird_von_der_Pipeline_abgewiesen()

@@ -24,10 +24,17 @@ namespace Flirty.Runtime;
 /// Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp, z. B. der
 /// <see cref="AnswerOption.Value"/> einer Auswahl).
 /// </param>
+/// <param name="IterationIndex">
+/// Optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die Antwort einer
+/// bestimmten Iteration zu editieren (eine Frage kann je Iteration eine Antwort tragen). Bleibt er
+/// <see langword="null"/>, wird – wie außerhalb von Schleifen – die früheste Antwort der Frage editiert
+/// (Iteration 0 bei einer Loop-Frage).
+/// </param>
 public sealed record EditAnswerCommand(
     [property: Required] Guid SessionId,
     [property: Required] Guid QuestionId,
-    [property: Required] string Value) : ICommand<EditAnswerResult>;
+    [property: Required] string Value,
+    int? IterationIndex = null) : ICommand<EditAnswerResult>;
 
 /// <summary>
 /// Handler für <see cref="EditAnswerCommand"/>: überschreibt die bestehende Antwort, invalidiert die
@@ -62,9 +69,9 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
     /// </exception>
     /// <exception cref="InvalidOperationException">
     /// Die Session ist abgebrochen (<see cref="SessionStatus.Abandoned"/>), die gepinnte Dialogversion
-    /// fehlt, die Frage gehört nicht zum Dialog, die Frage wurde in dieser Session noch nicht beantwortet,
-    /// oder das Branching ist fehlkonfiguriert (kein passender Übergang und kein Default bzw. unbekannte
-    /// Zielfrage).
+    /// fehlt, die Frage gehört nicht zum Dialog, die Frage (bzw. die angegebene Iteration) wurde in dieser
+    /// Session noch nicht beantwortet, oder das Branching ist fehlkonfiguriert (kein passender Übergang und
+    /// kein Default bzw. unbekannte Zielfrage).
     /// </exception>
     public async ValueTask<EditAnswerResult> Handle(
         EditAnswerCommand command, CancellationToken cancellationToken)
@@ -93,15 +100,17 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
                 $"Die Frage '{command.QuestionId}' gehört nicht zum Dialog '{dialog.Key}'.");
         }
 
-        // Die zu editierende (früheste) Antwort auf die Frage suchen; ohne bestehende Antwort gibt es
-        // nichts zu editieren.
-        var target = session.Answers
-            .Where(answer => answer.QuestionId == command.QuestionId)
-            .OrderBy(answer => answer.Sequence)
-            .FirstOrDefault()
+        // Die zu editierende Antwort auf die Frage suchen; ohne bestehende Antwort gibt es nichts zu
+        // editieren. Innerhalb einer Schleife wählt der optionale IterationIndex gezielt die Iteration,
+        // sonst greift wie bisher die früheste Antwort der Frage.
+        var candidates = session.Answers.Where(answer => answer.QuestionId == command.QuestionId);
+        var target = (command.IterationIndex is int iteration
+                ? candidates.FirstOrDefault(answer => answer.IterationIndex == iteration)
+                : candidates.OrderBy(answer => answer.Sequence).FirstOrDefault())
             ?? throw new InvalidOperationException(
-                $"Die Frage '{command.QuestionId}' wurde in Session '{session.Id}' noch nicht beantwortet "
-                + "und kann daher nicht editiert werden.");
+                $"Die Frage '{command.QuestionId}' wurde in Session '{session.Id}'"
+                + (command.IterationIndex is int it ? $" in Iteration {it}" : string.Empty)
+                + " noch nicht beantwortet und kann daher nicht editiert werden.");
 
         // Antwort überschreiben (Sequence bleibt erhalten, Zeitpunkt spiegelt die Editierung wider).
         target.Value = command.Value;

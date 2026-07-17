@@ -95,7 +95,7 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
                 $"Die Frage '{command.QuestionId}' gehört nicht zum Dialog '{dialog.Key}'.");
         }
 
-        PersistAnswer(session, command);
+        PersistAnswer(dialog, session, command);
 
         var target = new TransitionResolver(_evaluator).ResolveTransitionTarget(dialog, session, command.QuestionId);
         if (target is null)
@@ -114,13 +114,19 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
     /// <summary>
     /// Hängt die eingereichte Antwort als neuen <see cref="SessionAnswer"/> an die getrackte Session an.
     /// Der Guid-Schlüssel wird bewusst nicht vorbelegt (store-generiert beim Speichern); die
-    /// <see cref="SessionAnswer.Sequence"/> setzt die Reihenfolge innerhalb der Session fort.
+    /// <see cref="SessionAnswer.Sequence"/> setzt die Reihenfolge innerhalb der Session fort. Liegt die
+    /// Frage in einem Schleifen-Bereich, werden zusätzlich <see cref="SessionAnswer.LoopInstanceId"/> und
+    /// <see cref="SessionAnswer.IterationIndex"/> über den <see cref="LoopResolver"/> gesetzt (die
+    /// Zuordnung rechnet auf dem Vor-Zustand und muss daher vor dem Anhängen erfolgen); außerhalb einer
+    /// Schleife bleiben beide <see langword="null"/>.
     /// </summary>
-    private static void PersistAnswer(DialogSession session, SubmitAnswerCommand command)
+    private static void PersistAnswer(Dialog dialog, DialogSession session, SubmitAnswerCommand command)
     {
         var nextSequence = session.Answers.Count == 0
             ? 0
             : session.Answers.Max(answer => answer.Sequence) + 1;
+
+        var assignment = new LoopResolver(dialog).ResolveAssignment(session, command.QuestionId);
 
         session.Answers.Add(new SessionAnswer
         {
@@ -129,6 +135,8 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             Value = command.Value,
             AnsweredAt = DateTimeOffset.UtcNow,
             Sequence = nextSequence,
+            LoopInstanceId = assignment.LoopInstanceId,
+            IterationIndex = assignment.IterationIndex,
         });
     }
 

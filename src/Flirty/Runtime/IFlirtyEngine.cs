@@ -71,6 +71,10 @@ public interface IFlirtyEngine
     /// Session bereits beantwortet worden sein (nicht notwendigerweise die aktuell offene Frage).
     /// </param>
     /// <param name="value">Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
+    /// <param name="iterationIndex">
+    /// Optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die Antwort einer
+    /// bestimmten Iteration zu editieren; <see langword="null"/> editiert die früheste Antwort der Frage.
+    /// </param>
     /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
     /// <returns>
     /// Das Ergebnis mit der neu berechneten Folgefrage bzw. dem Abschluss-Signal und der Anzahl verworfener
@@ -80,9 +84,10 @@ public interface IFlirtyEngine
     /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Session ist abgebrochen, die Frage gehört nicht zum Dialog, die Frage wurde noch nicht
-    /// beantwortet, oder das Branching ist fehlkonfiguriert.
+    /// Die Session ist abgebrochen, die Frage gehört nicht zum Dialog, die Frage (bzw. die angegebene
+    /// Iteration) wurde noch nicht beantwortet, oder das Branching ist fehlkonfiguriert.
     /// </exception>
     Task<EditAnswerResult> EditAnswerAsync(
-        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
+        Guid sessionId, Guid questionId, string value, int? iterationIndex = null,
+        CancellationToken cancellationToken = default);
 }
