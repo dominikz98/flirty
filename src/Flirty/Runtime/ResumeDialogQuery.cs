@@ -55,34 +55,12 @@ internal sealed class ResumeDialogQueryHandler : IQueryHandler<ResumeDialogQuery
             ?? throw new InvalidOperationException(
                 $"Die von Session '{session.Id}' gepinnte Dialogversion '{session.DialogId}' existiert nicht.");
 
-        var answers = ProjectAnswers(dialog, session);
+        var answers = SessionAnswerProjection.Project(dialog, session);
 
         var currentQuestion = session.CurrentQuestionId is Guid questionId
             ? QuestionProjection.ResolveQuestion(dialog, questionId)
             : null;
 
         return new ResumeDialogResult(session.Id, session.Status, currentQuestion, answers);
-    }
-
-    /// <summary>
-    /// Projiziert die bisherigen Antworten der Session in navigationsfreie <see cref="SessionAnswerView"/>,
-    /// löst dabei je Antwort den fachlichen <see cref="Question.Key"/> aus der gepinnten Dialogversion auf
-    /// und ordnet aufsteigend nach <see cref="SessionAnswer.Sequence"/> (chronologisch).
-    /// </summary>
-    private static IReadOnlyList<SessionAnswerView> ProjectAnswers(Dialog dialog, DialogSession session)
-    {
-        var keyByQuestionId = dialog.Questions.ToDictionary(question => question.Id, question => question.Key);
-
-        return session.Answers
-            .OrderBy(answer => answer.Sequence)
-            .Select(answer => new SessionAnswerView(
-                answer.QuestionId,
-                keyByQuestionId.GetValueOrDefault(answer.QuestionId, string.Empty),
-                answer.Value,
-                answer.Sequence,
-                answer.AnsweredAt,
-                answer.LoopInstanceId,
-                answer.IterationIndex))
-            .ToList();
     }
 }

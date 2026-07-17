@@ -126,21 +126,16 @@ public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogC
 }
 ```
 
-**Wichtig (Stand M1):** Die Engine **publiziert noch keine Notifications** – das engine-getriebene
-Publishing aus den Command-Handlern folgt in **EPIC 4 (M2)**. Der martinothamar-Mediator entdeckt
-Notification-Handler zudem nur innerhalb der Core-Compilation, sodass eine **im Sample** definierte
-Notification über `IPublisher` keinen Sample-Handler erreicht. Deshalb löst der `ConsoleDialogRunner`
-die registrierten Handler nach dem Abschluss selbst auf und ruft sie auf – dieselbe Form (mehrere
-Handler je Notification), die die Engine in EPIC 4 übernehmen wird:
+Seit **#31** publiziert die **Engine selbst** die Notification: Der `SubmitAnswerCommandHandler` löst beim
+Dialog-Abschluss `DialogCompletedNotification` per `IPublisher` aus, wodurch alle registrierten
+`INotificationHandler<T>` automatisch aufgerufen werden. Die Registrierung per DI (Abschnitt 1) genügt –
+der `ConsoleDialogRunner` muss **nichts** mehr manuell auflösen oder aufrufen. Der Handler selbst bleibt
+unverändert.
 
-```csharp
-var handlers = scope.ServiceProvider.GetServices<INotificationHandler<DialogCompletedNotification>>();
-foreach (var handler in handlers)
-    await handler.Handle(notification, cancellationToken);
-```
-
-Sobald EPIC 4 das engine-seitige Publishing liefert, kann der Dialog-Abschluss stattdessen direkt aus
-den Command-Handlern per Mediator publiziert werden – der eigene Handler bleibt unverändert.
+Der `DialogCompletedNotification` gehört – wie alle vier Trigger-Contracts (`DialogStarted`,
+`AnswerSubmitted`, `QuestionAnswered`, `DialogCompleted`) – zum **Core** (Namespace `Flirty.Runtime`),
+weil der martinothamar-Mediator Notification-Typen nur innerhalb der Core-Compilation kennt. Details und
+das vollständige Auslöse-/Scope-Mapping stehen in [TRIGGERS.md](./TRIGGERS.md).
 
 ## Ausführen
 

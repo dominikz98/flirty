@@ -36,22 +36,27 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
 {
     private readonly IDialogStore _store;
     private readonly IExpressionEvaluator _evaluator;
+    private readonly IPublisher _publisher;
 
     /// <summary>
-    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/> und
-    /// <see cref="IExpressionEvaluator"/>.
+    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/>,
+    /// <see cref="IExpressionEvaluator"/> und <see cref="IPublisher"/>.
     /// </summary>
     /// <param name="store">Das Repository für Dialoge und Sessions.</param>
     /// <param name="evaluator">Die Engine zur Auswertung der Übergangs-Bedingungsausdrücke.</param>
+    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/> oder <paramref name="evaluator"/> ist <see langword="null"/>.
+    /// <paramref name="store"/>, <paramref name="evaluator"/> oder <paramref name="publisher"/> ist
+    /// <see langword="null"/>.
     /// </exception>
-    public SubmitAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator)
+    public SubmitAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(evaluator);
+        ArgumentNullException.ThrowIfNull(publisher);
         _store = store;
         _evaluator = evaluator;
+        _publisher = publisher;
     }
 
     /// <inheritdoc />
@@ -95,21 +100,58 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
                 $"Die Frage '{command.QuestionId}' gehört nicht zum Dialog '{dialog.Key}'.");
         }
 
-        PersistAnswer(dialog, session, command);
+        var answer = PersistAnswer(dialog, session, command);
 
         var target = new TransitionResolver(_evaluator).ResolveTransitionTarget(dialog, session, command.QuestionId);
         if (target is null)
         {
             Complete(session);
             await _store.SaveChangesAsync(cancellationToken);
+
+            // In-Process-Trigger (EPIC 4): erst die Antwort melden, dann das Übergangs-Ergebnis (Abschluss),
+            // schließlich den Dialog-Abschluss samt der gegebenen Antworten.
+            await PublishAnswerAsync(session, dialog, answer, cancellationToken);
+            await _publisher.Publish(
+                new QuestionAnsweredNotification(
+                    session.Id, dialog.Key, command.QuestionId, NextQuestionId: null, IsCompleted: true),
+                cancellationToken);
+            await _publisher.Publish(
+                new DialogCompletedNotification(
+                    session.Id, dialog.Key, SessionAnswerProjection.Project(dialog, session)),
+                cancellationToken);
+
             return new SubmitAnswerResult(session.Id, IsCompleted: true, NextQuestion: null);
         }
 
         session.CurrentQuestionId = target;
         await _store.SaveChangesAsync(cancellationToken);
+
+        // In-Process-Trigger (EPIC 4): Antwort melden, dann das Übergangs-Ergebnis mit der Folgefrage.
+        await PublishAnswerAsync(session, dialog, answer, cancellationToken);
+        await _publisher.Publish(
+            new QuestionAnsweredNotification(
+                session.Id, dialog.Key, command.QuestionId, NextQuestionId: target, IsCompleted: false),
+            cancellationToken);
+
         return new SubmitAnswerResult(
             session.Id, IsCompleted: false, QuestionProjection.ResolveQuestion(dialog, target));
     }
+
+    /// <summary>
+    /// Publiziert die <see cref="AnswerSubmittedNotification"/> für die soeben persistierte Antwort
+    /// (inkl. etwaiger Schleifen-Zuordnung).
+    /// </summary>
+    private ValueTask PublishAnswerAsync(
+        DialogSession session, Dialog dialog, SessionAnswer answer, CancellationToken cancellationToken)
+        => _publisher.Publish(
+            new AnswerSubmittedNotification(
+                session.Id,
+                dialog.Key,
+                answer.QuestionId,
+                answer.Value,
+                answer.LoopInstanceId,
+                answer.IterationIndex),
+            cancellationToken);
 
     /// <summary>
     /// Hängt die eingereichte Antwort als neuen <see cref="SessionAnswer"/> an die getrackte Session an.
@@ -120,7 +162,8 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
     /// Zuordnung rechnet auf dem Vor-Zustand und muss daher vor dem Anhängen erfolgen); außerhalb einer
     /// Schleife bleiben beide <see langword="null"/>.
     /// </summary>
-    private static void PersistAnswer(Dialog dialog, DialogSession session, SubmitAnswerCommand command)
+    /// <returns>Die neu angehängte <see cref="SessionAnswer"/> (u. a. für die Trigger-Notification).</returns>
+    private static SessionAnswer PersistAnswer(Dialog dialog, DialogSession session, SubmitAnswerCommand command)
     {
         var nextSequence = session.Answers.Count == 0
             ? 0
@@ -128,7 +171,7 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
 
         var assignment = new LoopResolver(dialog).ResolveAssignment(session, command.QuestionId);
 
-        session.Answers.Add(new SessionAnswer
+        var answer = new SessionAnswer
         {
             SessionId = session.Id,
             QuestionId = command.QuestionId,
@@ -137,7 +180,10 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             Sequence = nextSequence,
             LoopInstanceId = assignment.LoopInstanceId,
             IterationIndex = assignment.IterationIndex,
-        });
+        };
+
+        session.Answers.Add(answer);
+        return answer;
     }
 
     /// <summary>Schließt die Session ab: Status, Abschlusszeitpunkt und Löschen der offenen Frage.</summary>

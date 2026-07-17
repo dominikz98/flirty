@@ -45,22 +45,27 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
 {
     private readonly IDialogStore _store;
     private readonly IExpressionEvaluator _evaluator;
+    private readonly IPublisher _publisher;
 
     /// <summary>
-    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/> und
-    /// <see cref="IExpressionEvaluator"/>.
+    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/>,
+    /// <see cref="IExpressionEvaluator"/> und <see cref="IPublisher"/>.
     /// </summary>
     /// <param name="store">Das Repository für Dialoge und Sessions.</param>
     /// <param name="evaluator">Die Engine zur Auswertung der Übergangs-Bedingungsausdrücke.</param>
+    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/> oder <paramref name="evaluator"/> ist <see langword="null"/>.
+    /// <paramref name="store"/>, <paramref name="evaluator"/> oder <paramref name="publisher"/> ist
+    /// <see langword="null"/>.
     /// </exception>
-    public EditAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator)
+    public EditAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(evaluator);
+        ArgumentNullException.ThrowIfNull(publisher);
         _store = store;
         _evaluator = evaluator;
+        _publisher = publisher;
     }
 
     /// <inheritdoc />
@@ -123,6 +128,14 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
         {
             Complete(session);
             await _store.SaveChangesAsync(cancellationToken);
+
+            // In-Process-Trigger (EPIC 4): schließt die Neuberechnung die Session ab, wird DialogCompleted
+            // gemeldet. Ein bloßes Wieder-Öffnen (Reopen) löst bewusst keine Notification aus.
+            await _publisher.Publish(
+                new DialogCompletedNotification(
+                    session.Id, dialog.Key, SessionAnswerProjection.Project(dialog, session)),
+                cancellationToken);
+
             return new EditAnswerResult(session.Id, IsCompleted: true, NextQuestion: null, invalidatedCount);
         }
 

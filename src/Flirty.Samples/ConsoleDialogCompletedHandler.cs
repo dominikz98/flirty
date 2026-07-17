@@ -1,16 +1,20 @@
+using Flirty.Runtime;
 using Mediator;
 
 namespace Flirty.Samples;
 
 /// <summary>
 /// Eigener In-Process-<see cref="INotificationHandler{TNotification}"/> des Console-Samples: reagiert
-/// auf eine <see cref="DialogCompletedNotification"/> und schreibt eine Abschluss-Zusammenfassung
-/// (Dialog-Schlüssel und alle gegebenen Antworten) in den injizierten <see cref="TextWriter"/>.
+/// auf die von der Engine publizierte <see cref="DialogCompletedNotification"/> und schreibt eine
+/// Abschluss-Zusammenfassung (Dialog-Schlüssel und alle gegebenen Antworten) in den injizierten
+/// <see cref="TextWriter"/>.
 /// </summary>
 /// <remarks>
-/// Demonstriert, wie eine Host-App eigene Reaktionen „in die Engine hängt". Der <see cref="TextWriter"/>
-/// wird per DI bereitgestellt (in der App die Konsole, im Test ein <see cref="StringWriter"/>), sodass
-/// die Auslösung des Handlers beobachtbar und testbar ist.
+/// Demonstriert, wie eine Host-App eigene Reaktionen „in die Engine hängt": Der Handler wird lediglich
+/// per DI registriert und von der Engine beim Dialog-Abschluss automatisch über <see cref="IPublisher"/>
+/// aufgerufen (seit EPIC 4). Der <see cref="TextWriter"/> wird per DI bereitgestellt (in der App die
+/// Konsole, im Test ein <see cref="StringWriter"/>), sodass die Auslösung des Handlers beobachtbar und
+/// testbar ist.
 /// </remarks>
 public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogCompletedNotification>
 {

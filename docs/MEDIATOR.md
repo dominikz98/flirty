@@ -93,6 +93,34 @@ internal sealed class CreateFooCommandHandler : ICommandHandler<CreateFooCommand
 
 Senden: `await sender.Send(new CreateFooCommand("bar"));`
 
+## Notifications (In-Process-Trigger)
+
+Notifications sind der Rückkanal in die Host-App: Die Engine publiziert `INotification`-Contracts, die
+Host-Apps über eigene `INotificationHandler<T>` behandeln.
+
+```csharp
+public sealed record FooHappenedNotification(Guid Id) : INotification;   // Contract gehört in den Core
+
+// Publizieren (in einem Command-Handler):
+await _publisher.Publish(new FooHappenedNotification(id), cancellationToken);
+
+// Behandeln (in der Host-App, per DI registriert):
+services.AddScoped<INotificationHandler<FooHappenedNotification>, MyHandler>();
+```
+
+Zwei Besonderheiten von martinothamar/Mediator, die aus Regel 1 folgen:
+
+- **Notification-Contracts müssen im Core liegen.** Nur so kennt der Source-Generator den Typ und
+  liefert `IPublisher.Publish` ihn an registrierte Handler (auch aus Host-Assemblies) aus. Ein im Sample
+  definierter Notification-Typ erreicht über `IPublisher` keinen Handler.
+- **MSG0005 (Nachricht ohne Handler).** Der Generator verlangt je Nachricht einen Handler in der
+  Core-Compilation. Trigger-Notifications werden aber bewusst erst von Host-Apps behandelt; daher ist
+  MSG0005 je Notification-Typ gezielt unterdrückt (`#pragma warning disable MSG0005`) statt projektweit,
+  damit ein echt fehlender Command-/Query-Handler weiterhin auffällt.
+
+Die konkreten Engine-Trigger (`DialogStarted`/`AnswerSubmitted`/`QuestionAnswered`/`DialogCompleted`) und
+wann sie publiziert werden, beschreibt [TRIGGERS.md](./TRIGGERS.md).
+
 ## Ein Pipeline-Behavior hinzufügen
 
 1. `IPipelineBehavior<TMessage, TResponse>` implementieren (Constraint `where TMessage : notnull, IMessage`),

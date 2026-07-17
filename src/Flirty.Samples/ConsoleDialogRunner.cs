@@ -6,54 +6,38 @@ namespace Flirty.Samples;
 /// <summary>
 /// Spielt einen Dialog vollständig über die Facade <see cref="IFlirtyEngine"/> durch: startet den
 /// Dialog, präsentiert jede Frage, reicht die von der <see cref="IAnswerSource"/> gelieferte Antwort
-/// ein und folgt dem Branching bis zum Abschluss. Nach dem Abschluss benachrichtigt der Runner die
-/// registrierten eigenen <see cref="INotificationHandler{TNotification}"/> mit einer
-/// <see cref="DialogCompletedNotification"/> als In-Process-Rückkanal.
+/// ein und folgt dem Branching bis zum Abschluss. Beim Abschluss publiziert die Engine selbst die
+/// <see cref="DialogCompletedNotification"/>, sodass registrierte eigene
+/// <see cref="INotificationHandler{TNotification}"/> automatisch benachrichtigt werden.
 /// </summary>
 /// <remarks>
-/// <para>
 /// Die Ein-/Ausgabe ist bewusst über <see cref="IAnswerSource"/> und einen <see cref="TextWriter"/>
-/// abstrahiert, damit derselbe Ablauf interaktiv (Konsole) wie auch deterministisch (Test) läuft.
-/// </para>
-/// <para>
-/// Die Engine publiziert (Stand M1) noch keine Notifications (engine-getriebenes Publishing folgt in
-/// EPIC 4/M2). Der martinothamar-Mediator entdeckt Notification-Handler zudem nur innerhalb der
-/// Core-Compilation; eine im Sample definierte Notification erreicht daher über
-/// <see cref="IPublisher"/> keinen Sample-Handler. Deshalb löst der Runner die registrierten
-/// <see cref="INotificationHandler{TNotification}"/> direkt auf und ruft sie auf – dieselbe Form
-/// (mehrere Handler je Notification), die die Engine in EPIC 4 selbst übernehmen wird.
-/// </para>
+/// abstrahiert, damit derselbe Ablauf interaktiv (Konsole) wie auch deterministisch (Test) läuft. Das
+/// engine-getriebene Publizieren der Trigger-Notifications (seit EPIC 4) macht ein manuelles Auflösen und
+/// Aufrufen der Handler im Runner überflüssig – der Host registriert seinen Handler nur noch per DI.
 /// </remarks>
 public sealed class ConsoleDialogRunner
 {
     private readonly IFlirtyEngine _engine;
-    private readonly IEnumerable<INotificationHandler<DialogCompletedNotification>> _completionHandlers;
     private readonly IAnswerSource _answers;
     private readonly TextWriter _output;
 
     /// <summary>
-    /// Initialisiert den Runner mit der Engine-Facade, den Abschluss-Handlern, der Antwortquelle und
-    /// dem Ausgabe-Writer.
+    /// Initialisiert den Runner mit der Engine-Facade, der Antwortquelle und dem Ausgabe-Writer.
     /// </summary>
     /// <param name="engine">Die Dialog-Facade der Flirty-Engine.</param>
-    /// <param name="completionHandlers">
-    /// Die registrierten eigenen Handler, die bei Dialog-Abschluss benachrichtigt werden.
-    /// </param>
     /// <param name="answers">Die Quelle der Antworten (interaktiv oder skriptgesteuert).</param>
     /// <param name="output">Der Writer für die Frage-/Ablauf-Ausgabe.</param>
     public ConsoleDialogRunner(
         IFlirtyEngine engine,
-        IEnumerable<INotificationHandler<DialogCompletedNotification>> completionHandlers,
         IAnswerSource answers,
         TextWriter output)
     {
         ArgumentNullException.ThrowIfNull(engine);
-        ArgumentNullException.ThrowIfNull(completionHandlers);
         ArgumentNullException.ThrowIfNull(answers);
         ArgumentNullException.ThrowIfNull(output);
 
         _engine = engine;
-        _completionHandlers = completionHandlers;
         _answers = answers;
         _output = output;
     }
@@ -91,14 +75,8 @@ public sealed class ConsoleDialogRunner
             current = result.NextQuestion;
         }
 
-        // Abschluss: bisherige Antworten lesen und die registrierten eigenen Handler benachrichtigen.
-        var resumed = await _engine.ResumeDialogAsync(sessionId, cancellationToken);
-        var notification = new DialogCompletedNotification(sessionId, dialogKey, resumed.Answers);
-        foreach (var handler in _completionHandlers)
-        {
-            await handler.Handle(notification, cancellationToken);
-        }
-
+        // Abschluss: Die Engine hat beim letzten SubmitAnswer die DialogCompletedNotification bereits
+        // publiziert und damit die registrierten eigenen Handler ausgelöst – der Runner muss nichts tun.
         return new DialogRunResult(sessionId, completed, askedQuestionKeys);
     }
 

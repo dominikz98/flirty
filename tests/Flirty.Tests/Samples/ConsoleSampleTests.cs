@@ -10,15 +10,15 @@ namespace Flirty.Tests.Samples;
 /// <summary>
 /// Prüft das Console-Single-Project-Sample (#44) end-to-end: reines Console-Setup ohne ASP.NET, ein
 /// programmatisch geseedeter Dialog wird über die Facade durchgespielt (inkl. Branching) und der
-/// eigene <see cref="INotificationHandler{TNotification}"/> reagiert auf die vom Runner
-/// veröffentlichte Abschluss-Notification.
+/// eigene <see cref="INotificationHandler{TNotification}"/> reagiert auf die von der Engine (seit #31)
+/// publizierte Abschluss-Notification.
 /// </summary>
 public sealed class ConsoleSampleTests
 {
     /// <summary>
-    /// Der Sample-Runner spielt den dev-Zweig durch, schließt den Dialog ab und der eigene
-    /// Notification-Handler schreibt die Abschluss-Zusammenfassung (Beleg, dass <c>Publish</c> ihn
-    /// ausgelöst hat).
+    /// Der Sample-Runner spielt den dev-Zweig durch und schließt den Dialog ab; die Engine publiziert
+    /// beim Abschluss die Notification, sodass der eigene Handler die Abschluss-Zusammenfassung schreibt
+    /// (Beleg, dass <c>Publish</c> ihn ausgelöst hat).
     /// </summary>
     [Fact]
     public async Task Sample_spielt_Dialog_durch_und_loest_eigenen_NotificationHandler_aus()
@@ -50,8 +50,6 @@ public sealed class ConsoleSampleTests
         using (var runScope = provider.CreateScope())
         {
             var engine = runScope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
-            var completionHandlers = runScope.ServiceProvider
-                .GetServices<INotificationHandler<DialogCompletedNotification>>();
 
             var answers = new ScriptedAnswerSource(new Dictionary<string, string>
             {
@@ -59,7 +57,7 @@ public sealed class ConsoleSampleTests
                 ["language"] = "C#",
             });
 
-            var runner = new ConsoleDialogRunner(engine, completionHandlers, answers, TextWriter.Null);
+            var runner = new ConsoleDialogRunner(engine, answers, TextWriter.Null);
             result = await runner.RunAsync(SampleDialogFactory.DialogKey, "test-user");
         }
 

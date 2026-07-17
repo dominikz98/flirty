@@ -70,7 +70,8 @@ public sealed class LoopRuntimeTests : IDisposable
     private async Task<SubmitAnswerResult> SubmitAsync(Guid sessionId, Guid questionId, string value)
     {
         using var context = CreateContext();
-        var handler = new SubmitAnswerCommandHandler(new DialogStore(context), new DynamicExpressoExpressionEvaluator());
+        var handler = new SubmitAnswerCommandHandler(
+            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
         return await handler.Handle(new SubmitAnswerCommand(sessionId, questionId, value), default);
     }
 
@@ -78,7 +79,8 @@ public sealed class LoopRuntimeTests : IDisposable
     private async Task<EditAnswerResult> EditAsync(Guid sessionId, Guid questionId, string value, int? iterationIndex = null)
     {
         using var context = CreateContext();
-        var handler = new EditAnswerCommandHandler(new DialogStore(context), new DynamicExpressoExpressionEvaluator());
+        var handler = new EditAnswerCommandHandler(
+            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
         return await handler.Handle(new EditAnswerCommand(sessionId, questionId, value, iterationIndex), default);
     }
 

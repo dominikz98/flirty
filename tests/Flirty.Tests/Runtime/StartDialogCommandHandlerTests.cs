@@ -2,6 +2,7 @@ using Flirty.Domain;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
+using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,7 +42,10 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static StartDialogCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context));
+        => new(new DialogStore(context), new SpyPublisher());
+
+    private static StartDialogCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
+        => new(new DialogStore(context), publisher);
 
     // ---- Neu-Start --------------------------------------------------------------------------
 
@@ -215,5 +219,70 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
     [Fact]
     public void Konstruktor_wirft_bei_null_Store()
-        => Assert.Throws<ArgumentNullException>(() => new StartDialogCommandHandler(null!));
+        => Assert.Throws<ArgumentNullException>(() => new StartDialogCommandHandler(null!, new SpyPublisher()));
+
+    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    [Fact]
+    public void Konstruktor_wirft_bei_null_Publisher()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new StartDialogCommandHandler(new DialogStore(context), null!));
+    }
+
+    // ---- Trigger-Notifications --------------------------------------------------------------
+
+    /// <summary>Ein Neu-Start publiziert genau eine <see cref="DialogStartedNotification"/>.</summary>
+    [Fact]
+    public async Task Handle_neuer_Start_publiziert_DialogStarted()
+    {
+        var dialogId = Guid.NewGuid();
+        Guid questionId;
+        using (var arrange = CreateContext())
+        {
+            arrange.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out questionId));
+            arrange.SaveChanges();
+        }
+
+        var spy = new SpyPublisher();
+        StartDialogResult result;
+        using (var act = CreateContext())
+        {
+            result = await CreateHandler(act, spy).Handle(new StartDialogCommand("onboarding", "user-1"), default);
+        }
+
+        var notification = Assert.IsType<DialogStartedNotification>(Assert.Single(spy.Published));
+        Assert.Equal(result.SessionId, notification.SessionId);
+        Assert.Equal(dialogId, notification.DialogId);
+        Assert.Equal("onboarding", notification.DialogKey);
+        Assert.Equal("user-1", notification.ExternalUserKey);
+        Assert.Equal(questionId, notification.CurrentQuestionId);
+    }
+
+    /// <summary>Ein Resume einer laufenden Session publiziert bewusst keine Notification.</summary>
+    [Fact]
+    public async Task Handle_Resume_publiziert_keine_Notification()
+    {
+        var dialogId = Guid.NewGuid();
+        using (var arrange = CreateContext())
+        {
+            arrange.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out _));
+            arrange.SaveChanges();
+        }
+
+        using (var firstContext = CreateContext())
+        {
+            await CreateHandler(firstContext).Handle(new StartDialogCommand("onboarding", "user-1"), default);
+        }
+
+        var spy = new SpyPublisher();
+        using (var resumeContext = CreateContext())
+        {
+            var result = await CreateHandler(resumeContext, spy)
+                .Handle(new StartDialogCommand("onboarding", "user-1"), default);
+            Assert.True(result.IsResumed);
+        }
+
+        Assert.Empty(spy.Published);
+    }
 }
