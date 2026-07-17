@@ -175,6 +175,12 @@ ausgehenden `Transition`s der Frage nach `Priority` aus und wählt die erste zut
 wird aus den bisherigen `SessionAnswer`s gebildet (je Frage die zuletzt gegebene Antwort, indiziert
 nach `Question.Key`); seit #26 ist die Default-Engine in `AddFlirty()` als Singleton registriert.
 
+Seit der **Loop-Runtime (#29)** befüllt der geteilte `TransitionResolver` zusätzlich die beiden
+Loop-Bausteine des Kontexts: `Collections` trägt je `CollectionKey` die Einstiegsantwort je Iteration
+(jeder `CollectionKey` wird stets gebunden – ggf. leere Liste –, damit `positions.Count > 0` auch vor der
+ersten Iteration auswertbar ist), und `iterationIndex` reflektiert die aktuelle Iteration der gerade
+beantworteten Frage (`null` außerhalb einer Schleife). Details in [LOOPS.md](./LOOPS.md).
+
 ## Ausblick
 
 Darauf baut auf:

@@ -153,6 +153,88 @@ internal static class TestDialogFactory
             },
         };
     }
+
+    /// <summary>
+    /// Baut einen veröffentlichten Dialog mit einer Schleife für die Loop-Runtime-Tests (#29): eine
+    /// Einstiegsfrage <c>position</c> (FreeText, <see cref="LoopDefinition.CollectionKey"/> <c>positions</c>)
+    /// führt auf die Breaking Question <c>more</c> (SingleChoice <c>yes</c>/<c>no</c>). Von <c>more</c> geht
+    /// ein Loop-Back-Übergang zurück auf <c>position</c> (Bedingung <paramref name="loopBackExpression"/>,
+    /// Priorität 0) und ein Default-Exit-Übergang auf die terminale, außerhalb der Schleife liegende Frage
+    /// <c>summary</c> (Priorität 1). Über <paramref name="loopBackExpression"/> lässt sich der Break
+    /// wahlweise über die Antwort (<c>more == "yes"</c>), die Collection (<c>positions.Count &lt; 2</c>) oder
+    /// den Iterationsindex (<c>iterationIndex &lt; 1</c>) steuern. Liefert die Frage-Ids über
+    /// <paramref name="ids"/> zurück.
+    /// </summary>
+    public static Dialog BuildLoopDialog(
+        Guid dialogId, out LoopDialogIds ids, string loopBackExpression = "more == \"yes\"")
+    {
+        var positionQuestionId = Guid.NewGuid();
+        var moreQuestionId = Guid.NewGuid();
+        var summaryQuestionId = Guid.NewGuid();
+        ids = new LoopDialogIds(positionQuestionId, moreQuestionId, summaryQuestionId);
+
+        return new Dialog
+        {
+            Id = dialogId,
+            Key = "loop",
+            Name = "Loop",
+            Version = 1,
+            IsPublished = true,
+            StartQuestionId = positionQuestionId,
+            CreatedAt = SampleTime,
+            UpdatedAt = SampleTime,
+            Questions =
+            {
+                new Question
+                {
+                    Id = positionQuestionId, DialogId = dialogId, Key = "position",
+                    Text = "Welche Position?", Type = QuestionType.FreeText, Order = 0, IsRequired = true,
+                },
+                new Question
+                {
+                    Id = moreQuestionId, DialogId = dialogId, Key = "more",
+                    Text = "Weitere Position?", Type = QuestionType.SingleChoice, Order = 1, IsRequired = true,
+                    Options =
+                    {
+                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = moreQuestionId, Key = "yes", Label = "Ja", Value = "yes", Order = 0 },
+                        new AnswerOption { Id = Guid.NewGuid(), QuestionId = moreQuestionId, Key = "no", Label = "Nein", Value = "no", Order = 1 },
+                    },
+                },
+                new Question
+                {
+                    Id = summaryQuestionId, DialogId = dialogId, Key = "summary",
+                    Text = "Zusammenfassung?", Type = QuestionType.FreeText, Order = 2,
+                },
+            },
+            Transitions =
+            {
+                new Transition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = positionQuestionId,
+                    TargetQuestionId = moreQuestionId, Priority = 0, IsDefault = true,
+                },
+                new Transition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = moreQuestionId,
+                    Expression = loopBackExpression, TargetQuestionId = positionQuestionId,
+                    Priority = 0, IsDefault = false,
+                },
+                new Transition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, FromQuestionId = moreQuestionId,
+                    TargetQuestionId = summaryQuestionId, Priority = 1, IsDefault = true,
+                },
+            },
+            Loops =
+            {
+                new LoopDefinition
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId, CollectionKey = "positions",
+                    EntryQuestionId = positionQuestionId, BreakingQuestionId = moreQuestionId,
+                },
+            },
+        };
+    }
 }
 
 /// <summary>
@@ -162,3 +244,11 @@ internal static class TestDialogFactory
 /// <param name="DevQuestionId">Die Ziel-Frage <c>devDetail</c> des bedingten Übergangs.</param>
 /// <param name="PmQuestionId">Die Ziel-Frage <c>pmDetail</c> des Default-Übergangs.</param>
 internal sealed record BranchingDialogIds(Guid RoleQuestionId, Guid DevQuestionId, Guid PmQuestionId);
+
+/// <summary>
+/// Die Frage-Ids des von <see cref="TestDialogFactory.BuildLoopDialog"/> erzeugten Loop-Dialogs.
+/// </summary>
+/// <param name="PositionQuestionId">Die Einstiegsfrage <c>position</c> der Schleife.</param>
+/// <param name="MoreQuestionId">Die Breaking Question <c>more</c>.</param>
+/// <param name="SummaryQuestionId">Die terminale, außerhalb der Schleife liegende Frage <c>summary</c>.</param>
+internal sealed record LoopDialogIds(Guid PositionQuestionId, Guid MoreQuestionId, Guid SummaryQuestionId);

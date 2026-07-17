@@ -49,7 +49,7 @@ internal sealed class TransitionResolver
             return null;
         }
 
-        var context = BuildContext(dialog, session);
+        var context = BuildContext(dialog, session, questionId);
         var match = outgoing.FirstOrDefault(transition => !transition.IsDefault && ConditionHolds(transition, context))
             ?? outgoing.FirstOrDefault(transition => transition.IsDefault);
 
@@ -82,10 +82,13 @@ internal sealed class TransitionResolver
     /// <summary>
     /// Baut den <see cref="ExpressionContext"/> aus den bisherigen Antworten der Session. Je Frage wird
     /// die zuletzt gegebene Antwort (höchste <see cref="SessionAnswer.Sequence"/>) auf den fachlichen
-    /// <see cref="Question.Key"/> abgebildet. Loop-Collections und Iterationsindex bleiben leer bzw.
-    /// <see langword="null"/> (Loop-Runtime folgt in #29).
+    /// <see cref="Question.Key"/> abgebildet – innerhalb einer Schleife also die Antwort der aktuellen
+    /// Iteration. Seit #29 werden zusätzlich die je Iteration gesammelten Loop-Collections und der
+    /// Iterationsindex der gerade beantworteten Frage <paramref name="questionId"/> über den
+    /// <see cref="LoopResolver"/> befüllt (Break-Bedingungen wie <c>positions.Count &gt; 0</c> oder
+    /// <c>iterationIndex &lt; 3</c>).
     /// </summary>
-    private static ExpressionContext BuildContext(Dialog dialog, DialogSession session)
+    private static ExpressionContext BuildContext(Dialog dialog, DialogSession session, Guid questionId)
     {
         var keyByQuestionId = dialog.Questions.ToDictionary(question => question.Id, question => question.Key);
 
@@ -96,6 +99,12 @@ internal sealed class TransitionResolver
                 group => keyByQuestionId[group.Key],
                 group => (string?)group.OrderByDescending(answer => answer.Sequence).First().Value);
 
-        return new ExpressionContext(session, DateTimeOffset.UtcNow, answers);
+        var loops = new LoopResolver(dialog);
+        return new ExpressionContext(
+            session,
+            DateTimeOffset.UtcNow,
+            answers,
+            loops.BuildCollections(session),
+            loops.ResolveIterationIndex(session, questionId));
     }
 }

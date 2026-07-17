@@ -9,7 +9,8 @@ nachgelagerte Pfad neu berechnet/invalidiert wird. Umgesetzt in den Issues **#25
 Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md)
 §6/§7, Mediator-Grundlagen in
 [MEDIATOR.md](./MEDIATOR.md), Branching/Ausdrücke in
-[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Repository in
+[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Schleifen in
+[LOOPS.md](./LOOPS.md), Repository in
 [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21).
 
 ## Überblick
@@ -38,7 +39,8 @@ public interface IFlirtyEngine
         Guid sessionId, CancellationToken cancellationToken = default);
 
     Task<EditAnswerResult> EditAnswerAsync(
-        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
+        Guid sessionId, Guid questionId, string value, int? iterationIndex = null,
+        CancellationToken cancellationToken = default);
 }
 ```
 
@@ -154,13 +156,17 @@ Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` 
    gepinnte Version samt Graph.
 4. **Antwort persistieren:** ein neuer `SessionAnswer` wird an die getrackte Session angehängt
    (`Value`, `AnsweredAt = UtcNow`, fortlaufende `Sequence`) – die `Id` wird **nicht** vorbelegt
-   (store-generiert; vgl. [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
+   (store-generiert; vgl. [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)). Liegt die Frage
+   in einem Schleifen-Bereich, werden zusätzlich `LoopInstanceId`/`IterationIndex` gesetzt (#29, siehe
+   [LOOPS.md](./LOOPS.md)); außerhalb einer Schleife bleiben beide `null`.
 5. **Transition-Auswertung:** Die ausgehenden Übergänge der Frage werden nach `Priority` geordnet;
    der erste bedingte Übergang, dessen Ausdruck über den `IExpressionEvaluator` zutrifft, gewinnt,
    sonst greift der als `IsDefault` markierte. Ein `null`er/leerer `Expression` gilt als bedingungslos
    zutreffend (Kurzschluss in der Runtime). Der `ExpressionContext` wird aus den bisherigen Antworten
-   der Session gebildet (je Frage die zuletzt gegebene Antwort, indiziert nach `Question.Key`);
-   Loop-Collections/Iterationsindex bleiben in #26 leer (Loop-Runtime folgt in #29).
+   der Session gebildet (je Frage die zuletzt gegebene Antwort, indiziert nach `Question.Key`); seit der
+   Loop-Runtime (#29) füllt der geteilte `TransitionResolver` zusätzlich die je Iteration gesammelten
+   Loop-Collections und den `iterationIndex` (siehe [LOOPS.md](./LOOPS.md)), sodass Break-Bedingungen wie
+   `positions.Count > 0` greifen.
 6. **Weiterschalten oder Abschluss:**
    - **Kein ausgehender Übergang** → Abschluss: `Status = Completed`, `CompletedAt = UtcNow`,
      `CurrentQuestionId = null`.
@@ -211,7 +217,8 @@ public sealed record ResumeDialogResult(
     IReadOnlyList<SessionAnswerView> Answers);
 
 public sealed record SessionAnswerView(
-    Guid QuestionId, string QuestionKey, string Value, int Sequence, DateTimeOffset AnsweredAt);
+    Guid QuestionId, string QuestionKey, string Value, int Sequence, DateTimeOffset AnsweredAt,
+    Guid? LoopInstanceId, int? IterationIndex);
 ```
 
 - `Status` – der Domain-Status der Session (`InProgress`/`Completed`/`Abandoned`), direkt durchgereicht.
@@ -219,8 +226,9 @@ public sealed record SessionAnswerView(
   bzw. `null`, wenn die Session keine offene Frage mehr hat (abgeschlossen/abgebrochen).
 - `Answers` – die bisher gegebenen Antworten in aufsteigender `Sequence` (chronologisch); je Antwort
   wird der fachliche `QuestionKey` aus der gepinnten Dialogversion aufgelöst. Der `Value` ist der
-  gespeicherte rohe JSON-Text. Loop-Felder (`LoopInstanceId`/`IterationIndex`) sind bewusst noch nicht
-  enthalten und werden mit der Loop-Runtime (#29) ergänzt.
+  gespeicherte rohe JSON-Text. Seit der Loop-Runtime (#29) trägt die Sicht zusätzlich `LoopInstanceId`
+  und `IterationIndex` (beide `null` außerhalb einer Schleife), damit Host-Apps die gesammelten
+  Iterationen darstellen können (siehe [LOOPS.md](./LOOPS.md)).
 
 ### Ablauf
 
@@ -249,7 +257,8 @@ Der Handler nutzt ausschließlich `IDialogStore` (lesend):
 public sealed record EditAnswerCommand(
     [property: Required] Guid SessionId,
     [property: Required] Guid QuestionId,
-    [property: Required] string Value) : ICommand<EditAnswerResult>;
+    [property: Required] string Value,
+    int? IterationIndex = null) : ICommand<EditAnswerResult>;
 ```
 
 - `SessionId` – die Session, deren Antwort editiert wird.
@@ -257,6 +266,9 @@ public sealed record EditAnswerCommand(
   gepinnten Dialog gehören und in dieser Session **bereits beantwortet** worden sein; anders als bei
   `SubmitAnswerCommand` muss sie **nicht** die aktuell offene Frage sein (Zurückspringen).
 - `Value` – der neue Antwortwert als **roher JSON-Text** (Format abhängig vom Fragetyp).
+- `IterationIndex` – optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die
+  Antwort einer bestimmten Iteration zu editieren (#29, siehe [LOOPS.md](./LOOPS.md)). `null` editiert –
+  wie außerhalb von Schleifen – die früheste Antwort der Frage (Iteration 0 bei einer Loop-Frage).
 
 > `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
 > `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
@@ -287,8 +299,10 @@ editierte Frage mit neuem Wert neu einreichen".**
    abgeschlossene Sessions sind editierbar (nachträgliche Korrektur). Sonst `InvalidOperationException`.
 3. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session gepinnte
    Version samt Graph; die Frage muss zum Dialog gehören.
-4. **Ziel-Antwort finden:** die (früheste) Antwort auf `QuestionId` in der Session. Wurde die Frage noch
-   nicht beantwortet, wirft der Handler `InvalidOperationException` (es gibt nichts zu editieren).
+4. **Ziel-Antwort finden:** ohne `IterationIndex` die (früheste) Antwort auf `QuestionId` in der Session;
+   mit `IterationIndex` gezielt die Antwort dieser Iteration (Loop). Wurde die Frage (bzw. die angegebene
+   Iteration) noch nicht beantwortet, wirft der Handler `InvalidOperationException` (es gibt nichts zu
+   editieren).
 5. **Überschreiben:** der `Value` der Ziel-Antwort wird ersetzt und `AnsweredAt = UtcNow` gesetzt; die
    `Sequence` bleibt erhalten.
 6. **Invalidieren:** alle nachgelagerten Antworten (höhere `Sequence` als die editierte) werden aus der
@@ -318,8 +332,9 @@ editierte Frage mit neuem Wert neu einreichen".**
 | Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
 | `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
 
-> **Loop-Iterationen** (mehrere Antworten pro Frage über `LoopInstanceId`/`IterationIndex`) sind noch
-> nicht Teil des Editierens; die Loop-Runtime folgt in **#29**.
+> **Loop-Iterationen** (mehrere Antworten pro Frage über `LoopInstanceId`/`IterationIndex`) werden über
+> den optionalen `IterationIndex` gezielt editiert (#29). Die Sequence-basierte Invalidierung verwirft
+> dabei den Rest der editierten Iteration **und** alle Folge-Iterationen; Details in [LOOPS.md](./LOOPS.md).
 
 ## Nutzung
 
@@ -361,11 +376,14 @@ Console.WriteLine($"Verworfene Folge-Antworten: {edited.InvalidatedAnswers}");
 Console.WriteLine(edited.IsCompleted ? "Dialog abgeschlossen" : edited.NextQuestion!.Text);
 ```
 
-## Geplante Folge-Commands (EPIC 3)
+## Folge-Commands (EPIC 3)
+
+Die **Loop-Runtime (#29)** – Iterations-Sammlung je `CollectionKey`, Break-Bedingung, Editieren einer
+Iteration – ist umgesetzt; sie erweitert Submit/Edit additiv und ist in [LOOPS.md](./LOOPS.md)
+dokumentiert. Noch offen:
 
 | Issue | Command/Query | Zweck |
 |---|---|---|
-| #29 | Loop-Runtime | Iterations-Sammlung je `CollectionKey`, Break-Bedingung |
 | #30 | `IAnswerValidator` | Typisierte, regelbasierte Antwort-Validierung (Pipeline-Behavior) |
 
 ## Verifikation

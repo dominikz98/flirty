@@ -80,7 +80,9 @@ internal sealed class ResumeDialogQueryHandler : IQueryHandler<ResumeDialogQuery
                 keyByQuestionId.GetValueOrDefault(answer.QuestionId, string.Empty),
                 answer.Value,
                 answer.Sequence,
-                answer.AnsweredAt))
+                answer.AnsweredAt,
+                answer.LoopInstanceId,
+                answer.IterationIndex))
             .ToList();
     }
 }
