@@ -35,14 +35,13 @@ Console.WriteLine("=== Flirty Console-Sample ===");
 Console.WriteLine("Beantworte die Fragen. Bei Auswahlfragen den Schlüssel in [] eingeben.");
 Console.WriteLine();
 
-// Dialog über die Facade durchspielen; der Runner veröffentlicht am Ende die eigene Notification.
+// Dialog über die Facade durchspielen; die Engine publiziert beim Abschluss selbst die Notification,
+// wodurch der oben registrierte eigene Handler ausgelöst wird.
 using (var runScope = provider.CreateScope())
 {
     var engine = runScope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
-    var completionHandlers = runScope.ServiceProvider
-        .GetServices<INotificationHandler<DialogCompletedNotification>>();
 
-    var runner = new ConsoleDialogRunner(engine, completionHandlers, new ConsoleAnswerSource(), Console.Out);
+    var runner = new ConsoleDialogRunner(engine, new ConsoleAnswerSource(), Console.Out);
     var result = await runner.RunAsync(SampleDialogFactory.DialogKey, "console-user");
 
     Console.WriteLine();

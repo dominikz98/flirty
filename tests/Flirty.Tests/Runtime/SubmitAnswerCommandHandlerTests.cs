@@ -3,6 +3,7 @@ using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
+using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,7 +44,10 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static SubmitAnswerCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator());
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+
+    private static SubmitAnswerCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher);
 
     /// <summary>Legt den Branching-Dialog samt einer laufenden Session an der Start-Frage an.</summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedBranchingSession(string externalUserKey = "user-1")
@@ -291,7 +295,7 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     [Fact]
     public void Konstruktor_wirft_bei_null_Store()
         => Assert.Throws<ArgumentNullException>(
-            () => new SubmitAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator()));
+            () => new SubmitAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher()));
 
     /// <summary>Der Konstruktor lehnt einen <c>null</c>-Evaluator ab.</summary>
     [Fact]
@@ -299,6 +303,93 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
-            () => new SubmitAnswerCommandHandler(new DialogStore(context), null!));
+            () => new SubmitAnswerCommandHandler(new DialogStore(context), null!, new SpyPublisher()));
+    }
+
+    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    [Fact]
+    public void Konstruktor_wirft_bei_null_Publisher()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new SubmitAnswerCommandHandler(
+                new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!));
+    }
+
+    // ---- Trigger-Notifications --------------------------------------------------------------
+
+    /// <summary>
+    /// Beim Weiterschalten werden – in dieser Reihenfolge – <see cref="AnswerSubmittedNotification"/> und
+    /// <see cref="QuestionAnsweredNotification"/> (mit der Folgefrage, nicht abgeschlossen) publiziert.
+    /// </summary>
+    [Fact]
+    public async Task Handle_Weiterschalten_publiziert_AnswerSubmitted_und_QuestionAnswered()
+    {
+        var (sessionId, ids) = SeedBranchingSession();
+
+        var spy = new SpyPublisher();
+        using (var act = CreateContext())
+        {
+            await CreateHandler(act, spy).Handle(
+                new SubmitAnswerCommand(sessionId, ids.RoleQuestionId, "\"dev\""), default);
+        }
+
+        Assert.Collection(
+            spy.Published,
+            published =>
+            {
+                var answer = Assert.IsType<AnswerSubmittedNotification>(published);
+                Assert.Equal(sessionId, answer.SessionId);
+                Assert.Equal("branching", answer.DialogKey);
+                Assert.Equal(ids.RoleQuestionId, answer.QuestionId);
+                Assert.Equal("\"dev\"", answer.Value);
+            },
+            published =>
+            {
+                var question = Assert.IsType<QuestionAnsweredNotification>(published);
+                Assert.Equal(ids.RoleQuestionId, question.QuestionId);
+                Assert.Equal(ids.DevQuestionId, question.NextQuestionId);
+                Assert.False(question.IsCompleted);
+            });
+    }
+
+    /// <summary>
+    /// Beim Abschluss werden <see cref="AnswerSubmittedNotification"/>, eine abschließende
+    /// <see cref="QuestionAnsweredNotification"/> und die <see cref="DialogCompletedNotification"/>
+    /// (samt aller Antworten) publiziert.
+    /// </summary>
+    [Fact]
+    public async Task Handle_Abschluss_publiziert_AnswerSubmitted_QuestionAnswered_und_DialogCompleted()
+    {
+        var (sessionId, ids) = SeedBranchingSession();
+        using (var first = CreateContext())
+        {
+            await CreateHandler(first).Handle(
+                new SubmitAnswerCommand(sessionId, ids.RoleQuestionId, "\"dev\""), default);
+        }
+
+        var spy = new SpyPublisher();
+        using (var second = CreateContext())
+        {
+            await CreateHandler(second, spy).Handle(
+                new SubmitAnswerCommand(sessionId, ids.DevQuestionId, "\"C#\""), default);
+        }
+
+        Assert.Collection(
+            spy.Published,
+            published => Assert.IsType<AnswerSubmittedNotification>(published),
+            published =>
+            {
+                var question = Assert.IsType<QuestionAnsweredNotification>(published);
+                Assert.Null(question.NextQuestionId);
+                Assert.True(question.IsCompleted);
+            },
+            published =>
+            {
+                var completed = Assert.IsType<DialogCompletedNotification>(published);
+                Assert.Equal(sessionId, completed.SessionId);
+                Assert.Equal("branching", completed.DialogKey);
+                Assert.Equal(2, completed.Answers.Count);
+            });
     }
 }

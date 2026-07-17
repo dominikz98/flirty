@@ -24,14 +24,22 @@ public sealed record StartDialogCommand(
 internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCommand, StartDialogResult>
 {
     private readonly IDialogStore _store;
+    private readonly IPublisher _publisher;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogStore"/>.</summary>
+    /// <summary>
+    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/> und <see cref="IPublisher"/>.
+    /// </summary>
     /// <param name="store">Das Repository für Dialoge und Sessions.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
-    public StartDialogCommandHandler(IDialogStore store)
+    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="store"/> oder <paramref name="publisher"/> ist <see langword="null"/>.
+    /// </exception>
+    public StartDialogCommandHandler(IDialogStore store, IPublisher publisher)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(publisher);
         _store = store;
+        _publisher = publisher;
     }
 
     /// <inheritdoc />
@@ -80,6 +88,17 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
 
         _store.AddSession(session);
         await _store.SaveChangesAsync(cancellationToken);
+
+        // In-Process-Trigger (EPIC 4): nur der echte Neu-Start meldet DialogStarted; ein Resume nicht.
+        await _publisher.Publish(
+            new DialogStartedNotification(
+                session.Id,
+                dialog.Id,
+                dialog.Key,
+                command.ExternalUserKey,
+                session.CurrentQuestionId,
+                session.StartedAt),
+            cancellationToken);
 
         return new StartDialogResult(
             session.Id, IsResumed: false,

@@ -175,9 +175,10 @@ Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` 
 7. **Speichern:** `SaveChangesAsync()` (Unit-of-Work-Naht).
 
 > **Notifications** (`AnswerSubmittedNotification`, `QuestionAnsweredNotification`,
-> `DialogCompletedNotification`) sind **nicht** Teil von #26. Sie werden zusammen mit ihrer Publikation
-> aus den Command-Handlern im dedizierten Issue *„Notification-Contracts + Publikation"* der
-> **EPIC 4 – Trigger** (Meilenstein M2) umgesetzt.
+> `DialogCompletedNotification`) publiziert der Handler seit **#31** nach dem Speichern:
+> `AnswerSubmitted` nach dem Persistieren der Antwort, `QuestionAnswered` mit dem Übergangs-Ergebnis und –
+> bei Abschluss – zusätzlich `DialogCompleted`. Details und das vollständige Scope-Mapping in
+> [TRIGGERS.md](./TRIGGERS.md).
 
 ### Fehlerfälle
 

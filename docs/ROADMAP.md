@@ -92,7 +92,7 @@ Nach dem Fundament können diese **parallel** begonnen werden:
 ### Welle 2 — baut auf Welle 1
 - **Strang A:** `#18` FlirtyDbContext (braucht `#17`) → danach **parallel** `#19` Provider/Migrationen · `#20` Auto-Migration · `#21` IDialogStore.
 - **Strang B:** `#23` DynamicExpresso-Implementierung → `#24` Expression-Validierung.
-- **Früh möglich:** `#31` Notification-Contracts (EPIC 4) — nur Contracts, unabhängig; Publikation folgt mit EPIC 3.
+- **Früh möglich:** `#31` Notification-Contracts (EPIC 4) — umgesetzt: Contracts **und** Publikation aus den Command-Handlern der Runtime (EPIC 3), siehe [TRIGGERS.md](./TRIGGERS.md).
 
 ### Welle 3 — Runtime (Konvergenzpunkt, EPIC 3)
 Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24`).

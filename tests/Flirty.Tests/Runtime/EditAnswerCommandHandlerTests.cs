@@ -3,6 +3,7 @@ using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
+using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,7 +44,10 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static EditAnswerCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator());
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+
+    private static EditAnswerCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher);
 
     /// <summary>
     /// Legt den Branching-Dialog samt einer <b>abgeschlossenen</b> Session an, die den <c>dev</c>-Zweig
@@ -286,7 +290,7 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
     [Fact]
     public void Konstruktor_wirft_bei_null_Store()
         => Assert.Throws<ArgumentNullException>(
-            () => new EditAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator()));
+            () => new EditAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher()));
 
     /// <summary>Der Konstruktor lehnt einen <c>null</c>-Evaluator ab.</summary>
     [Fact]
@@ -294,6 +298,60 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
-            () => new EditAnswerCommandHandler(new DialogStore(context), null!));
+            () => new EditAnswerCommandHandler(new DialogStore(context), null!, new SpyPublisher()));
+    }
+
+    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    [Fact]
+    public void Konstruktor_wirft_bei_null_Publisher()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new EditAnswerCommandHandler(
+                new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!));
+    }
+
+    // ---- Trigger-Notifications --------------------------------------------------------------
+
+    /// <summary>
+    /// Editiert eine terminale Frage, sodass die Neuberechnung erneut abschließt: es wird genau eine
+    /// <see cref="DialogCompletedNotification"/> (mit den Antworten) publiziert.
+    /// </summary>
+    [Fact]
+    public async Task Handle_Abschluss_publiziert_DialogCompleted()
+    {
+        var (sessionId, ids) = SeedCompletedDevSession();
+
+        var spy = new SpyPublisher();
+        using (var act = CreateContext())
+        {
+            await CreateHandler(act, spy).Handle(
+                new EditAnswerCommand(sessionId, ids.DevQuestionId, "\"Rust\""), default);
+        }
+
+        var notification = Assert.IsType<DialogCompletedNotification>(Assert.Single(spy.Published));
+        Assert.Equal(sessionId, notification.SessionId);
+        Assert.Equal("branching", notification.DialogKey);
+        Assert.Equal(2, notification.Answers.Count);
+    }
+
+    /// <summary>
+    /// Führt die Neuberechnung auf eine nicht-terminale Folgefrage (Wieder-Öffnen), wird bewusst keine
+    /// Notification publiziert.
+    /// </summary>
+    [Fact]
+    public async Task Handle_Reopen_publiziert_keine_Notification()
+    {
+        var (sessionId, ids) = SeedCompletedDevSession();
+
+        var spy = new SpyPublisher();
+        using (var act = CreateContext())
+        {
+            var result = await CreateHandler(act, spy).Handle(
+                new EditAnswerCommand(sessionId, ids.RoleQuestionId, "\"pm\""), default);
+            Assert.False(result.IsCompleted);
+        }
+
+        Assert.Empty(spy.Published);
     }
 }
