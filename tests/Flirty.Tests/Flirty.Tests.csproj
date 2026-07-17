@@ -45,6 +45,8 @@
     <ProjectReference Include="..\..\src\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.PostgreSql\Flirty.Migrations.PostgreSql.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
+    <!-- Console-Sample (#44): der ConsoleSampleTests spielt den Sample-Runner end-to-end durch. -->
+    <ProjectReference Include="..\..\src\Flirty.Samples\Flirty.Samples.csproj" />
   </ItemGroup>
 
 </Project>
