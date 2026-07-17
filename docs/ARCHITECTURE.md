@@ -102,9 +102,9 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 **Notifications (= In-Process-Trigger)** – `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`, `DialogCompletedNotification`. Der Nutzer „hängt seine Handler rein" per `INotificationHandler<T>` (funktioniert 1:1 in einer Console-App).
 
 **Weitere Services**
-- `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload folgt in #34.
+- `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload ist seit #34 verfügbar.
 - `IAnswerValidator` – typisierte, regelbasierte Antwort-Validierung (Typ + `ValidationRules`), als Mediator-`IPipelineBehavior` (`AnswerValidationPipelineBehavior`) vor Submit/Edit. Umgesetzt in #30, Details in [VALIDATION.md](./VALIDATION.md).
-- Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout).
+- Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout); geplant für EPIC 4 (M2). Die Registrierung `o.AddWebhook(name, url)` existiert seit #34 als **Stub** (sammelt die Ziele als `IReadOnlyList<FlirtyWebhookRegistration>` im Container); die aktive Auslieferung folgt in EPIC 4.
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
 
 ## 8. Persistenz & Migrationen
@@ -124,7 +124,7 @@ services.AddFlirty(o => {
     o.UseSqlServer(conn);                 // oder UsePostgreSql / UseSqlite
     o.ApplyMigrations();                  // optional: Auto-Migration beim Start
     o.UseExpressionEvaluator<MyEval>();    // Expression-Engine austauschbar
-    o.AddWebhook("order-created", url);   // Outbound-Trigger
+    o.AddWebhook("order-created", url);   // Outbound-Trigger (Registrierung seit #34; Auslieferung in EPIC 4)
 });
 // In-Process-Trigger = Mediator-Notification-Handler:
 services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHandler>();

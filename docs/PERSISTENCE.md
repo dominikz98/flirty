@@ -17,9 +17,10 @@ Options-Konstruktor und legt keinen Provider fest. Alle drei EF-Core-Provider we
 | SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | `Flirty.Migrations.SqlServer` |
 
 Die Provider-`Use…`-Methoden (`UseSqlite`, `UseNpgsql`, `UseSqlServer`) stammen aus den
-EF-Core-Provider-Paketen selbst. Die komfortable Options-API `AddFlirty(o => o.UseSqlite(…))` samt
-Auto-Migration folgt in **#34** (Provider-Wahl) bzw. **#20** (`o.ApplyMigrations()` →
-`FlirtyMigrationHostedService`).
+EF-Core-Provider-Paketen selbst. Die komfortable Options-API `AddFlirty(o => o.UseSqlite(…))`
+(Provider-Wahl inkl. `FlirtyDbContext`-Registrierung) ist seit **#34** verfügbar; die Auto-Migration
+darüber (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) kam in **#20**. Siehe
+[Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34).
 
 ## Warum getrennte Migrations-Assemblies?
 
@@ -80,6 +81,27 @@ dotnet ef migrations script \
   --startup-project src/Flirty.Migrations.PostgreSql --idempotent
 ```
 
+## Provider-Wahl über AddFlirty (#34)
+
+Seit **#34** registriert `AddFlirty` den `FlirtyDbContext` auf Wunsch selbst – inklusive Provider und
+passender `MigrationsAssembly`. Der Aufrufer muss `AddDbContext` dann **nicht** mehr manuell aufrufen:
+
+```csharp
+services.AddFlirty(o => o.UseSqlite("Data Source=flirty.db"));       // oder:
+services.AddFlirty(o => o.UsePostgreSql(connectionString));
+services.AddFlirty(o => o.UseSqlServer(connectionString).ApplyMigrations());
+```
+
+Jede `Use…`-Methode setzt intern die zum Provider gehörende Migrations-Assembly
+(`Flirty.Migrations.Sqlite`/`PostgreSql`/`SqlServer`, siehe Tabelle oben). Der Kontext wird als
+`Scoped` registriert – dieselbe Lebensdauer wie `IDialogStore`/`IFlirtyEngine`. Ein erneuter
+`Use…`-Aufruf überschreibt die vorige Provider-Wahl.
+
+Der manuelle Weg über `AddDbContext<FlirtyDbContext>(…)` (siehe [Auto-Migration](#auto-migration-beim-start-20))
+bleibt weiterhin gültig – z. B. wenn der Kontext feiner konfiguriert werden soll – und ist nun
+**optional**. Zusätzlich stellt `AddFlirty` seit #34 den austauschbaren `o.UseExpressionEvaluator<T>()`
+und die Webhook-Registrierung `o.AddWebhook(name, url)` (Stub, aktive Auslieferung in EPIC 4/M2) bereit.
+
 ## Auto-Migration beim Start (#20)
 
 Statt `Database.Migrate()` manuell aufzurufen, kann Flirty die ausstehenden Migrationen beim
@@ -100,9 +122,10 @@ per `IServiceScopeFactory` aufgelöst (nicht injiziert), weil der Hosted Service
 aber scoped ist.
 
 > `o.ApplyMigrations()` setzt einen registrierten `FlirtyDbContext` inkl. Provider und
-> `MigrationsAssembly` voraus. Die komfortable Provider-Wahl `o.UseSqlite/UsePostgreSql/UseSqlServer`
-> (die den Context selbst registriert) folgt in **#34**; bis dahin wird der Context wie oben per
-> `AddDbContext` verdrahtet.
+> `MigrationsAssembly` voraus. Seit **#34** registriert die Provider-Wahl
+> `o.UseSqlite/UsePostgreSql/UseSqlServer` den Context selbst (siehe
+> [Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34)); der manuelle `AddDbContext`-Weg
+> wie oben bleibt optional gültig.
 
 ### Bündelung der Migrations-DLLs ins NuGet-Paket
 
@@ -151,7 +174,7 @@ Wesentliche Entscheidungen:
 
 Registriert wird `IDialogStore` seit #21 in `AddFlirty()` als `Scoped` (gleiche Lebensdauer wie der
 `FlirtyDbContext`). Aufgelöst werden kann es, sobald ein `FlirtyDbContext` registriert ist (per
-`AddDbContext`; komfortable Provider-Wahl ab #34).
+Provider-Wahl `o.UseSqlite/…` seit #34 oder manuell per `AddDbContext`).
 
 ## Test-Strategie
 
@@ -201,7 +224,9 @@ Security-Advisories (NU1903) einschleppen.
   Migrations-Assemblies ins NuGet-Paket: **#20** – umgesetzt (siehe oben). Das minimale
   `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
 - **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
-  `FlirtyDbContext`-Registrierung, Webhooks, `UseExpressionEvaluator`): **#34**.
+  `FlirtyDbContext`-Registrierung, `UseExpressionEvaluator`, Webhook-Registrierung als Stub): **#34** –
+  umgesetzt (siehe [Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34)). Die aktive
+  Webhook-Auslieferung folgt in EPIC 4.
 - **`IDialogStore`** (Repository über `FlirtyDbContext`, inkl. DI-Registrierung in `AddFlirty()`):
   **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit)
   folgen in **#25**.
