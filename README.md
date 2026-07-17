@@ -14,7 +14,7 @@ konfiguriert (auch von nicht-technischen Nutzern).
 | `src/Flirty` | Core-Engine (Domain, Runtime, EF-Core-Persistenz, Mediator, DI-Extensions). **Kein ASP.NET** → auch in Console/Worker nutzbar. NuGet-Package. |
 | `src/Flirty.AspNetCore` | Optionale WebAPI-Endpunkte (`MapFlirtyEndpoints`). NuGet-Package. |
 | `src/Flirty.Designer` | Blazor Web App zum Konfigurieren von Dialogen/Fragen/Antworten/Branching/Loops/Triggern. Multi-DB. |
-| `src/Flirty.Samples` | Beispielanwendung(en). |
+| `src/Flirty.Samples` | Beispielanwendung(en). Lauffähiges **Console-Sample** (nur Core, kein ASP.NET) → [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md). |
 | `tests/Flirty.Tests` | Unit-/Integrationstests (xUnit). |
 | `tests/Flirty.E2E` | Playwright-E2E-Tests. |
 
@@ -31,6 +31,11 @@ services.AddFlirty(o =>
 services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHandler>();
 ```
 
+> Vollständiges, lauffähiges Beispiel (Setup, Seeding ohne Designer, Facade-Durchlauf, eigener
+> `INotificationHandler`): [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md).
+> Engine-getriebenes Publizieren der Notifications folgt in EPIC 4; bis dahin löst das Sample seinen
+> Handler nach dem Abschluss selbst aus.
+
 ## Quickstart (Web / Endpunkte)
 
 ```csharp
@@ -42,6 +47,7 @@ app.MapFlirtyEndpoints("/flirty"); // Paket Flirty.AspNetCore
 ## Dokumentation
 
 - Architektur: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Getting Started (Console): [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md)
 - Backlog / Issues: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 - CI-Pipeline: [`docs/CI.md`](docs/CI.md)
 - NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](docs/NUGET-PACKAGING.md)
