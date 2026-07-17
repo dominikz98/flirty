@@ -27,9 +27,9 @@ GitHub-Issues (#12–#52).
 >
 > **Stand EPIC 3:** EPIC 1 (Persistenz, `#17`–`#21`) und EPIC 2 (Expression-Engine, `#22`–`#24`)
 > sind erledigt. EPIC 3 – Dialog-Runtime läuft: `#25` (StartDialogCommand + `IFlirtyEngine`-Facade),
-> `#26` (SubmitAnswerCommand) und `#27` (ResumeDialogQuery – Zustand lesen) sind umgesetzt (siehe
-> [RUNTIME.md](./RUNTIME.md)); nächste, parallel mögliche Schritte sind `#28` EditAnswerCommand und
-> `#30` IAnswerValidator.
+> `#26` (SubmitAnswerCommand), `#27` (ResumeDialogQuery – Zustand lesen) und `#28` (EditAnswerCommand –
+> Pfad-Neuberechnung) sind umgesetzt (siehe [RUNTIME.md](./RUNTIME.md)); nächste, parallel mögliche
+> Schritte sind `#29` Loop-Runtime und `#30` IAnswerValidator.
 
 ---
 

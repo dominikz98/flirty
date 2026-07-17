@@ -1,10 +1,12 @@
-# Dialog-Runtime: Start, Resume & Submit
+# Dialog-Runtime: Start, Resume, Submit & Edit
 
 Wie eine Host-App einen Dialog zur Laufzeit **startet** bzw. eine laufende Session **fortsetzt**
 (Resume), wie sie **Antworten einreicht** (Submit) – wodurch der Dialog per Branching bis zum
-Abschluss durchlaufen wird – und wie sie den **aktuellen Session-Zustand samt bisheriger Antworten
-liest** (`ResumeDialogQuery`). Umgesetzt in den Issues **#25** (Start/Resume), **#26** (Submit) und
-**#27** (Zustand lesen) – EPIC 3 – Dialog-Runtime. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md)
+Abschluss durchlaufen wird –, wie sie den **aktuellen Session-Zustand samt bisheriger Antworten
+liest** (`ResumeDialogQuery`) und wie sie eine **frühere Antwort editiert** (Edit) – wodurch der
+nachgelagerte Pfad neu berechnet/invalidiert wird. Umgesetzt in den Issues **#25** (Start/Resume),
+**#26** (Submit), **#27** (Zustand lesen) und **#28** (Editieren) – EPIC 3 – Dialog-Runtime.
+Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md)
 §6/§7, Mediator-Grundlagen in
 [MEDIATOR.md](./MEDIATOR.md), Branching/Ausdrücke in
 [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Repository in
@@ -34,11 +36,14 @@ public interface IFlirtyEngine
 
     Task<ResumeDialogResult> ResumeDialogAsync(
         Guid sessionId, CancellationToken cancellationToken = default);
+
+    Task<EditAnswerResult> EditAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 }
 ```
 
-Die Facade wächst in den Folge-Issues additiv (z. B. Edit). Aktuell bietet sie den Dialog-Start (#25),
-das Einreichen von Antworten (#26) und das Lesen des Session-Zustands (#27).
+Die Facade wächst in den Folge-Issues additiv. Aktuell bietet sie den Dialog-Start (#25), das Einreichen
+von Antworten (#26), das Lesen des Session-Zustands (#27) und das Editieren einer früheren Antwort (#28).
 
 ## StartDialogCommand
 
@@ -238,6 +243,84 @@ Der Handler nutzt ausschließlich `IDialogStore` (lesend):
 | Gepinnte Dialogversion existiert nicht mehr | `InvalidOperationException` |
 | Aktuelle Frage nicht im Dialog-Graphen | `InvalidOperationException` (Fehlkonfiguration) |
 
+## EditAnswerCommand
+
+```csharp
+public sealed record EditAnswerCommand(
+    [property: Required] Guid SessionId,
+    [property: Required] Guid QuestionId,
+    [property: Required] string Value) : ICommand<EditAnswerResult>;
+```
+
+- `SessionId` – die Session, deren Antwort editiert wird.
+- `QuestionId` – die Frage, deren bereits gegebene Antwort überschrieben werden soll. Sie muss zum
+  gepinnten Dialog gehören und in dieser Session **bereits beantwortet** worden sein; anders als bei
+  `SubmitAnswerCommand` muss sie **nicht** die aktuell offene Frage sein (Zurückspringen).
+- `Value` – der neue Antwortwert als **roher JSON-Text** (Format abhängig vom Fragetyp).
+
+> `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
+> `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
+> Handler behandelt.
+
+### Ergebnis
+
+```csharp
+public sealed record EditAnswerResult(
+    Guid SessionId, bool IsCompleted, QuestionView? NextQuestion, int InvalidatedAnswers);
+```
+
+- `IsCompleted` – `true`, wenn der Dialog nach der Neuberechnung abgeschlossen ist (die editierte Frage
+  ist terminal).
+- `NextQuestion` – die nach der Neuberechnung als Nächstes zu präsentierende Frage (dieselbe schlanke
+  `QuestionView`) bzw. `null` bei Abschluss.
+- `InvalidatedAnswers` – Anzahl der wegen der Editierung verworfenen nachgelagerten Antworten.
+
+### Ablauf
+
+Der Handler nutzt `IDialogStore` (getrackte Session) und – über den gemeinsamen `TransitionResolver` –
+den `IExpressionEvaluator` (Transitions). Mentales Modell: **„nachgelagerten Pfad abschneiden + die
+editierte Frage mit neuem Wert neu einreichen".**
+
+1. **Session laden:** `GetSessionAsync(sessionId)` (getrackt, inkl. Antworten). Fehlt sie, wirft der
+   Handler `SessionNotFoundException`.
+2. **Vorbedingung:** Die Session darf **nicht** abgebrochen (`Abandoned`) sein; laufende **und**
+   abgeschlossene Sessions sind editierbar (nachträgliche Korrektur). Sonst `InvalidOperationException`.
+3. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session gepinnte
+   Version samt Graph; die Frage muss zum Dialog gehören.
+4. **Ziel-Antwort finden:** die (früheste) Antwort auf `QuestionId` in der Session. Wurde die Frage noch
+   nicht beantwortet, wirft der Handler `InvalidOperationException` (es gibt nichts zu editieren).
+5. **Überschreiben:** der `Value` der Ziel-Antwort wird ersetzt und `AnsweredAt = UtcNow` gesetzt; die
+   `Sequence` bleibt erhalten.
+6. **Invalidieren:** alle nachgelagerten Antworten (höhere `Sequence` als die editierte) werden aus der
+   getrackten Session entfernt und beim Speichern gelöscht (Cascade-/Orphan-Delete). Es gibt bewusst
+   **kein** Validity-Flag – der Pfad ist implizit, invalidierte Antworten werden hart gelöscht.
+7. **Pfad neu berechnen:** ausgehend von der editierten Frage werden die Übergänge über den
+   `TransitionResolver` neu ausgewertet (der Kontext sieht nun den überschriebenen Wert und **keine**
+   nachgelagerten Antworten mehr).
+8. **Weiterschalten, Abschluss oder Wieder-Öffnen:**
+   - **Kein ausgehender Übergang** → Abschluss (`Status = Completed`, `CompletedAt = UtcNow`,
+     `CurrentQuestionId = null`).
+   - **Greifender Übergang** → `Status = InProgress`, `CompletedAt = null`,
+     `CurrentQuestionId = TargetQuestionId`. Eine zuvor abgeschlossene Session wird damit **wieder
+     geöffnet**.
+9. **Speichern:** `SaveChangesAsync()` (Unit-of-Work-Naht).
+
+### Fehlerfälle
+
+| Situation | Verhalten |
+|---|---|
+| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
+| Session abgebrochen (`Abandoned`) | `InvalidOperationException` |
+| Gepinnte Dialogversion existiert nicht mehr | `InvalidOperationException` |
+| `QuestionId` gehört nicht zum Dialog | `InvalidOperationException` |
+| Frage in dieser Session noch nicht beantwortet | `InvalidOperationException` |
+| Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
+| Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
+| `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
+
+> **Loop-Iterationen** (mehrere Antworten pro Frage über `LoopInstanceId`/`IterationIndex`) sind noch
+> nicht Teil des Editierens; die Loop-Runtime folgt in **#29**.
+
 ## Nutzung
 
 ```csharp
@@ -270,13 +353,18 @@ Console.WriteLine(next.IsCompleted ? "Dialog abgeschlossen" : next.NextQuestion!
 var state = await engine.ResumeDialogAsync(result.SessionId);
 Console.WriteLine($"Status: {state.Status}, Antworten bisher: {state.Answers.Count}");
 Console.WriteLine(state.CurrentQuestion?.Text ?? "keine offene Frage (abgeschlossen)");
+
+// Eine frühere Antwort korrigieren → nachgelagerter Pfad wird neu berechnet/invalidiert:
+var edited = await engine.EditAnswerAsync(
+    result.SessionId, result.CurrentQuestion.Id, value: "\"pm\"");
+Console.WriteLine($"Verworfene Folge-Antworten: {edited.InvalidatedAnswers}");
+Console.WriteLine(edited.IsCompleted ? "Dialog abgeschlossen" : edited.NextQuestion!.Text);
 ```
 
 ## Geplante Folge-Commands (EPIC 3)
 
 | Issue | Command/Query | Zweck |
 |---|---|---|
-| #28 | `EditAnswerCommand` | Zurückspringen, überschreiben, nachgelagerten Pfad neu berechnen |
 | #29 | Loop-Runtime | Iterations-Sammlung je `CollectionKey`, Break-Bedingung |
 | #30 | `IAnswerValidator` | Typisierte, regelbasierte Antwort-Validierung (Pipeline-Behavior) |
 
@@ -286,9 +374,10 @@ Console.WriteLine(state.CurrentQuestion?.Text ?? "keine offene Frage (abgeschlos
 dotnet test tests/Flirty.Tests
 ```
 
-Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume, Submit **und** das Lesen des
-Session-Zustands (`ResumeDialogQuery`) gegen eine echte SQLite-Datenbank durch die volle
-Mediator-Pipeline via `IFlirtyEngine` (Facade → `ISender` → Handler →
-`IDialogStore`/`IExpressionEvaluator` → EF Core) und decken Branching (bedingter/Default-Übergang),
-Completion, die fortlaufende Antwort-`Sequence`, die chronologische Antwort-Reihenfolge beim Lesen,
-die Fehlerfälle sowie die DI-Registrierung ab.
+Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume, Submit, das Lesen des
+Session-Zustands (`ResumeDialogQuery`) **und** das Editieren einer früheren Antwort
+(`EditAnswerCommand`) gegen eine echte SQLite-Datenbank durch die volle Mediator-Pipeline via
+`IFlirtyEngine` (Facade → `ISender` → Handler → `IDialogStore`/`IExpressionEvaluator` → EF Core) und
+decken Branching (bedingter/Default-Übergang), Completion, die fortlaufende Antwort-`Sequence`, die
+chronologische Antwort-Reihenfolge beim Lesen, die Pfad-Neuberechnung samt Invalidierung nachgelagerter
+Antworten und Wieder-Öffnen abgeschlossener Sessions, die Fehlerfälle sowie die DI-Registrierung ab.

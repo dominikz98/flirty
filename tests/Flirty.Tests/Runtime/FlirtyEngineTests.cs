@@ -165,6 +165,50 @@ public sealed class FlirtyEngineTests : IDisposable
             async () => await engine.ResumeDialogAsync(Guid.NewGuid()));
     }
 
+    /// <summary>
+    /// Die Facade editiert eine frühere Antwort einer bereits abgeschlossenen Session, berechnet den Pfad
+    /// neu (dev-Zweig → pm-Zweig), öffnet die Session wieder und meldet die verworfene nachgelagerte Antwort.
+    /// </summary>
+    [Fact]
+    public async Task EditAnswerAsync_ueberschreibt_und_berechnet_Pfad_neu()
+    {
+        var dialogId = Guid.NewGuid();
+        BranchingDialogIds ids;
+        using (var seed = new FlirtyDbContext(_options))
+        {
+            seed.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(dialogId, out ids));
+            seed.SaveChanges();
+        }
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        // dev-Zweig vollständig durchlaufen (role → devDetail → Abschluss).
+        var start = await engine.StartDialogAsync("branching", "user-1");
+        var afterRole = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
+        await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
+
+        var result = await engine.EditAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"pm\"");
+
+        Assert.False(result.IsCompleted);
+        Assert.NotNull(result.NextQuestion);
+        Assert.Equal(ids.PmQuestionId, result.NextQuestion.Id);
+        Assert.Equal(1, result.InvalidatedAnswers);
+    }
+
+    /// <summary>Ein <c>null</c>-Antwortwert wird bei <c>EditAnswerAsync</c> durch die Pipeline abgewiesen.</summary>
+    [Fact]
+    public async Task EditAnswerAsync_null_Value_wird_von_der_Pipeline_abgewiesen()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        await Assert.ThrowsAsync<ValidationException>(
+            async () => await engine.EditAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
+    }
+
     /// <summary><c>AddFlirty()</c> registriert <see cref="IFlirtyEngine"/> als <see cref="FlirtyEngine"/>.</summary>
     [Fact]
     public void AddFlirty_registriert_IFlirtyEngine()

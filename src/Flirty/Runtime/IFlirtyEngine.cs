@@ -58,4 +58,31 @@ public interface IFlirtyEngine
     /// </exception>
     Task<ResumeDialogResult> ResumeDialogAsync(
         Guid sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Editiert die bereits gegebene Antwort auf eine frühere Frage einer Session: überschreibt den Wert,
+    /// verwirft (invalidiert) alle nachgelagerten Antworten und berechnet den Pfad ab der editierten Frage
+    /// über das Branching neu. Eine bereits abgeschlossene Session wird wieder geöffnet, sofern die
+    /// Neuberechnung auf eine nicht-terminale Folgefrage führt.
+    /// </summary>
+    /// <param name="sessionId">Der Primärschlüssel der Session, deren Antwort editiert wird.</param>
+    /// <param name="questionId">
+    /// Die Id der Frage, deren Antwort überschrieben werden soll; muss zum Dialog gehören und in dieser
+    /// Session bereits beantwortet worden sein (nicht notwendigerweise die aktuell offene Frage).
+    /// </param>
+    /// <param name="value">Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <returns>
+    /// Das Ergebnis mit der neu berechneten Folgefrage bzw. dem Abschluss-Signal und der Anzahl verworfener
+    /// nachgelagerter Antworten.
+    /// </returns>
+    /// <exception cref="SessionNotFoundException">
+    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Die Session ist abgebrochen, die Frage gehört nicht zum Dialog, die Frage wurde noch nicht
+    /// beantwortet, oder das Branching ist fehlkonfiguriert.
+    /// </exception>
+    Task<EditAnswerResult> EditAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 }

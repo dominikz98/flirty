@@ -97,7 +97,7 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
   *(Der Resume-oder-Neu-Pfad je Anwender bleibt bei `StartDialogCommand`; ein zusätzlicher
   `externalUserKey`-Lookup wird ergänzt, sobald ein Konsument ihn braucht.)*
 - `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion. Facade: `IFlirtyEngine.SubmitAnswerAsync`. Umgesetzt in #26, Details in [RUNTIME.md](./RUNTIME.md). *(Notifications folgen in EPIC 4.)*
-- `EditAnswerCommand(sessionId, questionId, value)` → zurückspringen, überschreiben, Pfad neu berechnen.
+- `EditAnswerCommand(sessionId, questionId, value)` → frühere Antwort überschreiben, nachgelagerten Pfad neu berechnen/invalidieren (öffnet ggf. eine abgeschlossene Session wieder). Facade: `IFlirtyEngine.EditAnswerAsync`. Umgesetzt in #28, Details in [RUNTIME.md](./RUNTIME.md).
 
 **Notifications (= In-Process-Trigger)** – `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`, `DialogCompletedNotification`. Der Nutzer „hängt seine Handler rein" per `INotificationHandler<T>` (funktioniert 1:1 in einer Console-App).
 

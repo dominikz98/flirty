@@ -34,4 +34,9 @@ internal sealed class FlirtyEngine : IFlirtyEngine
     public async Task<ResumeDialogResult> ResumeDialogAsync(
         Guid sessionId, CancellationToken cancellationToken = default)
         => await _sender.Send(new ResumeDialogQuery(sessionId), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<EditAnswerResult> EditAnswerAsync(
+        Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default)
+        => await _sender.Send(new EditAnswerCommand(sessionId, questionId, value), cancellationToken);
 }
