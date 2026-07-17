@@ -83,6 +83,8 @@ umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.
   (Pflicht) und `Question.ValidationRules` (optional) tragen anwendungsseitig serialisiertes JSON und
   werden als unbegrenzte Textspalten (ohne `MaxLength`) gespeichert. Provider-native `json`/`jsonb`-
   Typen sind bewusst nicht gesetzt (kleinster gemeinsamer Nenner aller Provider; bestätigt in #19).
+  Das Schema von `Question.ValidationRules` (camelCase-Felder `minLength`/`maxLength`/`min`/`max`/
+  `pattern`, typ-skopiert) wertet seit #30 der `IAnswerValidator` aus – siehe [VALIDATION.md](./VALIDATION.md).
 - **Skalare `Guid`-Verweise ohne Fremdschlüssel** – die oben unter *Bewusst ohne Navigation*
   gelisteten Verweise bleiben einfache Spalten (keine Relationship, kein Shadow-FK).
 - **Kaskadierendes Löschen** – innerhalb beider Aggregate (`Dialog` → Questions/Options/Transitions/

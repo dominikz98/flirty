@@ -25,7 +25,7 @@ namespace Flirty.Runtime;
 public sealed record SubmitAnswerCommand(
     [property: Required] Guid SessionId,
     [property: Required] Guid QuestionId,
-    [property: Required] string Value) : ICommand<SubmitAnswerResult>;
+    [property: Required] string Value) : ICommand<SubmitAnswerResult>, IAnswerCommand;
 
 /// <summary>
 /// Handler für <see cref="SubmitAnswerCommand"/>: validiert Session und Frage, persistiert die Antwort,

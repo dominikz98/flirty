@@ -3,6 +3,7 @@ using Flirty.Hosting;
 using Flirty.Persistence;
 using Flirty.Pipeline;
 using Flirty.Runtime;
+using Flirty.Validation;
 using Mediator;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -40,6 +41,12 @@ public static class FlirtyServiceCollectionExtensions
     /// registriert – die Engine ist zustandslos und wird vom <see cref="SubmitAnswerCommandHandler"/>
     /// zur Auswertung der Übergänge (Branching) benötigt. Der austauschbare Overload
     /// <c>o.UseExpressionEvaluator&lt;T&gt;()</c> folgt in #34.
+    /// Seit Issue #30 wird der <see cref="IAnswerValidator"/> (Default <see cref="AnswerValidator"/>) als
+    /// <see cref="ServiceLifetime.Singleton"/> registriert (zustandslos) und das
+    /// <c>AnswerValidationPipelineBehavior</c> je antworteinreichendem Command
+    /// (<see cref="SubmitAnswerCommand"/>/<see cref="EditAnswerCommand"/>) <b>geschlossen</b> als
+    /// <see cref="ServiceLifetime.Scoped"/> – so validiert es den Antwortwert (Typ + <c>ValidationRules</c>)
+    /// vor dem Handler, ohne für <c>FlirtyDbContext</c>-freie Nachrichten aufgelöst zu werden.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
     /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
@@ -56,6 +63,19 @@ public static class FlirtyServiceCollectionExtensions
         services.AddScoped<IFlirtyEngine, FlirtyEngine>();
 
         services.AddSingleton<IExpressionEvaluator, DynamicExpressoExpressionEvaluator>();
+
+        // Issue #30: fachliche Antwort-Validierung. Der Validator ist zustandslos (Singleton); das
+        // Behavior wird bewusst GESCHLOSSEN je antworteinreichendem Command registriert (nicht
+        // offen-generisch), weil es den scoped IDialogStore braucht und sonst auch für Nachrichten
+        // ohne registrierten FlirtyDbContext konstruiert würde. Scoped, damit es sich den Kontext mit
+        // dem Handler teilt. Nach den Basis-Behaviors registriert -> läuft direkt vor dem Handler.
+        services.AddSingleton<IAnswerValidator, AnswerValidator>();
+        services.AddScoped<
+            IPipelineBehavior<SubmitAnswerCommand, SubmitAnswerResult>,
+            AnswerValidationPipelineBehavior<SubmitAnswerCommand, SubmitAnswerResult>>();
+        services.AddScoped<
+            IPipelineBehavior<EditAnswerCommand, EditAnswerResult>,
+            AnswerValidationPipelineBehavior<EditAnswerCommand, EditAnswerResult>>();
 
         return services;
     }

@@ -67,7 +67,15 @@ Beide liegen im Namespace `Flirty.Pipeline` und werden von `AddFlirty()` registr
 | Behavior | Zweck |
 |---|---|
 | `LoggingPipelineBehavior<TMessage,TResponse>` | Protokolliert Beginn, Abschluss (inkl. Dauer) und Fehler jeder Nachricht via `ILogger<>`. |
-| `ValidationPipelineBehavior<TMessage,TResponse>` | Validiert die Nachricht per `System.ComponentModel.DataAnnotations` (`[Required]`, …) und wirft bei Verstößen eine `ValidationException`. Skelett – die fachliche Antwort-Validierung (`IAnswerValidator`) folgt in #30. |
+| `ValidationPipelineBehavior<TMessage,TResponse>` | Validiert die Nachricht **deklarativ** per `System.ComponentModel.DataAnnotations` (`[Required]`, …) und wirft bei Verstößen eine `ValidationException`. |
+
+Zusätzlich registriert `AddFlirty()` seit #30 ein **fachliches** Antwort-Validierungs-Behavior –
+bewusst **geschlossen je antworteinreichendem Command** (nicht offen-generisch) und **intern**, weil es
+den scoped `IDialogStore` benötigt:
+
+| Behavior | Zweck |
+|---|---|
+| `AnswerValidationPipelineBehavior<TMessage,TResponse>` (intern, geschlossen für `SubmitAnswerCommand`/`EditAnswerCommand`) | Löst die Frage der gepinnten Dialogversion auf und validiert den Antwortwert (Typ + `ValidationRules`) per `IAnswerValidator` **vor** dem Handler; wirft bei Verstoß `AnswerValidationException`. Details in [VALIDATION.md](./VALIDATION.md). |
 
 ## Ein Command/Handler hinzufügen
 
