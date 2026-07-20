@@ -1,3 +1,4 @@
+using Flirty.Domain;
 using Flirty.Expressions;
 using Microsoft.EntityFrameworkCore;
 
@@ -134,6 +135,33 @@ public sealed class FlirtyOptions
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
 
         Webhooks.Add(new FlirtyWebhookRegistration(eventName, url));
+        return this;
+    }
+
+    /// <summary>
+    /// Registriert einen Outbound-Webhook, der beim angegebenen Trigger-Zeitpunkt (<paramref name="scope"/>)
+    /// an die Ziel-URL ausgeliefert wird – optional gefiltert durch einen Bedingungsausdruck.
+    /// </summary>
+    /// <param name="scope">
+    /// Der Zeitpunkt im Dialogablauf (siehe <see cref="TriggerScope"/>), zu dem der Webhook auslöst; mappt
+    /// 1:1 auf die vom Core publizierte Notification.
+    /// </param>
+    /// <param name="url">Die Ziel-URL, an die der Webhook per HTTP POST ausgeliefert wird.</param>
+    /// <param name="expression">
+    /// Optionaler Bedingungsausdruck, der über <see cref="IExpressionEvaluator"/> ausgewertet wird und über
+    /// das Auslösen entscheidet (z. B. <c>age &gt; 18</c>). <see langword="null"/>/leer ⇒ bedingungslos.
+    /// </param>
+    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <remarks>
+    /// Seit Issue #33: Diese Registrierungen werden vom eingebauten <c>WebhookNotificationHandler</c> aktiv
+    /// über <c>IHttpClientFactory</c> (Retry/Timeout) ausgeliefert. Ist <paramref name="expression"/> gesetzt,
+    /// lädt der Handler zur Auswertung Session und Dialog nach. Siehe <see cref="FlirtyWebhookRegistration"/>.
+    /// </remarks>
+    public FlirtyOptions AddWebhook(TriggerScope scope, string url, string? expression = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+
+        Webhooks.Add(new FlirtyWebhookRegistration(scope.ToString(), url, scope, expression));
         return this;
     }
 }

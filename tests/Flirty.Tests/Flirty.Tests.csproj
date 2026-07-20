@@ -20,6 +20,14 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <!-- IHttpClientFactory/AddHttpClient + Standard-Resilience für die Webhook-Handler-Tests (#33):
+       die Tests bauen den Named-Client und schleusen einen HttpMessageHandler-Spy ein. Kommen auch
+       transitiv über Flirty, explizit zur Klarheit (Muster wie oben). Versionen zentral. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+  </ItemGroup>
+
   <!-- SQLite als Test-Host für die FlirtyDbContext-Tests (in-memory, #18); der Provider kommt seit
        #19 auch transitiv über Flirty, die explizite Referenz bleibt zur Klarheit. Version zentral. -->
   <ItemGroup>

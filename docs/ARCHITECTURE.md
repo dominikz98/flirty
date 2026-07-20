@@ -104,7 +104,7 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 **Weitere Services**
 - `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload ist seit #34 verfügbar.
 - `IAnswerValidator` – typisierte, regelbasierte Antwort-Validierung (Typ + `ValidationRules`), als Mediator-`IPipelineBehavior` (`AnswerValidationPipelineBehavior`) vor Submit/Edit. Umgesetzt in #30, Details in [VALIDATION.md](./VALIDATION.md).
-- Webhook-`INotificationHandler` – Outbound-HTTP (`IHttpClientFactory` + Retry/Timeout); geplant für EPIC 4 (M2). Die Registrierung `o.AddWebhook(name, url)` existiert seit #34 als **Stub** (sammelt die Ziele als `IReadOnlyList<FlirtyWebhookRegistration>` im Container); die aktive Auslieferung folgt in EPIC 4.
+- Webhook-`INotificationHandler` – Outbound-HTTP-`POST` (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout), umgesetzt in #33. Ziele werden per `o.AddWebhook(scope, url, expression?)` registriert (Registrierung als Stub seit #34); der eingebaute `WebhookNotificationHandler` (auto-registriert) filtert nach `TriggerScope`, wertet optionale Bedingungen via `IExpressionEvaluator` aus und liefert best-effort aus. Details in [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
 
 ## 8. Persistenz & Migrationen
@@ -124,7 +124,7 @@ services.AddFlirty(o => {
     o.UseSqlServer(conn);                 // oder UsePostgreSql / UseSqlite
     o.ApplyMigrations();                  // optional: Auto-Migration beim Start
     o.UseExpressionEvaluator<MyEval>();    // Expression-Engine austauschbar
-    o.AddWebhook("order-created", url);   // Outbound-Trigger (Registrierung seit #34; Auslieferung in EPIC 4)
+    o.AddWebhook(TriggerScope.OnDialogCompleted, url);  // Outbound-Webhook (Auslieferung seit #33)
 });
 // In-Process-Trigger = Mediator-Notification-Handler:
 services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHandler>();
