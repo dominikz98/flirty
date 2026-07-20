@@ -40,6 +40,11 @@ jobs:
       - name: Build (Release)
         run: dotnet build Flirty.sln -c Release --no-restore
 
+      # Playwright-Browser (Chromium) für die Web-Sample-E2E (#45/#47). Das Skript wird beim Build
+      # erzeugt; ohne diesen Schritt überspringen sich die E2E-Tests (SkippableFact) statt zu scheitern.
+      - name: Playwright-Browser installieren
+        run: pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
       - name: Test
         run: dotnet test Flirty.sln -c Release --no-build
 
