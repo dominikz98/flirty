@@ -35,7 +35,7 @@ public sealed class ConsoleSampleTests
             .AddLogging()
             .AddFlirty(options => options.UseSqlite(connectionString))
             .AddSingleton<TextWriter>(handlerOutput)
-            .AddScoped<INotificationHandler<DialogCompletedNotification>, ConsoleDialogCompletedHandler>()
+            .AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()
             .BuildServiceProvider();
 
         using (var seedScope = provider.CreateScope())

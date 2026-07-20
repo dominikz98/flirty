@@ -108,6 +108,10 @@ await _publisher.Publish(new FooHappenedNotification(id), cancellationToken);
 services.AddScoped<INotificationHandler<FooHappenedNotification>, MyHandler>();
 ```
 
+Für die Engine-Trigger gibt es dafür den Convenience-Helper
+`services.AddFlirtyHandler<DialogCompletedNotification, MyHandler>()` (seit #32, Default `Scoped`) – siehe
+[TRIGGERS.md](./TRIGGERS.md).
+
 Zwei Besonderheiten von martinothamar/Mediator, die aus Regel 1 folgen:
 
 - **Notification-Contracts müssen im Core liegen.** Nur so kennt der Source-Generator den Typ und

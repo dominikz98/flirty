@@ -47,7 +47,7 @@ using var provider = new ServiceCollection()
     .AddLogging()
     .AddFlirty(options => options.UseSqlite(connectionString))
     .AddSingleton<TextWriter>(Console.Out)                       // Ziel für den eigenen Handler
-    .AddScoped<INotificationHandler<DialogCompletedNotification>, ConsoleDialogCompletedHandler>()
+    .AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()
     .BuildServiceProvider();
 ```
 
@@ -129,8 +129,9 @@ public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogC
 Seit **#31** publiziert die **Engine selbst** die Notification: Der `SubmitAnswerCommandHandler` löst beim
 Dialog-Abschluss `DialogCompletedNotification` per `IPublisher` aus, wodurch alle registrierten
 `INotificationHandler<T>` automatisch aufgerufen werden. Die Registrierung per DI (Abschnitt 1) genügt –
-der `ConsoleDialogRunner` muss **nichts** mehr manuell auflösen oder aufrufen. Der Handler selbst bleibt
-unverändert.
+komfortabel über den Helper `AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()`
+(seit #32); der `ConsoleDialogRunner` muss **nichts** mehr manuell auflösen oder aufrufen. Der Handler
+selbst bleibt unverändert.
 
 Der `DialogCompletedNotification` gehört – wie alle vier Trigger-Contracts (`DialogStarted`,
 `AnswerSubmitted`, `QuestionAnswered`, `DialogCompleted`) – zum **Core** (Namespace `Flirty.Runtime`),

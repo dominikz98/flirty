@@ -1,9 +1,10 @@
 # Trigger – In-Process-Notifications
 
-> Stand: Issue #31. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
+> Stand: Issue #32. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
 > Mediator-Notifications, die die Command-Handler beim Durchlaufen eines Dialogs publizieren, und wie
-> Host-Apps eigene Handler „reinhängen". Die zweite Trigger-Spielart – **Outbound-Webhooks** – baut auf
-> genau diesen Notifications auf und folgt im weiteren Verlauf von EPIC 4 (siehe unten).
+> Host-Apps eigene Handler per `AddFlirtyHandler<T, THandler>()` „reinhängen". Die zweite Trigger-Spielart
+> – **Outbound-Webhooks** – baut auf genau diesen Notifications auf und folgt im weiteren Verlauf von
+> EPIC 4 (siehe unten).
 
 ## Überblick
 
@@ -52,7 +53,8 @@ Publiziert wird stets **nach** `SaveChangesAsync`, damit ein Handler den persist
 ## Eigenen Handler registrieren
 
 Ein Handler ist ein `Mediator.INotificationHandler<T>`; die Registrierung genügt, die Engine ruft ihn
-automatisch auf:
+automatisch auf. Der Convenience-Helper `AddFlirtyHandler<TNotification, THandler>()` (seit #32) kapselt
+die Registrierung fluent:
 
 ```csharp
 public sealed class OnDialogCompleted : INotificationHandler<DialogCompletedNotification>
@@ -66,11 +68,20 @@ public sealed class OnDialogCompleted : INotificationHandler<DialogCompletedNoti
 
 services
     .AddFlirty(o => o.UseSqlite(connectionString))
-    .AddScoped<INotificationHandler<DialogCompletedNotification>, OnDialogCompleted>();
+    .AddFlirtyHandler<DialogCompletedNotification, OnDialogCompleted>();
 ```
 
-Mehrere Handler je Notification sind erlaubt (alle werden aufgerufen). Ein durchgängiges Beispiel zeigt
-der [Console-Guide](./GETTING-STARTED-Console.md) und das lauffähige
+`AddFlirtyHandler<T, THandler>()` registriert den Handler standardmäßig als `Scoped` – dieselbe
+Lebensdauer wie der Mediator; über den optionalen Parameter lässt sich z. B. `ServiceLifetime.Singleton`
+wählen. Er ist reine Bequemlichkeit für die rohe DI-Zeile und damit gleichwertig zu:
+
+```csharp
+services.AddScoped<INotificationHandler<DialogCompletedNotification>, OnDialogCompleted>();
+```
+
+Mehrere Handler je Notification sind erlaubt (alle werden aufgerufen) – der Helper nutzt bewusst
+`Add` (kein `TryAdd`/`Replace`). Ein durchgängiges Beispiel zeigt der
+[Console-Guide](./GETTING-STARTED-Console.md) und das lauffähige
 [`src/Flirty.Samples`](../src/Flirty.Samples).
 
 ## Hinweise & Grenzen

@@ -1,7 +1,6 @@
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Samples;
-using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,8 +17,8 @@ using var provider = new ServiceCollection()
     .AddFlirty(options => options.UseSqlite(connectionString))
     // Ziel-Writer für den eigenen Notification-Handler (in der App: die Konsole).
     .AddSingleton<TextWriter>(Console.Out)
-    // Eigener In-Process-Handler: reagiert auf die vom Runner veröffentlichte Abschluss-Notification.
-    .AddScoped<INotificationHandler<DialogCompletedNotification>, ConsoleDialogCompletedHandler>()
+    // Eigener In-Process-Handler: reagiert auf die von der Engine publizierte Abschluss-Notification.
+    .AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()
     .BuildServiceProvider();
 
 // Beispiel-Dialog seeden – programmatisch über den DbContext (ohne Designer).
