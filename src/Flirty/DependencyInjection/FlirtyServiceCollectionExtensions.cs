@@ -48,6 +48,11 @@ public static class FlirtyServiceCollectionExtensions
     /// (<see cref="SubmitAnswerCommand"/>/<see cref="EditAnswerCommand"/>) <b>geschlossen</b> als
     /// <see cref="ServiceLifetime.Scoped"/> – so validiert es den Antwortwert (Typ + <c>ValidationRules</c>)
     /// vor dem Handler, ohne für <c>FlirtyDbContext</c>-freie Nachrichten aufgelöst zu werden.
+    /// Seit Issue #33 wird die Outbound-Webhook-Infrastruktur bereitgestellt: ein (per Default leeres)
+    /// <see cref="IReadOnlyList{T}"/> von <see cref="FlirtyWebhookRegistration"/> (vom Options-Overload
+    /// ersetzt) und der resiliente Named-<see cref="System.Net.Http.IHttpClientFactory"/>-Client, den der
+    /// vom Mediator automatisch registrierte <see cref="Flirty.Runtime.WebhookNotificationHandler"/> bei
+    /// jedem Publish benötigt.
     /// </remarks>
     /// <param name="services">Die zu erweiternde Service-Collection.</param>
     /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
@@ -78,6 +83,15 @@ public static class FlirtyServiceCollectionExtensions
             IPipelineBehavior<EditAnswerCommand, EditAnswerResult>,
             AnswerValidationPipelineBehavior<EditAnswerCommand, EditAnswerResult>>();
 
+        // Issue #33: Outbound-Webhook-Auslieferung. Der WebhookNotificationHandler liegt im Core und wird
+        // vom Mediator-Source-Generator je Notification AUTOMATISCH registriert (Regel 1, docs/MEDIATOR.md).
+        // Er wird daher bei jedem Publish konstruiert und braucht seine Abhängigkeiten immer auflösbar:
+        //   * das (per Default leere) Registry der Ziele – der Options-Overload ersetzt es durch die
+        //     via o.AddWebhook(...) gesammelten Registrierungen,
+        //   * den resilient (Retry/Timeout via Standard-Resilience) konfigurierten Named-HttpClient.
+        services.AddSingleton<IReadOnlyList<FlirtyWebhookRegistration>>(Array.Empty<FlirtyWebhookRegistration>());
+        services.AddHttpClient(WebhookNotificationHandler.HttpClientName).AddStandardResilienceHandler();
+
         return services;
     }
 
@@ -93,9 +107,9 @@ public static class FlirtyServiceCollectionExtensions
     /// <see cref="FlirtyDbContext"/> mit Provider und passender <c>MigrationsAssembly</c>.</item>
     /// <item>Austauschbarer Evaluator (<c>o.UseExpressionEvaluator&lt;T&gt;()</c>, seit #34): ersetzt die
     /// Default-Singleton-Registrierung des <see cref="IExpressionEvaluator"/>.</item>
-    /// <item>Webhooks (<c>o.AddWebhook(...)</c>, seit #34): stellt die gesammelten
-    /// <see cref="FlirtyWebhookRegistration"/> als <see cref="IReadOnlyList{T}"/> bereit (Stub; die aktive
-    /// Auslieferung folgt in EPIC 4/M2).</item>
+    /// <item>Webhooks (<c>o.AddWebhook(...)</c>, Registrierung seit #34): ersetzt das leere Default-Registry
+    /// durch die gesammelten <see cref="FlirtyWebhookRegistration"/>. Seit #33 liefert der eingebaute
+    /// <see cref="Flirty.Runtime.WebhookNotificationHandler"/> diese Ziele aktiv aus (HTTP + Retry/Timeout).</item>
     /// <item>Auto-Migration (<see cref="FlirtyOptions.ApplyMigrations"/>, Issue #20): registriert den
     /// <see cref="FlirtyMigrationHostedService"/>. Setzt einen registrierten <see cref="FlirtyDbContext"/>
     /// voraus – entweder über die Provider-Wahl oder extern per <c>AddDbContext</c>.</item>
@@ -127,9 +141,10 @@ public static class FlirtyServiceCollectionExtensions
             services.Replace(ServiceDescriptor.Singleton(typeof(IExpressionEvaluator), options.ExpressionEvaluatorType));
         }
 
-        // Webhook-Stub (#34): die gesammelten Registrierungen immer bereitstellen (ggf. leer), damit der
-        // Outbound-Handler aus EPIC 4 (M2) einen zuverlässig auflösbaren Registry-Punkt vorfindet.
-        services.AddSingleton<IReadOnlyList<FlirtyWebhookRegistration>>(options.Webhooks.AsReadOnly());
+        // Webhooks (#34 Registrierung, #33 Auslieferung): das in AddFlirty() gesetzte (leere) Default-Registry
+        // durch die tatsächlich via o.AddWebhook(...) gesammelten Ziele ersetzen. Der eingebaute
+        // WebhookNotificationHandler (auto-registriert) konsumiert genau diese Liste.
+        services.Replace(ServiceDescriptor.Singleton<IReadOnlyList<FlirtyWebhookRegistration>>(options.Webhooks.AsReadOnly()));
 
         if (options.MigrationsEnabled)
         {

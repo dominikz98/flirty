@@ -22,6 +22,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <!-- IHostedService + AddHostedService für die Auto-Migration (#20, FlirtyMigrationHostedService). -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <!-- Outbound-Webhook-Handler (#33): IHttpClientFactory/AddHttpClient + Standard-Resilience
+         (Retry/Timeout, Polly v8). Echte Laufzeit-Abhängigkeit des Flirty-Pakets. -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <!-- EF Core 10 (provider-agnostisch): FlirtyDbContext + Konfigurationen (#18). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <!-- Alle drei Provider werden mit dem Flirty-Paket ausgeliefert (#19); der Konsument wählt

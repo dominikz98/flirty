@@ -1,10 +1,10 @@
-# Trigger – In-Process-Notifications
+# Trigger – In-Process-Notifications & Outbound-Webhooks
 
-> Stand: Issue #32. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
+> Stand: Issue #33. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
 > Mediator-Notifications, die die Command-Handler beim Durchlaufen eines Dialogs publizieren, und wie
 > Host-Apps eigene Handler per `AddFlirtyHandler<T, THandler>()` „reinhängen". Die zweite Trigger-Spielart
-> – **Outbound-Webhooks** – baut auf genau diesen Notifications auf und folgt im weiteren Verlauf von
-> EPIC 4 (siehe unten).
+> – **Outbound-Webhooks** – baut auf genau diesen Notifications auf und ist seit #33 aktiv (siehe
+> [Abschnitt „Outbound-Webhooks"](#outbound-webhooks)).
 
 ## Überblick
 
@@ -13,10 +13,10 @@ Flirty kennt zwei Rückkanäle in die Host-App (siehe [ARCHITECTURE.md](./ARCHIT
 1. **In-Process-Notifications** (dieses Dokument): über den [Mediator](./MEDIATOR.md) (martinothamar)
    publizierte `INotification`-Contracts. Die Engine ruft alle per DI registrierten
    `INotificationHandler<T>` synchron im selben Scope auf.
-2. **Outbound-Webhooks**: ein eingebauter `INotificationHandler`, der dieselben Notifications empfängt
-   und als HTTP-Request ausliefert (`IHttpClientFactory` + Retry/Timeout, `TriggerDefinition`-getrieben).
-   Die Registrierung `o.AddWebhook(name, url)` existiert seit #34 als Stub; der aktive Handler folgt in
-   EPIC 4.
+2. **Outbound-Webhooks** (seit #33): ein eingebauter `INotificationHandler`, der dieselben Notifications
+   empfängt und als HTTP-`POST` ausliefert (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout).
+   Ziele werden per `o.AddWebhook(scope, url, expression?)` registriert (Registrierung als Stub seit #34).
+   Details unten unter [Outbound-Webhooks](#outbound-webhooks).
 
 ## Die vier Notification-Contracts
 
@@ -83,6 +83,55 @@ Mehrere Handler je Notification sind erlaubt (alle werden aufgerufen) – der He
 `Add` (kein `TryAdd`/`Replace`). Ein durchgängiges Beispiel zeigt der
 [Console-Guide](./GETTING-STARTED-Console.md) und das lauffähige
 [`src/Flirty.Samples`](../src/Flirty.Samples).
+
+## Outbound-Webhooks
+
+Neben In-Process-Handlern liefert Flirty dieselben Notifications seit #33 auch als **ausgehende HTTP-`POST`**
+aus. Der eingebaute `WebhookNotificationHandler` (Core, `Flirty.Runtime`) wird – wie jeder Core-Handler –
+vom Mediator-Source-Generator automatisch je Notification registriert; es ist **keine** manuelle
+Registrierung nötig.
+
+### Ziele registrieren
+
+```csharp
+services.AddFlirty(o =>
+{
+    o.UseSqlite(connectionString);
+    o.AddWebhook(TriggerScope.OnDialogCompleted, "https://host.example/flirty/completed");
+    o.AddWebhook(TriggerScope.AfterAnswer, "https://host.example/flirty/answers", expression: "age > 18");
+});
+```
+
+`o.AddWebhook(TriggerScope scope, string url, string? expression = null)` legt fest, **zu welchem Zeitpunkt**
+(Scope) an **welche URL** ausgeliefert wird und optional **unter welcher Bedingung**. Der Scope mappt 1:1 auf
+die Notification (siehe Tabelle oben). Mehrere Registrierungen je Scope sind erlaubt (alle werden bedient).
+
+> Der ältere String-Overload `o.AddWebhook(eventName, url)` (#34, ohne Scope) bleibt aus Kompatibilität
+> bestehen, wird vom eingebauten Handler aber **nicht** ausgeliefert.
+
+### Was ausgeliefert wird
+
+- **Methode/Body:** HTTP-`POST` mit der als JSON serialisierten Notification (camelCase) als Body
+  (`application/json`).
+- **Header:** `X-Flirty-Event` trägt den auslösenden `TriggerScope` (z. B. `OnDialogCompleted`).
+
+### Bedingtes Auslösen (`expression`)
+
+Ist ein `expression` gesetzt, lädt der Handler Session und (gepinnte) Dialogversion über den `IDialogStore`
+nach, baut denselben `ExpressionContext` wie das Branching (Antworten nach `Question.Key`, Loop-Collections,
+Iterationsindex) und wertet die Bedingung über den `IExpressionEvaluator` aus – dieselbe Engine und Semantik
+wie bei `Transition.Expression` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)). Nur bei
+`true` wird ausgeliefert; ein leerer/`null`-Ausdruck gilt als bedingungslos. Ohne Ausdruck erfolgt **kein**
+DB-Zugriff.
+
+### Resilience & Fehlerverhalten
+
+- Die Zustellung läuft über einen `IHttpClientFactory`-Named-Client (`"Flirty.Webhooks"`) mit
+  `AddStandardResilienceHandler()` – **Retry** bei transienten Fehlern (5xx/408/429, Verbindungsfehler,
+  Timeouts) plus Attempt-/Total-**Timeout**.
+- **Best-effort:** Schlägt die Zustellung nach erschöpften Retries fehl (Statuscode ≥ 400 oder Ausnahme),
+  wird der Fehler **geloggt, aber nicht geworfen** – ein toter Webhook darf den auslösenden Command
+  (Start/Submit/Edit) nicht brechen.
 
 ## Hinweise & Grenzen
 

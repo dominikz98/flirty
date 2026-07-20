@@ -1,7 +1,9 @@
+using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
+using Flirty.Tests.Runtime;
 using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -195,11 +197,145 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
+    /// <summary>Der <see cref="TriggerScope"/>-Overload von <c>AddWebhook</c> speichert Scope und Ausdruck (#33).</summary>
+    [Fact]
+    public void AddWebhook_mit_Scope_speichert_Scope_und_Expression()
+    {
+        using var provider = BuildProvider(options => options
+            .AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"dev\""));
+
+        var webhook = Assert.Single(provider.GetRequiredService<IReadOnlyList<FlirtyWebhookRegistration>>());
+        Assert.Equal(TriggerScope.OnDialogCompleted, webhook.Scope);
+        Assert.Equal("https://example.test/done", webhook.Url);
+        Assert.Equal("role == \"dev\"", webhook.Expression);
+        Assert.Equal("OnDialogCompleted", webhook.EventName);
+    }
+
+    /// <summary>
+    /// Der eingebaute <see cref="WebhookNotificationHandler"/> wird vom Mediator-Source-Generator automatisch
+    /// registriert, und der resiliente Named-<c>HttpClient</c> steht bereit (beides seit #33 Teil von
+    /// <c>AddFlirty()</c>).
+    /// </summary>
+    [Fact]
+    public void WebhookNotificationHandler_und_HttpClientFactory_werden_registriert()
+    {
+        var services = new ServiceCollection();
+
+        services.AddFlirty();
+
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(WebhookNotificationHandler));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IHttpClientFactory));
+    }
+
+    /// <summary>
+    /// Ende-zu-Ende (Dispatch + Webhook): ein via <c>o.AddWebhook(OnDialogCompleted, url)</c> registriertes Ziel
+    /// erhält beim Dialog-Abschluss genau einen POST mit Event-Header und JSON-Body – ausgelöst durch die
+    /// Notification-Publikation der Engine.
+    /// </summary>
+    [Fact]
+    public async Task Webhook_wird_bei_Dialog_Abschluss_ausgeliefert()
+    {
+        var (provider, spy, keepAlive) = BuildWebhookProvider(
+            options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done"));
+
+        using (keepAlive)
+        using (provider)
+        {
+            await RunBranchingToCompletionAsync(provider);
+
+            var request = Assert.Single(spy.Requests);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("https://example.test/done", request.Url?.ToString());
+            Assert.Equal("OnDialogCompleted", request.Event);
+            Assert.Contains("branching", request.Body);
+        }
+    }
+
+    /// <summary>Ein zutreffender Bedingungsausdruck (<c>role == "dev"</c>) liefert den Webhook aus.</summary>
+    [Fact]
+    public async Task Webhook_mit_zutreffender_Bedingung_wird_ausgeliefert()
+    {
+        var (provider, spy, keepAlive) = BuildWebhookProvider(
+            options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"dev\""));
+
+        using (keepAlive)
+        using (provider)
+        {
+            await RunBranchingToCompletionAsync(provider);
+
+            Assert.Single(spy.Requests);
+        }
+    }
+
+    /// <summary>Ein nicht zutreffender Bedingungsausdruck (<c>role == "pm"</c>) unterdrückt die Auslieferung.</summary>
+    [Fact]
+    public async Task Webhook_mit_nicht_zutreffender_Bedingung_wird_nicht_ausgeliefert()
+    {
+        var (provider, spy, keepAlive) = BuildWebhookProvider(
+            options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"pm\""));
+
+        using (keepAlive)
+        using (provider)
+        {
+            await RunBranchingToCompletionAsync(provider);
+
+            Assert.Empty(spy.Requests);
+        }
+    }
+
     private static ServiceProvider BuildProvider(Action<FlirtyOptions> configure)
         => new ServiceCollection()
             .AddLogging()
             .AddFlirty(configure)
             .BuildServiceProvider();
+
+    /// <summary>
+    /// Baut einen echten DI-Container mit SQLite in-memory (shared cache), den über <paramref name="configureWebhooks"/>
+    /// gesetzten Webhooks und einem in den Webhook-Named-Client eingeschleusten <see cref="RecordingHttpMessageHandler"/>.
+    /// </summary>
+    private static (ServiceProvider Provider, RecordingHttpMessageHandler Spy, SqliteConnection KeepAlive) BuildWebhookProvider(
+        Action<FlirtyOptions> configureWebhooks)
+    {
+        var connectionString = $"Data Source=FlirtyWebhookTest-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        var keepAlive = new SqliteConnection(connectionString);
+        keepAlive.Open();
+
+        var spy = new RecordingHttpMessageHandler();
+
+        var provider = new ServiceCollection()
+            .AddLogging()
+            .AddFlirty(options =>
+            {
+                options.UseSqlite(connectionString);
+                configureWebhooks(options);
+            })
+            // Den Primary-Handler des Webhook-Clients durch den Spy ersetzen (nach AddFlirty; additive Config).
+            .AddHttpClient(WebhookNotificationHandler.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => spy)
+            .Services
+            .BuildServiceProvider();
+
+        return (provider, spy, keepAlive);
+    }
+
+    private static async Task RunBranchingToCompletionAsync(ServiceProvider provider)
+    {
+        var dialogId = Guid.NewGuid();
+        using (var seedScope = provider.CreateScope())
+        {
+            var context = seedScope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
+            context.Database.EnsureCreated();
+            context.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
+            context.SaveChanges();
+        }
+
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("branching", "user-1");
+        var afterRole = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
+        await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
+    }
 
     /// <summary>Test-Doppel für <see cref="IExpressionEvaluator"/>; wird nur zur Prüfung der DI-Ersetzung aufgelöst.</summary>
     private sealed class FakeExpressionEvaluator : IExpressionEvaluator

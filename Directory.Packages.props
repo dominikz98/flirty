@@ -41,14 +41,22 @@
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Branching-/Expression-Engine (Default-Evaluator) -->
     <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
-    <!-- Microsoft.Extensions (Logging/DI/Hosting) – an die .NET-10-Linie (EF Core 10.0.9) angeglichen. -->
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <!-- Microsoft.Extensions (Logging/DI/Hosting/Http) – an die .NET-10-Linie angeglichen. Auf 10.0.10
+         gehoben, weil Microsoft.Extensions.Http.Resilience 10.8.0 (#33) transitiv die runtime-Extensions
+         >= 10.0.10 verlangt (sonst NU1109-Downgrade). EF Core 10.0.9 erfüllt >= 10.0.10 nicht selbst,
+         fordert aber nur >= 10.0.9 -> kein Konflikt. -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
     <!-- IHostedService + AddHostedService für die Auto-Migration (#20, FlirtyMigrationHostedService).
          Wird NICHT transitiv über EF Core gezogen, daher explizit. Echte Laufzeit-Abhängigkeit des
          Flirty-Pakets. -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+    <!-- Outbound-Webhook-Handler (#33): IHttpClientFactory/AddHttpClient + Retry/Timeout über die
+         Standard-Resilience-Pipeline (Polly v8). Http.Resilience folgt der eigenständigen
+         dotnet/extensions-Versionslinie (10.x). -->
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
   </ItemGroup>
 
   <!-- SourceLink: bettet GitHub-Quellverweise für Debugging ein (Packaging-Issue #15).
