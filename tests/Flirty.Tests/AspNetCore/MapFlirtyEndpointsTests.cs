@@ -2,19 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using Flirty.AspNetCore.Dtos;
 using Flirty.Domain;
-using Flirty.Persistence;
 using Flirty.Tests.Persistence;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Flirty.Tests.AspNetCore;
 
 /// <summary>
 /// Integrationstests für <c>MapFlirtyEndpoints</c> (#35): fahren die vier Endpunkte über einen
-/// In-Process-<see cref="TestServer"/> mit echten HTTP-Aufrufen gegen eine SQLite-in-memory-Datenbank
+/// In-Process-<c>TestServer</c> mit echten HTTP-Aufrufen gegen eine SQLite-in-memory-Datenbank
 /// (Docker-frei). Geprüft werden der Happy-Path (Start/Answer/Resume/Edit inkl. End-to-End-Abschluss)
 /// sowie das Fehler-Mapping der Engine-Ausnahmen auf HTTP-Statuscodes (404/400/409).
 /// </summary>
@@ -187,35 +181,8 @@ public sealed class MapFlirtyEndpointsTests
 
     /// <summary>Startet einen TestServer, der den Branching-Dialog (#26) geseedet hat.</summary>
     private static Task<FlirtyTestHost> StartBranchingHostAsync()
-        => StartHostAsync(context =>
+        => FlirtyTestHost.StartAsync(context =>
             context.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _)));
-
-    /// <summary>Startet einen In-Process-TestServer mit dem vollständigen Flirty-Stack (SQLite in-memory).</summary>
-    private static async Task<FlirtyTestHost> StartHostAsync(Action<FlirtyDbContext> seed)
-    {
-        var connectionString = $"Data Source=FlirtyApiTest-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
-        var keepAlive = new SqliteConnection(connectionString);
-        await keepAlive.OpenAsync();
-
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Services.AddLogging();
-        builder.Services.AddFlirty(options => options.UseSqlite(connectionString));
-
-        var app = builder.Build();
-        app.MapFlirtyEndpoints("/flirty");
-        await app.StartAsync();
-
-        using (var scope = app.Services.CreateScope())
-        {
-            var context = scope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
-            await context.Database.EnsureCreatedAsync();
-            seed(context);
-            await context.SaveChangesAsync();
-        }
-
-        return new FlirtyTestHost(app, keepAlive);
-    }
 
     /// <summary>Startet über den Endpunkt eine Session und gibt die Antwort zurück.</summary>
     private static async Task<StartSessionResponse> StartSessionAsync(FlirtyTestHost host)
@@ -234,32 +201,5 @@ public sealed class MapFlirtyEndpointsTests
             $"/flirty/sessions/{sessionId}/answers", new SubmitAnswerRequest(questionId, value));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<SubmitAnswerResponse>())!;
-    }
-
-    /// <summary>
-    /// Hält den TestServer samt der keep-alive-Verbindung, die die SQLite-in-memory-Datenbank (Shared
-    /// Cache) über alle Request-Scopes am Leben hält, und räumt beide beim Verwerfen auf.
-    /// </summary>
-    private sealed class FlirtyTestHost : IAsyncDisposable
-    {
-        private readonly WebApplication _app;
-        private readonly SqliteConnection _keepAlive;
-
-        public FlirtyTestHost(WebApplication app, SqliteConnection keepAlive)
-        {
-            _app = app;
-            _keepAlive = keepAlive;
-            Client = app.GetTestClient();
-        }
-
-        /// <summary>Der an den TestServer gebundene HTTP-Client.</summary>
-        public HttpClient Client { get; }
-
-        public async ValueTask DisposeAsync()
-        {
-            Client.Dispose();
-            await _app.DisposeAsync();
-            await _keepAlive.DisposeAsync();
-        }
     }
 }
