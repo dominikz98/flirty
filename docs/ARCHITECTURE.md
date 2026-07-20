@@ -135,7 +135,10 @@ app.MapFlirtyEndpoints("/flirty");
 
 **Endpunkte** (`Flirty.AspNetCore`): `POST /flirty/sessions`, `GET /flirty/sessions/{id}`,
 `POST /flirty/sessions/{id}/answers`, `PUT /flirty/sessions/{id}/answers/{questionId}`,
-optional Admin-CRUD.
+optional Admin-CRUD. `MapFlirtyEndpoints` sendet die Runtime-Commands direkt per `ISender` und mappt
+sie auf Request-/Response-DTOs; Engine-Ausnahmen werden auf `ProblemDetails` (404/400/409) abgebildet.
+Umgesetzt in #35, Details in [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md). Admin-CRUD folgt
+in #36.
 
 ## 10. Loops (Schleifen)
 

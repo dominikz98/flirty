@@ -18,6 +18,10 @@
          (#19, "DB wird gegen jeden der drei Provider erzeugt"). Nur im Testprojekt, brauchen Docker. -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.13.0" />
+    <!-- In-Process-TestServer für die MapFlirtyEndpoints-Integrationstests (#35): echte HTTP-Aufrufe
+         gegen die Minimal-API-Endpunkte ohne echten Kestrel/Port, Docker-frei. Version an die
+         installierte Microsoft.AspNetCore.App-10.0-Laufzeit angeglichen (Shared Framework). -->
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.8" />
   </ItemGroup>
 
   <!-- Kern-Abhängigkeiten (zentral gepinnt; Verdrahtung per
