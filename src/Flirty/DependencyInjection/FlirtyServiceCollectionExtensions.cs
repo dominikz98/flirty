@@ -30,7 +30,10 @@ public static class FlirtyServiceCollectionExtensions
     /// Offen-generische Pipeline-Behaviors werden bei Mediator bewusst manuell registriert.
     /// Seit Issue #21 wird zusätzlich <see cref="IDialogStore"/> (Implementierung
     /// <see cref="DialogStore"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – dieselbe
-    /// Lebensdauer wie der <see cref="FlirtyDbContext"/>, den der Store voraussetzt. Die Registrierung
+    /// Lebensdauer wie der <see cref="FlirtyDbContext"/>, den der Store voraussetzt. Seit Issue #36
+    /// wird analog der schreibende <see cref="IDialogAdminStore"/> (Implementierung
+    /// <see cref="DialogAdminStore"/>) als <see cref="ServiceLifetime.Scoped"/> registriert – ihn nutzen
+    /// die Admin-CRUD-Handler für den (getrackten) Konfigurationsgraphen. Die Registrierung
     /// selbst ist inert; aufgelöst werden kann <see cref="IDialogStore"/> erst, sobald ein
     /// <see cref="FlirtyDbContext"/> (Provider + <c>MigrationsAssembly</c>) registriert ist – komfortabel
     /// via <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c> (seit #34) oder extern per <c>AddDbContext</c>.
@@ -66,6 +69,7 @@ public static class FlirtyServiceCollectionExtensions
         services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
 
         services.AddScoped<IDialogStore, DialogStore>();
+        services.AddScoped<IDialogAdminStore, DialogAdminStore>();
         services.AddScoped<IFlirtyEngine, FlirtyEngine>();
 
         services.AddSingleton<IExpressionEvaluator, DynamicExpressoExpressionEvaluator>();

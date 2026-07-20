@@ -7,12 +7,15 @@ namespace Flirty.AspNetCore;
 
 /// <summary>
 /// Endpunkt-Filter, der die von der Engine geworfenen Ausnahmen einheitlich auf HTTP-Statuscodes samt
-/// <c>ProblemDetails</c> abbildet. Wird auf die von <c>MapFlirtyEndpoints</c> erzeugte Route-Gruppe
-/// gelegt, sodass das Paket ohne eine globale Exception-Handling-Middleware der Host-App auskommt.
+/// <c>ProblemDetails</c> abbildet. Wird auf die von <c>MapFlirtyEndpoints</c> (Laufzeit) und
+/// <c>MapFlirtyAdminEndpoints</c> (Admin-CRUD) erzeugten Route-Gruppen gelegt, sodass das Paket ohne
+/// eine globale Exception-Handling-Middleware der Host-App auskommt.
 /// </summary>
 /// <remarks>
 /// Die Reihenfolge der <c>catch</c>-Zweige ist relevant: <see cref="AnswerValidationException"/> leitet
-/// von <see cref="ValidationException"/> ab und muss daher zuerst behandelt werden.
+/// von <see cref="ValidationException"/> ab und muss daher zuerst behandelt werden. Not-Found-Zweige
+/// (inkl. <see cref="ConfigurationNotFoundException"/> für das Admin-CRUD) stehen vor dem generischen
+/// <see cref="InvalidOperationException"/>-Zweig, der Zustands-/Schlüsselkonflikte auf <c>409</c> abbildet.
 /// </remarks>
 internal sealed class FlirtyExceptionEndpointFilter : IEndpointFilter
 {
@@ -40,6 +43,13 @@ internal sealed class FlirtyExceptionEndpointFilter : IEndpointFilter
                 exception.Message,
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Session nicht gefunden");
+        }
+        catch (ConfigurationNotFoundException exception)
+        {
+            return TypedResults.Problem(
+                exception.Message,
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Nicht gefunden");
         }
         catch (AnswerValidationException exception)
         {

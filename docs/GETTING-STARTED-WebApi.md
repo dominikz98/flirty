@@ -1,6 +1,6 @@
 # Getting Started – WebAPI (Flirty.AspNetCore)
 
-> Stand: Issue #35. Dieser Guide zeigt, wie man die Flirty-Engine als HTTP-API bereitstellt – über das
+> Stand: Issues #35 (Laufzeit-Endpunkte) & #36 (Admin-CRUD). Dieser Guide zeigt, wie man die Flirty-Engine als HTTP-API bereitstellt – über das
 > optionale Paket [`Flirty.AspNetCore`](../src/Flirty.AspNetCore) und die Erweiterungsmethode
 > `MapFlirtyEndpoints`. Die Endpunkte sind eine **dünne Schicht über die Mediator-Commands**: Sie senden
 > die Runtime-Commands direkt per `ISender` und mappen die Ergebnisse auf serialisierbare DTOs. Der Core
@@ -148,11 +148,75 @@ abgebildet – die Host-App braucht dafür **keine** eigene Exception-Middleware
 | Pflichtfeld fehlt (`[Required]`) | `ValidationException` | `400 Bad Request` |
 | Session nicht offen / falsche Frage / Fehlkonfiguration | `InvalidOperationException` | `409 Conflict` |
 
+## 4. Admin-CRUD (optional)
+
+Neben den Laufzeit-Endpunkten stellt das Paket optionale **Admin-CRUD-Endpunkte** bereit, um den
+Konfigurationsgraphen (Dialoge, Fragen, Optionen, Übergänge) per HTTP zu pflegen. Sie werden über eine
+**eigene, opt-in** Erweiterungsmethode registriert – so lässt sich die Admin-Fläche gezielt absichern,
+ohne die öffentlichen Laufzeit-Endpunkte einzuschränken:
+
+```csharp
+app.MapFlirtyEndpoints("/flirty");                       // Laufzeit (Sessions)
+app.MapFlirtyAdminEndpoints("/flirty/admin")             // Konfiguration (Admin)
+   .RequireAuthorization();                              // dringend empfohlen
+```
+
+Alle Endpunkte sind – wie die Laufzeit-Seite – eine dünne Schicht über Mediator-Commands (`ISender`)
+und teilen sich denselben Fehler-Filter. Kind-Ressourcen sind hierarchisch unter dem Dialog adressiert
+und werden über `GET {prefix}/dialogs/{id}` (kompletter Graph) gelesen.
+
+| Methode & Route | Zweck | Erfolg |
+|---|---|---|
+| `POST /flirty/admin/dialogs` | Dialog anlegen (Version 1, unveröffentlicht) | `201 Created` + `Location`, `DialogResponse` |
+| `GET /flirty/admin/dialogs` | Dialoge auflisten (Metadaten) | `200 OK`, `DialogResponse[]` |
+| `GET /flirty/admin/dialogs/{id}` | Dialog samt Graph lesen | `200 OK`, `DialogDetailResponse` |
+| `PUT /flirty/admin/dialogs/{id}` | Metadaten/`StartQuestionId` ändern | `200 OK`, `DialogResponse` |
+| `DELETE /flirty/admin/dialogs/{id}` | Dialog + Graph löschen | `204 No Content` |
+| `POST /flirty/admin/dialogs/{id}/publish` \| `/unpublish` | Veröffentlichung steuern | `200 OK`, `DialogResponse` |
+| `POST /flirty/admin/dialogs/{dialogId}/questions` | Frage anlegen | `201 Created`, `QuestionResponse` |
+| `PUT` \| `DELETE .../questions/{questionId}` | Frage ändern/löschen | `200 OK` \| `204 No Content` |
+| `POST .../questions/{questionId}/options` | Option anlegen | `201 Created`, `AnswerOptionResponse` |
+| `PUT` \| `DELETE .../options/{optionId}` | Option ändern/löschen | `200 OK` \| `204 No Content` |
+| `POST /flirty/admin/dialogs/{dialogId}/transitions` | Übergang anlegen | `201 Created`, `TransitionResponse` |
+| `PUT` \| `DELETE .../transitions/{transitionId}` | Übergang ändern/löschen | `200 OK` \| `204 No Content` |
+
+### Ablauf: Dialog aufbauen und veröffentlichen
+
+Die Laufzeit startet nur **veröffentlichte** Dialoge. Ein per API aufgebauter Dialog wird also so
+startbar:
+
+1. `POST /flirty/admin/dialogs` – Dialog anlegen.
+2. `POST .../questions` (+ `.../options` für Auswahl-Typen) – Fragen/Optionen ergänzen.
+3. `PUT /flirty/admin/dialogs/{id}` – `startQuestionId` auf die Einstiegsfrage setzen.
+4. `POST .../transitions` – Verzweigungen ergänzen (optional bei nur einer, terminalen Frage).
+5. `POST /flirty/admin/dialogs/{id}/publish` – veröffentlichen; danach `POST /flirty/sessions` startbar.
+
+### Fehler-Mapping (Admin)
+
+Zusätzlich zum obigen Mapping gelten für das Admin-CRUD:
+
+| Situation | Ausnahme | Status |
+|---|---|---|
+| Unbekannte Dialog-/Frage-/Options-/Übergang-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
+| Doppelter Schlüssel (`Key` je Dialog / `(DialogId,Key)` / `(QuestionId,Key)`) | `InvalidOperationException` | `409 Conflict` |
+| Veröffentlichen ohne gesetzte Einstiegsfrage | `InvalidOperationException` | `409 Conflict` |
+| Fehlendes Pflichtfeld (`[Required]`) | `ValidationException` | `400 Bad Request` |
+
+> **Hinweise / bewusste Grenzen:** Anlegen erzeugt stets `Version = 1` je Schlüssel; Editieren erfolgt
+> In-Place (publizierte Dialoge vor Änderungen entpublishen). `Transition`-Verweise
+> (`FromQuestionId`/`TargetQuestionId`) sind – dem FK-losen Domänenmodell entsprechend – rohe
+> Frage-Verweise ohne Existenzprüfung; das Löschen einer Frage bereinigt jedoch verweisende Übergänge
+> und setzt eine darauf zeigende `StartQuestionId` zurück. Versionierung/Copy-on-Write sowie
+> Loop-/Trigger-CRUD sind nicht Teil dieses Endpunkt-Sets.
+
 ## Verifikation
 
 Die Endpunkte sind über einen In-Process-`TestServer` (echte HTTP-Aufrufe, SQLite in-memory,
-Docker-frei) end-to-end abgesichert:
-`tests/Flirty.Tests/AspNetCore/MapFlirtyEndpointsTests.cs`.
+Docker-frei) end-to-end abgesichert – die Laufzeit-Endpunkte in
+`tests/Flirty.Tests/AspNetCore/MapFlirtyEndpointsTests.cs`, das Admin-CRUD in
+`tests/Flirty.Tests/AspNetCore/MapFlirtyAdminEndpointsTests.cs` (inkl. eines End-to-End-Tests, der
+einen rein per API aufgebauten, veröffentlichten Dialog anschließend über `POST /flirty/sessions`
+startet). Beide teilen sich den Test-Host `tests/Flirty.Tests/AspNetCore/FlirtyTestHost.cs`.
 
 ```pwsh
 dotnet test Flirty.sln -c Release
