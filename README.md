@@ -28,13 +28,13 @@ services.AddFlirty(o =>
     o.ApplyMigrations();
 });
 // Eigene Reaktion auf Dialog-Abschluss "reinhängen":
-services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHandler>();
+services.AddFlirtyHandler<DialogCompletedNotification, MyDoneHandler>();
 ```
 
 > Vollständiges, lauffähiges Beispiel (Setup, Seeding ohne Designer, Facade-Durchlauf, eigener
 > `INotificationHandler`): [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md).
-> Engine-getriebenes Publizieren der Notifications folgt in EPIC 4; bis dahin löst das Sample seinen
-> Handler nach dem Abschluss selbst aus.
+> Die Engine publiziert die Notifications selbst (seit #31); der per `AddFlirtyHandler<T, THandler>()`
+> registrierte Handler wird beim Dialog-Abschluss automatisch aufgerufen.
 
 ## Quickstart (Web / Endpunkte)
 

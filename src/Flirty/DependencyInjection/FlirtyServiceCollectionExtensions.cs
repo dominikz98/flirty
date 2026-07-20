@@ -138,4 +138,48 @@ public static class FlirtyServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registriert einen eigenen <see cref="INotificationHandler{TNotification}"/> als In-Process-Rückkanal,
+    /// der von der Engine publizierte Trigger-Notifications (z. B. <see cref="DialogCompletedNotification"/>)
+    /// behandelt. Convenience-Kapselung der rohen DI-Zeile
+    /// <c>services.Add[Scoped]&lt;INotificationHandler&lt;T&gt;, THandler&gt;()</c>.
+    /// </summary>
+    /// <remarks>
+    /// Issue #32: bequemes „Reinhängen" eigener Handler (Console-Szenario). Die Engine ruft seit #31 alle per DI
+    /// registrierten Handler beim Publizieren synchron im selben Scope auf (siehe
+    /// <see href="../../../docs/TRIGGERS.md">TRIGGERS.md</see>). Bewusst über <see cref="IServiceCollection"/>-
+    /// <c>Add</c> (und nicht <c>TryAdd</c>/<c>Replace</c>) registriert, weil pro Notification <b>mehrere</b>
+    /// Handler zulässig sind und alle aufgerufen werden sollen. Die Default-Lebensdauer
+    /// <see cref="ServiceLifetime.Scoped"/> deckt sich mit der Mediator-Verdrahtung
+    /// (<c>AddMediator(o =&gt; o.ServiceLifetime = ServiceLifetime.Scoped)</c>) in <see cref="AddFlirty(IServiceCollection)"/>;
+    /// über <paramref name="lifetime"/> lässt sich ein z. B. zustandsloser Handler auch als
+    /// <see cref="ServiceLifetime.Singleton"/> registrieren. Der Helper erfordert kein vorheriges
+    /// <see cref="AddFlirty(IServiceCollection)"/>, ist aber typischerweise damit verkettet.
+    /// </remarks>
+    /// <typeparam name="TNotification">Der Notification-Contract, auf den der Handler reagiert.</typeparam>
+    /// <typeparam name="THandler">Der zu registrierende Handler-Typ.</typeparam>
+    /// <param name="services">Die zu erweiternde Service-Collection.</param>
+    /// <param name="lifetime">Die Lebensdauer des Handlers; Default <see cref="ServiceLifetime.Scoped"/>.</param>
+    /// <returns>Dieselbe <see cref="IServiceCollection"/>, um Aufrufe verketten zu können.</returns>
+    /// <example>
+    /// <code>
+    /// services
+    ///     .AddFlirty(o =&gt; o.UseSqlite(connectionString))
+    ///     .AddFlirtyHandler&lt;DialogCompletedNotification, OnDialogCompleted&gt;();
+    /// </code>
+    /// </example>
+    public static IServiceCollection AddFlirtyHandler<TNotification, THandler>(
+        this IServiceCollection services,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+        where TNotification : INotification
+        where THandler : class, INotificationHandler<TNotification>
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.Add(new ServiceDescriptor(
+            typeof(INotificationHandler<TNotification>), typeof(THandler), lifetime));
+
+        return services;
+    }
 }

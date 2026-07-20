@@ -2,6 +2,7 @@ using Flirty.Expressions;
 using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
+using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -152,6 +153,48 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Equal(ids.DevQuestionId, next.NextQuestion.Id);
     }
 
+    /// <summary><c>AddFlirtyHandler</c> registriert den Handler auflösbar als <see cref="ServiceLifetime.Scoped"/> (Default).</summary>
+    [Fact]
+    public void AddFlirtyHandler_registriert_Handler_als_Scoped_Default()
+    {
+        var services = new ServiceCollection();
+
+        services.AddFlirtyHandler<DialogCompletedNotification, NoopNotificationHandler>();
+
+        var descriptor = Assert.Single(services);
+        Assert.Equal(typeof(INotificationHandler<DialogCompletedNotification>), descriptor.ServiceType);
+        Assert.Equal(typeof(NoopNotificationHandler), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
+    /// <summary>Mehrere Handler je Notification bleiben erhalten (Beleg gegen <c>TryAdd</c>/<c>Replace</c>) und sind alle auflösbar.</summary>
+    [Fact]
+    public void AddFlirtyHandler_erlaubt_mehrere_Handler_je_Notification()
+    {
+        using var provider = new ServiceCollection()
+            .AddFlirtyHandler<DialogCompletedNotification, NoopNotificationHandler>()
+            .AddFlirtyHandler<DialogCompletedNotification, OtherNoopNotificationHandler>()
+            .BuildServiceProvider();
+
+        var handlers = provider.GetServices<INotificationHandler<DialogCompletedNotification>>().ToList();
+
+        Assert.Equal(2, handlers.Count);
+        Assert.Contains(handlers, handler => handler is NoopNotificationHandler);
+        Assert.Contains(handlers, handler => handler is OtherNoopNotificationHandler);
+    }
+
+    /// <summary>Die Lebensdauer lässt sich über den Parameter überschreiben (z. B. <see cref="ServiceLifetime.Singleton"/>).</summary>
+    [Fact]
+    public void AddFlirtyHandler_uebernimmt_die_gewaehlte_Lifetime()
+    {
+        var services = new ServiceCollection();
+
+        services.AddFlirtyHandler<DialogCompletedNotification, NoopNotificationHandler>(ServiceLifetime.Singleton);
+
+        var descriptor = Assert.Single(services);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+    }
+
     private static ServiceProvider BuildProvider(Action<FlirtyOptions> configure)
         => new ServiceCollection()
             .AddLogging()
@@ -165,5 +208,19 @@ public sealed class FlirtyServiceCollectionExtensionsTests
 
         public ExpressionValidationResult Validate(string expression, ExpressionContext context)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>Test-Doppel-Handler; belegt nur die DI-Registrierung, nichts weiter.</summary>
+    private sealed class NoopNotificationHandler : INotificationHandler<DialogCompletedNotification>
+    {
+        public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
+            => ValueTask.CompletedTask;
+    }
+
+    /// <summary>Zweiter Test-Doppel-Handler für die Mehrfach-Registrierung.</summary>
+    private sealed class OtherNoopNotificationHandler : INotificationHandler<DialogCompletedNotification>
+    {
+        public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
+            => ValueTask.CompletedTask;
     }
 }
