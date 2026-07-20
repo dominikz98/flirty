@@ -44,10 +44,18 @@ builder.Services.AddFlirty(o => o.UseSqlServer(conn).ApplyMigrations());
 app.MapFlirtyEndpoints("/flirty"); // Paket Flirty.AspNetCore
 ```
 
+Registriert vier Endpunkte (dünne Schicht über die Mediator-Commands):
+`POST /flirty/sessions` (Start/Resume), `GET /flirty/sessions/{id}` (Zustand),
+`POST /flirty/sessions/{id}/answers` (Antwort), `PUT /flirty/sessions/{id}/answers/{questionId}` (Edit).
+
+> Vollständiger Guide (Setup, Request/Response-Beispiele, Fehler-Mapping):
+> [`docs/GETTING-STARTED-WebApi.md`](docs/GETTING-STARTED-WebApi.md).
+
 ## Dokumentation
 
 - Architektur: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Getting Started (Console): [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md)
+- Getting Started (WebAPI): [`docs/GETTING-STARTED-WebApi.md`](docs/GETTING-STARTED-WebApi.md)
 - Backlog / Issues: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 - CI-Pipeline: [`docs/CI.md`](docs/CI.md)
 - NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](docs/NUGET-PACKAGING.md)
