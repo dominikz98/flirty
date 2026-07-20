@@ -115,13 +115,27 @@ dotnet tool restore                           # einmalig, für dotnet ef (lokale
 - **Git:** Branches `feature/dz/<issue>` bzw. `bugfix/dz/<issue>`. PRs via `gh` CLI (das GitHub-MCP-Token
   kann in diesem Repo keine PRs erstellen).
 - **Definition of Done** je Änderung: Code + deutsche XML-Docs (CS1591) + grüne Tests + passender
-  `docs/`-Guide aktualisiert.
+  `docs/`-Guide aktualisiert + Kontext/Skills mitgepflegt (siehe nächster Abschnitt).
 
 ## Skills für wiederkehrende Aufgaben
 
 Unter `.claude/skills/` liegen funktionsspezifische Anleitungen – bei passender Aufgabe zuerst prüfen:
 `flirty-runtime-command`, `flirty-ef-migration`, `flirty-trigger-notification`, `flirty-question-type`,
 `flirty-nuget-package`, `flirty-designer`.
+
+## Kontext & Doku mitpflegen (wichtig)
+
+Diese Datei, die Skills und `docs/` aktualisieren sich **nicht** von selbst – sie sind Teil der Aufgabe.
+Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
+
+- **Neues Muster / neuer Erweiterungspfad** umgesetzt → passenden Skill unter `.claude/skills/`
+  anlegen/aktualisieren (Pfade, Schritte, DoD aktuell halten).
+- **Neue/geänderte public API, Konvention, Abhängigkeit oder Befehl** → die betroffenen Abschnitte hier
+  in `CLAUDE.md` und den zuständigen `docs/`-Guide anpassen (siehe Doku-Wegweiser unten).
+- **Feature abgeschlossen / Projektstatus verschoben** → Abschnitt „Stand & offene Baustellen" unten
+  nachziehen (Issue-Nummern, „AKTUELL NUR SKELETT"-Hinweise, fehlende Guides).
+- **Faustregel:** Wenn eine Aussage in `CLAUDE.md`/einem Skill/`docs/` durch deine Änderung *falsch*
+  würde, korrigiere sie jetzt – veralteter Kontext ist schlimmer als keiner.
 
 ## Doku-Wegweiser (`docs/`)
 
