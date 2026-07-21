@@ -1,0 +1,148 @@
+.intro {
+    color: #444;
+    margin-bottom: 1rem;
+}
+
+.editor {
+    border: 1px solid #d0d0d8;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+    background-color: #fafaff;
+}
+
+.editor h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.85rem;
+    max-width: 640px;
+}
+
+.field label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.input {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #b8b8c4;
+    border-radius: 0.35rem;
+    font: inherit;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.btn {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #b8b8c4;
+    border-radius: 0.35rem;
+    background-color: #fff;
+    cursor: pointer;
+    font: inherit;
+}
+
+.btn:hover:not(:disabled) {
+    background-color: #f0f0f7;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: #3b3f8f;
+    border-color: #3b3f8f;
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #33377c;
+}
+
+.btn-danger {
+    color: #b32121;
+    border-color: #e0a5a5;
+}
+
+.profiles {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.profiles th,
+.profiles td {
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid #e3e3ea;
+    vertical-align: top;
+}
+
+.profiles thead th {
+    border-bottom: 2px solid #d0d0d8;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+}
+
+.active-row {
+    background-color: #eef6ee;
+}
+
+.mono {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+.row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-active {
+    background-color: #26b050;
+    color: #fff;
+}
+
+.msg {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.msg.ok {
+    color: #1c7c34;
+}
+
+.msg.err {
+    color: #b32121;
+}
+
+.empty {
+    color: #777;
+    font-style: italic;
+    margin-top: 1rem;
+}

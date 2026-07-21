@@ -1,0 +1,210 @@
+@page "/connections"
+@rendermode InteractiveServer
+@inject IConnectionProfileStore Store
+@inject ConnectionProfileOperations Operations
+@inject ActiveConnectionProfile Active
+
+<PageTitle>Verbindungen · Flirty Designer</PageTitle>
+
+<h1>Verbindungen</h1>
+
+<p class="intro">
+    Verwalte hier deine Datenbank-Verbindungsprofile (Multi-DB). Teste eine Verbindung, wende Migrationen an
+    und aktiviere das Profil, gegen das der Designer arbeiten soll.
+</p>
+
+@if (_editModel is null)
+{
+    <button class="btn btn-primary" @onclick="StartCreate">Neues Profil</button>
+}
+else
+{
+    <div class="editor">
+        <h2>@(_isNew ? "Neues Profil" : "Profil bearbeiten")</h2>
+        <EditForm Model="_editModel" OnValidSubmit="SaveProfile">
+            <DataAnnotationsValidator />
+
+            <div class="field">
+                <label for="name">Name</label>
+                <InputText id="name" class="input" @bind-Value="_editModel.Name" />
+                <ValidationMessage For="() => _editModel.Name" />
+            </div>
+
+            <div class="field">
+                <label for="provider">Provider</label>
+                <InputSelect id="provider" class="input" @bind-Value="_editModel.Provider">
+                    @foreach (var provider in Enum.GetValues<FlirtyDatabaseProvider>())
+                    {
+                        <option value="@provider">@provider</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="field">
+                <label for="connectionString">Verbindungszeichenfolge</label>
+                <InputTextArea id="connectionString" class="input" rows="3" @bind-Value="_editModel.ConnectionString" />
+                <ValidationMessage For="() => _editModel.ConnectionString" />
+            </div>
+
+            <div class="actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn" @onclick="CancelEdit">Abbrechen</button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@if (_profiles.Count == 0)
+{
+    <p class="empty">Noch keine Profile angelegt.</p>
+}
+else
+{
+    <table class="profiles">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Provider</th>
+                <th>Verbindungszeichenfolge</th>
+                <th>Status</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var profile in _profiles)
+            {
+                var busy = _busyProfileId == profile.Id;
+                <tr class="@(profile.Id == _activeId ? "active-row" : null)">
+                    <td>@profile.Name</td>
+                    <td>@profile.Provider</td>
+                    <td class="mono">@MaskConnectionString(profile.ConnectionString)</td>
+                    <td>
+                        @if (profile.Id == _activeId)
+                        {
+                            <span class="badge badge-active">Aktiv</span>
+                        }
+                        @if (_testResults.TryGetValue(profile.Id, out var testMessage))
+                        {
+                            <div class="@(_testSuccess[profile.Id] ? "msg ok" : "msg err")">@testMessage</div>
+                        }
+                        @if (_migrateResults.TryGetValue(profile.Id, out var migrateMessage))
+                        {
+                            <div class="@(_migrateSuccess[profile.Id] ? "msg ok" : "msg err")">@migrateMessage</div>
+                        }
+                    </td>
+                    <td class="row-actions">
+                        <button class="btn" disabled="@busy" @onclick="() => TestConnectionAsync(profile)">Testen</button>
+                        <button class="btn" disabled="@busy" @onclick="() => MigrateAsync(profile)">Migrieren</button>
+                        <button class="btn" disabled="@(busy || profile.Id == _activeId)" @onclick="() => ActivateProfile(profile)">Aktivieren</button>
+                        <button class="btn" disabled="@busy" @onclick="() => StartEdit(profile)">Bearbeiten</button>
+                        <button class="btn btn-danger" disabled="@busy" @onclick="() => DeleteProfile(profile)">Löschen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<ConnectionProfile> _profiles = [];
+    private ConnectionProfile? _editModel;
+    private bool _isNew;
+    private string? _activeId;
+    private string? _busyProfileId;
+
+    private readonly Dictionary<string, string> _testResults = [];
+    private readonly Dictionary<string, bool> _testSuccess = [];
+    private readonly Dictionary<string, string> _migrateResults = [];
+    private readonly Dictionary<string, bool> _migrateSuccess = [];
+
+    protected override void OnInitialized() => Reload();
+
+    private void Reload()
+    {
+        _profiles = Store.GetAll();
+        _activeId = Active.Current?.Id;
+    }
+
+    private void StartCreate()
+    {
+        _editModel = new ConnectionProfile();
+        _isNew = true;
+    }
+
+    private void StartEdit(ConnectionProfile profile)
+    {
+        _editModel = profile.Clone();
+        _isNew = false;
+    }
+
+    private void CancelEdit() => _editModel = null;
+
+    private void SaveProfile()
+    {
+        if (_editModel is null)
+        {
+            return;
+        }
+
+        Store.Save(_editModel);
+        _editModel = null;
+        Reload();
+    }
+
+    private void DeleteProfile(ConnectionProfile profile)
+    {
+        Store.Delete(profile.Id);
+        _testResults.Remove(profile.Id);
+        _migrateResults.Remove(profile.Id);
+        Reload();
+    }
+
+    private void ActivateProfile(ConnectionProfile profile)
+    {
+        Active.Activate(profile);
+        Reload();
+    }
+
+    private async Task TestConnectionAsync(ConnectionProfile profile)
+    {
+        _busyProfileId = profile.Id;
+        _migrateResults.Remove(profile.Id);
+        try
+        {
+            var result = await Operations.TestConnectionAsync(profile);
+            _testResults[profile.Id] = result.Message;
+            _testSuccess[profile.Id] = result.Success;
+        }
+        finally
+        {
+            _busyProfileId = null;
+        }
+    }
+
+    private async Task MigrateAsync(ConnectionProfile profile)
+    {
+        _busyProfileId = profile.Id;
+        _testResults.Remove(profile.Id);
+        try
+        {
+            var result = await Operations.ApplyMigrationsAsync(profile);
+            _migrateSuccess[profile.Id] = result.Success;
+            _migrateResults[profile.Id] = result.Success
+                ? result.AppliedMigrations.Count == 0
+                    ? "Datenbank ist aktuell – keine ausstehenden Migrationen."
+                    : $"{result.AppliedMigrations.Count} Migration(en) angewendet: {string.Join(", ", result.AppliedMigrations)}"
+                : result.Error ?? "Unbekannter Fehler.";
+        }
+        finally
+        {
+            _busyProfileId = null;
+        }
+    }
+
+    private static string MaskConnectionString(string connectionString)
+        => System.Text.RegularExpressions.Regex.Replace(
+            connectionString,
+            @"(?<key>\b(password|pwd)\s*=\s*)(?<val>[^;]*)",
+            "${key}***",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+}

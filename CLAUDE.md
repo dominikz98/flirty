@@ -23,7 +23,8 @@ src/
 │                               Domain, Persistence (EF Core), Runtime (Mediator), Expressions,
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
-├─ Flirty.Designer            Blazor Web App (Server-interaktiv). AKTUELL NUR SKELETT (Default-Template).
+├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
+│                               (Multi-DB, #37); Dialog-/Frage-/…-Editoren (#38–#43) noch offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -156,6 +157,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | CI-Pipeline | `docs/CI.md` |
 | Getting Started (Console / WebAPI) | `docs/GETTING-STARTED-Console.md`, `docs/GETTING-STARTED-WebApi.md` |
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
+| Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
 | Entscheidungen | `docs/adr/` |
 
@@ -165,7 +167,11 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 Loops, Validierung), Trigger (Notifications + Webhooks), DI-Fassade, WebAPI-Endpunkte (Runtime + Admin-CRUD),
 Console-Sample, **Web-Sample** (Minimal-API + Chat-UI, #45) inkl. Playwright-E2E der Chat-UI (#47).
 
-**Offen:** Blazor-**Designer** (Issues #37–#43, `src/Flirty.Designer` ist erst ein Template),
-Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49), Doku-Guides/ADRs/
-README-Ausbau (#50–#52; u. a. fehlt noch `docs/DESIGNER.md`). Beim Arbeiten also nicht von Vollständigkeit
-des Designers ausgehen.
+**Designer (M3):** **Connection-Profil-Verwaltung (Multi-DB, #37) fertig** – Profile (JSON, gitignored),
+Test-Connection, Migrate, `IDbContextFactory`-Auswahl gegen das aktive Profil. Dafür neues öffentliches
+Core-API `FlirtyDatabaseProvider` + `DbContextOptionsBuilder.UseFlirtyProvider(...)` (zentralisiert das
+Provider→MigrationsAssembly-Mapping); Guide `docs/DESIGNER.md` angelegt.
+
+**Offen:** restlicher Blazor-**Designer** (Editoren #38–#43, `src/Flirty.Designer` hat außer den
+Verbindungen noch keine Dialog-UI), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
+Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des Designers ausgehen.
