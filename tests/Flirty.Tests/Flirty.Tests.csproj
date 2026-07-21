@@ -60,6 +60,8 @@
     <ProjectReference Include="..\..\src\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
     <!-- Console-Sample (#44): der ConsoleSampleTests spielt den Sample-Runner end-to-end durch. -->
     <ProjectReference Include="..\..\src\Flirty.Samples\Flirty.Samples.csproj" />
+    <!-- Web-Sample (#45): WebSampleTests spielt die Sample-Komposition über den In-Process-TestServer durch. -->
+    <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
   </ItemGroup>
 
 </Project>

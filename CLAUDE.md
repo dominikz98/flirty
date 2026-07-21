@@ -15,7 +15,7 @@ konfiguriert. Integration erfolgt über `services.AddFlirty(o => …)` und optio
 Ausführliche Doku liegt in `docs/` (siehe Wegweiser unten) – **die eigentliche Tiefe steckt dort**,
 nicht in dieser Datei und nicht in den GitHub-Issues (die sind nur Backlog-Index).
 
-## Solution-Layout (`Flirty.sln`, 10 Projekte)
+## Solution-Layout (`Flirty.sln`, 11 Projekte)
 
 ```
 src/
@@ -28,9 +28,11 @@ src/
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
    Flirty.Samples             Lauffähiges Console-Sample (nur Core, kein ASP.NET).
+   Flirty.Samples.Web         Lauffähiges Web-Sample: Minimal-API + statische Chat-UI (nutzt
+                                Flirty.AspNetCore); Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger.
 tests/
 ├─ Flirty.Tests               xUnit Unit-/Integrationstests.
-└─ Flirty.E2E                 Playwright-E2E. AKTUELL NUR SKELETT.
+└─ Flirty.E2E                 Playwright-E2E der Web-Sample-Chat-UI (#45/#47).
 ```
 
 **Invariante:** Der Core (`Flirty`) hat **keine** ASP.NET-Abhängigkeit und läuft unverändert in
@@ -152,7 +154,8 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Antwort-Validierung | `docs/VALIDATION.md` |
 | NuGet-Packaging | `docs/NUGET-PACKAGING.md` |
 | CI-Pipeline | `docs/CI.md` |
-| Getting Started (Console / Web) | `docs/GETTING-STARTED-Console.md`, `docs/GETTING-STARTED-WebApi.md` |
+| Getting Started (Console / WebAPI) | `docs/GETTING-STARTED-Console.md`, `docs/GETTING-STARTED-WebApi.md` |
+| Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
 | Entscheidungen | `docs/adr/` |
 
@@ -160,9 +163,9 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 
 **Fertig (M1+M2):** Domain, Persistenz (3 Provider), Expression-Engine, Runtime (Start/Resume/Submit/Edit,
 Loops, Validierung), Trigger (Notifications + Webhooks), DI-Fassade, WebAPI-Endpunkte (Runtime + Admin-CRUD),
-Console-Sample.
+Console-Sample, **Web-Sample** (Minimal-API + Chat-UI, #45) inkl. Playwright-E2E der Chat-UI (#47).
 
 **Offen:** Blazor-**Designer** (Issues #37–#43, `src/Flirty.Designer` ist erst ein Template),
-E2E-Tests (#46/#47), Coverage in CI (#48), NuGet-**Publish** (#49), Web-Sample (#45), Doku-Guides/ADRs/
+Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49), Doku-Guides/ADRs/
 README-Ausbau (#50–#52; u. a. fehlt noch `docs/DESIGNER.md`). Beim Arbeiten also nicht von Vollständigkeit
-des Designers/E2E ausgehen.
+des Designers ausgehen.

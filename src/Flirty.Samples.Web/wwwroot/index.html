@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flirty – Web-Sample (Chat-UI)</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header class="app-header">
+        <h1>Flirty Chat-Sample</h1>
+        <div class="app-header__meta">
+            <span id="userKeyLabel" class="pill" title="externalUserKey"></span>
+            <button id="resetButton" type="button" class="btn btn--ghost">Neu starten</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="chat" aria-label="Dialog">
+            <div id="chatLog" class="chat__log" aria-live="polite"></div>
+            <div id="inputArea" class="chat__input"></div>
+            <p id="statusLine" class="chat__status"></p>
+        </section>
+
+        <aside class="side" aria-label="Demonstration">
+            <div class="card">
+                <h2>Gesammelte Fähigkeiten <span class="hint">(Loop über Liste)</span></h2>
+                <ul id="skillsList" class="skills"></ul>
+            </div>
+            <div class="card">
+                <h2>In-Process-Trigger <span class="hint">(Handler)</span></h2>
+                <ul id="triggersList" class="events"></ul>
+            </div>
+            <div class="card">
+                <h2>Empfangene Webhooks <span class="hint">(Inbound-Empfänger)</span></h2>
+                <ul id="webhooksList" class="events"></ul>
+            </div>
+        </aside>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

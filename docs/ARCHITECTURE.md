@@ -57,8 +57,9 @@ Flirty.sln
 │  │                        dünne Schicht über die Mediator-Commands
 │  ├─ Flirty.Designer     Blazor Web App (Server-interaktiv): Dialog-/Frage-/Antwort-/
 │  │                        Branching-/Loop-/Trigger-Konfiguration, Multi-DB
-│  └─ Flirty.Samples      (a) Console-Single-Project (nur Core + eigene Handler)
-│                          (b) Minimal-API + Chat-UI (nutzt Flirty.AspNetCore)
+│  ├─ Flirty.Samples      Console-Single-Project (nur Core + eigener Handler)
+│  └─ Flirty.Samples.Web  Minimal-API + statische Chat-UI (nutzt Flirty.AspNetCore):
+│                          Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger
 └─ tests/
    ├─ Flirty.Tests        xUnit Unit-/Integrationstests (EF Core SQLite in-memory)
    └─ Flirty.E2E          Playwright-E2E (Designer + Web-Sample)
@@ -167,7 +168,7 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 Doku ist **Definition-of-Done jedes Issues**:
 - XML-Doc-Kommentare auf allen public Typen/Membern; `GenerateDocumentationFile` + **CS1591 als Error** (zentral in `Directory.Build.props`).
-- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
+- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `GETTING-STARTED-Sample-Web.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
 - ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
 

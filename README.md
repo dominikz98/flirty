@@ -14,9 +14,10 @@ konfiguriert (auch von nicht-technischen Nutzern).
 | `src/Flirty` | Core-Engine (Domain, Runtime, EF-Core-Persistenz, Mediator, DI-Extensions). **Kein ASP.NET** → auch in Console/Worker nutzbar. NuGet-Package. |
 | `src/Flirty.AspNetCore` | Optionale WebAPI-Endpunkte (`MapFlirtyEndpoints`). NuGet-Package. |
 | `src/Flirty.Designer` | Blazor Web App zum Konfigurieren von Dialogen/Fragen/Antworten/Branching/Loops/Triggern. Multi-DB. |
-| `src/Flirty.Samples` | Beispielanwendung(en). Lauffähiges **Console-Sample** (nur Core, kein ASP.NET) → [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md). |
+| `src/Flirty.Samples` | Lauffähiges **Console-Sample** (nur Core, kein ASP.NET) → [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md). |
+| `src/Flirty.Samples.Web` | Lauffähiges **Web-Sample** (Minimal-API + statische Chat-UI): Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger → [`docs/GETTING-STARTED-Sample-Web.md`](docs/GETTING-STARTED-Sample-Web.md). |
 | `tests/Flirty.Tests` | Unit-/Integrationstests (xUnit). |
-| `tests/Flirty.E2E` | Playwright-E2E-Tests. |
+| `tests/Flirty.E2E` | Playwright-E2E-Tests (Web-Sample-Chat-UI). |
 
 ## Quickstart (Console)
 
@@ -49,13 +50,16 @@ Registriert vier Endpunkte (dünne Schicht über die Mediator-Commands):
 `POST /flirty/sessions/{id}/answers` (Antwort), `PUT /flirty/sessions/{id}/answers/{questionId}` (Edit).
 
 > Vollständiger Guide (Setup, Request/Response-Beispiele, Fehler-Mapping):
-> [`docs/GETTING-STARTED-WebApi.md`](docs/GETTING-STARTED-WebApi.md).
+> [`docs/GETTING-STARTED-WebApi.md`](docs/GETTING-STARTED-WebApi.md). Eine lauffähige Web-App mit Chat-UI,
+> die diese Endpunkte konsumiert (Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger), zeigt das
+> Web-Sample: [`docs/GETTING-STARTED-Sample-Web.md`](docs/GETTING-STARTED-Sample-Web.md).
 
 ## Dokumentation
 
 - Architektur: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Getting Started (Console): [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md)
 - Getting Started (WebAPI): [`docs/GETTING-STARTED-WebApi.md`](docs/GETTING-STARTED-WebApi.md)
+- Getting Started (Web-Sample / Chat-UI): [`docs/GETTING-STARTED-Sample-Web.md`](docs/GETTING-STARTED-Sample-Web.md)
 - Backlog / Issues: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 - CI-Pipeline: [`docs/CI.md`](docs/CI.md)
 - NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](docs/NUGET-PACKAGING.md)

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- TFM, Nullable, ImplicitUsings, WarnAsError kommen zentral aus Directory.Build.props.
+       IsPackable bleibt false (Default) -> kein NuGet, CS1591 nicht als Fehler. -->
+
+  <!-- Minimal-API-Host, der die Flirty-Endpunkte hostet und konsumiert. ASP.NET Core kommt über das
+       Web-SDK; EF Core, Mediator, IHttpClientFactory etc. transitiv über die Core-Referenzen.
+       Flirty.Migrations.Sqlite wird zur Laufzeit für o.ApplyMigrations() (UseSqlite) benötigt. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Flirty\Flirty.csproj" />
+    <ProjectReference Include="..\Flirty.AspNetCore\Flirty.AspNetCore.csproj" />
+    <ProjectReference Include="..\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

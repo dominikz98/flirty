@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,6 +12,28 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Browser-Automatisierung für die Chat-UI-E2E (#45/#47). -->
+    <PackageReference Include="Microsoft.Playwright" />
+    <!-- Fehlt der Browser, überspringen sich die E2E-Tests statt zu scheitern. -->
+    <PackageReference Include="Xunit.SkippableFact" />
+  </ItemGroup>
+
+  <!-- WebApplication/Kestrel zum In-Prozess-Hosten der Sample-App (echter Port für den Browser). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Die zu testende Web-Sample (bringt Flirty + Flirty.AspNetCore + Migrations transitiv mit). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
+  </ItemGroup>
+
+  <!-- Statische Chat-UI der Sample in das Test-Ausgabe-wwwroot kopieren, damit der in-Prozess gehostete
+       Kestrel sie ausliefert (der Browser lädt index.html/app.js/styles.css von dort). -->
+  <ItemGroup>
+    <Content Include="..\..\src\Flirty.Samples.Web\wwwroot\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
