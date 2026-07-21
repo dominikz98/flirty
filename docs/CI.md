@@ -18,7 +18,9 @@ zurück.
 ## Ablauf
 
 Läuft auf `ubuntu-latest`. Das .NET-SDK kommt über `actions/setup-dotnet` **aus `global.json`**
-(aktuell `10.0.204`, `rollForward: latestFeature`) – so bleibt die CI mit dem lokalen Build synchron.
+(Untergrenze `10.0.100`, `rollForward: latestFeature`) – so bleibt die CI mit dem lokalen Build synchron.
+`10.0.100` ist bewusst nur die Untergrenze: `latestFeature` nimmt lokal jedes höhere installierte
+10.0.x-SDK, während die CI reproduzierbar genau die angegebene Version installiert.
 
 ```
 restore  ->  build -c Release  ->  test -c Release  ->  pack -c Release  ->  Artefakt-Upload

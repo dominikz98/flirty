@@ -43,8 +43,10 @@ Console/Worker. Web ist opt-in via `Flirty.AspNetCore` (`FrameworkReference Micr
 
 Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `global.json`.
 
-- **Target:** `net10.0`, `LangVersion=latest`, `Nullable=enable`, `ImplicitUsings=enable`. SDK
-  `10.0.204` (`global.json`, `rollForward=latestFeature`).
+- **Target:** `net10.0`, `LangVersion=latest`, `Nullable=enable`, `ImplicitUsings=enable`. SDK-**Untergrenze**
+  `10.0.100` (`global.json`, `rollForward=latestFeature`) – jedes installierte 10.0.x-SDK ab dem
+  GA-Band wird genommen. Die Grenze bewusst niedrig halten: ein zu hoher Pin lässt den Build auf
+  Maschinen mit älterem (aber ausreichendem) SDK schlicht scheitern.
 - **`TreatWarningsAsErrors=true` repo-weit.** Auch NuGet-Pack-Warnungen (NU5xxx) und Security-Advisories
   (NU1903) brechen den Build. Neue transitive Pakete dürfen keine Advisories einschleppen.
 - **XML-Docs Pflicht.** `GenerateDocumentationFile=true`; für **packbare** Projekte (`Flirty`,
