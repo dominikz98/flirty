@@ -1,0 +1,254 @@
+@* Bewusst NICHT "DialogDetail" genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp Flirty.Runtime.Admin.DialogDetail verdecken. *@
+@page "/dialogs/{Id:guid}"
+@rendermode InteractiveServer
+@using Mediator
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject NavigationManager Navigation
+
+<PageTitle>@(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
+
+<p class="back"><a href="dialogs">← Dialoge</a></p>
+
+@if (_detail is null)
+{
+    <h1>Dialog</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        @_detail.Dialog.Name
+        @if (_detail.Dialog.IsPublished)
+        {
+            <span class="badge badge-published">Veröffentlicht</span>
+        }
+        else
+        {
+            <span class="badge badge-draft">Entwurf</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Version @_detail.Dialog.Version · angelegt @_detail.Dialog.CreatedAt.LocalDateTime.ToString("g")
+        · zuletzt geändert @_detail.Dialog.UpdatedAt.LocalDateTime.ToString("g")
+    </p>
+
+    @if (_detail.Dialog.IsPublished)
+    {
+        <div class="banner warn">
+            Dieser Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen
+            durch Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    <div class="editor">
+        <h2>Metadaten</h2>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            <div class="field">
+                <label for="key">Schlüssel</label>
+                <InputText id="key" class="input" @bind-Value="_form.Key" />
+                <ValidationMessage For="() => _form.Key" />
+            </div>
+
+            <div class="field">
+                <label for="name">Name</label>
+                <InputText id="name" class="input" @bind-Value="_form.Name" />
+                <ValidationMessage For="() => _form.Name" />
+            </div>
+
+            <div class="field">
+                <label for="description">Beschreibung</label>
+                <InputTextArea id="description" class="input" rows="2" @bind-Value="_form.Description" />
+            </div>
+
+            <div class="field">
+                <label for="startQuestion">Einstiegsfrage</label>
+                <InputSelect id="startQuestion" class="input" @bind-Value="_form.StartQuestionId"
+                             disabled="@(_detail.Questions.Count == 0)">
+                    <option value="">— keine —</option>
+                    @foreach (var question in _detail.Questions)
+                    {
+                        <option value="@question.Id">@question.Key — @question.Text</option>
+                    }
+                </InputSelect>
+                @if (_detail.Questions.Count == 0)
+                {
+                    <span class="hint">Noch keine Fragen – der Frage-Editor folgt in #39.</span>
+                }
+                else
+                {
+                    <span class="hint">Ohne Einstiegsfrage lässt sich der Dialog nicht veröffentlichen.</span>
+                }
+            </div>
+
+            <div class="actions">
+                <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+            </div>
+        </EditForm>
+    </div>
+
+    <div class="editor">
+        <h2>Veröffentlichung &amp; Löschen</h2>
+        <div class="actions">
+            @if (_detail.Dialog.IsPublished)
+            {
+                <button class="btn" disabled="@_busy" @onclick="UnpublishAsync">Zurückziehen</button>
+            }
+            else
+            {
+                <button class="btn btn-primary"
+                        disabled="@(_busy || _detail.Dialog.StartQuestionId is null)"
+                        @onclick="PublishAsync">
+                    Veröffentlichen
+                </button>
+            }
+
+            @if (_confirmDelete)
+            {
+                <span class="confirm">Wirklich löschen? Der gesamte Dialog-Graph geht verloren.</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            }
+            else
+            {
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+            }
+        </div>
+
+        @if (!_detail.Dialog.IsPublished && _detail.Dialog.StartQuestionId is null)
+        {
+            <p class="hint">
+                Zum Veröffentlichen muss oben eine Einstiegsfrage gesetzt (und gespeichert) sein.
+            </p>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des angezeigten Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private DialogDetail? _detail;
+    private DialogFormModel _form = new();
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _confirmDelete;
+    private Guid _loadedId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedId == Id)
+        {
+            return;
+        }
+
+        _loadedId = Id;
+        _message = null;
+        _confirmDelete = false;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(Id), token));
+        _detail = result.Value;
+        _error = result.Error;
+
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        if (_detail is not null)
+        {
+            _form = DialogFormModel.From(_detail.Dialog);
+        }
+    }
+
+    private Task SaveAsync()
+        => RunAsync(
+            (sender, token) => sender.Send(
+                new UpdateDialogCommand(Id, _form.Key, _form.Name, _form.Description, _form.StartQuestionId), token),
+            "Änderungen gespeichert.");
+
+    private Task PublishAsync()
+        => RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
+
+    private Task UnpublishAsync()
+        => RunAsync((sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Veröffentlichung zurückgenommen.");
+
+    /// <summary>
+    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Dialog neu (die
+    /// Commands liefern nur die Metadaten zurück, die Ansicht braucht auch den Graphen).
+    /// </summary>
+    private async Task RunAsync(
+        Func<ISender, CancellationToken, ValueTask<DialogSummary>> operation, string successMessage)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(operation);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            _error = null;
+            _message = successMessage;
+            await ReloadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteDialogCommand(Id), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                _confirmDelete = false;
+                return;
+            }
+
+            Navigation.NavigateTo("dialogs");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,175 @@
+@page "/dialogs"
+@rendermode InteractiveServer
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject NavigationManager Navigation
+
+<PageTitle>Dialoge · Flirty Designer</PageTitle>
+
+<h1>Dialoge</h1>
+
+<p class="intro">
+    Hier legst du Dialoge an und bearbeitest sie. Ein neuer Dialog startet als <em>Entwurf</em>; zum
+    Veröffentlichen braucht er eine Einstiegsfrage. Gearbeitet wird gegen das aktive
+    <a href="connections">Connection-Profil</a>.
+</p>
+
+@if (_error is not null)
+{
+    <div class="banner err">@_error</div>
+}
+
+@if (_createModel is null)
+{
+    <button class="btn btn-primary" @onclick="StartCreate">Neuer Dialog</button>
+}
+else
+{
+    <div class="editor">
+        <h2>Neuer Dialog</h2>
+        <EditForm Model="_createModel" OnValidSubmit="CreateAsync">
+            <DataAnnotationsValidator />
+
+            <div class="field">
+                <label for="key">Schlüssel</label>
+                <InputText id="key" class="input" @bind-Value="_createModel.Key" />
+                <span class="hint">Fachlicher, stabiler Schlüssel – muss eindeutig sein (z. B. <code>onboarding</code>).</span>
+                <ValidationMessage For="() => _createModel.Key" />
+            </div>
+
+            <div class="field">
+                <label for="name">Name</label>
+                <InputText id="name" class="input" @bind-Value="_createModel.Name" />
+                <ValidationMessage For="() => _createModel.Name" />
+            </div>
+
+            <div class="field">
+                <label for="description">Beschreibung</label>
+                <InputTextArea id="description" class="input" rows="2" @bind-Value="_createModel.Description" />
+            </div>
+
+            <div class="actions">
+                <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="CancelCreate">Abbrechen</button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@if (_dialogs.Count > 0)
+{
+    <div class="field filter">
+        <label for="filter">Filter</label>
+        <input id="filter" class="input" placeholder="Schlüssel oder Name" @bind="_filter" @bind:event="oninput" />
+    </div>
+}
+
+@if (_dialogs.Count == 0)
+{
+    <p class="empty">Noch keine Dialoge angelegt.</p>
+}
+else if (FilteredDialogs.Count == 0)
+{
+    <p class="empty">Kein Dialog passt zum Filter „@_filter“.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Schlüssel</th>
+                <th>Name</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Einstiegsfrage</th>
+                <th>Geändert</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var dialog in FilteredDialogs)
+            {
+                <tr>
+                    <td class="mono">@dialog.Key</td>
+                    <td>@dialog.Name</td>
+                    <td>@dialog.Version</td>
+                    <td>
+                        @if (dialog.IsPublished)
+                        {
+                            <span class="badge badge-published">Veröffentlicht</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-draft">Entwurf</span>
+                        }
+                    </td>
+                    <td>@(dialog.StartQuestionId is null ? "—" : "gesetzt")</td>
+                    <td>@dialog.UpdatedAt.LocalDateTime.ToString("g")</td>
+                    <td class="row-actions">
+                        <button class="btn" @onclick="() => Open(dialog)">Öffnen</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<DialogSummary> _dialogs = [];
+    private DialogFormModel? _createModel;
+    private string _filter = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    private IReadOnlyList<DialogSummary> FilteredDialogs
+        => string.IsNullOrWhiteSpace(_filter)
+            ? _dialogs
+            : [.. _dialogs.Where(dialog =>
+                dialog.Key.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+                || dialog.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase))];
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new ListDialogsQuery(), token));
+        _dialogs = result.Value ?? [];
+        _error = result.Error;
+    }
+
+    private void StartCreate() => _createModel = new DialogFormModel();
+
+    private void CancelCreate() => _createModel = null;
+
+    private async Task CreateAsync()
+    {
+        if (_createModel is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync((sender, token) => sender.Send(
+                new CreateDialogCommand(_createModel.Key, _createModel.Name, _createModel.Description), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            _createModel = null;
+            _error = null;
+            // Direkt in die Detailseite: dort werden Einstiegsfrage und Veröffentlichung gepflegt.
+            Navigation.NavigateTo($"dialogs/{result.Value!.Id}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Open(DialogSummary dialog) => Navigation.NavigateTo($"dialogs/{dialog.Id}");
+}

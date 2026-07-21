@@ -1,0 +1,7 @@
+/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+
+.filter {
+    max-width: 320px;
+    margin-top: 1.25rem;
+    margin-bottom: 0;
+}

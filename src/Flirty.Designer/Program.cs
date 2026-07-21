@@ -26,6 +26,10 @@ builder.Services.AddScoped<ActiveConnectionProfile>();
 builder.Services.AddScoped<IDbContextFactory<FlirtyDbContext>, FlirtyDesignerDbContextFactory>();
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyDbContext>>().CreateDbContext());
 
+// Admin-CRUD (#38): führt die Mediator-Commands/Queries je Operation in einem frischen DI-Scope aus,
+// damit der FlirtyDbContext nicht über den ganzen Circuit lebt und Profilwechsel sofort greifen.
+builder.Services.AddScoped<FlirtyAdminGateway>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

@@ -5,11 +5,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 # Blazor-Designer aufbauen / erweitern
 
-> **Status: teils umgesetzt (EPIC 7, Issues #37–#43).** Die **Connection-Profil-Verwaltung (#37)** ist
-> fertig; `docs/DESIGNER.md` existiert. Die eigentlichen Editoren (Dialog-CRUD #38 … Test-Runner #43)
-> sind **noch offen**. Dieser Skill ist die **Leitplanke** für den weiteren Aufbau: die beabsichtigte
-> Architektur und die Konventionen, an die man sich beim Implementieren halten soll. Referenz:
-> `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
+> **Status: teils umgesetzt (EPIC 7, Issues #37–#43).** Fertig sind die
+> **Connection-Profil-Verwaltung (#37)** und das **Dialog-CRUD (#38)**; `docs/DESIGNER.md` beschreibt
+> beides. Die weiteren Editoren (Frage-Editor #39 … Test-Runner #43) sind **noch offen**. Dieser Skill
+> ist die **Leitplanke** für den weiteren Aufbau: die beabsichtigte Architektur und die Konventionen, an
+> die man sich beim Implementieren halten soll. Referenz: `docs/DESIGNER.md`,
+> `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
 
 ## Ist-Zustand (verifiziert)
 
@@ -21,9 +22,17 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   Ruft seit #37 **`AddFlirty()` (parameterlos)** auf; der `FlirtyDbContext` wird pro aktivem
   Connection-Profil über `FlirtyDesignerDbContextFactory : IDbContextFactory<FlirtyDbContext>` erzeugt.
 - **Connection-Profile (#37):** `Models/ConnectionProfile.cs`, `Services/IConnectionProfileStore` +
-  `JsonConnectionProfileStore` (JSON im ContentRoot, gitignored), `ActiveConnectionProfile` (Scoped),
-  `ConnectionProfileOperations` (Test-Connection/Migrate), `ConnectionProfileContextBuilder`; UI unter
-  `Components/Pages/ConnectionProfiles.razor` (`/connections`) + `Components/Layout/NavMenu.razor`.
+  `JsonConnectionProfileStore` (JSON im ContentRoot, gitignored), `ActiveConnectionProfile` (Scoped,
+  mit `Activate`/`Adopt`), `ConnectionProfileOperations` (Test-Connection/Migrate),
+  `ConnectionProfileContextBuilder`; UI unter `Components/Pages/ConnectionProfiles.razor`
+  (`/connections`) + `Components/Layout/NavMenu.razor`.
+- **Dialog-CRUD (#38):** `Services/FlirtyAdminGateway.cs` (+ `AdminResult<T>`),
+  `Models/DialogFormModel.cs`, Seiten `Components/Pages/Dialogs.razor` (`/dialogs`) und
+  `Components/Pages/DialogEditor.razor` (`/dialogs/{id:guid}`). Gemeinsame UI-Klassen (`.editor`,
+  `.field`, `.input`, `.btn`, `.data-table`, `.badge`, `.msg`, `.banner`, `.empty`) liegen **global** in
+  `wwwroot/app.css`; `*.razor.css` enthält nur Seitenspezifisches.
+- **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
+  `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`).
 
 ## Leitplanken für die Umsetzung
 
@@ -38,6 +47,16 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
      `AnswerOptionDetail`, `TransitionDetail`.
    - DI: `AddFlirty(...)` registriert `IDialogAdminStore`; im `Program.cs` des Designers ergänzen
      (inkl. Provider-Wahl je Connection-Profil).
+
+   **Konkret seit #38: immer über `FlirtyAdminGateway`, nie `@inject ISender`.**
+   ```csharp
+   var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new ListDialogsQuery(), token));
+   if (!result.Success) { _error = result.Error; return; }
+   ```
+   Das Gateway öffnet je Operation einen frischen DI-Scope (in Blazor Server lebt ein Scope sonst den
+   ganzen Circuit → der `FlirtyDbContext` bliebe an das zuerst benutzte Profil gepinnt, der
+   Change-Tracker liefe voll, und der nicht threadsichere Kontext würde geteilt) und liefert ein
+   `AdminResult<T>` mit deutscher Fehlermeldung statt einer Ausnahme, die den Circuit killt.
 
 2. **Multi-DB per Connection-Profil (#37) — UMGESETZT.** Provider + ConnectionString als Profile lokal
    verwaltet; zur Laufzeit über `IDbContextFactory<FlirtyDbContext>` (Impl. `FlirtyDesignerDbContextFactory`)
@@ -58,22 +77,32 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 ## Empfohlene Aufbaureihenfolge (EPIC 7)
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI → #39 Frage-Editor → #40 Branching-Editor →
+#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor → #40 Branching-Editor →
 #41 Loop-Visualisierung → #42 Trigger-Editor → #43 Test-Runner.
+
+Die Folge-Editoren (#39–#42) hängen sich sinnvoll in die Detailseite
+`Components/Pages/DialogEditor.razor` (`/dialogs/{id:guid}`) ein – der `GetDialogQuery` liefert dort
+bereits Fragen, Optionen und Übergänge.
 
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Pages in `Components/Pages/`), Server-interaktiver Render-Mode
   beibehalten.
+- **Komponentennamen dürfen die Sichttypen aus `Flirty.Runtime.Admin` nicht verdecken** – deshalb heißt
+  die Detailseite `DialogEditor` und nicht `DialogDetail` (sonst verschattet der generierte
+  Komponententyp den Record `DialogDetail`).
+- Gemeinsame UI-Klassen gehören nach `wwwroot/app.css` (global), nicht in jede `*.razor.css` kopiert.
+- Bestätigungen **inline** im Komponentenzustand lösen, **kein** JS-`confirm`/`alert` – das blockiert
+  sonst die Playwright-E2E (#46).
 - UI-Texte und Doku **deutsch**. Der Designer ist `IsPackable=false` (kein NuGet-Paket) → CS1591 ist
   hier **kein** Fehler, XML-Docs sind optional.
 - E2E-Tests des Designers gehören nach `tests/Flirty.E2E` (Playwright, #46) – aktuell noch Skelett.
 
 ## Definition of Done
 
-Feature funktioniert im Server-interaktiven Designer über die Admin-Commands · Ausdrücke werden beim
-Speichern validiert · `docs/DESIGNER.md` (seit #37 vorhanden) beim jeweiligen Feature erweitern · ggf.
-Playwright-E2E (#46).
+Feature funktioniert im Server-interaktiven Designer über die Admin-Commands (via `FlirtyAdminGateway`) ·
+Ausdrücke werden beim Speichern validiert · Service-Tests in `tests/Flirty.Tests/Designer/` ·
+`docs/DESIGNER.md` beim jeweiligen Feature erweitern · ggf. Playwright-E2E (#46).
 
 ## Verifikation
 
