@@ -62,6 +62,9 @@
     <ProjectReference Include="..\..\src\Flirty.Samples\Flirty.Samples.csproj" />
     <!-- Web-Sample (#45): WebSampleTests spielt die Sample-Komposition über den In-Process-TestServer durch. -->
     <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
+    <!-- Designer (#37): Service-Tests der Connection-Profil-Verwaltung (Store/Factory/Operationen);
+         Interna via InternalsVisibleTo("Flirty.Tests") im Designer sichtbar. -->
+    <ProjectReference Include="..\..\src\Flirty.Designer\Flirty.Designer.csproj" />
   </ItemGroup>
 
 </Project>

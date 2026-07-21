@@ -115,7 +115,7 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
   `Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`; zur Laufzeit über `MigrationsAssembly` selektiert
   (umgesetzt in #19, siehe [PERSISTENCE.md](./PERSISTENCE.md) inkl. [ADR 0001](./adr/0001-migrationen-pro-provider.md)).
 - **Auto-Apply** via `o.ApplyMigrations()` → `FlirtyMigrationHostedService` (`IHostedService`) ruft beim Start `Database.MigrateAsync()`; die Migrations-Assemblies werden ins `Flirty`-NuGet-Paket gebündelt (umgesetzt in #20, siehe [PERSISTENCE.md](./PERSISTENCE.md)).
-- **Multi-DB im Designer**: Connection-Profile (Provider + ConnectionString) lokal verwaltet, `IDbContextFactory` öffnet zur Laufzeit gegen das gewählte Profil.
+- **Multi-DB im Designer**: Connection-Profile (Provider + ConnectionString) lokal verwaltet, `IDbContextFactory` öffnet zur Laufzeit gegen das gewählte Profil (umgesetzt in #37; Provider-Wahl als Wert über `FlirtyDatabaseProvider` + `UseFlirtyProvider`, siehe [DESIGNER.md](./DESIGNER.md) und [PERSISTENCE.md](./PERSISTENCE.md)).
 
 ## 9. Integrations-API
 

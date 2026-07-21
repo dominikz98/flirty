@@ -42,6 +42,9 @@ coverage*.info
 *.db-shm
 *.db-wal
 
+# Flirty-Designer: lokale Connection-Profile (können Secrets im ConnectionString enthalten, #37)
+connection-profiles.json
+
 # OS
 .DS_Store
 Thumbs.db

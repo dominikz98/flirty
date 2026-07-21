@@ -102,6 +102,30 @@ bleibt weiterhin gültig – z. B. wenn der Kontext feiner konfiguriert werden s
 **optional**. Zusätzlich stellt `AddFlirty` seit #34 den austauschbaren `o.UseExpressionEvaluator<T>()`
 und die Webhook-Registrierung `o.AddWebhook(name, url)` (Stub, aktive Auslieferung in EPIC 4/M2) bereit.
 
+### Provider als Wert wählen (#37)
+
+Seit **#37** lässt sich der Provider auch **als Wert** wählen – nötig, wenn er erst **zur Laufzeit**
+feststeht (z. B. die Multi-DB-Connection-Profile des [Designers](./DESIGNER.md)). Dafür gibt es:
+
+- das öffentliche Enum **`FlirtyDatabaseProvider`** (`Sqlite`/`PostgreSql`/`SqlServer`) und
+- die Extension **`DbContextOptionsBuilder.UseFlirtyProvider(provider, connectionString)`**, die den
+  passenden EF-Core-Provider **und** die korrekte `MigrationsAssembly` in einem Schritt setzt.
+
+```csharp
+// Optionen für ein beliebiges Profil zur Laufzeit bauen:
+var options = new DbContextOptionsBuilder<FlirtyDbContext>()
+    .UseFlirtyProvider(FlirtyDatabaseProvider.PostgreSql, connectionString)
+    .Options;
+using var context = new FlirtyDbContext(options);
+
+// oder über die Options-API:
+services.AddFlirty(o => o.UseProvider(FlirtyDatabaseProvider.SqlServer, connectionString));
+```
+
+`UseFlirtyProvider` ist die **einzige** Stelle, an der die drei Migrations-Assembly-Namen verankert sind;
+die typspezifischen `o.UseSqlite/UsePostgreSql/UseSqlServer` delegieren seit #37 auf `o.UseProvider(...)`
+und damit auf dieselbe Abbildung (kein dupliziertes Mapping mehr).
+
 ## Auto-Migration beim Start (#20)
 
 Statt `Database.Migrate()` manuell aufzurufen, kann Flirty die ausstehenden Migrationen beim

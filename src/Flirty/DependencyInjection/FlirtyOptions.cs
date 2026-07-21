@@ -1,5 +1,6 @@
 using Flirty.Domain;
 using Flirty.Expressions;
+using Flirty.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -64,13 +65,7 @@ public sealed class FlirtyOptions
     /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
     /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
     public FlirtyOptions UseSqlite(string connectionString)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-        ConfigureDbContext = options =>
-            options.UseSqlite(connectionString, sqlite => sqlite.MigrationsAssembly("Flirty.Migrations.Sqlite"));
-        return this;
-    }
+        => UseProvider(FlirtyDatabaseProvider.Sqlite, connectionString);
 
     /// <summary>
     /// Wählt PostgreSQL als Datenbank-Provider und registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/>
@@ -80,13 +75,7 @@ public sealed class FlirtyOptions
     /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
     /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
     public FlirtyOptions UsePostgreSql(string connectionString)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-        ConfigureDbContext = options =>
-            options.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly("Flirty.Migrations.PostgreSql"));
-        return this;
-    }
+        => UseProvider(FlirtyDatabaseProvider.PostgreSql, connectionString);
 
     /// <summary>
     /// Wählt SQL Server als Datenbank-Provider und registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/>
@@ -96,11 +85,27 @@ public sealed class FlirtyOptions
     /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
     /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
     public FlirtyOptions UseSqlServer(string connectionString)
+        => UseProvider(FlirtyDatabaseProvider.SqlServer, connectionString);
+
+    /// <summary>
+    /// Wählt den Datenbank-Provider anhand des übergebenen <see cref="FlirtyDatabaseProvider"/>-Werts und
+    /// registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/> mit der zum Provider passenden
+    /// <c>MigrationsAssembly</c>. Die typspezifischen <c>Use*</c>-Methoden delegieren auf diese Methode.
+    /// </summary>
+    /// <param name="provider">Der zu verwendende Datenbank-Provider.</param>
+    /// <param name="connectionString">Die Verbindungszeichenfolge für den gewählten Provider.</param>
+    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <remarks>
+    /// Seit Issue #37: erlaubt die Provider-Wahl als <b>Wert</b> und teilt sich mit der Laufzeit-Profilwahl
+    /// des Designers dieselbe Abbildung
+    /// (<see cref="Microsoft.EntityFrameworkCore.FlirtyDatabaseProviderExtensions"/>). Ein erneuter Aufruf
+    /// einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.
+    /// </remarks>
+    public FlirtyOptions UseProvider(FlirtyDatabaseProvider provider, string connectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        ConfigureDbContext = options =>
-            options.UseSqlServer(connectionString, sqlServer => sqlServer.MigrationsAssembly("Flirty.Migrations.SqlServer"));
+        ConfigureDbContext = options => options.UseFlirtyProvider(provider, connectionString);
         return this;
     }
 

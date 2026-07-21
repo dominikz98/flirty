@@ -1,0 +1,37 @@
+.flirty-nav {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 0.75rem 1.5rem;
+    background-color: #1b1f3b;
+    color: #fff;
+}
+
+.flirty-brand {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #fff;
+    text-decoration: none;
+}
+
+.flirty-nav-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.flirty-nav-link {
+    color: #cdd3ff;
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.flirty-nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.flirty-nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}

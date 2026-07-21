@@ -1,10 +1,30 @@
 using Flirty.Designer.Components;
+using Flirty.Designer.Services;
+using Flirty.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Flirty-Engine OHNE fest verdrahteten Provider (parameterloses AddFlirty): der FlirtyDbContext wird
+// stattdessen pro aktivem Connection-Profil über die Designer-Factory erzeugt (Multi-DB, Issue #37).
+builder.Services.AddFlirty();
+
+// Connection-Profil-Verwaltung: Store (persistiert als JSON im ContentRoot), aktives Profil (pro Circuit),
+// Factory (IDbContextFactory gegen das aktive Profil) und die Test-/Migrate-Operationen.
+builder.Services.AddSingleton<IConnectionProfileStore>(sp =>
+{
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    var filePath = Path.Combine(environment.ContentRootPath, "connection-profiles.json");
+    return new JsonConnectionProfileStore(filePath);
+});
+builder.Services.AddSingleton<ConnectionProfileOperations>();
+builder.Services.AddScoped<ActiveConnectionProfile>();
+builder.Services.AddScoped<IDbContextFactory<FlirtyDbContext>, FlirtyDesignerDbContextFactory>();
+builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyDbContext>>().CreateDbContext());
 
 var app = builder.Build();
 
