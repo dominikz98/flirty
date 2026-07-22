@@ -45,8 +45,14 @@ jobs:
       - name: Playwright-Browser installieren
         run: pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
 
-      - name: Test
-        run: dotnet test Flirty.sln -c Release --no-build
+      # Bewusst zwei Läufe statt "dotnet test Flirty.sln": die Solution-Variante startet beide
+      # Test-Assemblies PARALLEL. Die Playwright-E2E (echtes Kestrel + Browser) konkurriert dann auf den
+      # zwei Kernen des Runners mit der Unit-Suite (inkl. Testcontainers) und läuft in Aktions-Timeouts.
+      - name: Test (Unit/Integration)
+        run: dotnet test tests/Flirty.Tests -c Release --no-build
+
+      - name: Test (E2E, Playwright)
+        run: dotnet test tests/Flirty.E2E -c Release --no-build
 
       - name: Pack (beide NuGet-Pakete)
         run: dotnet pack Flirty.sln -c Release --no-build -o artifacts
