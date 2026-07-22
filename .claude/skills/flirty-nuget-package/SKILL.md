@@ -49,16 +49,46 @@ die drei `Flirty.Migrations.*.dll`).
 die CS1591-Erzwingung (deutsche XML-Docs auf aller public API) und die Paket-Verdrahtung aus
 `Directory.Build.targets`.
 
-## Veröffentlichen (#49, noch offen)
+## Veröffentlichen (#49)
 
-Der Push (`dotnet nuget push` auf NuGet.org oder Azure Artifacts) ist **bewusst nicht** Teil der CI
-(`.github/workflows/ci.yml` baut/testet/packt nur und lädt die Artefakte hoch). Der Publish-Weg wird mit
-Issue #49 definiert – Feed und API-Key sind noch festzulegen. Beim Umsetzen `docs/NUGET-PACKAGING.md`
-(Abschnitt „Publizieren") und `docs/CI.md` aktualisieren.
+Der Push liegt in `.github/workflows/release.yml` – **nicht** in `ci.yml` (die baut/testet/packt nur).
+Feed ist **NuGet.org**, ausgelöst wird ausschließlich manuell.
+
+```pwsh
+gh workflow run release.yml -f dry_run=true   # bauen + verifizieren, KEIN Push (immer zuerst)
+gh workflow run release.yml                   # Version JJJJMM.<Run-Nummer>.0
+gh workflow run release.yml -f revision=7     # Version JJJJMM.7.0
+```
+
+- **Zwei Jobs:** `build` (restore → build → `dotnet test tests/Flirty.Tests` → pack → **verifizieren** →
+  Artefakt `nupkg`) und `push`, der an der GitHub-Environment **`nuget`** hängt (Secret
+  `NUGET_API_KEY` + optionales Reviewer-Gate). Das Gate sitzt bewusst *zwischen* beiden.
+- **Verifikationsschritt** vor dem Push prüft an den realen Dateien: je Paket `.nupkg` **und**
+  `.snupkg` sowie alle **vier** DLLs unter `lib/net10.0/` im Core-Paket. Beim Bearbeiten beachten:
+  `Flirty.*.nupkg` matcht auch `Flirty.AspNetCore.*.nupkg` → das Core-Paket über `Flirty.[0-9]*`
+  isolieren.
+- **`.snupkg` werden automatisch mitgepusht** (liegen neben den `.nupkg`, NuGet.org hat einen
+  Symbol-Server). Kein zweiter Push.
+- **Kein Azure Artifacts** – bewusst: es nimmt Symbolpakete über `dotnet nuget push` nicht an und
+  erfüllte das AC „inkl. Symbols" nicht.
+- **Unwiderruflich:** Veröffentlichte Versionen lassen sich nur unlisten, nicht löschen. Deshalb
+  immer erst `dry_run=true`.
+
+Details, inklusive der einmaligen Einrichtung (API-Key mit Glob `Flirty*`, Environment `nuget`):
+`docs/NUGET-PACKAGING.md` § Publizieren.
+
+## Fallstrick: die dritte Versionsstelle
+
+Die MSBuild-Property `Version` ist zweistellig (`202607.7`), NuGet normalisiert auf **drei** Segmente.
+Dateiname, `.nuspec` und die Anzeige auf nuget.org lauten also `202607.7.0`. Beim Suchen nach einem
+Artefakt oder einer Paketversion die `.0` mitdenken; `dotnet add package … --version 202607.7`
+funktioniert trotzdem (NuGet normalisiert die Anfrage).
 
 ## Verifikation
 
 ```pwsh
-dotnet pack -c Release -o artifacts
-# Optional Paketinhalt inspizieren (z. B. mit `dotnet nuget verify` oder Entpacken der .nupkg als .zip)
+dotnet pack -c Release -o artifacts -p:BuildRevision=99
+# erwartet: Flirty.<JJJJMM>.99.0.nupkg/.snupkg + Flirty.AspNetCore.<JJJJMM>.99.0.nupkg/.snupkg
+Expand-Archive artifacts/Flirty.*.nupkg -DestinationPath artifacts/inspect -Force
+Get-ChildItem artifacts/inspect/lib/net10.0   # erwartet: 4 DLLs (Core + 3x Migrations)
 ```

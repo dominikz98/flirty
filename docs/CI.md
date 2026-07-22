@@ -3,6 +3,10 @@
 Wie die Continuous-Integration-Pipeline die Flirty-Pakete baut, testet und als Artefakte erzeugt.
 Umgesetzt in Issue **#16**. Der Workflow liegt in `.github/workflows/ci.yml` (GitHub Actions).
 
+Das Repo hat **zwei** Workflows: `ci.yml` (dieser hier – baut, testet, packt, lädt hoch) und
+`release.yml` (#49 – veröffentlicht, manuell und hinter einem Freigabe-Gate, siehe
+[unten](#der-zweite-workflow-release-49)).
+
 ## Wann läuft die Pipeline?
 
 | Trigger | Bedingung |
@@ -159,18 +163,34 @@ Ein Lauf lädt zwei Artefakte hoch: **`coverage`** (HTML-Report, siehe [Coverage
 **`nupkg`** mit beiden Paketen:
 
 ```
-artifacts/*.nupkg      Flirty.202607.<run>.nupkg      Flirty.AspNetCore.202607.<run>.nupkg
-artifacts/*.snupkg     Flirty.202607.<run>.snupkg     Flirty.AspNetCore.202607.<run>.snupkg
+artifacts/*.nupkg      Flirty.202607.<run>.0.nupkg      Flirty.AspNetCore.202607.<run>.0.nupkg
+artifacts/*.snupkg     Flirty.202607.<run>.0.snupkg     Flirty.AspNetCore.202607.<run>.0.snupkg
 ```
 
 `if-no-files-found: error` lässt die Pipeline fehlschlagen, falls kein Paket entsteht – damit ist das
 Akzeptanzkriterium „Artefakte = beide `.nupkg`" hart abgesichert. Der Coverage-Upload trägt dieselbe
 Einstellung: bleibt der Report leer, fällt es auf, statt still zu verschwinden.
 
+## Der zweite Workflow: Release (#49)
+
+Neben `ci.yml` liegt `.github/workflows/release.yml` – der **einzige** Workflow, der etwas nach außen
+schreibt (`dotnet nuget push` auf NuGet.org). Er wird nur manuell ausgelöst (`workflow_dispatch`) und
+sein Push-Job hängt an der Environment `nuget` (Secret + optionales Reviewer-Gate). Der vollständige
+Ablauf steht in [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49).
+
+Ein Unterschied ist hier relevant: Der Release-Lauf fährt **nur die Unit-Suite** (`tests/Flirty.Tests`,
+ohne Coverage), nicht die E2E. Er baut die Binaries neu – deshalb muss er *diese* testen –, aber die
+Begründung aus [„Warum nur die Unit-Suite instrumentiert wird"](#warum-nur-die-unit-suite-instrumentiert-wird)
+trägt: die E2E deckt keinen Pfad der beiden Pakete zusätzlich ab (gemessen: ein Zweig von 430) und
+kostet Browser-Installation. Die volle Abdeckung inklusive E2E hat der `ci.yml`-Lauf auf demselben
+Commit bereits geliefert.
+
 ## Abgrenzung
 
-- **Kein** `dotnet nuget push`: Das Veröffentlichen auf NuGet.org/Azure Artifacts ist bewusst nicht Teil
-  dieses Stubs und folgt in **#49**.
+- **Kein** `dotnet nuget push` **in der CI**: Das Veröffentlichen liegt seit **#49** in einem eigenen Workflow
+  `.github/workflows/release.yml` – manuell ausgelöst und hinter einem Freigabe-Gate, weil eine auf
+  NuGet.org veröffentlichte Version unwiderruflich ist. Die CI baut, testet und packt weiterhin nur.
+  Details: [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49).
 - **Kein Schwellwert-Gate:** Die Pipeline berichtet die Coverage, bricht aber (noch) nicht unterhalb
   einer Quote ab. Ein Boden-Wert soll auf dem real gemessenen Stand beruhen, nicht auf einer Schätzung
   – sonst bricht die Pipeline am Tag der Einführung an einer geratenen Zahl.

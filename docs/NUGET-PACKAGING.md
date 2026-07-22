@@ -1,7 +1,8 @@
 # NuGet-Packaging
 
 Wie die Flirty-Pakete gebaut werden – welche Projekte paketiert werden, wo die Metadaten liegen
-und wie die Versionierung funktioniert. Umgesetzt in Issue **#15**.
+und wie die Versionierung funktioniert. Umgesetzt in Issue **#15**, das Veröffentlichen in **#49**
+(siehe [Publizieren](#publizieren-49)).
 
 ## Was wird paketiert?
 
@@ -42,10 +43,27 @@ Kein MinVer, keine Git-Tags. Die **NuGet-Paketversion** ist `JJJJMM.Revision`:
 - Die Revision ist standardmäßig `1` und wird beim Bauen überschrieben:
 
   ```pwsh
-  dotnet pack -c Release -p:BuildRevision=7   # -> Flirty.202604.7.nupkg
+  dotnet pack -c Release -p:BuildRevision=7   # -> Flirty.202604.7.0.nupkg
   ```
 
   In der CI z.B. die Build-/Run-Nummer durchreichen.
+
+### Die dritte Stelle: NuGet normalisiert
+
+Die MSBuild-Property `Version` ist zweistellig (`202604.7`), eine **NuGet-Version hat aber mindestens
+drei Segmente**. NuGet normalisiert deshalb still auf `202604.7.0` – und zwar überall dort, wo die
+Version nach außen sichtbar wird:
+
+| Ort | Wert |
+|---|---|
+| MSBuild-Property `Version` | `202604.7` |
+| Dateiname | `Flirty.202604.7.0.nupkg` |
+| `<version>` in der `.nuspec` | `202604.7.0` |
+| Anzeige auf nuget.org | `202604.7.0` |
+
+Für Konsumenten ist das folgenlos – `dotnet add package Flirty --version 202604.7` normalisiert
+NuGet auf denselben Wert. Beim Nachschlagen einer konkreten Version (Artefaktname, Release-Log,
+Paketseite) ist die dritte Stelle aber da, und ein Suchen nach `Flirty.202604.7.nupkg` läuft ins Leere.
 
 ### Warum eine zweite Version für die Assembly?
 
@@ -68,8 +86,8 @@ dotnet pack -c Release -o artifacts
 Erzeugt in `artifacts/` je Package ein `.nupkg` **und** ein `.snupkg`:
 
 ```
-Flirty.202604.1.nupkg              Flirty.202604.1.snupkg
-Flirty.AspNetCore.202604.1.nupkg   Flirty.AspNetCore.202604.1.snupkg
+Flirty.202604.1.0.nupkg              Flirty.202604.1.0.snupkg
+Flirty.AspNetCore.202604.1.0.nupkg   Flirty.AspNetCore.202604.1.0.snupkg
 ```
 
 Für die übrigen vier Projekte entsteht nichts.
@@ -111,7 +129,96 @@ Die CI-Pipeline (#16, `.github/workflows/ci.yml`) übernimmt build + test + `dot
 `.nupkg` (+ `.snupkg`) als Artefakt hoch. Die Build-/Run-Nummer wird als `BuildRevision` durchgereicht,
 sodass jeder Lauf eine eindeutige Revision erhält. Details: [CI.md](./CI.md).
 
-## Publizieren
+## Publizieren (#49)
 
-Der eigentliche Push (`dotnet nuget push` auf NuGet.org oder Azure Artifacts) ist bewusst **nicht**
-Teil der CI-Pipeline (#16) – er folgt mit dem Publish-Issue (#49).
+Der Push liegt in einem **eigenen** Workflow `.github/workflows/release.yml` – nicht in der CI
+(#16, `ci.yml`), die weiterhin nur baut, testet, packt und Artefakte hochlädt.
+
+Der Grund ist die Unwiderruflichkeit: Eine auf NuGet.org veröffentlichte Version lässt sich
+**nicht löschen**, nur *unlisten* – und selbst eine ungelistete Version bleibt für alle auflösbar,
+die sie explizit anfordern (das garantiert NuGet.org bewusst, damit Builds nicht zerbrechen).
+Ein Schritt, der so wirkt, gehört nicht an jeden `main`-Push, sondern hinter eine bewusste Freigabe.
+
+### Einmalige Voraussetzungen
+
+Beides muss **manuell** eingerichtet sein, sonst scheitert der Push-Job:
+
+1. **API-Key auf nuget.org** (Account → *API Keys*):
+   - Scope: *Push* → **Push new packages and package versions**
+     (die IDs `Flirty`/`Flirty.AspNetCore` existieren beim ersten Lauf noch nicht, „nur neue
+     Versionen" reicht also nicht),
+   - Glob-Pattern: `Flirty*` – deckt beide Pakete und künftige Ableger ab,
+   - Ablaufdatum notieren; ein abgelaufener Key äußert sich als `403` im Push-Schritt.
+2. **GitHub → Settings → Environments → `nuget`**:
+   - Secret **`NUGET_API_KEY`** mit dem Key von oben,
+   - optional *Required reviewers* – das ist das Freigabe-Gate.
+
+### Auslösen
+
+Über *Actions → Release → Run workflow* (Branch wählbar, i.d.R. `main`) oder:
+
+```pwsh
+gh workflow run release.yml                      # Version JJJJMM.<Run-Nummer>.0
+gh workflow run release.yml -f revision=7        # Version JJJJMM.7.0
+gh workflow run release.yml -f dry_run=true      # bauen + verifizieren, NICHT veröffentlichen
+```
+
+| Input | Bedeutung |
+|---|---|
+| `revision` | Überschreibt `BuildRevision`. Leer = **Run-Nummer dieses Workflows**, also ein eigener, monoton steigender Release-Zähler (`202607.1.0`, `202607.2.0`, …), unabhängig von den CI-Läufen, die ja nie pushen. |
+| `dry_run` | Lässt den Push-Job aus. Der `build`-Job läuft vollständig durch – inklusive Verifikation und Artefakt-Upload. Damit lässt sich der Workflow testen, ohne eine Versionsnummer auf NuGet.org zu verbrennen. |
+
+### Ablauf
+
+Zwei Jobs, damit das Freigabe-Gate **zwischen** Bauen und Pushen sitzt und das fertige Artefakt vor
+der Freigabe einsehbar ist:
+
+```
+build:  restore -> build -c Release -> test -> pack -> verifizieren -> Artefakt "nupkg"
+                                                                          |
+                                                            [Environment nuget: Freigabe]
+                                                                          v
+push:   Artefakt laden -> dotnet nuget push -> Zusammenfassung
+```
+
+- **Getestet wird die Unit-Suite**, nicht die E2E. Der Release-Lauf baut die Binaries neu (anderer
+  Versionsstempel), deshalb müssen genau diese getestet werden – aber die Begründung aus
+  [CI.md § Coverage](./CI.md#coverage) gilt unverändert: die E2E deckt keinen Pfad zusätzlich ab
+  (gemessen: ein Zweig von 430) und kostet Browser-Installation.
+- **Der Verifikationsschritt** ist der harte Riegel vor dem Push. Er prüft an den realen Dateien:
+  je Paket existiert `.nupkg` **und** `.snupkg` (das Akzeptanzkriterium „inkl. Symbols"), und im
+  `Flirty`-Paket liegen unter `lib/net10.0/` alle **vier** DLLs (Core + die drei Migrations-Assemblies,
+  siehe [oben](#mitgebündelte-migrations-dlls-20)). Fehlt etwas, bricht der Lauf **vor** dem Push.
+
+  > Beim Bearbeiten: Das Glob `Flirty.*.nupkg` matcht auch `Flirty.AspNetCore.*.nupkg`. Das Core-Paket
+  > wird deshalb über `Flirty.[0-9]*` isoliert – die Version beginnt immer mit einer Ziffer.
+
+- **`permissions` bleibt `contents: read`.** Der Push braucht kein GitHub-Recht, nur das Secret.
+- `concurrency: release` **ohne** `cancel-in-progress`: einen laufenden Upload nicht abschneiden.
+
+### Was genau gepusht wird
+
+```bash
+dotnet nuget push "artifacts/*.nupkg" \
+  --source https://api.nuget.org/v3/index.json \
+  --api-key "$NUGET_API_KEY" --skip-duplicate
+```
+
+- Das Glob bleibt **gequotet**: `dotnet` löst es selbst auf.
+- Die **`.snupkg` werden automatisch mitgeschoben**, weil sie neben den `.nupkg` liegen und
+  NuGet.org einen Symbol-Server hat. Ein zweiter Push wäre falsch (und schlüge fehl).
+- `--skip-duplicate` macht einen Wiederholungslauf mit derselben Revision zum No-op statt zum Fehler –
+  wichtig, wenn der Push nach einem Teilupload wiederholt werden muss.
+
+Nach dem Push validiert NuGet.org **asynchron**: das Paket erscheint erst nach ein paar Minuten in
+der Suche, und das Symbolpaket wird separat geprüft. Ein grüner Push-Schritt heißt „angenommen",
+nicht „bereits gelistet".
+
+### Abgrenzung: kein Azure Artifacts
+
+Der ursprüngliche Issue-Text (#49) nannte den Feed als konfigurierbar (NuGet.org **oder** Azure
+Artifacts). Umgesetzt ist **nur NuGet.org** – bewusst: Azure Artifacts nimmt Symbolpakete über
+`dotnet nuget push` nicht entgegen, der Weg dorthin bräuchte also `--no-symbols` und erfüllte das
+Akzeptanzkriterium „beide Packages **inkl. Symbols**" gerade nicht. Ein zweiter, hier nie
+ausgeführter Codepfad wäre schlechter als keiner. Wird ein interner Feed nötig, ist die Stelle klar:
+`--source` im Push-Schritt plus ein zweites Secret.
