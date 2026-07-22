@@ -24,7 +24,7 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
-│                               (Multi-DB, #37); Dialog-/Frage-/…-Editoren (#38–#43) noch offen.
+│                               (Multi-DB, #37) + Dialog-CRUD (#38); Frage-/…-Editoren (#39–#43) offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -43,8 +43,10 @@ Console/Worker. Web ist opt-in via `Flirty.AspNetCore` (`FrameworkReference Micr
 
 Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, `global.json`.
 
-- **Target:** `net10.0`, `LangVersion=latest`, `Nullable=enable`, `ImplicitUsings=enable`. SDK
-  `10.0.204` (`global.json`, `rollForward=latestFeature`).
+- **Target:** `net10.0`, `LangVersion=latest`, `Nullable=enable`, `ImplicitUsings=enable`. SDK-**Untergrenze**
+  `10.0.100` (`global.json`, `rollForward=latestFeature`) – jedes installierte 10.0.x-SDK ab dem
+  GA-Band wird genommen. Die Grenze bewusst niedrig halten: ein zu hoher Pin lässt den Build auf
+  Maschinen mit älterem (aber ausreichendem) SDK schlicht scheitern.
 - **`TreatWarningsAsErrors=true` repo-weit.** Auch NuGet-Pack-Warnungen (NU5xxx) und Security-Advisories
   (NU1903) brechen den Build. Neue transitive Pakete dürfen keine Advisories einschleppen.
 - **XML-Docs Pflicht.** `GenerateDocumentationFile=true`; für **packbare** Projekte (`Flirty`,
@@ -171,7 +173,14 @@ Console-Sample, **Web-Sample** (Minimal-API + Chat-UI, #45) inkl. Playwright-E2E
 Test-Connection, Migrate, `IDbContextFactory`-Auswahl gegen das aktive Profil. Dafür neues öffentliches
 Core-API `FlirtyDatabaseProvider` + `DbContextOptionsBuilder.UseFlirtyProvider(...)` (zentralisiert das
 Provider→MigrationsAssembly-Mapping); Guide `docs/DESIGNER.md` angelegt.
+**Dialog-CRUD (#38) fertig** – Liste `/dialogs` + Editor `/dialogs/{id}` (Metadaten, Einstiegsfrage,
+Publish/Unpublish, Löschen). Alle Admin-Operationen laufen über `FlirtyAdminGateway`
+(`src/Flirty.Designer/Services/`), das **jede** Nachricht in einem frischen DI-Scope sendet – in Blazor
+Server lebt ein Scope sonst den ganzen Circuit und pinnt den `FlirtyDbContext` an das zuerst benutzte
+Profil. Folge-Editoren nutzen dieses Gateway ebenfalls. Gemeinsame UI-Klassen liegen global in
+`src/Flirty.Designer/wwwroot/app.css`.
 
-**Offen:** restlicher Blazor-**Designer** (Editoren #38–#43, `src/Flirty.Designer` hat außer den
-Verbindungen noch keine Dialog-UI), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
-Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des Designers ausgehen.
+**Offen:** restlicher Blazor-**Designer** (Editoren #39–#43, es gibt außer Verbindungen und Dialog-CRUD
+noch keine UI für Fragen/Branching/Loops/Trigger), Designer-E2E (#46), Coverage in CI (#48),
+NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des
+Designers ausgehen.

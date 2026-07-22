@@ -5,7 +5,7 @@ namespace Flirty.Designer.Services;
 /// <summary>
 /// Hält das aktuell aktive Connection-Profil des Designers. Als <c>Scoped</c> registriert entspricht das
 /// im server-interaktiven Blazor einer Lebensdauer pro Circuit. Das aktive Profil bestimmt, gegen welche
-/// Datenbank die <see cref="FlirtyDesignerDbContextFactory"/> (und damit die Admin-Commands ab #38) arbeiten.
+/// Datenbank die <see cref="FlirtyDesignerDbContextFactory"/> (und damit die Admin-Commands seit #38) arbeiten.
 /// </summary>
 internal sealed class ActiveConnectionProfile
 {
@@ -40,10 +40,22 @@ internal sealed class ActiveConnectionProfile
     /// <param name="profile">Das zu aktivierende Profil.</param>
     public void Activate(ConnectionProfile profile)
     {
+        Adopt(profile);
+        _store.SetDefault(profile.Id);
+    }
+
+    /// <summary>
+    /// Übernimmt das angegebene Profil in <b>diesen</b> Scope, <b>ohne</b> den Store-Default zu ändern.
+    /// Gedacht für den <see cref="FlirtyAdminGateway"/>, der jede Admin-Operation in einem frischen
+    /// DI-Scope ausführt und dorthin das Profil des aufrufenden Circuits durchreichen muss (der Default
+    /// im Store taugt dafür nicht: mehrere Circuits können unterschiedliche Profile aktiv haben).
+    /// </summary>
+    /// <param name="profile">Das zu übernehmende Profil.</param>
+    public void Adopt(ConnectionProfile profile)
+    {
         ArgumentNullException.ThrowIfNull(profile);
 
         _current = profile;
         _initialized = true;
-        _store.SetDefault(profile.Id);
     }
 }
