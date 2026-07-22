@@ -43,8 +43,8 @@ public sealed record DialogResponse(
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// Antwort mit einem Dialog samt seinem im Admin-CRUD verwalteten Graphen (Fragen inkl. Optionen und
-/// Übergänge). Ergebnis von <c>GET {prefix}/dialogs/{id}</c>.
+/// Antwort mit einem Dialog samt seinem im Admin-CRUD verwalteten Graphen (Fragen inkl. Optionen,
+/// Übergänge und Schleifen-Marker). Ergebnis von <c>GET {prefix}/dialogs/{id}</c>.
 /// </summary>
 /// <param name="Id">Der Primärschlüssel des Dialogs.</param>
 /// <param name="Key">Der fachliche, stabile Schlüssel des Dialogs.</param>
@@ -57,6 +57,7 @@ public sealed record DialogResponse(
 /// <param name="UpdatedAt">Zeitpunkt der letzten Änderung.</param>
 /// <param name="Questions">Die Fragen des Dialogs (inkl. Optionen), nach <c>Order</c> sortiert.</param>
 /// <param name="Transitions">Die Übergänge des Dialogs, nach <c>Priority</c> sortiert.</param>
+/// <param name="Loops">Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert.</param>
 public sealed record DialogDetailResponse(
     Guid Id,
     string Key,
@@ -68,4 +69,5 @@ public sealed record DialogDetailResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<QuestionResponse> Questions,
-    IReadOnlyList<TransitionResponse> Transitions);
+    IReadOnlyList<TransitionResponse> Transitions,
+    IReadOnlyList<LoopResponse> Loops);

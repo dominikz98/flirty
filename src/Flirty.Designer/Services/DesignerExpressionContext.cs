@@ -246,7 +246,7 @@ internal static class DesignerExpressionContext
     /// </summary>
     /// <param name="key">Der zu prüfende Schlüssel.</param>
     /// <returns><see langword="true"/>, wenn der Schlüssel referenzierbar ist.</returns>
-    private static bool IsBindable(string key)
+    internal static bool IsBindable(string key)
         => IsIdentifier(key) && !ReservedNames.Contains(key, StringComparer.Ordinal);
 
     /// <summary>Prüft, ob der Schlüssel die Form eines Bezeichners hat (<c>[A-Za-z_][A-Za-z0-9_]*</c>).</summary>
@@ -285,7 +285,14 @@ internal static class DesignerExpressionContext
             : null;
     }
 
-    private static string IdentifierNote(string key)
+    /// <summary>
+    /// Begründet, warum ein Schlüssel nicht als Ausdrucks-Variable taugt. Auch vom
+    /// <see cref="LoopAnalyzer"/> genutzt, damit der Loop-Editor denselben Wortlaut meldet wie die
+    /// Bezeichner-Referenz des Branching-Editors.
+    /// </summary>
+    /// <param name="key">Der nicht bindbare Schlüssel.</param>
+    /// <returns>Die deutsche Begründung.</returns>
+    internal static string IdentifierNote(string key)
         => ReservedNames.Contains(key, StringComparer.Ordinal)
             ? $"Wird von der reservierten Kontext-Variable „{key}\" verdeckt – Schlüssel umbenennen."
             : "Kein gültiger Bezeichner (nur Buchstaben, Ziffern und Unterstrich, nicht mit Ziffer "

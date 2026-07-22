@@ -10,8 +10,8 @@ namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
 /// Stellt die Erweiterungsmethode <see cref="MapFlirtyAdminEndpoints"/> bereit, die die optionalen
-/// Admin-CRUD-Endpunkte der Flirty-Dialog-Engine (Verwaltung von Dialogen, Fragen, Optionen und
-/// Übergängen) als Minimal-API-Route-Gruppe registriert. Wie die Laufzeit-Endpunkte sind sie eine
+/// Admin-CRUD-Endpunkte der Flirty-Dialog-Engine (Verwaltung von Dialogen, Fragen, Optionen,
+/// Übergängen und Schleifen-Markern) als Minimal-API-Route-Gruppe registriert. Wie die Laufzeit-Endpunkte sind sie eine
 /// dünne Schicht über die Mediator-Commands (Versand per <see cref="ISender"/>). Der Namespace
 /// <c>Microsoft.AspNetCore.Builder</c> ist bewusst gewählt, damit die Methode ohne zusätzliches
 /// <c>using</c> auffindbar ist.
@@ -26,6 +26,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/questions</c>, <c>PUT/DELETE .../questions/{questionId}</c> – Fragen verwalten.</description></item>
     /// <item><description><c>POST .../questions/{questionId}/options</c>, <c>PUT/DELETE .../options/{optionId}</c> – Antwortoptionen verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – Übergänge verwalten.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/loops</c>, <c>PUT/DELETE .../loops/{loopId}</c> – Schleifen-Marker verwalten.</description></item>
     /// </list>
     /// Voraussetzung ist ein zuvor per <c>services.AddFlirty(...)</c> registrierter Flirty-Stack. Von der
     /// Engine geworfene Ausnahmen werden über denselben Endpunkt-Filter wie bei den Laufzeit-Endpunkten
@@ -64,6 +65,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
         MapQuestionEndpoints(group);
         MapAnswerOptionEndpoints(group);
         MapTransitionEndpoints(group);
+        MapLoopEndpoints(group);
 
         return group;
     }
@@ -222,6 +224,38 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             Guid dialogId, Guid transitionId, ISender sender, CancellationToken cancellationToken) =>
         {
             await sender.Send(new DeleteTransitionCommand(dialogId, transitionId), cancellationToken);
+            return TypedResults.NoContent();
+        });
+    }
+
+    private static void MapLoopEndpoints(RouteGroupBuilder group)
+    {
+        group.MapPost("/dialogs/{dialogId:guid}/loops", async (
+            Guid dialogId, CreateLoopRequest request, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(
+                new CreateLoopCommand(
+                    dialogId, request.CollectionKey, request.EntryQuestionId, request.BreakingQuestionId),
+                cancellationToken);
+            var response = result.ToResponse();
+            return TypedResults.Created($"/dialogs/{dialogId}/loops/{response.Id}", response);
+        });
+
+        group.MapPut("/dialogs/{dialogId:guid}/loops/{loopId:guid}", async (
+            Guid dialogId, Guid loopId, UpdateLoopRequest request, ISender sender,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(
+                new UpdateLoopCommand(
+                    dialogId, loopId, request.CollectionKey, request.EntryQuestionId, request.BreakingQuestionId),
+                cancellationToken);
+            return TypedResults.Ok(result.ToResponse());
+        });
+
+        group.MapDelete("/dialogs/{dialogId:guid}/loops/{loopId:guid}", async (
+            Guid dialogId, Guid loopId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            await sender.Send(new DeleteLoopCommand(dialogId, loopId), cancellationToken);
             return TypedResults.NoContent();
         });
     }

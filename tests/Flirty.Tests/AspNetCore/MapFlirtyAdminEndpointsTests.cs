@@ -256,6 +256,92 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // ---- Schleifen-CRUD (#41) ----
+
+    /// <summary>Anlegen, Ändern und Löschen eines Schleifen-Markers über die Endpunkte.</summary>
+    [Fact]
+    public async Task Loop_CRUD_legt_an_aendert_und_loescht()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "loops");
+        var entry = await CreateQuestionAsync(host, dialog.Id, "position", QuestionType.FreeText, 0);
+        var breaking = await CreateQuestionAsync(host, dialog.Id, "more", QuestionType.FreeText, 1);
+
+        var create = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops",
+            new CreateLoopRequest("positions", entry.Id, breaking.Id));
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = (await create.Content.ReadFromJsonAsync<LoopResponse>())!;
+        Assert.Equal("positions", created.CollectionKey);
+
+        var update = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops/{created.Id}",
+            new UpdateLoopRequest("stellen", entry.Id, breaking.Id));
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var updated = (await update.Content.ReadFromJsonAsync<LoopResponse>())!;
+        Assert.Equal("stellen", updated.CollectionKey);
+
+        var delete = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}/loops/{created.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+    }
+
+    /// <summary>Der Dialog-Graph liefert die Schleifen-Marker mit (seit #41 auch über die REST-Schicht).</summary>
+    [Fact]
+    public async Task GetDialog_liefert_die_Schleifen_Marker_mit()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "loopgraph");
+        var entry = await CreateQuestionAsync(host, dialog.Id, "position", QuestionType.FreeText, 0);
+        var breaking = await CreateQuestionAsync(host, dialog.Id, "more", QuestionType.FreeText, 1);
+        await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops",
+            new CreateLoopRequest("positions", entry.Id, breaking.Id));
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>(
+            $"/flirty/admin/dialogs/{dialog.Id}");
+
+        Assert.NotNull(body);
+        var loop = Assert.Single(body.Loops);
+        Assert.Equal("positions", loop.CollectionKey);
+        Assert.Equal(entry.Id, loop.EntryQuestionId);
+        Assert.Equal(breaking.Id, loop.BreakingQuestionId);
+    }
+
+    /// <summary>Das Ändern einer unbekannten Schleife wird auf 404 abgebildet.</summary>
+    [Fact]
+    public async Task UpdateLoop_unbekannt_liefert_404()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "loop404");
+
+        var response = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops/{Guid.NewGuid()}",
+            new UpdateLoopRequest("positions", Guid.NewGuid(), Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>Ein zweiter Marker mit gleichem Collection-Schlüssel im selben Dialog wird auf 409 abgebildet.</summary>
+    [Fact]
+    public async Task CreateLoop_mit_doppeltem_CollectionKey_liefert_409()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "duploop");
+        var entry = await CreateQuestionAsync(host, dialog.Id, "position", QuestionType.FreeText, 0);
+        var breaking = await CreateQuestionAsync(host, dialog.Id, "more", QuestionType.FreeText, 1);
+        await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops",
+            new CreateLoopRequest("positions", entry.Id, breaking.Id));
+
+        var response = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/loops",
+            new CreateLoopRequest("positions", breaking.Id, entry.Id));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
     // ---- Publish-Workflow ----
 
     /// <summary>Ein Dialog ohne Einstiegsfrage kann nicht veröffentlicht werden (409).</summary>

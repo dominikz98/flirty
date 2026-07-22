@@ -1,0 +1,34 @@
+/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+
+/* Der Schleifenbereich als Block (#41): die Fragen in Dialog-Reihenfolge, links eine Klammer, die den
+   Zyklus andeutet. */
+.loop-block {
+    margin: 0.75rem 0 0;
+    padding: 0.5rem 0 0.5rem 1.75rem;
+    border-left: 3px solid #8a5a1f;
+    list-style: decimal;
+}
+
+    .loop-block > li {
+        margin-bottom: 0.4rem;
+    }
+
+.group-text {
+    font-weight: 400;
+    color: #555;
+}
+
+/* Rücksprung-/Exit-Übergänge unter der Breaking Question. */
+.loop-edges {
+    margin: 0.3rem 0 0.6rem;
+    padding-left: 0.25rem;
+    list-style: none;
+}
+
+    .loop-edges > li {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+    }

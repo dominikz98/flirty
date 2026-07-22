@@ -70,6 +70,25 @@ internal interface IDialogAdminStore
         Guid questionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lädt den Schleifen-Marker mit der angegebenen <paramref name="loopId"/> <b>getrackt</b>.
+    /// </summary>
+    /// <param name="loopId">Der Primärschlüssel der Schleifen-Definition.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Der getrackte Schleifen-Marker oder <see langword="null"/>.</returns>
+    Task<LoopDefinition?> GetLoopAsync(Guid loopId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt alle Schleifen-Marker <b>getrackt</b>, die die Frage mit der angegebenen
+    /// <paramref name="questionId"/> als Einstiegs- oder Breaking Question referenzieren. Grundlage für
+    /// die Bereinigung verwaister (FK-loser) Marker beim Löschen einer Frage.
+    /// </summary>
+    /// <param name="questionId">Der Primärschlüssel der Frage.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die referenzierenden Schleifen-Marker (leere Liste, wenn keine existieren).</returns>
+    Task<IReadOnlyList<LoopDefinition>> GetLoopsReferencingQuestionAsync(
+        Guid questionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Prüft, ob bereits ein <b>anderer</b> Dialog mit dem fachlichen <paramref name="key"/> existiert
     /// (Eindeutigkeit des Schlüssels; Versionierung ist in #36 nicht im Umfang).
     /// </summary>
@@ -91,6 +110,21 @@ internal interface IDialogAdminStore
     /// <returns><see langword="true"/>, wenn der Schlüssel bereits vergeben ist, sonst <see langword="false"/>.</returns>
     Task<bool> QuestionKeyExistsAsync(
         Guid dialogId, string key, Guid? excludeQuestionId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Prüft, ob im Dialog <paramref name="dialogId"/> bereits ein <b>anderer</b> Schleifen-Marker mit
+    /// dem <paramref name="collectionKey"/> existiert. Ohne diese Prüfung würde die Laufzeit die
+    /// gleichnamigen Collections still überschreiben (im Ausdruckskontext gewinnt der zuletzt
+    /// aufgebaute Marker), statt die Doppelvergabe zu melden.
+    /// </summary>
+    /// <param name="dialogId">Die Id des Dialogs.</param>
+    /// <param name="collectionKey">Der zu prüfende Collection-Schlüssel.</param>
+    /// <param name="excludeLoopId">Optional die Id des Markers, der bei der Prüfung ausgeklammert wird (Update).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns><see langword="true"/>, wenn der Schlüssel bereits vergeben ist, sonst <see langword="false"/>.</returns>
+    Task<bool> LoopCollectionKeyExistsAsync(
+        Guid dialogId, string collectionKey, Guid? excludeLoopId = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Nimmt eine neu erstellte Entity in die Nachverfolgung auf (Persistierung erst via <see cref="SaveChangesAsync"/>).</summary>
     /// <typeparam name="TEntity">Der Entity-Typ.</typeparam>

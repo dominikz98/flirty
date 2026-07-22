@@ -323,13 +323,11 @@ public sealed class FlirtyAdminGatewayTests
 
     /// <summary>
     /// Der Musterkontext der Ausdrucks-Validierung braucht die Loop-Collections, sonst gälte
-    /// <c>skills.Count &gt; 0</c> im Designer als unbekannter Bezeichner. Schleifen-Marker lassen sich
-    /// (noch) nicht über das Admin-CRUD anlegen – wie im <c>DemoDialogProvisioner</c> der Web-Sample wird
-    /// hier direkt über den <see cref="FlirtyDbContext"/> geschrieben und anschließend geprüft, dass
-    /// <c>GetDialogQuery</c> den Marker lesend mitliefert.
+    /// <c>skills.Count &gt; 0</c> im Designer als unbekannter Bezeichner. Geprüft wird deshalb der ganze
+    /// Weg des Loop-CRUD (#41): anlegen, im Dialog-Graphen wiederfinden, ändern und löschen.
     /// </summary>
     [Fact]
-    public async Task ExecuteAsync_liefert_die_Loop_Marker_im_Dialog_Graphen()
+    public async Task ExecuteAsync_legt_Loop_Marker_an_aendert_und_loescht_ihn()
     {
         await RunWithTempDbAsync(async (gateway, active, profile) =>
         {
@@ -338,18 +336,10 @@ public sealed class FlirtyAdminGatewayTests
             var skill = await CreateQuestionAsync(gateway, dialogId, "skill", 0);
             var more = await CreateQuestionAsync(gateway, dialogId, "more", 1);
 
-            await using (var context = ConnectionProfileContextBuilder.Create(profile))
-            {
-                context.Set<LoopDefinition>().Add(new LoopDefinition
-                {
-                    Id = Guid.NewGuid(),
-                    DialogId = dialogId,
-                    CollectionKey = "skills",
-                    EntryQuestionId = skill.Id,
-                    BreakingQuestionId = more.Id,
-                });
-                await context.SaveChangesAsync();
-            }
+            var created = await gateway.ExecuteAsync((sender, token) =>
+                sender.Send(new CreateLoopCommand(dialogId, "skills", skill.Id, more.Id), token));
+
+            Assert.True(created.Success, created.Error);
 
             var detail = await gateway.ExecuteAsync(
                 (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
@@ -359,6 +349,79 @@ public sealed class FlirtyAdminGatewayTests
             Assert.Equal("skills", loop.CollectionKey);
             Assert.Equal(skill.Id, loop.EntryQuestionId);
             Assert.Equal(more.Id, loop.BreakingQuestionId);
+
+            var geaendert = await gateway.ExecuteAsync((sender, token) =>
+                sender.Send(new UpdateLoopCommand(dialogId, loop.Id, "faehigkeiten", skill.Id, more.Id), token));
+
+            Assert.True(geaendert.Success, geaendert.Error);
+            Assert.Equal("faehigkeiten", geaendert.Value!.CollectionKey);
+
+            var geloescht = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteLoopCommand(dialogId, loop.Id), token));
+
+            Assert.True(geloescht.Success, geloescht.Error);
+
+            var danach = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(danach.Success, danach.Error);
+            Assert.Empty(danach.Value!.Loops);
+        });
+    }
+
+    /// <summary>
+    /// Zwei Marker mit demselben Collection-Schlüssel würden sich zur Laufzeit still überschreiben
+    /// (der zuletzt aufgebaute gewinnt im Ausdruckskontext) – deshalb lehnt der Handler das ab.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_meldet_Konflikt_bei_doppeltem_Collection_Schluessel()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var skill = await CreateQuestionAsync(gateway, dialogId, "skill", 0);
+            var more = await CreateQuestionAsync(gateway, dialogId, "more", 1);
+
+            await gateway.ExecuteAsync((sender, token) =>
+                sender.Send(new CreateLoopCommand(dialogId, "skills", skill.Id, more.Id), token));
+
+            var zweiter = await gateway.ExecuteAsync((sender, token) =>
+                sender.Send(new CreateLoopCommand(dialogId, "skills", more.Id, skill.Id), token));
+
+            Assert.False(zweiter.Success);
+            Assert.Contains("skills", zweiter.Error);
+        });
+    }
+
+    /// <summary>
+    /// <c>LoopDefinition</c> referenziert Fragen FK-los. Bliebe ein Marker auf einer gelöschten Frage
+    /// stehen, rechnete der <c>LoopResolver</c> zur Laufzeit gegen einen Bereich, den es im Graphen nicht
+    /// mehr gibt – deshalb räumt <c>DeleteQuestionCommand</c> ihn wie die Übergänge mit ab.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_entfernt_Loop_Marker_beim_Loeschen_der_Frage()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var skill = await CreateQuestionAsync(gateway, dialogId, "skill", 0);
+            var more = await CreateQuestionAsync(gateway, dialogId, "more", 1);
+
+            await gateway.ExecuteAsync((sender, token) =>
+                sender.Send(new CreateLoopCommand(dialogId, "skills", skill.Id, more.Id), token));
+
+            var geloescht = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteQuestionCommand(dialogId, more.Id), token));
+
+            Assert.True(geloescht.Success, geloescht.Error);
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            Assert.Empty(detail.Value!.Loops);
         });
     }
 

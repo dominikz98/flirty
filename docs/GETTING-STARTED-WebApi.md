@@ -179,6 +179,8 @@ und werden über `GET {prefix}/dialogs/{id}` (kompletter Graph) gelesen.
 | `PUT` \| `DELETE .../options/{optionId}` | Option ändern/löschen | `200 OK` \| `204 No Content` |
 | `POST /flirty/admin/dialogs/{dialogId}/transitions` | Übergang anlegen | `201 Created`, `TransitionResponse` |
 | `PUT` \| `DELETE .../transitions/{transitionId}` | Übergang ändern/löschen | `200 OK` \| `204 No Content` |
+| `POST /flirty/admin/dialogs/{dialogId}/loops` | Schleifen-Marker anlegen | `201 Created`, `LoopResponse` |
+| `PUT` \| `DELETE .../loops/{loopId}` | Schleifen-Marker ändern/löschen | `200 OK` \| `204 No Content` |
 
 ### Ablauf: Dialog aufbauen und veröffentlichen
 
@@ -189,7 +191,9 @@ startbar:
 2. `POST .../questions` (+ `.../options` für Auswahl-Typen) – Fragen/Optionen ergänzen.
 3. `PUT /flirty/admin/dialogs/{id}` – `startQuestionId` auf die Einstiegsfrage setzen.
 4. `POST .../transitions` – Verzweigungen ergänzen (optional bei nur einer, terminalen Frage).
-5. `POST /flirty/admin/dialogs/{id}/publish` – veröffentlichen; danach `POST /flirty/sessions` startbar.
+5. `POST .../loops` – Zyklen als Schleife markieren, damit ihre Antworten je Iteration gesammelt statt
+   überschrieben werden (nur nötig, wenn ein Übergang auf eine frühere Frage zurückzeigt).
+6. `POST /flirty/admin/dialogs/{id}/publish` – veröffentlichen; danach `POST /flirty/sessions` startbar.
 
 ### Fehler-Mapping (Admin)
 
@@ -197,17 +201,18 @@ Zusätzlich zum obigen Mapping gelten für das Admin-CRUD:
 
 | Situation | Ausnahme | Status |
 |---|---|---|
-| Unbekannte Dialog-/Frage-/Options-/Übergang-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
-| Doppelter Schlüssel (`Key` je Dialog / `(DialogId,Key)` / `(QuestionId,Key)`) | `InvalidOperationException` | `409 Conflict` |
+| Unbekannte Dialog-/Frage-/Options-/Übergang-/Schleifen-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
+| Doppelter Schlüssel (`Key` je Dialog / `(DialogId,Key)` / `(QuestionId,Key)` / `CollectionKey` je Dialog) | `InvalidOperationException` | `409 Conflict` |
 | Veröffentlichen ohne gesetzte Einstiegsfrage | `InvalidOperationException` | `409 Conflict` |
 | Fehlendes Pflichtfeld (`[Required]`) | `ValidationException` | `400 Bad Request` |
 
 > **Hinweise / bewusste Grenzen:** Anlegen erzeugt stets `Version = 1` je Schlüssel; Editieren erfolgt
-> In-Place (publizierte Dialoge vor Änderungen entpublishen). `Transition`-Verweise
-> (`FromQuestionId`/`TargetQuestionId`) sind – dem FK-losen Domänenmodell entsprechend – rohe
-> Frage-Verweise ohne Existenzprüfung; das Löschen einer Frage bereinigt jedoch verweisende Übergänge
-> und setzt eine darauf zeigende `StartQuestionId` zurück. Versionierung/Copy-on-Write sowie
-> Loop-/Trigger-CRUD sind nicht Teil dieses Endpunkt-Sets.
+> In-Place (publizierte Dialoge vor Änderungen entpublishen). Die Frage-Verweise von `Transition`
+> (`FromQuestionId`/`TargetQuestionId`) und `LoopDefinition` (`EntryQuestionId`/`BreakingQuestionId`)
+> sind – dem FK-losen Domänenmodell entsprechend – rohe Verweise ohne Existenzprüfung; das Löschen einer
+> Frage bereinigt jedoch verweisende Übergänge **und** Schleifen-Marker und setzt eine darauf zeigende
+> `StartQuestionId` zurück. Versionierung/Copy-on-Write sowie das Trigger-CRUD sind nicht Teil dieses
+> Endpunkt-Sets.
 
 ## Verifikation
 

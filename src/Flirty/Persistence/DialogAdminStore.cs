@@ -64,6 +64,18 @@ internal sealed class DialogAdminStore : IDialogAdminStore
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public Task<LoopDefinition?> GetLoopAsync(Guid loopId, CancellationToken cancellationToken = default)
+        => _context.Set<LoopDefinition>()
+            .FirstOrDefaultAsync(loop => loop.Id == loopId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<LoopDefinition>> GetLoopsReferencingQuestionAsync(
+        Guid questionId, CancellationToken cancellationToken = default)
+        => await _context.Set<LoopDefinition>()
+            .Where(loop => loop.EntryQuestionId == questionId || loop.BreakingQuestionId == questionId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<bool> DialogKeyExistsAsync(
         string key, Guid? excludeDialogId = null, CancellationToken cancellationToken = default)
         => _context.Dialogs
@@ -79,6 +91,17 @@ internal sealed class DialogAdminStore : IDialogAdminStore
                 question => question.DialogId == dialogId
                          && question.Key == key
                          && (excludeQuestionId == null || question.Id != excludeQuestionId),
+                cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> LoopCollectionKeyExistsAsync(
+        Guid dialogId, string collectionKey, Guid? excludeLoopId = null,
+        CancellationToken cancellationToken = default)
+        => _context.Set<LoopDefinition>()
+            .AnyAsync(
+                loop => loop.DialogId == dialogId
+                     && loop.CollectionKey == collectionKey
+                     && (excludeLoopId == null || loop.Id != excludeLoopId),
                 cancellationToken);
 
     /// <inheritdoc />
