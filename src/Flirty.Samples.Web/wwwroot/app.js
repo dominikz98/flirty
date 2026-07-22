@@ -72,6 +72,15 @@ function decodeForDisplay(question, rawValue) {
     return String(parsed);
 }
 
+// Der gespeicherte Wert als Text für ein Eingabefeld – im Gegensatz zu decodeForDisplay OHNE Übersetzung
+// in die Anzeigeform (Label statt Wert, "Ja" statt true). Nur so lässt sich das Ergebnis unverändert
+// wieder durch encodeAnswer schicken.
+function decodeRaw(rawValue) {
+    let parsed = rawValue;
+    try { parsed = JSON.parse(rawValue); } catch { /* Wert bleibt roh */ }
+    return Array.isArray(parsed) ? parsed.join(", ") : String(parsed);
+}
+
 // ---------- Rendering ----------
 
 function addMessage(cssClass, html) {
@@ -109,38 +118,49 @@ function renderAnswerBubble(answer, question) {
     return bubble;
 }
 
-function renderInput(question) {
-    dom.inputArea.replaceChildren();
-    if (!question) return;
+// Baut die Eingabesteuerung zu einer Frage in die Eingabezeile: Auswahl-Buttons bei SingleChoice/Boolean,
+// sonst ein typrichtiges Eingabefeld. Bewusst EINE Stelle für die offene Frage und für das Edit-Formular –
+// sonst kennt der eine Pfad die Typen und der andere nicht (genau das war der Fehler: das Edit-Formular
+// hat immer ein Textfeld gerendert und dessen Anzeigeform gespeichert, also "Product Manager" statt "pm").
+// `onSubmit` bekommt immer den ROHEN Antwortwert, so wie ihn encodeAnswer erwartet.
+function renderAnswerControls(question, { rawValue, submitLabel, onSubmit, leading = [], trailing = [] }) {
+    const controls = [];
+    let field = null;
 
     if (question.type === QuestionType.SingleChoice) {
-        for (const option of question.options) {
-            const btn = button(option.label, () => submitAnswer(question, option.value));
-            dom.inputArea.appendChild(btn);
+        for (const option of question.options || []) {
+            controls.push(button(option.label, () => onSubmit(option.value)));
         }
-        return;
+    } else if (question.type === QuestionType.Boolean) {
+        controls.push(button("Ja", () => onSubmit(true)), button("Nein", () => onSubmit(false)));
+    } else {
+        field = document.createElement("input");
+        field.className = "field";
+        field.type = question.type === QuestionType.Number ? "number" : (question.type === QuestionType.Date ? "date" : "text");
+        field.placeholder = "Antwort eingeben …";
+        if (rawValue !== undefined) field.value = rawValue;
+        const send = () => {
+            const value = field.value.trim();
+            if (value) onSubmit(value);
+        };
+        field.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+        controls.push(field, button(submitLabel, send));
     }
-    if (question.type === QuestionType.Boolean) {
-        dom.inputArea.appendChild(button("Ja", () => submitAnswer(question, true)));
-        dom.inputArea.appendChild(button("Nein", () => submitAnswer(question, false)));
+
+    dom.inputArea.replaceChildren(...leading, ...controls, ...trailing);
+    if (field) field.focus();
+}
+
+function renderInput(question) {
+    if (!question) {
+        dom.inputArea.replaceChildren();
         return;
     }
 
-    const input = document.createElement("input");
-    input.className = "field";
-    input.type = question.type === QuestionType.Number ? "number" : (question.type === QuestionType.Date ? "date" : "text");
-    input.placeholder = "Antwort eingeben …";
-    input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-    const sendBtn = button("Senden", send);
-    dom.inputArea.appendChild(input);
-    dom.inputArea.appendChild(sendBtn);
-    input.focus();
-
-    function send() {
-        const value = input.value.trim();
-        if (!value) return;
-        submitAnswer(question, value);
-    }
+    renderAnswerControls(question, {
+        submitLabel: "Senden",
+        onSubmit: value => submitAnswer(question, value),
+    });
 }
 
 function button(label, onClick) {
@@ -215,32 +235,36 @@ async function submitAnswer(question, rawInput) {
 }
 
 function startEditing(answer, question, label) {
-    dom.inputArea.replaceChildren();
+    const type = question ? question.type : QuestionType.FreeText;
+
     const info = document.createElement("span");
     info.className = "pill";
     info.textContent = `Editiere: ${label}`;
-    const input = document.createElement("input");
-    input.className = "field";
-    input.type = question && question.type === QuestionType.Number ? "number" : "text";
-    input.value = decodeForDisplay(question, answer.value);
-    const save = button("Speichern", async () => {
-        const type = question ? question.type : QuestionType.FreeText;
-        const value = encodeAnswer(type, input.value.trim());
-        dom.inputArea.replaceChildren();
-        setStatus("Speichere …");
-        try {
-            const body = { value };
-            if (answer.iterationIndex != null) body.iterationIndex = answer.iterationIndex;
-            const result = await http("PUT", `/flirty/sessions/${state.sessionId}/answers/${answer.questionId}`, body);
-            await refreshAndRender(`Antwort editiert – ${result.invalidatedAnswers} nachgelagerte Antwort(en) verworfen.`);
-        } catch (err) {
-            setStatus("Fehler: " + err.message);
-        }
-    });
     const cancel = button("Abbrechen", () => refreshAndRender(""));
     cancel.classList.add("btn--ghost");
-    dom.inputArea.append(info, input, save, cancel);
-    input.focus();
+
+    renderAnswerControls(question || { type, options: [] }, {
+        // Vorbelegt wird der gespeicherte Wert, nicht seine Anzeigeform. Bei einer Auswahl entfällt die
+        // Frage ohnehin: dort speichert der Klick auf die Option direkt deren Wert.
+        rawValue: decodeRaw(answer.value),
+        submitLabel: "Speichern",
+        leading: [info],
+        trailing: [cancel],
+        onSubmit: async rawInput => {
+            const value = encodeAnswer(type, rawInput);
+            dom.inputArea.replaceChildren();
+            setStatus("Speichere …");
+            try {
+                const body = { value };
+                // Innerhalb einer Schleife trägt jede Iteration eine eigene Antwort -> gezielt editieren.
+                if (answer.iterationIndex != null) body.iterationIndex = answer.iterationIndex;
+                const result = await http("PUT", `/flirty/sessions/${state.sessionId}/answers/${answer.questionId}`, body);
+                await refreshAndRender(`Antwort editiert – ${result.invalidatedAnswers} nachgelagerte Antwort(en) verworfen.`);
+            } catch (err) {
+                setStatus("Fehler: " + err.message);
+            }
+        },
+    });
 }
 
 function renderSkills(answers) {

@@ -177,7 +177,17 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 
 **Fertig (M1+M2):** Domain, Persistenz (3 Provider), Expression-Engine, Runtime (Start/Resume/Submit/Edit,
 Loops, Validierung), Trigger (Notifications + Webhooks), DI-Fassade, WebAPI-Endpunkte (Runtime + Admin-CRUD),
-Console-Sample, **Web-Sample** (Minimal-API + Chat-UI, #45) inkl. Playwright-E2E der Chat-UI (#47).
+Console-Sample, **Web-Sample** (Minimal-API + Chat-UI, #45).
+
+**Chat-UI-E2E (#47) fertig** – sieben Playwright-Tests (`tests/Flirty.E2E/WebSampleE2ETests.cs`): beide
+Branching-Zweige, Loop mit zwei Iterationen samt Trigger-Rundlauf, Reload→Resume **innerhalb** der Schleife
+und vier Edit-Fälle (Freitext, Verzweigungsfrage, gezielte Loop-Iteration, Ja/Nein). Der Ausbau hat einen
+Fehler in der Sample-Chat-UI aufgedeckt und behoben: Das Edit-Formular rendert die Eingabesteuerung jetzt
+**typabhängig** (gemeinsame `renderAnswerControls` für offene Frage *und* Edit). Vorher hat es immer ein
+Textfeld gerendert und die *Anzeigeform* zurückgeschrieben – bei `SingleChoice` also das Label statt des
+Werts (→ `AnswerValidator`-`400`), bei `Boolean` kippte die Antwort still auf „Nein". Merksatz für die
+Sample-UI: **angezeigt wird das Label, gespeichert der Wert** – `decodeForDisplay` gehört in die Blase,
+`decodeRaw` ins Eingabefeld.
 
 **Designer (M3):** **Connection-Profil-Verwaltung (Multi-DB, #37) fertig** – Profile (JSON, gitignored),
 Test-Connection, Migrate, `IDbContextFactory`-Auswahl gegen das aktive Profil. Dafür neues öffentliches

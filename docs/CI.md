@@ -35,11 +35,11 @@ restore  ->  build -c Release  ->  test -c Release  ->  pack -c Release  ->  Art
 Die Kette nutzt bewusst `--no-restore`/`--no-build`: jeder Schritt baut auf dem Output des vorherigen
 auf. Dadurch wird **einmal** kompiliert, und die getesteten Binaries sind identisch mit den gepackten.
 
-Der E2E-Schritt deckt beide Oberflächen ab: die Chat-UI der Web-Sample (#45/#47) und den Blazor-Designer
-(#46). Beide Suiten hosten ihre App in-Prozess auf einem eigenen Kestrel-Port; der vorgelagerte Schritt
-„Playwright-Browser installieren" liefert das Chromium dazu. Fehlt es, überspringen sich die Tests
-(`SkippableFact`), statt zu scheitern. Aus demselben Grund wie bei den zwei Test-Schritten laufen auch
-die beiden Suiten **innerhalb** der E2E-Assembly nacheinander
+Der E2E-Schritt deckt beide Oberflächen ab: die Chat-UI der Web-Sample (sieben Tests, #45/#47) und den
+Blazor-Designer (zwei Tests, #46). Beide Suiten hosten ihre App in-Prozess auf einem eigenen Kestrel-Port;
+der vorgelagerte Schritt „Playwright-Browser installieren" liefert das Chromium dazu. Fehlt es,
+überspringen sich die Tests (`SkippableFact`), statt zu scheitern. Aus demselben Grund wie bei den zwei
+Test-Schritten laufen auch die beiden Suiten **innerhalb** der E2E-Assembly nacheinander
 (`DisableTestParallelization` in `tests/Flirty.E2E/AssemblyInfo.cs`) – sonst konkurrierten zwei Kestrel
 und zwei Browser um die zwei Kerne des Runners.
 

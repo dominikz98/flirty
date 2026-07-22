@@ -110,6 +110,16 @@ HTTP-Endpunkte an und hält keinen Server-Zustand:
 - **Loop/Branching:** ergeben sich aus dem gerenderten `currentQuestion`-Fluss; die gesammelten `skills`
   zeigt ein Seitenpanel.
 
+> **Eingabesteuerung: eine Stelle für Antwort und Edit.** `renderAnswerControls` baut die Steuerung
+> **typabhängig** – Options-Buttons bei `SingleChoice`, Ja/Nein bei `Boolean`, sonst ein Feld mit passendem
+> `input.type` – und wird von der offenen Frage **und** vom Edit-Formular genutzt. Das ist kein Selbstzweck:
+> Die UI zeigt Antworten in ihrer *Anzeigeform* (das Options-**Label**, „Ja"/„Nein"), gespeichert wird aber
+> der **Wert** (`option.value`, `true`/`false`). Ein eigenes Edit-Formular mit generischem Textfeld hat
+> genau diese beiden Ebenen vermischt und das Label zurückgeschrieben – bei einer Auswahl lehnte der
+> [`AnswerValidator`](../src/Flirty/Validation/AnswerValidator.cs) das als ungültige Option mit `400` ab,
+> bei `Boolean` kippte die Antwort still auf „Nein". Deshalb bekommt der Edit-Pfad dieselben Controls und
+> das Feld wird mit dem **rohen** Wert vorbelegt (`decodeRaw`, nicht `decodeForDisplay`).
+
 ## 4. Trigger: Handler + Webhook-Empfänger
 
 - **In-Process-Handler:** [`DemoDialogCompletedHandler`](../src/Flirty.Samples.Web/DemoDialogCompletedHandler.cs)
@@ -136,5 +146,18 @@ dotnet test tests/Flirty.E2E -c Release
 ```
 
 [`WebSampleE2ETests`](../tests/Flirty.E2E/WebSampleE2ETests.cs) startet die App auf echtem Kestrel und treibt
-die Chat-UI im Browser (Durchlauf inkl. Loop + Trigger-Rundlauf, Reload→Resume, Edit). Fehlen die
-Playwright-Browser, überspringen sich die E2E-Tests, statt zu scheitern.
+die Chat-UI im Browser. Sieben Tests decken das Akzeptanzkriterium aus **#47** ab:
+
+| Test | Deckt ab |
+|---|---|
+| `Durchlauf_Branching_Loop_und_Trigger_Rundlauf` | dev-Zweig, zwei Schleifen-Iterationen, Abschluss, In-Process-Handler und Outbound→Inbound-Webhook |
+| `Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife` | der `IsDefault`-Übergang (`pm` → `product`) als Gegenprobe zum dev-Zweig |
+| `Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her` | Reload **innerhalb** der Schleife → Iterationszustand und offene Frage kommen vom Server |
+| `Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten` | Freitext-Edit inkl. Anzahl verworfener Folgeantworten und Neuberechnung des Pfads |
+| `Editieren_der_Verzweigungsfrage_wechselt_den_Zweig` | Edit einer Auswahl → Zweigwechsel; zugleich Regressionstest für die typabhängige Eingabesteuerung (siehe §3) |
+| `Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration` | `iterationIndex`-Pfad und das Wieder-Öffnen einer bereits abgeschlossenen Session |
+| `Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert` | die zweite Hälfte desselben Regressionstests: eine `Boolean`-Antwort darf beim Edit nicht still kippen |
+
+Alle Tests teilen sich die App samt Datenbank, bekommen aber je einen frischen Browser-Context (leeres
+`localStorage` → eigener `externalUserKey` → eigene Session). Fehlen die Playwright-Browser, überspringen
+sich die E2E-Tests, statt zu scheitern.
