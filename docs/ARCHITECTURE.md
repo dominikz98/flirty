@@ -29,6 +29,7 @@ fremde Apps erfolgt über **DI-Extension-Methods** und optional bereitgestellte
 | Optionale WebAPI-Endpunkte | Paket `Flirty.AspNetCore`, `app.MapFlirtyEndpoints()` |
 | Designer, Multi-DB | Blazor Web App, Connection-Profile + `IDbContextFactory` |
 | Designer CRUD | Dialoge / Fragen / Antworten / Branching / Loops / Trigger |
+| Entwürfe durchspielen | Test-Runner im Designer + `StartDialogVersionCommand` (ohne Veröffentlichung) |
 
 ## 3. Grundsatzentscheidungen
 
@@ -56,7 +57,10 @@ Flirty.sln
 │  ├─ Flirty.AspNetCore   OPTIONAL: WebAPI-Endpunkt-Mapping (MapFlirtyEndpoints),
 │  │                        dünne Schicht über die Mediator-Commands
 │  ├─ Flirty.Designer     Blazor Web App (Server-interaktiv): Dialog-/Frage-/Antwort-/
-│  │                        Branching-/Loop-/Trigger-Konfiguration, Multi-DB
+│  │                        Branching-/Loop-/Trigger-Konfiguration, Test-Runner, Multi-DB
+│  ├─ Flirty.Migrations.Sqlite       \
+│  ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider (IsPackable=false,
+│  ├─ Flirty.Migrations.SqlServer    /    DLLs werden ins Flirty-Paket gebündelt)
 │  ├─ Flirty.Samples      Console-Single-Project (nur Core + eigener Handler)
 │  └─ Flirty.Samples.Web  Minimal-API + statische Chat-UI (nutzt Flirty.AspNetCore):
 │                          Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger
@@ -92,11 +96,18 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 **Commands/Queries**
 - `StartDialogCommand(dialogKey, externalUserKey)` → Session + erste Frage (oder Resume). Facade:
   `IFlirtyEngine.StartDialogAsync`. Umgesetzt in #25, Details in [RUNTIME.md](./RUNTIME.md).
-  *(Optionaler `seed?` folgt, sobald #26 ihn auswertet.)*
+  *(Bewusst ohne Seed-Parameter: Startwerte hätten bis heute keinen Speicherort im Modell – der
+  Ausdruckskontext speist sich ausschließlich aus `SessionAnswer`.)*
+- `StartDialogVersionCommand(dialogId, externalUserKey)` → wie oben, aber gegen eine **konkrete
+  Dialogversion unabhängig vom Veröffentlichungsstatus**. Facade: `IFlirtyEngine.StartDialogVersionAsync`.
+  Umgesetzt in #43 für den [Test-Runner des Designers](./DESIGNER.md#test-runner-43) – ohne ihn wäre ein
+  Entwurf nicht durchspielbar, und „zum Testen kurz veröffentlichen" hätte ihn für echte Anwender scharf
+  geschaltet. **Bewusst ohne HTTP-Endpunkt**: über HTTP bleibt der Publish-Status die Produktionsschranke.
+  Details in [RUNTIME.md](./RUNTIME.md#startdialogversioncommand-43).
 - `ResumeDialogQuery(sessionId)` → Session-Status + aktuelle Frage + bisherige Antworten (rein lesend).
   Facade: `IFlirtyEngine.ResumeDialogAsync`. Umgesetzt in #27, Details in [RUNTIME.md](./RUNTIME.md).
-  *(Der Resume-oder-Neu-Pfad je Anwender bleibt bei `StartDialogCommand`; ein zusätzlicher
-  `externalUserKey`-Lookup wird ergänzt, sobald ein Konsument ihn braucht.)*
+  *(Der Resume-oder-Neu-Pfad je Anwender liegt bei `StartDialogCommand`; einen eigenen
+  `externalUserKey`-Lookup gibt es bewusst nicht.)*
 - `SubmitAnswerCommand(sessionId, questionId, value)` → validiert → persistiert → Transition-Auswertung → nächste Frage/Completion. Facade: `IFlirtyEngine.SubmitAnswerAsync`. Umgesetzt in #26, Details in [RUNTIME.md](./RUNTIME.md). *(Publiziert seit #31 `AnswerSubmitted`/`QuestionAnswered`/`DialogCompleted`.)*
 - `EditAnswerCommand(sessionId, questionId, value)` → frühere Antwort überschreiben, nachgelagerten Pfad neu berechnen/invalidieren (öffnet ggf. eine abgeschlossene Session wieder). Facade: `IFlirtyEngine.EditAnswerAsync`. Umgesetzt in #28, Details in [RUNTIME.md](./RUNTIME.md). *(Publiziert seit #31 bei Abschluss `DialogCompleted`.)*
 
@@ -171,7 +182,11 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 Doku ist **Definition-of-Done jedes Issues**:
 - XML-Doc-Kommentare auf allen public Typen/Membern; `GenerateDocumentationFile` + **CS1591 als Error** (zentral in `Directory.Build.props`).
-- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `GETTING-STARTED-Sample-Web.md`, `DESIGNER.md`, `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`, `BACKLOG.md`.
+- `docs/`-Guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `RUNTIME.md`,
+  `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `VALIDATION.md`, `TRIGGERS.md`, `DESIGNER.md`,
+  `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `GETTING-STARTED-Sample-Web.md`,
+  `NUGET-PACKAGING.md`, `CI.md`, `ROADMAP.md`, `BACKLOG.md`. Der Wegweiser mit einer Zeile je Guide steht
+  in der `CLAUDE.md` im Repo-Root.
 - ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
 
@@ -182,8 +197,12 @@ Doku ist **Definition-of-Done jedes Issues**:
 - **Provider**: Migration + Smoke-CRUD gegen SQLite (optional PostgreSQL/SQL Server via Container).
 - **Console-Nutzung**: Console-Sample ohne ASP.NET-Referenz durchspielen.
 - **Loops**: mehrere Listen-Einträge erfassen, Breaking Question beendet, Collection im Kontext.
-- **Web-E2E**: Web-Sample + Designer via Playwright (Branching, Loop, Resume nach Reload, Edit).
-- **NuGet**: `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`).
+- **Web-E2E**: Web-Sample + Designer via Playwright (Branching, Loop, Resume nach Reload, Edit) – #45/#47 und #46.
+- **Coverage**: die CI misst `Flirty` + `Flirty.AspNetCore` (coverlet + ReportGenerator, ohne
+  Schwellwert-Gate), siehe [CI.md § Coverage](./CI.md#coverage).
+- **NuGet**: `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`); veröffentlicht wird über den eigenen,
+  manuell ausgelösten Workflow hinter einem Freigabe-Gate, siehe
+  [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49).
 
 ---
 

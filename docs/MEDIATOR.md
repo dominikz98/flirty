@@ -136,9 +136,11 @@ wann sie publiziert werden, beschreibt [TRIGGERS.md](./TRIGGERS.md).
 
 Der Core enthält einen **internen** Smoke-Seam (`Flirty.Diagnostics.PingCommand`/`Pong`/
 `PingCommandHandler`), der ausschließlich über `[assembly: InternalsVisibleTo("Flirty.Tests")]`
-für Tests sichtbar ist (kein Teil der öffentlichen API; entfernbar, sobald echte Commands
-existieren – #17/#25). Die Tests in `tests/Flirty.Tests/MediatorPipelineBehaviorTests.cs` belegen
-das Akzeptanzkriterium von #14:
+für Tests sichtbar ist (kein Teil der öffentlichen API). Er ist **absichtlich geblieben**, obwohl es
+längst echte Commands gibt: Er prüft die Pipeline isoliert – ohne Persistenz, Dialog-Graph oder
+Expression-Engine –, sodass ein Verdrahtungsfehler hier auffällt und nicht erst als scheinbarer
+Runtime-Bug in einem Dialog-Test. Die Tests
+in `tests/Flirty.Tests/MediatorPipelineBehaviorTests.cs` belegen das Akzeptanzkriterium von #14:
 
 - ein Dummy-Command läuft durch das `LoggingPipelineBehavior` (Log-Einträge werden erfasst),
 - ein ungültiger Command wird vom `ValidationPipelineBehavior` mit `ValidationException` abgewiesen.

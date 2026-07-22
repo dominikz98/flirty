@@ -13,8 +13,11 @@ Genau **zwei** Projekte sind veröffentlichbar (`IsPackable=true`):
 | `Flirty` | `src/Flirty` | Core-Engine (ASP.NET-frei). |
 | `Flirty.AspNetCore` | `src/Flirty.AspNetCore` | Optionale ASP.NET-Core-Endpunkte. |
 
-Alle übrigen Projekte (`Flirty.Designer`, `Flirty.Samples`, `Flirty.Tests`, `Flirty.E2E`) erben
-`IsPackable=false` aus `Directory.Build.props` bzw. setzen es explizit und erzeugen **kein** Paket.
+Die übrigen acht Projekte der Solution (`Flirty.Designer`, die drei `Flirty.Migrations.*`,
+`Flirty.Samples`, `Flirty.Samples.Web`, `Flirty.Tests`, `Flirty.E2E`) erben `IsPackable=false` aus
+`Directory.Build.props` bzw. setzen es explizit und erzeugen **kein** Paket. Die Migrations-Assemblies
+werden trotzdem ausgeliefert – aber als DLL **im** `Flirty`-Paket, nicht als eigenes Paket (siehe
+[Mitgebündelte Migrations-DLLs](#mitgebündelte-migrations-dlls-20)).
 
 ## Wo liegen die Metadaten?
 
@@ -90,7 +93,7 @@ Flirty.202604.1.0.nupkg              Flirty.202604.1.0.snupkg
 Flirty.AspNetCore.202604.1.0.nupkg   Flirty.AspNetCore.202604.1.0.snupkg
 ```
 
-Für die übrigen vier Projekte entsteht nichts.
+Für die übrigen acht Projekte entsteht nichts.
 
 > Hinweis: `TreatWarningsAsErrors=true` gilt repo-weit und greift auch bei NuGet-Pack-Warnungen
 > (NU5xxx). Lizenz, Icon und README sind deshalb vollständig gesetzt – fehlten sie, bräche `pack`.

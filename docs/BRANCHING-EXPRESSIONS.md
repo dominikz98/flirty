@@ -12,8 +12,9 @@ Verzweigungen (Branching) und Schleifen (Loops) hängen an **booleschen Bedingun
 - `TriggerDefinition.Expression` – entscheidet, ob ein Trigger auslöst.
 
 Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IExpressionEvaluator`
-(Namespace `Flirty.Expressions`). Der Kern legt in #22 nur die Abstraktion fest; die konkrete,
-gesandboxte Engine und der Validierungs-Pfad folgen in eigenen Issues (siehe [Ausblick](#ausblick)).
+(Namespace `Flirty.Expressions`). #22 legt nur die Abstraktion fest; die gesandboxte Default-Engine
+(#23), der Compile-Check für den Designer (#24) und die DI-Integration (#34) sind unten in eigenen
+Abschnitten beschrieben.
 
 ## `IExpressionEvaluator`
 
@@ -66,7 +67,7 @@ var context = new ExpressionContext(
 
 ## Beispiel-Ausdrücke
 
-Die spätere Default-Engine wertet Ausdrücke wie diese aus (vgl. ARCHITECTURE §10):
+Die Default-Engine wertet Ausdrücke wie diese aus (vgl. ARCHITECTURE §10):
 
 ```text
 age > 18                 // Verzweigung nach numerischer Antwort
@@ -187,6 +188,17 @@ Für **Zeichenketten-Literale** gilt: Die Engine parst C#-Escapes (`\"`, `\\`, `
 Ausdrucks-Literal – dessen Encoder schreibt ein Anführungszeichen als Unicode-Escape, was die Engine mit
 „Invalid character escape sequence" ablehnt.
 
+### Echte Bindungen im Testlauf (#43)
+
+Der Musterkontext beantwortet „ist der Ausdruck **kompilierbar**?". Ob er auch das **Richtige** trifft,
+zeigt der [Test-Runner](./DESIGNER.md#test-runner-43): Er stellt zu jedem Schritt eines echten Laufs die
+tatsächlichen Bindungen dar (`Flirty.Designer/Services/RunExpressionContext.cs`) – Antworten je
+Frage-Schlüssel, gesammelte Loop-Collections und den `iterationIndex`. Auch das ist ein **Spiegel** des
+Core-internen `SessionExpressionContextBuilder` (der arbeitet auf einer `Dialog`-Entity mit geladenen
+Navigationen, der Designer nur auf navigationsfreien Sichten); ein Test vergleicht beide an jedem Schritt
+eines Durchlaufs. Wird am `SessionExpressionContextBuilder` oder am `LoopResolver` etwas geändert, ist
+dieser Spiegel – wie `DesignerExpressionContext` und `LoopAnalyzer` – mitzuziehen.
+
 ## Runtime-Konsum (#26)
 
 Erster Laufzeit-Konsument der Engine ist der `SubmitAnswerCommand`-Handler (#26, siehe
@@ -203,9 +215,21 @@ Loop-Bausteine des Kontexts: `Collections` trägt je `CollectionKey` die Einstie
 ersten Iteration auswertbar ist), und `iterationIndex` reflektiert die aktuelle Iteration der gerade
 beantworteten Frage (`null` außerhalb einer Schleife). Details in [LOOPS.md](./LOOPS.md).
 
-## Ausblick
+## DI-Integration & Austausch (#34)
 
-Darauf baut auf:
+`AddFlirty()` registriert die Default-Engine seit #26 als **Singleton** (sie ist zustandslos). Wer eine
+andere Engine will – z. B. NCalc –, implementiert `IExpressionEvaluator` und ersetzt die
+Default-Registrierung:
 
-- **#34 – DI-Integration:** Registrierung und Austausch der Engine über
-  `services.AddFlirty(o => o.UseExpressionEvaluator<MyEval>())` (Alternative z. B. NCalc).
+```csharp
+services.AddFlirty(o =>
+{
+    o.UseSqlite(connectionString);
+    o.UseExpressionEvaluator<MyEvaluator>();   // ersetzt DynamicExpressoExpressionEvaluator
+});
+```
+
+Der eigene Typ wird ebenfalls als Singleton registriert. Zu erfüllen sind beide Zusagen dieses
+Dokuments: `Evaluate` wirft bei nicht auswertbaren Ausdrücken (fail-loud), `Validate` **kompiliert nur**
+und meldet Fehler als Ergebnis. Das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der Runtime –
+eine eigene Engine darf einen nicht-leeren Ausdruck erwarten.

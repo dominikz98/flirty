@@ -19,7 +19,8 @@ Der Marker bewirkt zweierlei:
 1. **Runtime**: die Antworten des Schleifenbereichs werden je Iteration in `CollectionKey` gesammelt
    (statt überschrieben); `SessionAnswer.LoopInstanceId`/`IterationIndex` erlauben mehrere Antworten pro
    Frage (eine je Iteration).
-2. **Designer**: der Zyklus wird als Loop-Block mit markierter Breaking Question visualisiert (späteres Epic).
+2. **Designer**: der Zyklus wird als Loop-Block mit markierter Breaking Question visualisiert und auf
+   fehlenden/unerreichbaren Ausstieg geprüft – seit #41, siehe [unten](#schleifen-im-designer).
 
 ## `LoopDefinition` (Marker)
 

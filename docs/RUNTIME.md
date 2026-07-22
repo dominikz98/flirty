@@ -65,11 +65,11 @@ public sealed record StartDialogCommand(
 - Beide sind `[Required]`; leere/`null`-Werte werden vom `ValidationPipelineBehavior` mit einer
   `ValidationException` abgewiesen, bevor der Handler läuft.
 
-> Der in ARCHITECTURE §7 skizzierte optionale `seed?` (initiale Ausdruckskontext-Werte) bleibt auch
-> mit #26 **bewusst noch nicht** enthalten: Die Transition-Auswertung (siehe unten) speist ihren
-> `ExpressionContext` ausschließlich aus den persistierten Antworten der Session; für vorbelegte
-> Startwerte gibt es weiterhin keinen Speicherort. Der Parameter wird ergänzt, sobald ein Konsument
-> ihn tatsächlich auswertet.
+> Einen optionalen `seed?` (initiale Ausdruckskontext-Werte) gibt es **bewusst nicht**: Die
+> Transition-Auswertung (siehe unten) speist ihren `ExpressionContext` ausschließlich aus den
+> persistierten Antworten der Session; für vorbelegte Startwerte gibt es keinen Speicherort im Modell.
+> Wer Kontext von außen braucht, stellt ihn als beantwortete Frage voran oder tauscht den
+> `IExpressionEvaluator` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md#di-integration--austausch-34)).
 
 ### Ergebnis
 

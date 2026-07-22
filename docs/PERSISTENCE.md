@@ -248,10 +248,14 @@ Security-Advisories (NU1903) einschleppen.
   Migrations-Assemblies ins NuGet-Paket: **#20** – umgesetzt (siehe oben). Das minimale
   `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
 - **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
-  `FlirtyDbContext`-Registrierung, `UseExpressionEvaluator`, Webhook-Registrierung als Stub): **#34** –
+  `FlirtyDbContext`-Registrierung, `UseExpressionEvaluator`, Webhook-Registrierung): **#34** –
   umgesetzt (siehe [Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34)). Die aktive
-  Webhook-Auslieferung folgt in EPIC 4.
+  Webhook-Auslieferung kam mit **#33** dazu (EPIC 4), siehe [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
 - **`IDialogStore`** (Repository über `FlirtyDbContext`, inkl. DI-Registrierung in `AddFlirty()`):
-  **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit)
-  folgen in **#25**.
+  **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit) kamen
+  mit **#25**–**#28**, siehe [RUNTIME.md](./RUNTIME.md). Das **Admin-CRUD** (#36, erweitert um Schleifen
+  in #41 und Trigger in #42) hängt bewusst an einem eigenen Repository `IDialogAdminStore`: Der
+  Laufzeit-`IDialogStore` **liest** den Konfigurationsgraphen und schreibt nur Session-Zustand, das
+  Admin-Gegenstück schreibt den Graphen selbst (generisches `Add`/`Remove`/`RemoveRange` plus die
+  Schlüssel- und Verweis-Abfragen der CRUD-Commands).
 - Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md).
