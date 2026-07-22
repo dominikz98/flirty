@@ -566,6 +566,157 @@ else
     </div>
 
     <div class="editor">
+        <h2>Trigger</h2>
+
+        <p class="hint">
+            Trigger sind Rückkanäle in die Host-Anwendung. Ein <strong>Webhook</strong> wird von der
+            Engine selbst als HTTP-POST an die konfigurierte URL zugestellt; ein
+            <strong>In-Process</strong>-Eintrag hält nur fest, dass die Host-App an dieser Stelle mit
+            einem eigenen <code>INotificationHandler&lt;T&gt;</code> reagiert – die Notification wird
+            ohnehin publiziert.
+        </p>
+
+        @if (_detail.Triggers.Count == 0)
+        {
+            <p class="empty">Noch keine Trigger angelegt.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Zeitpunkt</th>
+                        <th>Frage</th>
+                        <th>Kanal</th>
+                        <th>Ziel</th>
+                        <th>Bedingung</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in _detail.Triggers)
+                    {
+                        // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den
+                        // Schleifenzustand nach dem letzten Durchlauf.
+                        var trigger = entry;
+
+                        <tr>
+                            <td>@TriggerLabels.Describe(trigger.Scope)</td>
+                            <td class="mono">
+                                @(trigger.QuestionId is { } questionId ? QuestionLabel(questionId) : "—")
+                            </td>
+                            <td>@TriggerLabels.Describe(trigger.Kind)</td>
+                            <td class="mono">@TriggerTarget(trigger)</td>
+                            <td class="mono">
+                                @(string.IsNullOrWhiteSpace(trigger.Expression)
+                                    ? "— bedingungslos —"
+                                    : trigger.Expression)
+                            </td>
+                            <td class="row-actions">
+                                <button class="btn" @onclick="() => OpenTrigger(trigger)">Bearbeiten</button>
+
+                                @if (_confirmDeleteTriggerId == trigger.Id)
+                                {
+                                    <span class="confirm">Trigger löschen?</span>
+                                    <button class="btn btn-danger" disabled="@_busy"
+                                            @onclick="() => DeleteTriggerAsync(trigger)">Ja, löschen</button>
+                                    <button class="btn" disabled="@_busy"
+                                            @onclick="() => _confirmDeleteTriggerId = null">Abbrechen</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-danger" disabled="@_busy"
+                                            @onclick="() => _confirmDeleteTriggerId = trigger.Id">Löschen</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (_newTrigger is null)
+        {
+            <div class="actions">
+                <button class="btn btn-primary" disabled="@_busy" @onclick="StartCreateTrigger">Neuer Trigger</button>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="_newTrigger" OnValidSubmit="CreateTriggerAsync">
+                <DataAnnotationsValidator />
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="triggerScope">Zeitpunkt</label>
+                        <InputSelect id="triggerScope" class="input" @bind-Value="_newTrigger.Scope">
+                            @foreach (var scope in Enum.GetValues<TriggerScope>())
+                            {
+                                <option value="@scope">@TriggerLabels.Describe(scope)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="field">
+                        <label for="triggerKind">Kanal</label>
+                        <InputSelect id="triggerKind" class="input" @bind-Value="_newTrigger.Kind">
+                            @foreach (var kind in Enum.GetValues<TriggerKind>())
+                            {
+                                <option value="@kind">@TriggerLabels.Describe(kind)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                @if (TriggerLabels.RequiresQuestion(_newTrigger.Scope))
+                {
+                    <div class="field">
+                        <label for="triggerQuestion">Frage</label>
+                        <InputSelect id="triggerQuestion" class="input" @bind-Value="_newTrigger.QuestionId"
+                                     disabled="@(_detail.Questions.Count == 0)">
+                            <option value="">— wählen —</option>
+                            @foreach (var question in _detail.Questions)
+                            {
+                                <option value="@question.Id">@question.Key — @question.Text</option>
+                            }
+                        </InputSelect>
+                        <span class="hint">Der Trigger löst nur nach dieser Frage aus.</span>
+                    </div>
+                }
+
+                @if (_newTrigger.Kind == TriggerKind.Webhook)
+                {
+                    <div class="field">
+                        <label for="triggerUrl">Ziel-URL</label>
+                        <InputText id="triggerUrl" class="input mono" @bind-Value="_newTrigger.Url" />
+                        <span class="hint">Absolute http-/https-Adresse, z. B. <code>https://host.example/flirty/completed</code>.</span>
+                    </div>
+                }
+
+                <div class="field">
+                    <label for="triggerName">Ereignisname (optional)</label>
+                    <InputText id="triggerName" class="input mono" @bind-Value="_newTrigger.Name" />
+                    <span class="hint">
+                        Wird beim Webhook als Header <code>X-Flirty-Trigger</code> mitgeliefert, z. B.
+                        <code>order-created</code>.
+                    </span>
+                </div>
+
+                <span class="hint">
+                    Die Bedingung wird anschließend im Trigger-Editor gepflegt – dort wird sie live gegen
+                    die Fragen dieses Dialogs geprüft.
+                </span>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                    <button type="button" class="btn" disabled="@_busy"
+                            @onclick="() => _newTrigger = null">Abbrechen</button>
+                </div>
+            </EditForm>
+        }
+    </div>
+
+    <div class="editor">
         <h2>Veröffentlichung &amp; Löschen</h2>
         <div class="actions">
             @if (_detail.Dialog.IsPublished)
@@ -613,6 +764,7 @@ else
     private QuestionFormModel? _newQuestion;
     private TransitionFormModel? _newTransition;
     private LoopFormModel? _newLoop;
+    private TriggerFormModel? _newTrigger;
     private string? _error;
     private string? _message;
     private bool _busy;
@@ -620,6 +772,7 @@ else
     private Guid? _confirmDeleteQuestionId;
     private Guid? _confirmDeleteTransitionId;
     private Guid? _confirmDeleteLoopId;
+    private Guid? _confirmDeleteTriggerId;
     private Guid _loadedId;
 
     protected override async Task OnParametersSetAsync()
@@ -635,9 +788,11 @@ else
         _confirmDeleteQuestionId = null;
         _confirmDeleteTransitionId = null;
         _confirmDeleteLoopId = null;
+        _confirmDeleteTriggerId = null;
         _newQuestion = null;
         _newTransition = null;
         _newLoop = null;
+        _newTrigger = null;
         await ReloadAsync();
     }
 
@@ -1066,6 +1221,81 @@ else
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteLoopCommand(Id, loop.Id), token),
             $"Schleife „{loop.CollectionKey}“ gelöscht.",
+            resetForm: false);
+    }
+
+    // ---- Trigger (#42) ----------------------------------------------------------------------------
+
+    private void StartCreateTrigger() => _newTrigger = new TriggerFormModel();
+
+    private void OpenTrigger(TriggerDetail trigger)
+        => Navigation.NavigateTo($"dialogs/{Id}/triggers/{trigger.Id}");
+
+    /// <summary>
+    /// Beschreibt das Ziel eines Triggers für die Übersicht: die URL des Webhooks bzw. der
+    /// Ereignisname. Unlesbare Konfiguration wird roh angezeigt statt verschwiegen – zur Laufzeit
+    /// überspringt der Webhook-Handler solche Einträge.
+    /// </summary>
+    /// <param name="trigger">Der anzuzeigende Trigger.</param>
+    /// <returns>Der Anzeigetext für die Spalte „Ziel".</returns>
+    private static string TriggerTarget(TriggerDetail trigger)
+    {
+        if (!TriggerConfig.TryParse(trigger.Config, out var config, out _))
+        {
+            return trigger.Config;
+        }
+
+        return config.Url ?? config.Name ?? "—";
+    }
+
+    /// <summary>
+    /// Legt einen Trigger an. Die Bedingung bleibt zunächst leer – sie wird im Trigger-Editor gepflegt,
+    /// wo sie live validiert wird.
+    /// </summary>
+    private async Task CreateTriggerAsync()
+    {
+        if (_detail is null || _newTrigger is null)
+        {
+            return;
+        }
+
+        var model = _newTrigger;
+
+        if (TriggerLabels.RequiresQuestion(model.Scope) && model.QuestionId is null)
+        {
+            _error = "Bitte eine Frage wählen – ein Trigger nach einer bestimmten Frage braucht ihren Bezug.";
+            _message = null;
+            return;
+        }
+
+        if (!model.TryBuildConfig(out var config, out var configError))
+        {
+            _error = configError;
+            _message = null;
+            return;
+        }
+
+        var created = await RunAsync<TriggerDetail>(
+            (sender, token) => sender.Send(
+                new CreateTriggerCommand(
+                    Id, model.Scope, model.NormalizedQuestionId(), model.Kind, config, null),
+                token),
+            $"Trigger „{TriggerLabels.Describe(model.Scope)}“ angelegt.",
+            resetForm: false);
+
+        if (created)
+        {
+            _newTrigger = null;
+        }
+    }
+
+    private async Task DeleteTriggerAsync(TriggerDetail trigger)
+    {
+        _confirmDeleteTriggerId = null;
+
+        await RunAsync<Unit>(
+            (sender, token) => sender.Send(new DeleteTriggerCommand(Id, trigger.Id), token),
+            "Trigger gelöscht.",
             resetForm: false);
     }
 

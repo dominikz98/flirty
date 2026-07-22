@@ -63,6 +63,16 @@ internal sealed class DialogStore : IDialogStore
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<TriggerDefinition>> GetTriggersForSessionAsync(
+        Guid sessionId, TriggerScope scope, CancellationToken cancellationToken = default)
+        => await _context.Set<TriggerDefinition>()
+            .AsNoTracking()
+            .Where(trigger => trigger.Scope == scope
+                && _context.DialogSessions.Any(
+                    session => session.Id == sessionId && session.DialogId == trigger.DialogId))
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public void AddSession(DialogSession session)
     {
         ArgumentNullException.ThrowIfNull(session);

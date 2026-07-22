@@ -1,10 +1,11 @@
 # Trigger – In-Process-Notifications & Outbound-Webhooks
 
-> Stand: Issue #33. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
+> Stand: Issue #42. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
 > Mediator-Notifications, die die Command-Handler beim Durchlaufen eines Dialogs publizieren, und wie
 > Host-Apps eigene Handler per `AddFlirtyHandler<T, THandler>()` „reinhängen". Die zweite Trigger-Spielart
 > – **Outbound-Webhooks** – baut auf genau diesen Notifications auf und ist seit #33 aktiv (siehe
-> [Abschnitt „Outbound-Webhooks"](#outbound-webhooks)).
+> [Abschnitt „Outbound-Webhooks"](#outbound-webhooks)); seit #42 lassen sich Webhooks außerdem **am
+> Dialog** konfigurieren (`TriggerDefinition`, gepflegt im [Designer](./DESIGNER.md#trigger-editor-42)).
 
 ## Überblick
 
@@ -15,8 +16,10 @@ Flirty kennt zwei Rückkanäle in die Host-App (siehe [ARCHITECTURE.md](./ARCHIT
    `INotificationHandler<T>` synchron im selben Scope auf.
 2. **Outbound-Webhooks** (seit #33): ein eingebauter `INotificationHandler`, der dieselben Notifications
    empfängt und als HTTP-`POST` ausliefert (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout).
-   Ziele werden per `o.AddWebhook(scope, url, expression?)` registriert (Registrierung als Stub seit #34).
-   Details unten unter [Outbound-Webhooks](#outbound-webhooks).
+   Ziele kommen aus **zwei sich ergänzenden Quellen**: im Code per `o.AddWebhook(scope, url, expression?)`
+   registriert (#33/#34) **oder** am Dialog als `TriggerDefinition` konfiguriert (#42). Details unten unter
+   [Outbound-Webhooks](#outbound-webhooks) und
+   [Trigger-Definitionen am Dialog](#trigger-definitionen-am-dialog-42).
 
 ## Die vier Notification-Contracts
 
@@ -113,7 +116,8 @@ die Notification (siehe Tabelle oben). Mehrere Registrierungen je Scope sind erl
 
 - **Methode/Body:** HTTP-`POST` mit der als JSON serialisierten Notification (camelCase) als Body
   (`application/json`).
-- **Header:** `X-Flirty-Event` trägt den auslösenden `TriggerScope` (z. B. `OnDialogCompleted`).
+- **Header:** `X-Flirty-Event` trägt den auslösenden `TriggerScope` (z. B. `OnDialogCompleted`); bei
+  Triggern mit gesetztem `name` kommt seit #42 zusätzlich `X-Flirty-Trigger` mit diesem Namen dazu.
 
 ### Bedingtes Auslösen (`expression`)
 
@@ -121,8 +125,53 @@ Ist ein `expression` gesetzt, lädt der Handler Session und (gepinnte) Dialogver
 nach, baut denselben `ExpressionContext` wie das Branching (Antworten nach `Question.Key`, Loop-Collections,
 Iterationsindex) und wertet die Bedingung über den `IExpressionEvaluator` aus – dieselbe Engine und Semantik
 wie bei `Transition.Expression` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)). Nur bei
-`true` wird ausgeliefert; ein leerer/`null`-Ausdruck gilt als bedingungslos. Ohne Ausdruck erfolgt **kein**
-DB-Zugriff.
+`true` wird ausgeliefert; ein leerer/`null`-Ausdruck gilt als bedingungslos.
+
+Lässt sich eine Bedingung **nicht auswerten** – etwa weil sie eine Antwort referenziert, die es zum
+Auslösezeitpunkt noch gar nicht gibt (typisch bei `OnDialogStarted`) –, wird der Fehler protokolliert und
+das Ziel übersprungen. Der auslösende Command (Start/Submit/Edit) läuft weiter; die Bedingung gilt als
+nicht erfüllt. Der Designer prüft Ausdrücke deshalb schon beim Speichern (siehe
+[DESIGNER.md](./DESIGNER.md#trigger-editor-42)).
+
+## Trigger-Definitionen am Dialog (#42)
+
+Webhooks lassen sich nicht nur im Code registrieren, sondern auch **am Dialog konfigurieren** – als
+`TriggerDefinition`-Zeile, gepflegt über den [Designer](./DESIGNER.md#trigger-editor-42) oder die
+Admin-Endpunkte (`POST/PUT/DELETE {prefix}/dialogs/{dialogId}/triggers`). Beide Quellen gelten
+**additiv**: der eingebaute Handler bedient je Notification erst die Code-Registrierungen, dann die
+konfigurierten Trigger des Dialogs, zu dem die Session gehört.
+
+| Feld | Bedeutung |
+|---|---|
+| `Scope` | Der Auslösezeitpunkt – mappt 1:1 auf die Notification (Tabelle oben). |
+| `QuestionId` | **Pflicht** bei `AfterQuestion` (der Trigger feuert nur nach dieser Frage), sonst leer. |
+| `Kind` | `Webhook` (die Engine stellt zu) oder `InProcess` (siehe unten). |
+| `Config` | Kanal-Konfiguration als JSON, Schema: **`Flirty.Domain.TriggerConfig`**. |
+| `Expression` | Optionale Bedingung – dieselbe Engine/Semantik wie oben. |
+
+Das `Config`-Schema ist bewusst klein:
+
+```json
+{ "url": "https://host.example/flirty/completed", "name": "order-created" }
+```
+
+- **`url`** – Ziel des HTTP-`POST`. Bei `Kind = Webhook` **Pflicht** und eine absolute `http`-/`https`-Adresse.
+- **`name`** – optionaler fachlicher Ereignisname; wird als Header `X-Flirty-Trigger` mitgeliefert.
+
+`TriggerConfig` ist öffentliche Core-API (`TryParse`/`ToJson`/`TryValidate`) und die **eine** Quelle des
+Schemas – Admin-Commands, Webhook-Auslieferung und Designer hängen daran. Die Commands weisen unstimmige
+Anfragen mit HTTP 400 ab (kaputtes JSON, fehlende/relative URL, `AfterQuestion` ohne Frage bzw. ein
+Frage-Bezug bei einem anderen Zeitpunkt). Zur Laufzeit unbrauchbare Zeilen – etwa von Hand geschrieben –
+werden protokolliert und übersprungen, nie geworfen.
+
+> **`Kind = InProcess` stellt nichts zu.** Die vier Notifications werden ohnehin publiziert; behandelt
+> werden sie von einem Handler der Host-App (`AddFlirtyHandler<T, THandler>()`). Eine `InProcess`-Zeile
+> dokumentiert also nur die Absicht und benennt sie – der Webhook-Handler ignoriert sie bewusst.
+
+**Kosten:** Weil die Definitionen in der Datenbank stehen, führt der Handler je Notification **eine**
+schmale Abfrage aus (`IDialogStore.GetTriggersForSessionAsync`, gefiltert auf Session-Dialog und Scope,
+über den Fremdschlüssel-Index). Die frühere Zusage „ohne Ausdruck erfolgt kein DB-Zugriff" gilt seit #42
+nicht mehr. Der volle Dialog-Graph wird weiterhin nur geladen, wenn mindestens ein Ziel eine Bedingung trägt.
 
 ### Resilience & Fehlerverhalten
 
@@ -131,7 +180,8 @@ DB-Zugriff.
   Timeouts) plus Attempt-/Total-**Timeout**.
 - **Best-effort:** Schlägt die Zustellung nach erschöpften Retries fehl (Statuscode ≥ 400 oder Ausnahme),
   wird der Fehler **geloggt, aber nicht geworfen** – ein toter Webhook darf den auslösenden Command
-  (Start/Submit/Edit) nicht brechen.
+  (Start/Submit/Edit) nicht brechen. Dasselbe gilt für unbrauchbare Trigger-Konfiguration und nicht
+  auswertbare Bedingungen: protokollieren, Ziel überspringen, weitermachen.
 
 ## Hinweise & Grenzen
 

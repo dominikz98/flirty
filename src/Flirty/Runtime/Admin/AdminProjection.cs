@@ -25,8 +25,10 @@ internal static class AdminProjection
 
     /// <summary>
     /// Projiziert einen <see cref="Dialog"/> samt geladenem Graphen (Fragen inkl. Optionen,
-    /// Übergänge und Schleifen-Marker) auf ein <see cref="DialogDetail"/>. Fragen und Optionen werden
-    /// nach <c>Order</c>, Übergänge nach <c>Priority</c> und Schleifen nach <c>CollectionKey</c> sortiert.
+    /// Übergänge, Schleifen-Marker und Trigger) auf ein <see cref="DialogDetail"/>. Fragen und Optionen
+    /// werden nach <c>Order</c>, Übergänge nach <c>Priority</c>, Schleifen nach <c>CollectionKey</c> und
+    /// Trigger nach <c>Scope</c>/<c>Kind</c>/<c>Config</c> sortiert (Trigger haben keine eigene
+    /// Reihenfolge – die Sortierung dient nur einer stabilen Anzeige).
     /// </summary>
     /// <param name="dialog">Der Dialog mit geladenen Navigationen.</param>
     /// <returns>Die navigationsfreie Detail-Sicht des Dialog-Graphen.</returns>
@@ -35,7 +37,12 @@ internal static class AdminProjection
             ToSummary(dialog),
             [.. dialog.Questions.OrderBy(question => question.Order).Select(ToDetail)],
             [.. dialog.Transitions.OrderBy(transition => transition.Priority).Select(ToDetail)],
-            [.. dialog.Loops.OrderBy(loop => loop.CollectionKey, StringComparer.Ordinal).Select(ToDetail)]);
+            [.. dialog.Loops.OrderBy(loop => loop.CollectionKey, StringComparer.Ordinal).Select(ToDetail)],
+            [.. dialog.Triggers
+                .OrderBy(trigger => trigger.Scope)
+                .ThenBy(trigger => trigger.Kind)
+                .ThenBy(trigger => trigger.Config, StringComparer.Ordinal)
+                .Select(ToDetail)]);
 
     /// <summary>Projiziert eine <see cref="Question"/> (inkl. Optionen) auf ein <see cref="QuestionDetail"/>.</summary>
     /// <param name="question">Die zu projizierende Frage mit geladenen Optionen.</param>
@@ -76,4 +83,17 @@ internal static class AdminProjection
     /// <returns>Die navigationsfreie Schleifen-Sicht.</returns>
     public static LoopDetail ToDetail(LoopDefinition loop)
         => new(loop.Id, loop.DialogId, loop.CollectionKey, loop.EntryQuestionId, loop.BreakingQuestionId);
+
+    /// <summary>Projiziert eine <see cref="TriggerDefinition"/> auf ein <see cref="TriggerDetail"/>.</summary>
+    /// <param name="trigger">Die zu projizierende Trigger-Definition.</param>
+    /// <returns>Die navigationsfreie Trigger-Sicht.</returns>
+    public static TriggerDetail ToDetail(TriggerDefinition trigger)
+        => new(
+            trigger.Id,
+            trigger.DialogId,
+            trigger.Scope,
+            trigger.QuestionId,
+            trigger.Kind,
+            trigger.Config,
+            trigger.Expression);
 }

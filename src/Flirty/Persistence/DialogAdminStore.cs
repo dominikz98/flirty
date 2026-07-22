@@ -34,6 +34,7 @@ internal sealed class DialogAdminStore : IDialogAdminStore
             .Include(dialog => dialog.Questions).ThenInclude(question => question.Options)
             .Include(dialog => dialog.Transitions)
             .Include(dialog => dialog.Loops)
+            .Include(dialog => dialog.Triggers)
             .FirstOrDefaultAsync(dialog => dialog.Id == dialogId, cancellationToken);
 
     /// <inheritdoc />
@@ -73,6 +74,18 @@ internal sealed class DialogAdminStore : IDialogAdminStore
         Guid questionId, CancellationToken cancellationToken = default)
         => await _context.Set<LoopDefinition>()
             .Where(loop => loop.EntryQuestionId == questionId || loop.BreakingQuestionId == questionId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task<TriggerDefinition?> GetTriggerAsync(Guid triggerId, CancellationToken cancellationToken = default)
+        => _context.Set<TriggerDefinition>()
+            .FirstOrDefaultAsync(trigger => trigger.Id == triggerId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TriggerDefinition>> GetTriggersReferencingQuestionAsync(
+        Guid questionId, CancellationToken cancellationToken = default)
+        => await _context.Set<TriggerDefinition>()
+            .Where(trigger => trigger.QuestionId == questionId)
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />

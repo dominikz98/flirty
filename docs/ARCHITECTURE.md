@@ -105,7 +105,7 @@ Commands direkt per `ISender` (Facade + erster Command umgesetzt in #25, siehe [
 **Weitere Services**
 - `IExpressionEvaluator` (`Flirty.Expressions`) – Ausdrucks-Engine `bool Evaluate(string expression, ExpressionContext context)`. Default `DynamicExpressoExpressionEvaluator` (#23). Der unveränderliche `ExpressionContext` bündelt: `Answers` (nach `Question.Key`), `Collections` (Loop-Antworten je Iteration nach `CollectionKey`), `IterationIndex`, `Now`, `Session`; Werte sind roher JSON-Text (Typisierung erst in der Engine). Interface + Kontext-Modell umgesetzt in #22, Details in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md). Seit #26 als Default-Singleton in `AddFlirty()` registriert (erster Runtime-Konsument: Transition-Auswertung von `SubmitAnswerCommand`); der austauschbare `o.UseExpressionEvaluator<T>()`-Overload ist seit #34 verfügbar.
 - `IAnswerValidator` – typisierte, regelbasierte Antwort-Validierung (Typ + `ValidationRules`), als Mediator-`IPipelineBehavior` (`AnswerValidationPipelineBehavior`) vor Submit/Edit. Umgesetzt in #30, Details in [VALIDATION.md](./VALIDATION.md).
-- Webhook-`INotificationHandler` – Outbound-HTTP-`POST` (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout), umgesetzt in #33. Ziele werden per `o.AddWebhook(scope, url, expression?)` registriert (Registrierung als Stub seit #34); der eingebaute `WebhookNotificationHandler` (auto-registriert) filtert nach `TriggerScope`, wertet optionale Bedingungen via `IExpressionEvaluator` aus und liefert best-effort aus. Details in [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
+- Webhook-`INotificationHandler` – Outbound-HTTP-`POST` (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout), umgesetzt in #33. Ziele kommen aus zwei additiven Quellen: im Code per `o.AddWebhook(scope, url, expression?)` registriert (Registrierung als Stub seit #34) **und seit #42** aus den am Dialog konfigurierten `TriggerDefinition`s (`Kind = Webhook`, Konfiguration als JSON nach dem Schema `TriggerConfig`). Der eingebaute `WebhookNotificationHandler` (auto-registriert) filtert nach `TriggerScope` (bei `AfterQuestion` zusätzlich nach der Frage), wertet optionale Bedingungen via `IExpressionEvaluator` aus und liefert best-effort aus. Details in [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
 - `IDialogStore` – Repository über `FlirtyDbContext` (umgesetzt in #21, Details in [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)).
 
 ## 8. Persistenz & Migrationen
@@ -141,9 +141,9 @@ sie auf Request-/Response-DTOs; Engine-Ausnahmen werden auf `ProblemDetails` (40
 Umgesetzt in #35, Details in [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md). Das optionale
 **Admin-CRUD** (`app.MapFlirtyAdminEndpoints("/flirty/admin")`, opt-in, per `RequireAuthorization()`
 absicherbar) verwaltet den Konfigurationsgraphen – Dialoge (`/dialogs`, inkl. `publish`/`unpublish`),
-Fragen (`.../questions`), Optionen (`.../options`), Übergänge (`.../transitions`) und Schleifen-Marker
-(`.../loops`) – über dieselbe Mediator-/DTO-/Filter-Mechanik. Umgesetzt in #36, die Schleifen-Endpunkte
-in #41; Details ebd.
+Fragen (`.../questions`), Optionen (`.../options`), Übergänge (`.../transitions`), Schleifen-Marker
+(`.../loops`) und Trigger (`.../triggers`) – über dieselbe Mediator-/DTO-/Filter-Mechanik. Umgesetzt in
+#36, die Schleifen-Endpunkte in #41, die Trigger-Endpunkte in #42; Details ebd.
 
 ## 10. Loops (Schleifen)
 

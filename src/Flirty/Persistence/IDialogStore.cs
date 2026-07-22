@@ -58,6 +58,23 @@ internal interface IDialogStore
         Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lädt die Trigger-Definitionen des Dialogs, zu dem die Session <paramref name="sessionId"/>
+    /// gehört, gefiltert auf den angegebenen <paramref name="scope"/> – <b>ungetrackt</b>. Grundlage für
+    /// die Auslieferung der im Designer konfigurierten Trigger (<c>WebhookNotificationHandler</c>, #42).
+    /// </summary>
+    /// <remarks>
+    /// Bewusst <b>eine</b> schmale Abfrage über den Fremdschlüssel-Index statt „erst Session laden, dann
+    /// Dialog-Graph": Der Handler läuft synchron im Scope des auslösenden Commands, und die
+    /// Notifications tragen (bis auf den Start) keine <c>DialogId</c>.
+    /// </remarks>
+    /// <param name="sessionId">Der Primärschlüssel der auslösenden Session.</param>
+    /// <param name="scope">Der Zeitpunkt, zu dem ausgelöst wurde.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die passenden Trigger-Definitionen (leere Liste, wenn keine existieren).</returns>
+    Task<IReadOnlyList<TriggerDefinition>> GetTriggersForSessionAsync(
+        Guid sessionId, TriggerScope scope, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Nimmt eine neu erstellte <paramref name="session"/> (inklusive erster Antworten) in die
     /// Nachverfolgung auf. Die Persistierung erfolgt erst mit <see cref="SaveChangesAsync"/>.
     /// Bewusst synchron: alle Guid-Schlüssel werden anwendungsseitig vergeben (keine

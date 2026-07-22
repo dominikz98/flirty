@@ -204,7 +204,8 @@ public sealed class DesignerExpressionContextTests
                 DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
             questions,
             [],
-            [new LoopDetail(Guid.NewGuid(), dialogId, "skills", Guid.NewGuid(), Guid.NewGuid())]);
+            [new LoopDetail(Guid.NewGuid(), dialogId, "skills", Guid.NewGuid(), Guid.NewGuid())],
+            []);
     }
 
     private static QuestionDetail Question(

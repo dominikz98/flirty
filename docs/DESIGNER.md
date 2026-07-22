@@ -5,9 +5,10 @@ von Dialogen und zum Verwalten der Datenbank-Verbindungen. Er ist Teil von **EPI
 Milestone „M3 – Designer"). Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §4/§8, [PERSISTENCE.md](./PERSISTENCE.md).
 
 > **Stand:** Umgesetzt sind die **Connection-Profil-Verwaltung (Multi-DB, #37)**, das
-> **Dialog-CRUD (#38)**, der **Frage-Editor (#39)** und der **Branching-Editor (#40)**. Die restlichen
-> Editoren (Loops #41, Trigger #42, Test-Runner #43) folgen. Der Designer arbeitet über die
-> Admin-Commands der Engine (via `ISender`), nicht direkt am `FlirtyDbContext` vorbei.
+> **Dialog-CRUD (#38)**, der **Frage-Editor (#39)**, der **Branching-Editor (#40)**, der
+> **Loop-Editor (#41)** und der **Trigger-Editor (#42)**. Offen ist der **Test-Runner (#43)**. Der
+> Designer arbeitet über die Admin-Commands der Engine (via `ISender`), nicht direkt am
+> `FlirtyDbContext` vorbei.
 
 ## Starten
 
@@ -349,6 +350,68 @@ Ausgangsfrage, `CollectionKey` = Plural des Frage-Schlüssels (`skill` → `skil
 mit einem vorhandenen Frage-/Collection-Schlüssel oder ist er kein gültiger Bezeichner, bleibt das Feld
 leer – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein leeres Pflichtfeld.
 
+## Trigger-Editor (#42)
+
+Trigger sind die **Rückkanäle** eines Dialogs in die Host-Anwendung (Details:
+[TRIGGERS.md](./TRIGGERS.md)). Der Designer pflegt sie als `TriggerDefinition`-Zeilen am Dialog; die
+Engine stellt Webhook-Trigger seitdem selbst zu – konfiguriert ist also nicht mehr nur dokumentiert.
+
+| Route | Komponente | Inhalt |
+|---|---|---|
+| `/dialogs/{id:guid}` | `DialogEditor.razor`, Abschnitt „Trigger" | Tabelle (Zeitpunkt, Frage, Kanal, Ziel, Bedingung), Löschen mit Inline-Bestätigung, Inline-Formular „Neuer Trigger". |
+| `/dialogs/{dialogId:guid}/triggers/{triggerId:guid}` | `TriggerEditor.razor` | Zeitpunkt + Frage-Bezug, Kanal + Konfiguration, Bedingung mit Live-Validierung, Löschen. |
+
+> Auch diese Seite heißt bewusst **`TriggerEditor`** – `TriggerDetail` würde den gleichnamigen Sichttyp
+> aus `Flirty.Runtime.Admin` verdecken (gleiche Falle wie bei `DialogEditor`/`QuestionEditor`/
+> `TransitionEditor`/`LoopEditor`).
+
+Verwendet werden `Create/Update/DeleteTriggerCommand` (via `FlirtyAdminGateway`), der Zustand kommt aus
+**einem** `GetDialogQuery`. Neu in #42 sind neben dem CRUD auch die REST-Endpunkte
+(`POST {prefix}/dialogs/{dialogId}/triggers`, `PUT|DELETE .../triggers/{triggerId}`) und `Triggers` in der
+`DialogDetailResponse`. Eine **Reihenfolge** gibt es hier nicht – `TriggerDefinition` hat kein
+`Order`/`Priority`, alle passenden Trigger feuern; die Liste ist nur stabil sortiert (Zeitpunkt, Kanal,
+Konfiguration).
+
+### Konfiguration (`Config`)
+
+Das JSON der Spalte wird über den öffentlichen Core-Typ **`Flirty.Domain.TriggerConfig`** gelesen und
+geschrieben – dasselbe Muster wie `ValidationRules` im Frage-Editor (#39), also **kein** Schema-Duplikat im
+Designer. `Models/TriggerFormModel.cs` bildet die Felder auf zwei Eingaben ab:
+
+- **Ziel-URL** (`url`) – nur bei Kanal *Webhook* sichtbar und dort Pflicht; geprüft wird beim Speichern
+  über `TriggerConfig.TryValidate(kind, …)`, also mit **derselben** Regel wie im Command-Handler.
+- **Ereignisname** (`name`) – optional, wird bei der Zustellung als Header `X-Flirty-Trigger` mitgeliefert.
+
+Enthält das gespeicherte JSON unbekannte Felder (oder ist es kein Objekt), schaltet der Editor auf ein
+**Roh-JSON-Feld** um und gibt den Text unverändert weiter – sonst würde das Speichern fremde Felder
+stillschweigend verwerfen (Muster aus #39).
+
+### Zeitpunkt und Frage-Bezug
+
+Der Frage-Bezug gehört ausschließlich zu `AfterQuestion`: dort ist er Pflicht (nur nach dieser Frage feuert
+der Trigger), bei allen anderen Zeitpunkten muss er leer sein. Beides erzwingen `CreateTriggerCommand`/
+`UpdateTriggerCommand` über `IValidatableObject` – das vorhandene `ValidationPipelineBehavior` führt die
+Prüfung aus (an der REST-Schicht: HTTP 400). Die UI blendet die Auswahl passend ein und normalisiert den
+Wert (`TriggerFormModel.NormalizedQuestionId()`), statt sich auf die Fehlermeldung zu verlassen.
+
+Wie bei Übergängen und Schleifen prüft die Admin-API den Frage-**Verweis** selbst nicht; umgekehrt räumt
+`DeleteQuestionCommand` seit #42 verweisende Trigger mit ab, damit keiner auf einer gelöschten Frage
+stehenbleibt und nie mehr feuert.
+
+### Bedingung
+
+Die Bedingung nutzt **unverändert** `DesignerExpressionContext` aus #40 – `TriggerDefinition.Expression`
+läuft über dieselbe Engine und denselben Musterkontext wie `Transition.Expression`. Entsprechend gibt es
+auch hier Live-Prüfung mit Caret-Position, Baustein-Einfüger und Bezeichner-Referenz; gespeichert wird
+**nur** ein gültiger Ausdruck.
+
+Zwei Hinweise gibt der Editor zusätzlich:
+
+- **Beim Dialogstart** liegen noch keine Antworten vor. Eine Bedingung auf einen Fragen-Schlüssel lässt
+  sich zur Laufzeit nicht auswerten – der Fehler wird protokolliert und der Trigger feuert nicht.
+- **Kanal `InProcess`** stellt nichts zu: die Notification wird ohnehin publiziert, behandelt wird sie von
+  einem Handler der Host-App (`AddFlirtyHandler<T, THandler>()`). Der Eintrag benennt die Absicht.
+
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
@@ -386,6 +449,14 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   typ-skopiertes Serialisieren, camelCase ohne Nullwerte, Roh-JSON-Fallback bei unbekannten Feldern,
   abgelehnte Muster/Grenzen und – als Kernprobe – dass der `AnswerValidator` der Engine das erzeugte
   JSON tatsächlich anwendet.
+- `Designer/TriggerFormModelTests` – die Abbildung zwischen Eingabefeldern und `Config`-JSON (#42):
+  Lesen/Schreiben über den Core-Typ, Roh-JSON-Fallback samt Erhalt fremder Felder, die kanal-abhängige
+  URL-Prüfung und die Normalisierung von Frage-Bezug und Ausdruck.
+
+Dazu kommen im Core die Gegenstücke: `Domain/TriggerConfigTests` (das Schema selbst) und
+`Runtime/DialogTriggerDispatchTests` – der End-to-End-Nachweis, dass ein im Designer konfigurierter
+Webhook-Trigger beim Durchlaufen eines Dialogs tatsächlich zugestellt wird (echte Engine, echte SQLite-DB,
+HTTP-Spy).
 
 Die UI selbst wird künftig per Playwright-E2E abgedeckt (`tests/Flirty.E2E`, #46 – noch offen).
 
@@ -396,9 +467,8 @@ dotnet test tests/Flirty.Tests
 ## Roadmap (EPIC 7)
 
 #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor → #43 Test-Runner. Designer-E2E: #46.
+#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner. Designer-E2E: #46.
 
-> Für #42 (Trigger-Ausdrücke) lässt sich `DesignerExpressionContext` unverändert weiterverwenden –
-> `TriggerDefinition.Expression` läuft über dieselbe Engine und denselben Kontext. Das Muster für das
-> fehlende CRUD liefert #41: Commands im Core, DTOs/Endpunkte in `Flirty.AspNetCore`, Liste im
-> `DialogEditor` plus eigene Unterseite.
+> Für #43 (Test-Runner) genügt der vorhandene Stack: ein Dialog-Durchlauf über `IFlirtyEngine` gegen das
+> aktive Connection-Profil – wie beim Admin-CRUD in einem **frischen Scope** je Schritt (`FlirtyAdminGateway`
+> als Muster), damit der Runner nicht am zuerst benutzten Profil klebt.

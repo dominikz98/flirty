@@ -25,8 +25,8 @@ src/
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
 │                               (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
-│                               Branching-Editor (#40) + Loop-Editor (#41); Trigger-Editor und
-│                               Test-Runner (#42/#43) offen.
+│                               Branching-Editor (#40), Loop-Editor (#41) + Trigger-Editor (#42);
+│                               Test-Runner (#43) offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -75,6 +75,11 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
 - **Migrationen pro Provider:** getrennte Assemblies `Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`,
   zur Laufzeit per `MigrationsAssembly(...)` gewählt. Grund: ADR `docs/adr/0001-migrationen-pro-provider.md`.
 - **Loops = Branching + Marker** (`LoopDefinition`), kein Runtime-Sonderpfad.
+- **Trigger aus zwei Quellen:** Outbound-Webhooks kommen aus `o.AddWebhook(scope, url, expression?)`
+  **und** (seit #42) aus den am Dialog konfigurierten `TriggerDefinition`s; beide bedient derselbe
+  `WebhookNotificationHandler`. `Kind = InProcess` stellt bewusst nichts zu (die Host-App hängt ihren
+  `INotificationHandler<T>` rein). Alles dort ist **best-effort**: Konfigurations-, Ausdrucks- und
+  Zustellfehler werden geloggt, nie geworfen – ein Trigger darf Start/Submit/Edit nicht brechen.
 - **Dialog-Versionierung:** Sessions pinnen `DialogVersion`/`DialogId` → das Editieren publizierter
   Dialoge bricht laufende Sessions nicht.
 
@@ -203,6 +208,21 @@ Rücksprüngen) plus `/dialogs/{dialogId}/loops/{loopId}` (`LoopEditor.razor`). 
 (Endlosschleife), überlappenden Bereichen und verdeckenden `CollectionKey`s. Ein Test vergleicht beide
 Implementierungen auf demselben Graphen – bei Änderungen am `LoopResolver` mitziehen.
 
-**Offen:** restlicher Blazor-**Designer** (Editoren #42/#43, es gibt noch keine UI für Trigger und keinen
-Test-Runner), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
-Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des Designers ausgehen.
+**Trigger-Editor (#42) fertig** – und damit erstmals **`TriggerDefinition`-getriebene Laufzeit**: Bis #41
+war die Entity tote Konfiguration (Webhooks kamen nur aus `o.AddWebhook`). Jetzt liest der
+`WebhookNotificationHandler` je Notification zusätzlich die Trigger des Session-Dialogs
+(`IDialogStore.GetTriggersForSessionAsync`, eine schmale Abfrage – die alte Zusage „ohne Ausdruck kein
+DB-Zugriff" gilt nicht mehr) und stellt `Kind = Webhook` zu (Header `X-Flirty-Event` + neu
+`X-Flirty-Trigger`). Die Ausdrucks-Auswertung ist dabei gekapselt: ein unauswertbarer Ausdruck (z. B. eine
+Antwort, die es bei `OnDialogStarted` noch nicht gibt) überspringt das Ziel, statt den Command zu reißen.
+Neu im Core: `TriggerConfig` (öffentliches JSON-Schema `url`/`name` für `TriggerDefinition.Config`, analog
+`ValidationRules`), `Create/Update/DeleteTriggerCommand` (Querfeld-Regeln via `IValidatableObject` →
+`ValidationException`/400: `AfterQuestion` braucht genau dort eine Frage, Webhook braucht eine absolute
+URL), `Triggers` in `DialogDetail`/`DialogDetailResponse`, `.../triggers`-Endpunkte;
+`DeleteQuestionCommand` räumt verweisende Trigger mit ab. UI: Abschnitt „Trigger" im `DialogEditor` plus
+`/dialogs/{dialogId}/triggers/{triggerId}` (`TriggerEditor.razor`) mit Live-Validierung über den
+**unveränderten** `DesignerExpressionContext`.
+
+**Offen:** **Test-Runner (#43)** im Designer, Designer-E2E (#46), Coverage in CI (#48),
+NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des
+Designers ausgehen.

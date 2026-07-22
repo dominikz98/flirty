@@ -9,8 +9,9 @@ namespace Flirty.Tests.AspNetCore;
 /// <summary>
 /// Integrationstests für <c>MapFlirtyAdminEndpoints</c> (#36): fahren die Admin-CRUD-Endpunkte über
 /// einen In-Process-TestServer mit echten HTTP-Aufrufen gegen eine SQLite-in-memory-Datenbank
-/// (Docker-frei). Geprüft werden die CRUD-Happy-Paths je Entität (Dialog/Frage/Option/Übergang), der
-/// Publish-Workflow, das Fehler-Mapping (404/400/409), das Delete-Cleanup verwaister Übergänge sowie
+/// (Docker-frei). Geprüft werden die CRUD-Happy-Paths je Entität (Dialog/Frage/Option/Übergang/
+/// Schleife/Trigger), der Publish-Workflow, das Fehler-Mapping (404/400/409), das Delete-Cleanup
+/// verwaister Übergänge, Schleifen-Marker und Trigger sowie
 /// der End-to-End-Nachweis, dass ein rein per API aufgebauter Dialog anschließend über die Laufzeit
 /// startbar ist.
 /// </summary>
@@ -340,6 +341,126 @@ public sealed class MapFlirtyAdminEndpointsTests
             new CreateLoopRequest("positions", breaking.Id, entry.Id));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    // ---- Trigger-CRUD (#42) ----
+
+    /// <summary>Anlegen, Ändern und Löschen einer Trigger-Definition über die Endpunkte.</summary>
+    [Fact]
+    public async Task Trigger_CRUD_legt_an_aendert_und_loescht()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "triggers");
+
+        var create = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers",
+            new CreateTriggerRequest(
+                TriggerScope.OnDialogCompleted, null, TriggerKind.Webhook,
+                "{\"url\":\"https://example.test/hook\"}", null));
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = (await create.Content.ReadFromJsonAsync<TriggerResponse>())!;
+        Assert.Equal(TriggerScope.OnDialogCompleted, created.Scope);
+        Assert.Equal(TriggerKind.Webhook, created.Kind);
+        Assert.Null(created.QuestionId);
+
+        var update = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers/{created.Id}",
+            new UpdateTriggerRequest(
+                TriggerScope.OnDialogCompleted, null, TriggerKind.Webhook,
+                "{\"url\":\"https://example.test/andere\",\"name\":\"fertig\"}", "now.Year >= 2026"));
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var updated = (await update.Content.ReadFromJsonAsync<TriggerResponse>())!;
+        Assert.Contains("andere", updated.Config);
+        Assert.Equal("now.Year >= 2026", updated.Expression);
+
+        var delete = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}/triggers/{created.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+    }
+
+    /// <summary>Der Dialog-Graph liefert die Trigger mit (seit #42 auch über die REST-Schicht).</summary>
+    [Fact]
+    public async Task GetDialog_liefert_die_Trigger_mit()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "triggergraph");
+        await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers",
+            new CreateTriggerRequest(
+                TriggerScope.AfterAnswer, null, TriggerKind.InProcess, "{\"name\":\"antwort\"}", null));
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>($"/flirty/admin/dialogs/{dialog.Id}");
+
+        Assert.NotNull(body);
+        var trigger = Assert.Single(body.Triggers);
+        Assert.Equal(TriggerScope.AfterAnswer, trigger.Scope);
+        Assert.Equal(TriggerKind.InProcess, trigger.Kind);
+        Assert.Contains("antwort", trigger.Config);
+    }
+
+    /// <summary>Unstimmige Anfragen (Konfiguration, Frage-Bezug) werden über die Pipeline auf 400 abgebildet.</summary>
+    [Theory]
+    [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "kein json")]
+    [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "{\"name\":\"ohne-url\"}")]
+    [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "{\"url\":\"nicht-absolut\"}")]
+    [InlineData(TriggerScope.AfterQuestion, false, TriggerKind.InProcess, "{}")]
+    [InlineData(TriggerScope.OnDialogStarted, true, TriggerKind.InProcess, "{}")]
+    public async Task CreateTrigger_mit_unstimmiger_Anfrage_liefert_400(
+        TriggerScope scope, bool withQuestion, TriggerKind kind, string config)
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, $"bad-{scope}-{withQuestion}-{config.Length}");
+        Guid? questionId = withQuestion
+            ? (await CreateQuestionAsync(host, dialog.Id, "q", QuestionType.FreeText, 0)).Id
+            : null;
+
+        var response = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers",
+            new CreateTriggerRequest(scope, questionId, kind, config, null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>Das Ändern eines unbekannten Triggers wird auf 404 abgebildet.</summary>
+    [Fact]
+    public async Task UpdateTrigger_unbekannt_liefert_404()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "trigger404");
+
+        var response = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers/{Guid.NewGuid()}",
+            new UpdateTriggerRequest(
+                TriggerScope.OnDialogCompleted, null, TriggerKind.Webhook,
+                "{\"url\":\"https://example.test/hook\"}", null));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Das Löschen einer Frage räumt die auf sie verweisenden Trigger mit ab – ein
+    /// <c>AfterQuestion</c>-Trigger auf eine gelöschte Frage würde sonst nie mehr auslösen.
+    /// </summary>
+    [Fact]
+    public async Task DeleteQuestion_entfernt_verweisende_Trigger()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "triggercleanup");
+        var question = await CreateQuestionAsync(host, dialog.Id, "q", QuestionType.FreeText, 0);
+        await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers",
+            new CreateTriggerRequest(
+                TriggerScope.AfterQuestion, question.Id, TriggerKind.Webhook,
+                "{\"url\":\"https://example.test/hook\"}", null));
+
+        var delete = await host.Client.DeleteAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.NotNull(body);
+        Assert.Empty(body.Triggers);
     }
 
     // ---- Publish-Workflow ----

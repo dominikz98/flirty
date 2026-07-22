@@ -39,7 +39,10 @@ internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
         var @event = request.Headers.TryGetValues(WebhookNotificationHandler.EventHeaderName, out var values)
             ? values.FirstOrDefault()
             : null;
-        Requests.Add(new RecordedWebhookRequest(request.Method, request.RequestUri, @event, body));
+        var trigger = request.Headers.TryGetValues(WebhookNotificationHandler.TriggerHeaderName, out var names)
+            ? names.FirstOrDefault()
+            : null;
+        Requests.Add(new RecordedWebhookRequest(request.Method, request.RequestUri, @event, trigger, body));
 
         if (_throws)
         {
@@ -55,5 +58,7 @@ internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
 /// <param name="Method">Die HTTP-Methode.</param>
 /// <param name="Url">Die Ziel-URL.</param>
 /// <param name="Event">Der Wert des <c>X-Flirty-Event</c>-Headers (oder <see langword="null"/>).</param>
+/// <param name="Trigger">Der Wert des <c>X-Flirty-Trigger</c>-Headers (oder <see langword="null"/>).</param>
 /// <param name="Body">Der (roh gelesene) Anfrage-Body.</param>
-internal sealed record RecordedWebhookRequest(HttpMethod Method, Uri? Url, string? Event, string? Body);
+internal sealed record RecordedWebhookRequest(
+    HttpMethod Method, Uri? Url, string? Event, string? Trigger, string? Body);

@@ -5,9 +5,10 @@ namespace Flirty.Runtime.Admin;
 
 /// <summary>
 /// Löscht die Frage <see cref="QuestionId"/> im Dialog <see cref="DialogId"/> samt ihren Optionen
-/// (Datenbank-Cascade). Da <see cref="Flirty.Domain.Transition"/> und
-/// <see cref="Flirty.Domain.LoopDefinition"/> die Fragen FK-los referenzieren, werden verweisende
-/// Übergänge (Ausgangs- oder Zielfrage) und Schleifen-Marker (Einstiegs- oder Breaking Question) mit
+/// (Datenbank-Cascade). Da <see cref="Flirty.Domain.Transition"/>,
+/// <see cref="Flirty.Domain.LoopDefinition"/> und <see cref="Flirty.Domain.TriggerDefinition"/> die
+/// Fragen FK-los referenzieren, werden verweisende Übergänge (Ausgangs- oder Zielfrage),
+/// Schleifen-Marker (Einstiegs- oder Breaking Question) und Trigger (Scope <c>AfterQuestion</c>) mit
 /// entfernt; zeigt die Einstiegsfrage des Dialogs auf die gelöschte Frage, wird sie auf
 /// <see langword="null"/> gesetzt.
 /// </summary>
@@ -57,6 +58,14 @@ internal sealed class DeleteQuestionCommandHandler : ICommandHandler<DeleteQuest
         if (referencingLoops.Count > 0)
         {
             _store.RemoveRange(referencingLoops);
+        }
+
+        // Und ebenso Trigger auf diese Frage (Scope AfterQuestion): sie würden nie mehr auslösen, blieben
+        // aber im Designer als scheinbar aktive Konfiguration stehen.
+        var referencingTriggers = await _store.GetTriggersReferencingQuestionAsync(command.QuestionId, cancellationToken);
+        if (referencingTriggers.Count > 0)
+        {
+            _store.RemoveRange(referencingTriggers);
         }
 
         // Einstiegsfrage zurücksetzen, falls sie auf die gelöschte Frage zeigt.
