@@ -26,6 +26,11 @@
   <!-- Die zu testende Web-Sample (bringt Flirty + Flirty.AspNetCore + Migrations transitiv mit). -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
+    <!-- Der zu testende Blazor-Designer (#46). Die Projektreferenz kopiert nebenbei die
+         Static-Web-Assets-Manifeste (Flirty.Designer.staticwebassets.{endpoints,runtime}.json) ins
+         Testausgabeverzeichnis – ohne sie liefert der in-Prozess gehostete Designer kein
+         _framework/blazor.web.js aus und die Seiten blieben ohne Interaktivität. -->
+    <ProjectReference Include="..\..\src\Flirty.Designer\Flirty.Designer.csproj" />
   </ItemGroup>
 
   <!-- Statische Chat-UI der Sample in das Test-Ausgabe-wwwroot kopieren, damit der in-Prozess gehostete

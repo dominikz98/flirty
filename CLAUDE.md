@@ -25,8 +25,9 @@ src/
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). EPIC 7 komplett: Connection-Profil-
 │                               Verwaltung (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
-│                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42) und
-│                               Test-Runner (#43). Offen nur noch die Designer-E2E (#46).
+│                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42),
+│                               Test-Runner (#43) und Playwright-E2E der UI (#46). Komposition in
+│                               `DesignerApp.cs` (Program.cs ruft nur ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -35,7 +36,7 @@ src/
                                 Flirty.AspNetCore); Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger.
 tests/
 ├─ Flirty.Tests               xUnit Unit-/Integrationstests.
-└─ Flirty.E2E                 Playwright-E2E der Web-Sample-Chat-UI (#45/#47).
+└─ Flirty.E2E                 Playwright-E2E der Web-Sample-Chat-UI (#45/#47) und des Designers (#46).
 ```
 
 **Invariante:** Der Core (`Flirty`) hat **keine** ASP.NET-Abhängigkeit und läuft unverändert in
@@ -240,5 +241,17 @@ Log wird wie das aktive Profil per `Adopt` in den Kind-Scope durchgereicht. **Ac
 schreiben echte Sessions (`ExternalUserKey`-Präfix `designer-test-`) und stellen konfigurierte Webhooks
 tatsächlich zu.
 
-**Offen:** Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
-Doku-/README-Ausbau (#50–#52).
+**Designer-E2E (#46) fertig** – und damit EPIC 7 auch im Browser abgesichert. Dafür wurde die
+Komposition des Designers aus `Program.cs` nach `src/Flirty.Designer/DesignerApp.cs` gezogen
+(`ConfigureServices`/`Configure`, Muster wie `WebSampleApp`), damit `tests/Flirty.E2E/DesignerAppFixture`
+sie in-Prozess auf einem freien Kestrel-Port hosten kann – mit vorab aktiviertem Connection-Profil auf
+einer migrierten SQLite-Temp-Datenbank in einem Temp-ContentRoot. Zwei Tests: der Anlege-Flow des Issues
+(Dialog → Fragen → Optionen → Einstiegsfrage → Übergänge inkl. Live-Validierung → Schleife →
+veröffentlichen → Reload als Persistenz-Nachweis) und ein Testlauf über den Runner (#43) mit zwei
+Iterationen. **Zwei Fallen** (beide in `docs/DESIGNER.md` § Tests festgehalten): Der Host braucht
+`ApplicationName = "Flirty.Designer"` **und** `EnvironmentName = "Development"`, sonst fehlt
+`_framework/blazor.web.js` und nichts ist interaktiv; und nach **jedem** Seitenwechsel verpufft die erste
+Interaktion still, bis der Circuit die Seite übernommen hat – ein zuverlässiges JS-Signal dafür gibt es
+nicht, deshalb wiederholt `InteractWhenReadyAsync` sie (die Aktion muss idempotent sein).
+
+**Offen:** Coverage in CI (#48), NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52).
