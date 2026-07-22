@@ -1,22 +1,6 @@
 /* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
 
-.back {
-    margin: 0 0 0.5rem;
-    font-size: 0.9rem;
-}
-
-h1 .badge {
-    vertical-align: middle;
-    margin-left: 0.5rem;
-}
-
 h3 {
     margin: 0.75rem 0 0.5rem;
     font-size: 1rem;
-}
-
-.confirm {
-    align-self: center;
-    font-size: 0.9rem;
-    color: #b32121;
 }

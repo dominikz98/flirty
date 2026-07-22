@@ -111,18 +111,30 @@ Die übrigen Fehlerfälle von Submit/Edit gelten unverändert (siehe [RUNTIME.md
 - **Strukturierte Iterations-Objekte** – gesammelt wird je Iteration genau die Einstiegsantwort (ein
   Eintrag pro Iteration), nicht alle Antworten des Bereichs.
 - **`CollectionKey` ↔ `Question.Key`-Kollision** – Designer-Konvention: Collection- und Frage-Schlüssel
-  disjunkt halten. Der Branching-Editor weist eine Kollision seit #40 aus (der Frage-Schlüssel wird von
-  der gleichnamigen Collection verdeckt), verhindern kann er sie nicht.
+  disjunkt halten. Ausgewiesen wird die Kollision an beiden Stellen (Bezeichner-Referenz des
+  Branching-Editors seit #40, Warnung des Loop-Editors seit #41: der Frage-Schlüssel wird von der
+  gleichnamigen Collection verdeckt) – verhindert wird sie nicht. Eindeutig erzwungen ist nur der
+  `CollectionKey` **innerhalb** der Schleifen eines Dialogs.
 
 ## Schleifen im Designer
 
-Ein **CRUD für Schleifen-Marker gibt es noch nicht** (Issue #41); angelegt werden sie bis dahin direkt
-über den `FlirtyDbContext` (so macht es auch der `DemoDialogProvisioner` der Web-Sample). **Lesend**
-liefert `GetDialogQuery` sie seit #40 aber mit (`DialogDetail.Loops`) – der Branching-Editor braucht die
-`CollectionKey`s, um Ausdrücke wie `skills.Count > 0` überhaupt validieren zu können (siehe
-[DESIGNER.md](./DESIGNER.md#live-validierung-über-den-musterkontext)). Den Zyklus selbst legt man schon
-heute im Branching-Editor an: eine `Transition` auf eine frühere Frage, im Designer als **Rücksprung**
-markiert.
+Seit **#41** lassen sich die Marker im Designer pflegen: Abschnitt „Schleifen (Loops)" im Dialog-Editor
+plus die Detailseite `/dialogs/{dialogId}/loops/{loopId}` mit **Loop-Block** (Bereichsfragen, markierte
+Breaking Question, Rücksprünge und Ausstiege), bearbeitbarem `CollectionKey` und Warnungen – unter anderem
+vor einem Zyklus **ohne erreichbaren Ausstieg** (Endlosschleife) und vor **überlappenden** Bereichen, die
+den `LoopResolver` schon im Konstruktor scheitern lassen. Details und der vollständige Warnkatalog:
+[DESIGNER.md](./DESIGNER.md#loop-editor-41).
+
+Den Zyklus selbst legt weiterhin der Branching-Editor an – eine `Transition` auf eine frühere Frage, dort
+als **Rücksprung** markiert. Ein solcher Rücksprung ohne passenden Marker wird im Schleifen-Abschnitt als
+Vorschlag ausgewiesen (ohne Marker würden die Antworten des Zyklus überschrieben statt gesammelt).
+
+Unter der UI liegen die Admin-Commands `Create/Update/DeleteLoopCommand` und – für Hosts ohne Designer –
+die Endpunkte `POST {prefix}/dialogs/{dialogId}/loops` bzw. `PUT/DELETE .../loops/{loopId}` aus
+`Flirty.AspNetCore`. Der `CollectionKey` muss je Dialog eindeutig sein (sonst 409); ohne diese Prüfung
+würden sich zwei gleichnamige Marker in der Collection-Bindung still überschreiben. Lesend liefert
+`GetDialogQuery` die Marker seit #40 mit (`DialogDetail.Loops`) – der Branching-Editor braucht die
+`CollectionKey`s, um Ausdrücke wie `skills.Count > 0` überhaupt validieren zu können.
 
 ## Nutzung
 

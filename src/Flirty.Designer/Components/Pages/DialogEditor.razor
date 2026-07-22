@@ -410,6 +410,162 @@ else
     </div>
 
     <div class="editor">
+        <h2>Schleifen (Loops)</h2>
+
+        @if (_detail.Questions.Count == 0)
+        {
+            <p class="empty">Erst Fragen und Übergänge anlegen – eine Schleife markiert einen vorhandenen Zyklus.</p>
+        }
+        else
+        {
+            <p class="hint">
+                Eine Schleife entsteht aus den Übergängen: Ein Rücksprung auf eine frühere Frage bildet den
+                Zyklus. Der Marker sagt der Laufzeit nur, dass die Antworten des Bereichs je Iteration unter
+                dem Collection-Schlüssel <em>gesammelt</em> statt überschrieben werden.
+            </p>
+
+            @if (_detail.Loops.Count == 0)
+            {
+                <p class="empty">Noch keine Schleifen markiert.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Collection</th>
+                            <th>Einstieg</th>
+                            <th>Breaking</th>
+                            <th>Bereich</th>
+                            <th>Status</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var insight in _loops)
+                        {
+                            // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den
+                            // Schleifenzustand nach dem letzten Durchlauf.
+                            var loop = insight.Loop;
+
+                            <tr>
+                                <td class="mono">@loop.CollectionKey</td>
+                                <td class="mono">@QuestionLabel(loop.EntryQuestionId)</td>
+                                <td class="mono">@QuestionLabel(loop.BreakingQuestionId)</td>
+                                <td>@insight.Body.Count Frage(n)</td>
+                                <td>
+                                    @if (insight.Warnings.Count == 0)
+                                    {
+                                        <span class="badge badge-loop">Schleife</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-draft"
+                                              title="@string.Join(" ", insight.Warnings)">
+                                            @insight.Warnings.Count Warnung(en)
+                                        </span>
+                                    }
+                                </td>
+                                <td class="row-actions">
+                                    <button class="btn" @onclick="() => OpenLoop(loop)">Bearbeiten</button>
+
+                                    @if (_confirmDeleteLoopId == loop.Id)
+                                    {
+                                        <span class="confirm">Marker löschen? Der Zyklus selbst bleibt bestehen.</span>
+                                        <button class="btn btn-danger" disabled="@_busy"
+                                                @onclick="() => DeleteLoopAsync(loop)">Ja, löschen</button>
+                                        <button class="btn" disabled="@_busy"
+                                                @onclick="() => _confirmDeleteLoopId = null">Abbrechen</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-danger" disabled="@_busy"
+                                                @onclick="() => _confirmDeleteLoopId = loop.Id">Löschen</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (UnmarkedBackJumps().Count > 0)
+            {
+                <div class="banner warn">
+                    Rücksprung ohne Schleifen-Marker: Die Antworten dieses Zyklus werden zur Laufzeit
+                    <strong>überschrieben</strong> statt je Iteration gesammelt.
+                    @foreach (var candidate in UnmarkedBackJumps())
+                    {
+                        var backJump = candidate;
+                        <button class="btn" disabled="@_busy" @onclick="() => StartCreateLoop(backJump)">
+                            @QuestionLabel(backJump.FromQuestionId) → @QuestionLabel(backJump.TargetQuestionId)
+                            als Schleife markieren
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (_newLoop is null)
+            {
+                <div class="actions">
+                    <button class="btn btn-primary" disabled="@_busy"
+                            @onclick="() => StartCreateLoop(null)">Neue Schleife</button>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="_newLoop" OnValidSubmit="CreateLoopAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="loopEntry">Einstiegsfrage</label>
+                            <InputSelect id="loopEntry" class="input" @bind-Value="_newLoop.EntryQuestionId">
+                                <option value="">— wählen —</option>
+                                @foreach (var question in _detail.Questions)
+                                {
+                                    <option value="@question.Id">@question.Key — @question.Text</option>
+                                }
+                            </InputSelect>
+                            <span class="hint">Ziel des Rücksprungs; ihre Antwort wird je Iteration gesammelt.</span>
+                            <ValidationMessage For="() => _newLoop.EntryQuestionId" />
+                        </div>
+
+                        <div class="field">
+                            <label for="loopBreaking">Breaking Question</label>
+                            <InputSelect id="loopBreaking" class="input" @bind-Value="_newLoop.BreakingQuestionId">
+                                <option value="">— wählen —</option>
+                                @foreach (var question in _detail.Questions)
+                                {
+                                    <option value="@question.Id">@question.Key — @question.Text</option>
+                                }
+                            </InputSelect>
+                            <span class="hint">Frage, an der über Rücksprung oder Ausstieg entschieden wird.</span>
+                            <ValidationMessage For="() => _newLoop.BreakingQuestionId" />
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="loopKey">Collection-Schlüssel</label>
+                        <InputText id="loopKey" class="input mono" @bind-Value="_newLoop.CollectionKey" />
+                        <span class="hint">
+                            Bezeichner der gesammelten Antworten im Ausdruckskontext, z. B.
+                            <code>skills</code> für <code>skills.Count &gt; 0</code>.
+                        </span>
+                        <ValidationMessage For="() => _newLoop.CollectionKey" />
+                    </div>
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                        <button type="button" class="btn" disabled="@_busy"
+                                @onclick="() => _newLoop = null">Abbrechen</button>
+                    </div>
+                </EditForm>
+            }
+        }
+    </div>
+
+    <div class="editor">
         <h2>Veröffentlichung &amp; Löschen</h2>
         <div class="actions">
             @if (_detail.Dialog.IsPublished)
@@ -452,15 +608,18 @@ else
     public Guid Id { get; set; }
 
     private DialogDetail? _detail;
+    private IReadOnlyList<LoopInsight> _loops = [];
     private DialogFormModel _form = new();
     private QuestionFormModel? _newQuestion;
     private TransitionFormModel? _newTransition;
+    private LoopFormModel? _newLoop;
     private string? _error;
     private string? _message;
     private bool _busy;
     private bool _confirmDelete;
     private Guid? _confirmDeleteQuestionId;
     private Guid? _confirmDeleteTransitionId;
+    private Guid? _confirmDeleteLoopId;
     private Guid _loadedId;
 
     protected override async Task OnParametersSetAsync()
@@ -475,8 +634,10 @@ else
         _confirmDelete = false;
         _confirmDeleteQuestionId = null;
         _confirmDeleteTransitionId = null;
+        _confirmDeleteLoopId = null;
         _newQuestion = null;
         _newTransition = null;
+        _newLoop = null;
         await ReloadAsync();
     }
 
@@ -493,6 +654,7 @@ else
         var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(Id), token));
         _detail = result.Value;
         _error = result.Error;
+        _loops = _detail is null ? [] : LoopAnalyzer.Analyze(_detail);
 
         if (resetForm)
         {
@@ -683,7 +845,7 @@ else
 
     /// <summary>
     /// Gibt an, ob der Übergang auf eine frühere (oder dieselbe) Frage zeigt – damit entsteht ein Zyklus,
-    /// also eine Schleife (der Loop-Marker dazu wird erst mit der Loop-Visualisierung gepflegt).
+    /// also eine Schleife. Der Marker dazu wird im Abschnitt „Schleifen" gepflegt.
     /// </summary>
     private bool IsBackJump(TransitionDetail transition)
     {
@@ -829,6 +991,81 @@ else
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteTransitionCommand(Id, transition.Id), token),
             "Übergang gelöscht.",
+            resetForm: false);
+    }
+
+    // ---- Schleifen / Loops (#41) ------------------------------------------------------------------
+
+    /// <summary>
+    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Ohne Marker sammelt die
+    /// Laufzeit die Antworten des Zyklus nicht, sondern überschreibt sie – deshalb werden sie
+    /// ausgewiesen statt still hingenommen.
+    /// </summary>
+    /// <returns>Die unmarkierten Rücksprünge in Dialog-Reihenfolge.</returns>
+    private IReadOnlyList<TransitionDetail> UnmarkedBackJumps()
+        => _detail is null
+            ? []
+            : [.. _detail.Transitions
+                .Where(transition => IsBackJump(transition)
+                    && !_detail.Loops.Any(loop => loop.EntryQuestionId == transition.TargetQuestionId
+                                               && loop.BreakingQuestionId == transition.FromQuestionId))];
+
+    private void OpenLoop(LoopDetail loop)
+        => Navigation.NavigateTo($"dialogs/{Id}/loops/{loop.Id}");
+
+    /// <summary>
+    /// Öffnet das Anlege-Formular – aus einem Rücksprung heraus bereits vorbelegt: dessen Zielfrage ist
+    /// die Einstiegsfrage, dessen Ausgangsfrage die Breaking Question.
+    /// </summary>
+    /// <param name="backJump">Der Rücksprung, aus dem vorbelegt wird, oder <see langword="null"/> für ein leeres Formular.</param>
+    private void StartCreateLoop(TransitionDetail? backJump)
+    {
+        if (_detail is null || backJump is null)
+        {
+            _newLoop = new LoopFormModel();
+            return;
+        }
+
+        var entry = _detail.Questions.FirstOrDefault(question => question.Id == backJump.TargetQuestionId);
+
+        _newLoop = new LoopFormModel
+        {
+            EntryQuestionId = backJump.TargetQuestionId,
+            BreakingQuestionId = backJump.FromQuestionId,
+            CollectionKey = entry is null ? string.Empty : LoopFormModel.SuggestCollectionKey(entry.Key, _detail),
+        };
+    }
+
+    private async Task CreateLoopAsync()
+    {
+        if (_detail is null || _newLoop is null)
+        {
+            return;
+        }
+
+        var model = _newLoop;
+
+        var created = await RunAsync<LoopDetail>(
+            (sender, token) => sender.Send(
+                new CreateLoopCommand(
+                    Id, model.CollectionKey, model.EntryQuestionId!.Value, model.BreakingQuestionId!.Value),
+                token),
+            $"Schleife „{model.CollectionKey}“ markiert.",
+            resetForm: false);
+
+        if (created)
+        {
+            _newLoop = null;
+        }
+    }
+
+    private async Task DeleteLoopAsync(LoopDetail loop)
+    {
+        _confirmDeleteLoopId = null;
+
+        await RunAsync<Unit>(
+            (sender, token) => sender.Send(new DeleteLoopCommand(Id, loop.Id), token),
+            $"Schleife „{loop.CollectionKey}“ gelöscht.",
             resetForm: false);
     }
 

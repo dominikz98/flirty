@@ -24,8 +24,9 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
-│                               (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39) +
-│                               Branching-Editor (#40); Loop-/Trigger-/Test-Editoren (#41–#43) offen.
+│                               (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
+│                               Branching-Editor (#40) + Loop-Editor (#41); Trigger-Editor und
+│                               Test-Runner (#42/#43) offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -191,8 +192,17 @@ Detailseite `/dialogs/{dialogId}/transitions/{transitionId}` (`TransitionEditor.
 **Live-Validierung** der Bedingung und Baustein-Einfüger. Kern ist der Musterkontext
 `Services/DesignerExpressionContext.cs`: er bindet je Frage einen typrichtigen Beispielwert (Typen wie
 zur Laufzeit – ein Datum ist eine *Zeichenkette*) und jede Loop-Collection als leere Liste. Dafür liefert
-`GetDialogQuery` die Schleifen-Marker seit #40 **lesend** mit (`DialogDetail.Loops`, kein Loop-CRUD).
+`GetDialogQuery` die Schleifen-Marker seit #40 **lesend** mit (`DialogDetail.Loops`).
+**Loop-Editor (#41) fertig** – dazu kam das fehlende **Loop-CRUD**: `Create/Update/DeleteLoopCommand`
+(`CollectionKey` je Dialog eindeutig, Frage-Verweise bleiben FK-los ungeprüft), `.../loops`-Endpunkte und
+`Loops` in `DialogDetailResponse`; `DeleteQuestionCommand` räumt verweisende Marker jetzt mit ab (wie schon
+die Übergänge). UI: Abschnitt „Schleifen" im `DialogEditor` (inkl. Vorschlägen aus unmarkierten
+Rücksprüngen) plus `/dialogs/{dialogId}/loops/{loopId}` (`LoopEditor.razor`). Kern ist
+`Services/LoopAnalyzer.cs`: er **spiegelt** die Body-Berechnung des Core-internen `LoopResolver` (der ist
+`internal` und braucht eine `Dialog`-Entity) und warnt vor fehlendem/unerreichbarem Ausstieg
+(Endlosschleife), überlappenden Bereichen und verdeckenden `CollectionKey`s. Ein Test vergleicht beide
+Implementierungen auf demselben Graphen – bei Änderungen am `LoopResolver` mitziehen.
 
-**Offen:** restlicher Blazor-**Designer** (Editoren #41–#43, es gibt noch keine UI für Loops/Trigger und
-keinen Test-Runner), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
+**Offen:** restlicher Blazor-**Designer** (Editoren #42/#43, es gibt noch keine UI für Trigger und keinen
+Test-Runner), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
 Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des Designers ausgehen.

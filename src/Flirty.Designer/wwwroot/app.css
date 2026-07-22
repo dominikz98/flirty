@@ -186,6 +186,24 @@ h1:focus {
     margin-left: 0.35rem;
 }
 
+/* Rücklink und Badge in der Seitenüberschrift – auf jeder Editor-Unterseite gleich. */
+.back {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+}
+
+h1 .badge {
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
+/* Inline-Löschbestätigung (statt eines JS-confirm, das die Playwright-E2E blockieren würde). */
+.confirm {
+    align-self: center;
+    font-size: 0.9rem;
+    color: #b32121;
+}
+
 .msg {
     margin-top: 0.35rem;
     font-size: 0.85rem;

@@ -1,0 +1,358 @@
+@* Bewusst NICHT "LoopDetail" genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp Flirty.Runtime.Admin.LoopDetail verdecken (wie bei DialogEditor/QuestionEditor). *@
+@page "/dialogs/{DialogId:guid}/loops/{LoopId:guid}"
+@rendermode InteractiveServer
+@using Mediator
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject NavigationManager Navigation
+
+<PageTitle>Schleife · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_insight is null)
+{
+    <h1>Schleife</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        <span class="mono">@_insight.Loop.CollectionKey</span>
+        @if (_insight.Warnings.Count == 0)
+        {
+            <span class="badge badge-loop">Schleife</span>
+        }
+        else
+        {
+            <span class="badge badge-draft">@_insight.Warnings.Count Warnung(en)</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Schleifenbereich über @_insight.Body.Count Frage(n) im Dialog
+        <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
+    </p>
+
+    @if (_detail.Dialog.IsPublished)
+    {
+        <div class="banner warn">
+            Der Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen durch
+            Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    @foreach (var warning in _insight.Warnings)
+    {
+        <div class="banner warn">@warning</div>
+    }
+
+    <div class="editor">
+        <h2>Loop-Block</h2>
+
+        @if (_insight.Body.Count == 0)
+        {
+            <p class="empty">
+                Kein Schleifenbereich ermittelbar – Einstiegs- oder Breaking Question gehören nicht (mehr)
+                zu diesem Dialog.
+            </p>
+        }
+        else
+        {
+            <p class="hint">
+                Der Bereich ergibt sich aus dem Übergangs-Graphen: alle Fragen, die ab der Einstiegsfrage
+                erreichbar sind <em>und</em> von denen aus die Breaking Question erreichbar bleibt. Genau
+                diese Fragen tragen zur Laufzeit einen Iterationsindex.
+            </p>
+
+            <ol class="loop-block">
+                @foreach (var question in _insight.Body)
+                {
+                    <li>
+                        <span class="mono">@question.Key</span>
+                        <span class="group-text">— @question.Text</span>
+
+                        @if (question.Id == _insight.Loop.EntryQuestionId)
+                        {
+                            <span class="badge badge-start">Einstieg</span>
+                        }
+                        @if (question.Id == _insight.Loop.BreakingQuestionId)
+                        {
+                            <span class="badge badge-loop">Breaking</span>
+                        }
+
+                        @if (question.Id == _insight.Loop.BreakingQuestionId)
+                        {
+                            <ul class="loop-edges">
+                                @foreach (var transition in _insight.LoopBackTransitions)
+                                {
+                                    <li>
+                                        <span title="Rücksprung in den Schleifenbereich">↩</span>
+                                        <a href="@($"dialogs/{DialogId}/transitions/{transition.Id}")">
+                                            → @QuestionLabel(transition.TargetQuestionId)
+                                        </a>
+                                        <span class="mono">@Condition(transition)</span>
+                                    </li>
+                                }
+                                @foreach (var transition in _insight.ExitTransitions)
+                                {
+                                    <li>
+                                        <span title="Ausstieg aus dem Schleifenbereich">⇥</span>
+                                        <a href="@($"dialogs/{DialogId}/transitions/{transition.Id}")">
+                                            → @QuestionLabel(transition.TargetQuestionId)
+                                        </a>
+                                        <span class="mono">@Condition(transition)</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </li>
+                }
+            </ol>
+
+            <p class="hint">
+                Die Reihenfolge der Übergänge (und damit, welcher zuerst greift) wird in der
+                <a href="@($"dialogs/{DialogId}")">Übergangsliste des Dialogs</a> gepflegt.
+            </p>
+        }
+    </div>
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="editor">
+            <h2>Marker</h2>
+
+            <div class="field">
+                <label for="collectionKey">Collection-Schlüssel</label>
+                <InputText id="collectionKey" class="input mono" @bind-Value="_form.CollectionKey" />
+                <span class="hint">
+                    Unter diesem Bezeichner liegen die je Iteration gesammelten Antworten der
+                    Einstiegsfrage im Ausdruckskontext – z. B. <code>@(_form.CollectionKey).Count &gt; 0</code>
+                    als Abbruchbedingung. Er muss im Dialog eindeutig sein.
+                </span>
+                <ValidationMessage For="() => _form.CollectionKey" />
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="entry">Einstiegsfrage</label>
+                    <InputSelect id="entry" class="input" @bind-Value="_form.EntryQuestionId">
+                        <option value="">— wählen —</option>
+                        @foreach (var question in _detail.Questions)
+                        {
+                            <option value="@question.Id">@question.Key — @question.Text</option>
+                        }
+                    </InputSelect>
+                    <span class="hint">
+                        Ziel des Rücksprungs. Ihre erneute Beantwortung startet die nächste Iteration, und
+                        genau ihre Antwort landet je Iteration in der Collection.
+                    </span>
+                    <ValidationMessage For="() => _form.EntryQuestionId" />
+                </div>
+
+                <div class="field">
+                    <label for="breaking">Breaking Question</label>
+                    <InputSelect id="breaking" class="input" @bind-Value="_form.BreakingQuestionId">
+                        <option value="">— wählen —</option>
+                        @foreach (var question in _detail.Questions)
+                        {
+                            <option value="@question.Id">@question.Key — @question.Text</option>
+                        }
+                    </InputSelect>
+                    <span class="hint">
+                        An ihr entscheidet das normale Branching zwischen Rücksprung und Ausstieg – einen
+                        eigenen Break-Ausdruck gibt es nicht.
+                    </span>
+                    <ValidationMessage For="() => _form.BreakingQuestionId" />
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+            <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+        </div>
+    </EditForm>
+
+    <div class="editor">
+        <h2>Schleife löschen</h2>
+
+        <p class="hint">
+            Gelöscht wird nur der Marker – die Übergänge und damit der Zyklus bleiben bestehen. Ohne Marker
+            überschreibt die Laufzeit die Antworten des Bereichs, statt sie je Iteration zu sammeln, und
+            <span class="mono">@_insight.Loop.CollectionKey</span> ist in Bedingungen nicht mehr verfügbar.
+        </p>
+
+        <div class="actions">
+            @if (_confirmDelete)
+            {
+                <span class="confirm">Marker wirklich löschen?</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            }
+            else
+            {
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid DialogId { get; set; }
+
+    /// <summary>Der Primärschlüssel des bearbeiteten Schleifen-Markers (aus der Route).</summary>
+    [Parameter]
+    public Guid LoopId { get; set; }
+
+    private DialogDetail? _detail;
+    private LoopInsight? _insight;
+    private LoopFormModel _form = new();
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _confirmDelete;
+    private (Guid Dialog, Guid Loop) _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == (DialogId, LoopId))
+        {
+            return;
+        }
+
+        _loaded = (DialogId, LoopId);
+        _message = null;
+        _confirmDelete = false;
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Lädt den Dialog-Graphen und analysiert den bearbeiteten Marker. Ein <c>GetDialogQuery</c> genügt:
+    /// er liefert Fragen (für die Auswahl und den Loop-Block), Übergänge (für Bereich, Rücksprünge und
+    /// Ausstiege) und die übrigen Marker (für die Überlappungs-Prüfung).
+    /// </summary>
+    private async Task ReloadAsync(bool resetForm = true)
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
+        _detail = result.Value;
+        _error = result.Error;
+
+        _insight = _detail is null ? null : LoopAnalyzer.Analyze(_detail, LoopId);
+
+        if (_detail is not null && _insight is null)
+        {
+            _error = $"Der Dialog '{DialogId}' enthält keine Schleife mit der Id '{LoopId}'.";
+        }
+
+        if (resetForm)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        if (_insight is not null)
+        {
+            _form = LoopFormModel.From(_insight.Loop);
+        }
+    }
+
+    private string QuestionLabel(Guid questionId)
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
+            ?? $"unbekannt ({questionId})";
+
+    private static string Condition(TransitionDetail transition)
+        => transition.IsDefault
+            ? "— Default —"
+            : string.IsNullOrWhiteSpace(transition.Expression)
+                ? "— bedingungslos —"
+                : transition.Expression;
+
+    private async Task SaveAsync()
+        => await RunAsync<LoopDetail>(
+            (sender, token) => sender.Send(
+                new UpdateLoopCommand(
+                    DialogId, LoopId, _form.CollectionKey,
+                    _form.EntryQuestionId!.Value, _form.BreakingQuestionId!.Value),
+                token),
+            "Schleife gespeichert.");
+
+    private async Task DeleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteLoopCommand(DialogId, LoopId), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                _confirmDelete = false;
+                return;
+            }
+
+            Navigation.NavigateTo($"dialogs/{DialogId}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// </summary>
+    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
+    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
+    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<ISender, CancellationToken, ValueTask<TResult>> operation,
+        string successMessage)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(operation);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return false;
+            }
+
+            _error = null;
+            _message = successMessage;
+            await ReloadAsync();
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

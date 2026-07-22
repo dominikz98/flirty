@@ -282,17 +282,80 @@ Laufzeit anders wirken als gedacht:
 - **Mehrere Defaults** → es greift nur der oberste.
 - **Default mit Bedingung** → die Bedingung wird nicht ausgewertet (der Resolver prüft sie nicht).
 - **Bedingungsloser Übergang mit Nachfolgern** → er greift immer, die nachfolgenden werden nie geprüft.
-- **Rücksprung** (Ziel liegt nicht nach der Ausgangsfrage) → Badge; der Loop-Marker dazu folgt mit #41.
+- **Rücksprung** (Ziel liegt nicht nach der Ausgangsfrage) → Badge; den Marker dazu pflegt der
+  [Loop-Editor](#loop-editor-41).
 - **Frage ohne ausgehende Übergänge** → Hinweis „der Dialog endet nach dieser Frage".
 - **Verwaiste Übergänge** (Ausgangsfrage existiert nicht mehr) werden sichtbar gemacht und lassen sich
   löschen. Über den Designer entstehen sie nicht – die Admin-API prüft Frage-Verweise aber bewusst nicht.
+
+## Loop-Editor (#41)
+
+Schleifen sind **Branching + Marker**: Den Zyklus bilden die Übergänge, die `LoopDefinition` legt nur die
+Metadaten-Ebene darüber (Details: [LOOPS.md](./LOOPS.md)). Der Designer pflegt deshalb ausschließlich den
+**Marker** – angelegt wird der Zyklus im Branching-Editor.
+
+| Route | Komponente | Inhalt |
+|---|---|---|
+| `/dialogs/{id:guid}` | `DialogEditor.razor`, Abschnitt „Schleifen (Loops)" | Tabelle (Collection, Einstieg, Breaking, Bereichsgröße, Warnungs-Badge), Löschen mit Inline-Bestätigung, Inline-Formular „Neue Schleife" und die Vorschläge aus unmarkierten Rücksprüngen. |
+| `/dialogs/{dialogId:guid}/loops/{loopId:guid}` | `LoopEditor.razor` | Loop-Block, `CollectionKey`, Einstiegs-/Breaking-Frage, Warnungen, Löschen. |
+
+> Auch diese Seite heißt bewusst **`LoopEditor`** – `LoopDetail` würde den gleichnamigen Sichttyp aus
+> `Flirty.Runtime.Admin` verdecken (gleiche Falle wie bei `DialogEditor`/`QuestionEditor`/`TransitionEditor`).
+
+Verwendet werden `Create/Update/DeleteLoopCommand` (via `FlirtyAdminGateway`), der Zustand kommt aus
+**einem** `GetDialogQuery`. Neu in #41 sind auch die REST-Endpunkte
+(`POST {prefix}/dialogs/{dialogId}/loops`, `PUT|DELETE .../loops/{loopId}`) und `Loops` in der
+`DialogDetailResponse` – bis dahin waren die Marker nur lesend erreichbar.
+
+Der `CollectionKey` muss **im Dialog eindeutig** sein; das prüft der Command-Handler (409 an der REST-Schicht).
+Ohne diese Prüfung würden sich zwei gleichnamige Marker zur Laufzeit still überschreiben – `LoopResolver`
+baut die Collections in ein Dictionary, der zuletzt aufgebaute Marker gewänne.
+
+Frage-Verweise prüft die Admin-API bewusst **nicht** (wie bei `Transition`); der Designer weist stattdessen
+darauf hin. Umgekehrt räumt `DeleteQuestionCommand` seit #41 verweisende Marker mit ab – wie schon die
+Übergänge –, damit kein Marker auf einer gelöschten Frage stehenbleibt.
+
+### Loop-Block
+
+`Services/LoopAnalyzer.cs` leitet den **Schleifenbereich** aus dem Übergangs-Graphen ab und spiegelt dabei
+die Vorberechnung des Core-internen `LoopResolver`:
+`(vorwärts ab Entry, Stopp an Breaking) ∩ (rückwärts zu Breaking) ∪ {Entry, Breaking}`. Der Resolver selbst
+ist nicht wiederverwendbar – er ist `internal` und arbeitet auf einer `Dialog`-Entity mit Navigationen,
+während der Designer nur `DialogDetail` hat (dieselbe Abgrenzung wie `DesignerExpressionContext` ↔
+`SessionExpressionContextBuilder`). Gegen ein Auseinanderlaufen sichert `LoopAnalyzerTests` ab, indem es
+beide Implementierungen auf demselben Graphen vergleicht.
+
+Angezeigt werden die Bereichsfragen in Dialog-Reihenfolge mit den Badges **Einstieg**/**Breaking**; unter der
+Breaking Question stehen ihre Übergänge getrennt als **↩ Rücksprung** (Ziel im Bereich) und **⇥ Ausstieg**
+(Ziel außerhalb), jeweils mit Bedingung und Link in den Übergangs-Editor.
+
+### Warnungen (nicht blockierend)
+
+| Situation | Warum sie zählt |
+|---|---|
+| Einstiegs-/Breaking-Frage gehört nicht (mehr) zum Dialog | Der Marker zeigt ins Leere und sammelt nichts. |
+| Kein Rücksprung Breaking → Entry | Es entsteht gar kein Zyklus; die nächste Iteration startet nur über die **Einstiegsfrage**. |
+| **Kein Ausstieg** aus dem Bereich | Endlosschleife – die Kernwarnung aus #41. |
+| **Ausstieg unerreichbar** | Ein bedingungsloser Nicht-Default-Rücksprung steht vor jedem Ausstieg (oder der oberste Default zeigt zurück in den Bereich): Nach den Regeln des `TransitionResolver` greift immer der Rücksprung. Ebenfalls eine Endlosschleife. |
+| Überlappende Schleifenbereiche | Der `LoopResolver` wirft schon im Konstruktor – **jede** Session gegen den Dialog bricht ab. |
+| `CollectionKey` verdeckt einen Frage-Schlüssel bzw. ist kein gültiger Bezeichner / reserviert | Die Frage bzw. die Collection ist in Bedingungen nicht referenzierbar. Die Prüfung teilt sich `DesignerExpressionContext.IsBindable`/`IdentifierNote` mit der Bezeichner-Referenz des Branching-Editors. |
+
+### Vorschläge aus Rücksprüngen
+
+Rücksprung-Übergänge ohne passenden Marker listet der Dialog-Editor als Hinweis auf – ohne Marker
+**überschreibt** die Laufzeit die Antworten des Zyklus, statt sie je Iteration zu sammeln. Ein Klick öffnet
+das Anlege-Formular vorbelegt: Einstiegsfrage = Ziel des Rücksprungs, Breaking Question = dessen
+Ausgangsfrage, `CollectionKey` = Plural des Frage-Schlüssels (`skill` → `skills`). Kollidiert der Vorschlag
+mit einem vorhandenen Frage-/Collection-Schlüssel oder ist er kein gültiger Bezeichner, bleibt das Feld
+leer – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein leeres Pflichtfeld.
 
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
   (`@rendermode InteractiveServer` auf interaktiven Seiten).
 - Gemeinsame UI-Primitiven (`.editor`, `.field`, `.input`, `.btn`, `.data-table`, `.badge`, `.msg`,
-  `.banner`, `.empty` …) liegen **global** in `wwwroot/app.css`; die `*.razor.css`-Dateien enthalten nur
+  `.banner`, `.empty`, `.back`, `.confirm`, `h1 .badge` …) liegen **global** in
+  `wwwroot/app.css`; die `*.razor.css`-Dateien enthalten nur
   noch Seitenspezifisches. Neue Editor-Seiten nutzen diese Klassen, statt sie zu duplizieren.
 - UI-Texte und Doku **deutsch**. Der Designer ist `IsPackable=false` → CS1591 ist hier **kein** Fehler,
   XML-Docs sind optional (die übrigen Warnungen bleiben aber via `TreatWarningsAsErrors` Fehler).
@@ -310,8 +373,12 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   Anlegen/Auflisten, Fehler-Mapping (Schlüsselkonflikt, unbekannter Dialog, fehlendes Profil, nicht
   migrierte Datenbank), – als Regression – dass ein **Profilwechsel sofort greift**, die Fragen-
   Flüsse aus #39 (Frage mit Optionen anlegen, Reihenfolge in *einer* Operation tauschen, Rücksetzen der
-  Einstiegsfrage beim Löschen) und die Übergangs-Flüsse aus #40 (anlegen/löschen, Prioritäten in *einer*
-  Operation neu vergeben, Loop-Marker im Dialog-Graphen).
+  Einstiegsfrage beim Löschen), die Übergangs-Flüsse aus #40 (anlegen/löschen, Prioritäten in *einer*
+  Operation neu vergeben) und die Schleifen-Flüsse aus #41 (anlegen/ändern/löschen, Konflikt bei doppeltem
+  `CollectionKey`, Mitentfernen des Markers beim Löschen einer Frage).
+- `Designer/LoopAnalyzerTests` – die Schleifen-Analyse (#41): Bereichsermittlung inklusive Ein-Fragen-Loop,
+  Einteilung in Rücksprünge/Ausstiege, jede Warnregel einzeln – und als Kernprobe der Abgleich mit dem
+  Core-`LoopResolver` auf demselben Graphen (kein Auseinanderlaufen der gespiegelten Berechnung).
 - `Designer/DesignerExpressionContextTests` – der Musterkontext der Ausdrucks-Validierung (#40), geprüft
   gegen die **echte** Engine: gültige Ausdrücke je Fragetyp, Loop-Collection ohne Iteration, Tippfehler
   mit Position, verdeckte/ungültige Schlüssel und die typgerechte Quotierung des Baustein-Einfügers.
@@ -329,8 +396,9 @@ dotnet test tests/Flirty.Tests
 ## Roadmap (EPIC 7)
 
 #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Visualisierung → #42 Trigger-Editor → #43 Test-Runner. Designer-E2E: #46.
+#41 Loop-Editor ✅ → #42 Trigger-Editor → #43 Test-Runner. Designer-E2E: #46.
 
 > Für #42 (Trigger-Ausdrücke) lässt sich `DesignerExpressionContext` unverändert weiterverwenden –
-> `TriggerDefinition.Expression` läuft über dieselbe Engine und denselben Kontext. #41 braucht zusätzlich
-> ein Loop-CRUD; die lesende Projektion (`DialogDetail.Loops`) steht seit #40.
+> `TriggerDefinition.Expression` läuft über dieselbe Engine und denselben Kontext. Das Muster für das
+> fehlende CRUD liefert #41: Commands im Core, DTOs/Endpunkte in `Flirty.AspNetCore`, Liste im
+> `DialogEditor` plus eigene Unterseite.

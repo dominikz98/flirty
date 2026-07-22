@@ -1,21 +1,5 @@
 /* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
 
-.back {
-    margin: 0 0 0.5rem;
-    font-size: 0.9rem;
-}
-
-h1 .badge {
-    vertical-align: middle;
-    margin-left: 0.5rem;
-}
-
-.confirm {
-    align-self: center;
-    font-size: 0.9rem;
-    color: #b32121;
-}
-
 /* Gruppenüberschrift je Ausgangsfrage im Abschnitt „Übergänge" (#40). */
 h3.group {
     display: flex;

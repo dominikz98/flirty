@@ -4,8 +4,8 @@ namespace Flirty.Runtime;
 
 /// <summary>
 /// Wird geworfen, wenn ein per Admin-CRUD adressiertes Element des Konfigurations-Aggregats
-/// (<see cref="Dialog"/>, <see cref="Question"/>, <see cref="AnswerOption"/> oder
-/// <see cref="Transition"/>) nicht zu seiner angegebenen Id existiert – oder ein Kind nicht zu dem
+/// (<see cref="Dialog"/>, <see cref="Question"/>, <see cref="AnswerOption"/>, <see cref="Transition"/>
+/// oder <see cref="LoopDefinition"/>) nicht zu seiner angegebenen Id existiert – oder ein Kind nicht zu dem
 /// in der Route genannten Eltern-Element gehört. Der Endpunkt-Filter bildet diese Ausnahme auf
 /// <c>404 Not Found</c> ab. Abzugrenzen von <see cref="DialogNotFoundException"/>, die den
 /// Laufzeit-Fall „kein <b>veröffentlichter</b> Dialog zum Schlüssel" beschreibt.
@@ -67,4 +67,13 @@ public sealed class ConfigurationNotFoundException : Exception
     /// <returns>Die vorbereitete Ausnahme.</returns>
     public static ConfigurationNotFoundException ForTransition(Guid transitionId)
         => new($"Kein Übergang mit der Id '{transitionId}' im angegebenen Dialog gefunden.");
+
+    /// <summary>
+    /// Erstellt eine <see cref="ConfigurationNotFoundException"/> für einen nicht gefundenen
+    /// <see cref="LoopDefinition"/> mit der angegebenen <paramref name="loopId"/> (im adressierten Dialog).
+    /// </summary>
+    /// <param name="loopId">Der Primärschlüssel des nicht gefundenen Schleifen-Markers.</param>
+    /// <returns>Die vorbereitete Ausnahme.</returns>
+    public static ConfigurationNotFoundException ForLoop(Guid loopId)
+        => new($"Keine Schleife mit der Id '{loopId}' im angegebenen Dialog gefunden.");
 }

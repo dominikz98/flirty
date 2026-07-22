@@ -141,15 +141,18 @@ sie auf Request-/Response-DTOs; Engine-Ausnahmen werden auf `ProblemDetails` (40
 Umgesetzt in #35, Details in [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md). Das optionale
 **Admin-CRUD** (`app.MapFlirtyAdminEndpoints("/flirty/admin")`, opt-in, per `RequireAuthorization()`
 absicherbar) verwaltet den Konfigurationsgraphen – Dialoge (`/dialogs`, inkl. `publish`/`unpublish`),
-Fragen (`.../questions`), Optionen (`.../options`) und Übergänge (`.../transitions`) – über dieselbe
-Mediator-/DTO-/Filter-Mechanik. Umgesetzt in #36, Details ebd.
+Fragen (`.../questions`), Optionen (`.../options`), Übergänge (`.../transitions`) und Schleifen-Marker
+(`.../loops`) – über dieselbe Mediator-/DTO-/Filter-Mechanik. Umgesetzt in #36, die Schleifen-Endpunkte
+in #41; Details ebd.
 
 ## 10. Loops (Schleifen)
 
 Loops entstehen **über das vorhandene Branching**: eine Transition zeigt auf eine frühere
 Frage (Zyklus). Der `LoopDefinition`-Marker bewirkt zweierlei:
 1. **Runtime** sammelt je Iteration die Antwort der Einstiegsfrage unter `CollectionKey` (statt zu überschreiben) — `SessionAnswer.LoopInstanceId`/`IterationIndex` machen mehrere Antworten pro Frage möglich. Umgesetzt in **#29** (Details in [LOOPS.md](./LOOPS.md)).
-2. **Designer** visualisiert den Zyklus als Loop-Block mit markierter **Breaking Question**.
+2. **Designer** visualisiert den Zyklus als Loop-Block mit markierter **Breaking Question** und warnt vor
+   fehlendem oder unerreichbarem Ausstieg (Endlosschleife) sowie überlappenden Bereichen. Umgesetzt in
+   **#41** (Details in [DESIGNER.md](./DESIGNER.md#loop-editor-41)).
 
 Die **Breaking Question** ist die Frage, deren Exit-Transition den Zyklus verlässt; danach
 läuft der Dialog normal weiter. Break-Bedingungen und nachgelagertes Branching sehen die

@@ -5,9 +5,11 @@ namespace Flirty.Runtime.Admin;
 
 /// <summary>
 /// Löscht die Frage <see cref="QuestionId"/> im Dialog <see cref="DialogId"/> samt ihren Optionen
-/// (Datenbank-Cascade). Da <see cref="Flirty.Domain.Transition"/> die Fragen FK-los referenziert,
-/// werden verweisende Übergänge (Ausgangs- oder Zielfrage) mit entfernt; zeigt die
-/// Einstiegsfrage des Dialogs auf die gelöschte Frage, wird sie auf <see langword="null"/> gesetzt.
+/// (Datenbank-Cascade). Da <see cref="Flirty.Domain.Transition"/> und
+/// <see cref="Flirty.Domain.LoopDefinition"/> die Fragen FK-los referenzieren, werden verweisende
+/// Übergänge (Ausgangs- oder Zielfrage) und Schleifen-Marker (Einstiegs- oder Breaking Question) mit
+/// entfernt; zeigt die Einstiegsfrage des Dialogs auf die gelöschte Frage, wird sie auf
+/// <see langword="null"/> gesetzt.
 /// </summary>
 /// <param name="DialogId">Die Id des Dialogs, zu dem die Frage gehört.</param>
 /// <param name="QuestionId">Der Primärschlüssel der zu löschenden Frage.</param>
@@ -47,6 +49,14 @@ internal sealed class DeleteQuestionCommandHandler : ICommandHandler<DeleteQuest
         if (referencingTransitions.Count > 0)
         {
             _store.RemoveRange(referencingTransitions);
+        }
+
+        // Ebenso verwaiste Schleifen-Marker: Bliebe einer auf der gelöschten Frage stehen, rechnete der
+        // LoopResolver zur Laufzeit gegen einen Bereich, den es im Graphen nicht mehr gibt.
+        var referencingLoops = await _store.GetLoopsReferencingQuestionAsync(command.QuestionId, cancellationToken);
+        if (referencingLoops.Count > 0)
+        {
+            _store.RemoveRange(referencingLoops);
         }
 
         // Einstiegsfrage zurücksetzen, falls sie auf die gelöschte Frage zeigt.
