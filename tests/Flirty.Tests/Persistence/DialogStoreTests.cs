@@ -9,9 +9,9 @@ namespace Flirty.Tests.Persistence;
 /// <summary>
 /// Verifiziert das <see cref="IDialogStore"/>-Repository (Issue #21) gegen eine echte SQLite-Datenbank
 /// (in-memory): das Laden veröffentlichter bzw. gepinnter Dialog-Graphen (ungetrackt), das getrackte
-/// Laden von Sessions samt Antworten, den Aktiv-Session-Filter, die Unit-of-Work-Naht
-/// (<see cref="IDialogStore.AddSession"/> + <see cref="IDialogStore.SaveChangesAsync"/>) sowie die
-/// DI-Registrierung.
+/// Laden von Sessions samt Antworten, den Aktiv-Session-Filter, die Trigger-Abfrage je Session und
+/// Zeitpunkt (#42), die Unit-of-Work-Naht (<see cref="IDialogStore.AddSession"/> +
+/// <see cref="IDialogStore.SaveChangesAsync"/>) sowie die DI-Registrierung.
 /// </summary>
 public sealed class DialogStoreTests : IDisposable
 {
@@ -406,6 +406,57 @@ public sealed class DialogStoreTests : IDisposable
         Assert.Equal(EntityState.Unchanged, readContext.Entry(session).State);
     }
 
+    // ---- GetTriggersForSessionAsync (#42) ---------------------------------------------------
+
+    /// <summary>
+    /// Liefert genau die Trigger des Dialogs, an dem die Session hängt – und nur die des angefragten
+    /// Zeitpunkts. Grundlage der Webhook-Auslieferung, die aus der Notification nur die SessionId kennt.
+    /// </summary>
+    [Fact]
+    public async Task GetTriggersForSessionAsync_filtert_auf_Dialog_der_Session_und_Scope()
+    {
+        var dialogId = Guid.NewGuid();
+        var fremderDialogId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        using (var context = CreateContext())
+        {
+            var dialog = TestDialogFactory.NewDialog("triggers", version: 1, name: "Triggers");
+            dialog.Id = dialogId;
+            dialog.Triggers.Add(NewTrigger(dialogId, TriggerScope.OnDialogCompleted, "https://example.test/fertig"));
+            dialog.Triggers.Add(NewTrigger(dialogId, TriggerScope.AfterAnswer, "https://example.test/antwort"));
+
+            var fremd = TestDialogFactory.NewDialog("andere", version: 1, name: "Andere");
+            fremd.Id = fremderDialogId;
+            fremd.Triggers.Add(
+                NewTrigger(fremderDialogId, TriggerScope.OnDialogCompleted, "https://example.test/fremd"));
+
+            context.Dialogs.Add(dialog);
+            context.Dialogs.Add(fremd);
+            context.DialogSessions.Add(NewSession(dialogId, "user-1", id: sessionId));
+            context.SaveChanges();
+        }
+
+        using var readContext = CreateContext();
+        var triggers = await new DialogStore(readContext)
+            .GetTriggersForSessionAsync(sessionId, TriggerScope.OnDialogCompleted);
+
+        var trigger = Assert.Single(triggers);
+        Assert.Equal(dialogId, trigger.DialogId);
+        Assert.Contains("fertig", trigger.Config, StringComparison.Ordinal);
+    }
+
+    /// <summary>Eine unbekannte Session liefert eine leere Liste statt einer Ausnahme.</summary>
+    [Fact]
+    public async Task GetTriggersForSessionAsync_unbekannte_Session_liefert_leere_Liste()
+    {
+        using var readContext = CreateContext();
+        var triggers = await new DialogStore(readContext)
+            .GetTriggersForSessionAsync(Guid.NewGuid(), TriggerScope.OnDialogCompleted);
+
+        Assert.Empty(triggers);
+    }
+
     // ---- AddSession + SaveChangesAsync (Unit of Work) ---------------------------------------
 
     /// <summary>Eine neu hinzugefügte Session wird samt Antworten erst mit <c>SaveChangesAsync</c> persistiert.</summary>
@@ -506,6 +557,15 @@ public sealed class DialogStoreTests : IDisposable
 
     private static Dialog UnpublishedDialog(string key, int version)
         => TestDialogFactory.NewDialog(key, version, name: $"{key} v{version} (Entwurf)");
+
+    private static TriggerDefinition NewTrigger(Guid dialogId, TriggerScope scope, string url) => new()
+    {
+        Id = Guid.NewGuid(),
+        DialogId = dialogId,
+        Scope = scope,
+        Kind = TriggerKind.Webhook,
+        Config = $"{{\"url\":\"{url}\"}}",
+    };
 
     private static DialogSession NewSession(
         Guid dialogId,

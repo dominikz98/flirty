@@ -28,22 +28,23 @@ public sealed record DialogSummary(
 
 /// <summary>
 /// Navigationsfreie Sicht auf einen <see cref="Dialog"/> samt seinem im Rahmen des Admin-CRUD
-/// verwalteten Graphen (Fragen inkl. Optionen, Übergänge und Schleifen-Marker). Ergebnis von
+/// verwalteten Graphen (Fragen inkl. Optionen, Übergänge, Schleifen-Marker und Trigger). Ergebnis von
 /// <c>GetDialogQuery</c>.
 /// </summary>
 /// <param name="Dialog">Die Dialog-Metadaten.</param>
 /// <param name="Questions">Die Fragen des Dialogs (inklusive ihrer Antwortoptionen), nach <c>Order</c> sortiert.</param>
 /// <param name="Transitions">Die bedingten Übergänge des Dialogs, nach <c>Priority</c> sortiert.</param>
-/// <param name="Loops">
-/// Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert. Bewusst nur <b>lesend</b>:
-/// Sie machen die im Ausdruckskontext verfügbaren Loop-Collections sichtbar (z. B. für die
-/// Ausdrucks-Validierung im Designer); ein CRUD für Schleifen folgt separat.
+/// <param name="Loops">Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert.</param>
+/// <param name="Triggers">
+/// Die Trigger-Definitionen des Dialogs, nach <c>Scope</c>, <c>Kind</c> und Konfiguration sortiert
+/// (die Entity kennt keine eigene Reihenfolge).
 /// </param>
 public sealed record DialogDetail(
     DialogSummary Dialog,
     IReadOnlyList<QuestionDetail> Questions,
     IReadOnlyList<TransitionDetail> Transitions,
-    IReadOnlyList<LoopDetail> Loops);
+    IReadOnlyList<LoopDetail> Loops,
+    IReadOnlyList<TriggerDetail> Triggers);
 
 /// <summary>
 /// Navigationsfreie Sicht auf eine <see cref="Question"/> für das Admin-CRUD (mit allen
@@ -119,3 +120,26 @@ public sealed record LoopDetail(
     string CollectionKey,
     Guid EntryQuestionId,
     Guid BreakingQuestionId);
+
+/// <summary>
+/// Navigationsfreie Sicht auf eine <see cref="TriggerDefinition"/> (Rückkanal in die Host-Anwendung)
+/// für das Admin-CRUD.
+/// </summary>
+/// <param name="Id">Der Primärschlüssel der Trigger-Definition.</param>
+/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
+/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
+/// <param name="QuestionId">
+/// Die Frage, auf die der Trigger bei <see cref="TriggerScope.AfterQuestion"/> hört; sonst
+/// <see langword="null"/>.
+/// </param>
+/// <param name="Kind">Der Kanal (<see cref="TriggerKind.Webhook"/> oder <see cref="TriggerKind.InProcess"/>).</param>
+/// <param name="Config">Die kanal-spezifische Konfiguration als JSON (Schema: <see cref="TriggerConfig"/>).</param>
+/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+public sealed record TriggerDetail(
+    Guid Id,
+    Guid DialogId,
+    TriggerScope Scope,
+    Guid? QuestionId,
+    TriggerKind Kind,
+    string Config,
+    string? Expression);

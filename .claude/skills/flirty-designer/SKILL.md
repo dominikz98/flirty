@@ -7,8 +7,8 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 > **Status: teils umgesetzt (EPIC 7, Issues #37–#43).** Fertig sind die
 > **Connection-Profil-Verwaltung (#37)**, das **Dialog-CRUD (#38)**, der **Frage-Editor (#39)**, der
-> **Branching-Editor (#40)** und der **Loop-Editor (#41)**; `docs/DESIGNER.md` beschreibt alle fünf.
-> Der **Trigger-Editor (#42)** und der **Test-Runner (#43)** sind **noch offen**.
+> **Branching-Editor (#40)**, der **Loop-Editor (#41)** und der **Trigger-Editor (#42)**;
+> `docs/DESIGNER.md` beschreibt alle sechs. Der **Test-Runner (#43)** ist **noch offen**.
 > Dieser Skill ist die **Leitplanke** für den weiteren
 > Aufbau: die beabsichtigte Architektur und die Konventionen, an die man sich beim Implementieren halten
 > soll. Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
@@ -50,9 +50,18 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   Core das **Loop-CRUD** dazu (`Create/Update/DeleteLoopCommand`, `IDialogAdminStore.GetLoopAsync` /
   `LoopCollectionKeyExistsAsync` / `GetLoopsReferencingQuestionAsync`) sowie in `Flirty.AspNetCore`
   `Dtos/Admin/LoopDtos.cs`, die `.../loops`-Endpunkte und `Loops` in `DialogDetailResponse`.
+- **Trigger-Editor (#42):** `Models/TriggerFormModel.cs`, `Models/TriggerLabels.cs`, Seite
+  `Components/Pages/TriggerEditor.razor` (`/dialogs/{dialogId:guid}/triggers/{triggerId:guid}`) und der
+  Abschnitt „Trigger" in `DialogEditor.razor` (Liste, Inline-Anlegen; **keine** Sortierung – die Entity
+  hat kein `Order`/`Priority`). Dafür kam im Core dazu: `TriggerConfig` (öffentliches Schema der
+  `Config`-Spalte), `Create/Update/DeleteTriggerCommand`, `IDialogAdminStore.GetTriggerAsync` /
+  `GetTriggersReferencingQuestionAsync`, `Triggers` in `DialogDetail`, in `Flirty.AspNetCore`
+  `Dtos/Admin/TriggerDtos.cs` + `.../triggers`-Endpunkte – **und die Laufzeit-Auslieferung** im
+  `WebhookNotificationHandler` (`IDialogStore.GetTriggersForSessionAsync`).
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
-  `DesignerExpressionContextTests`, `LoopAnalyzerTests`).
+  `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`) plus im Core
+  `Domain/TriggerConfigTests` und `Runtime/DialogTriggerDispatchTests`.
 
 ## Leitplanken für die Umsetzung
 
@@ -62,9 +71,10 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    - Dialoge: `ListDialogsQuery`, `GetDialogQuery`, `CreateDialogCommand`, `UpdateDialogCommand`,
      `DeleteDialogCommand`, `PublishDialogCommand`, `UnpublishDialogCommand`.
    - Fragen: `Create/Update/DeleteQuestionCommand`. Optionen: `Create/Update/DeleteAnswerOptionCommand`.
-     Übergänge (Branching): `Create/Update/DeleteTransitionCommand`.
+     Übergänge (Branching): `Create/Update/DeleteTransitionCommand`. Schleifen:
+     `Create/Update/DeleteLoopCommand`. Trigger: `Create/Update/DeleteTriggerCommand`.
    - Sichten (navigationsfrei) in `AdminModels.cs`: `DialogSummary`, `DialogDetail`, `QuestionDetail`,
-     `AnswerOptionDetail`, `TransitionDetail`.
+     `AnswerOptionDetail`, `TransitionDetail`, `LoopDetail`, `TriggerDetail`.
    - DI: `AddFlirty(...)` registriert `IDialogAdminStore`; im `Program.cs` des Designers ergänzen
      (inkl. Provider-Wahl je Connection-Profil).
 
@@ -84,7 +94,7 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    Core-API `FlirtyDatabaseProvider` + `DbContextOptionsBuilder.UseFlirtyProvider(...)` (Details:
    `docs/DESIGNER.md`, `docs/PERSISTENCE.md`). Nicht duplizieren – dieses API wiederverwenden.
 
-3. **Ausdrücke beim Speichern validieren (#40 umgesetzt, #42 analog).** Branching-Bedingungen und
+3. **Ausdrücke beim Speichern validieren (#40/#42 umgesetzt).** Branching-Bedingungen und
    Trigger-Ausdrücke über `IExpressionEvaluator.Validate(...)` kompilieren/prüfen, bevor gespeichert
    wird – die Engine ist gesandboxt (kein `eval`), siehe `docs/BRANCHING-EXPRESSIONS.md`. Dasselbe
    Prinzip setzt #39 bereits für Validierungs-**Muster** um:
@@ -94,7 +104,7 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    **Den Kontext dafür liefert `DesignerExpressionContext` (#40) – wiederverwenden, nicht nachbauen.**
    Er bindet je Frage einen Beispielwert, dessen **Typ exakt der Laufzeit-Bindung entspricht** (Zahl →
    `long`, Datum → **Zeichenkette**, Mehrfachauswahl → Liste) und jede Loop-Collection als leere Liste.
-   Für #42 genügt derselbe Kontext: `TriggerDefinition.Expression` läuft über dieselbe Engine.
+   #42 nutzt ihn **unverändert**: `TriggerDefinition.Expression` läuft über dieselbe Engine.
    Zwei Fallen: Zeichenketten-Literale **nicht** per `JsonSerializer` quotieren (dessen
    `\u00XX`-Escapes lehnt der Parser ab), und die Fehlermeldung der Engine ist **englisch** – deutsch
    rahmen statt übersetzen.
@@ -102,7 +112,8 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    **Fachliches JSON immer über den Core-Typ serialisieren, nicht über ein Duplikat.** `#39` benutzt
    `Flirty.Validation.ValidationRules` direkt (camelCase, `WhenWritingNull`); enthält gespeichertes JSON
    unbekannte Felder, fällt der Editor auf ein Roh-JSON-Textfeld zurück, statt sie beim Speichern
-   stillschweigend zu verwerfen. Bei `LoopDefinition`/`TriggerDefinition` (#41/#42) genauso vorgehen.
+   stillschweigend zu verwerfen. `#42` macht es genauso mit `Flirty.Domain.TriggerConfig`
+   (`url`/`name`) für `TriggerDefinition.Config` – inklusive Roh-JSON-Fallback.
 
 4. **Loops sind Branching + Marker (#41 umgesetzt).** Ein Zyklus entsteht durch eine `Transition` auf eine
    frühere Frage; `LoopDefinition` (CollectionKey/Entry/Breaking) macht ihn sichtbar. Der Branching-Editor
@@ -129,30 +140,36 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    `InvalidOperationException` → 409); ohne ihn überschrieben sich zwei gleichnamige Marker in der
    Collection-Bindung still.
 
-5. **Test-Runner (#43):** ein Dialog-Durchlauf im Designer über `IFlirtyEngine` gegen das gewählte Profil.
+5. **Trigger sind Rückkanäle – und feuern seit #42 wirklich (`docs/TRIGGERS.md`).** Bis dahin war
+   `TriggerDefinition` tote Konfiguration; jetzt liest der Core-`WebhookNotificationHandler` je
+   Notification zusätzlich die Trigger des Session-Dialogs (`IDialogStore.GetTriggersForSessionAsync`)
+   und stellt `Kind = Webhook` zu. Merkposten für Erweiterungen:
+   - `Kind = InProcess` stellt **nichts** zu (Host-App-Handler) – im UI benennen, nicht verschweigen.
+   - **Best-effort ist Pflicht:** unlesbare `Config`, fehlende URL und nicht auswertbare Bedingungen
+     werden geloggt und übersprungen. Nie werfen – der Handler läuft im Scope von Submit/Edit.
+   - Querfeld-Regeln gehören in den Command (`IValidatableObject` → `ValidationException` → 400), nicht
+     nur in die UI: `AfterQuestion` braucht genau dort eine `QuestionId`, `Webhook` eine absolute URL.
+   - Wie bei Loops gilt: FK-lose Frage-Verweise räumt `DeleteQuestionCommand` mit ab.
+
+6. **Test-Runner (#43):** ein Dialog-Durchlauf im Designer über `IFlirtyEngine` gegen das gewählte Profil.
 
 ## Empfohlene Aufbaureihenfolge (EPIC 7)
 
 #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor → #43 Test-Runner.
+#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner.
 
-Der Trigger-Editor (#42) hängt sich wie seine Vorgänger in die Detailseite
-`Components/Pages/DialogEditor.razor` (`/dialogs/{id:guid}`) ein – der `GetDialogQuery` liefert dort
-bereits Fragen, Optionen, Übergänge und Schleifen-Marker; für Trigger fehlt die Projektion noch (analog
-`DialogDetail.Loops` ergänzen). **Muster aus #39/#41 übernehmen:** Liste (mit Inline-Anlegen,
-↑/↓-Sortieren, Inline-Löschbestätigung) im `DialogEditor`, Details auf einer eigenen Unterseite. Beim
-Sortieren den **Positionsindex** als neue `Order`/`Priority` schreiben statt nur zwei Werte zu tauschen
-(repariert doppelte/lückenhafte Werte) und alle Updates in **einem** `ExecuteAsync`-Aufruf senden.
+Der Test-Runner (#43) braucht kein neues CRUD, sondern einen Dialog-Durchlauf über `IFlirtyEngine` –
+je Schritt in einem **frischen Scope** (Muster `FlirtyAdminGateway`), sonst klebt er am zuerst benutzten
+Connection-Profil.
 
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Pages in `Components/Pages/`), Server-interaktiver Render-Mode
   beibehalten.
 - **Komponentennamen dürfen die Sichttypen aus `Flirty.Runtime.Admin` nicht verdecken** – deshalb heißen
-  die Detailseiten `DialogEditor`/`QuestionEditor`/`TransitionEditor` und nicht
-  `DialogDetail`/`QuestionDetail`/`TransitionDetail` (sonst verschattet der generierte Komponententyp den
-  gleichnamigen Record) – und `LoopEditor` statt `LoopDetail`. Gilt genauso für kommende Seiten zu
-  `TriggerDetail`/`AnswerOptionDetail`.
+  die Detailseiten `DialogEditor`/`QuestionEditor`/`TransitionEditor`/`LoopEditor`/`TriggerEditor` und
+  nicht `DialogDetail`/`QuestionDetail`/… (sonst verschattet der generierte Komponententyp den
+  gleichnamigen Record). Gilt genauso für eine kommende Seite zu `AnswerOptionDetail`.
 - **Live-Validierung braucht ein rohes `<textarea>` mit `@oninput`**: an einer `InputTextArea` lässt sich
   `@bind-Value:event="oninput"` nicht mit `@bind-Value:after` kombinieren (RZ10010), und ohne `oninput`
   prüft der Editor erst beim Verlassen des Felds.

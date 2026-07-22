@@ -14,6 +14,7 @@ Outbound-Webhooks aus. Referenz: `docs/TRIGGERS.md`, `docs/MEDIATOR.md`.
 - `src/Flirty/Runtime/Notifications/DialogCompletedNotification.cs` (und die drei Geschwister).
 - `src/Flirty/Runtime/WebhookNotificationHandler.cs` – eingebauter Outbound-Handler.
 - `src/Flirty/Domain/TriggerScope.cs` – Scope-Enum (1:1-Mapping zu den Notifications).
+- `src/Flirty/Domain/TriggerConfig.cs` – JSON-Schema der am Dialog konfigurierten Trigger (#42).
 - `src/Flirty/Runtime/SubmitAnswerCommand.cs` – zeigt Publish nach `SaveChangesAsync`.
 
 ## Bestand (4 Notifications, Namespace `Flirty.Runtime`)
@@ -53,9 +54,18 @@ Outbound-Webhooks aus. Referenz: `docs/TRIGGERS.md`, `docs/MEDIATOR.md`.
 
 4. **Webhook-Auslieferung:** Damit der neue Trigger als HTTP-`POST` ausgeliefert wird, im
    `WebhookNotificationHandler` das entsprechende `INotificationHandler<ThingHappenedNotification>`
-   implementieren (Filter nach `TriggerScope`, optionale `expression` über `IExpressionEvaluator`,
-   best-effort über den Named-Client `WebhookNotificationHandler.HttpClientName`, Fehler **loggen, nicht
-   werfen**). Der Handler wird vom Generator automatisch registriert – **keine** manuelle DI nötig.
+   implementieren – die Weiterleitung an `DispatchAsync(scope, sessionId, currentQuestionId, payload, ct)`
+   genügt. Der Handler wird vom Generator automatisch registriert – **keine** manuelle DI nötig.
+
+   `DispatchAsync` bedient seit #42 **zwei** Quellen: die Code-Registrierungen
+   (`o.AddWebhook(scope, url, expression?)`) **und** die am Dialog konfigurierten `TriggerDefinition`s mit
+   `Kind = Webhook` (`IDialogStore.GetTriggersForSessionAsync`, Konfiguration als `TriggerConfig`-JSON).
+   Für einen neuen Scope heißt das: er muss auch im Designer wählbar sein (`TriggerLabels`) und – falls er
+   sich wie `AfterQuestion` auf eine Frage bezieht – im Filter berücksichtigt werden.
+
+   **Best-effort ist Gesetz:** unlesbare Konfiguration, fehlende URL, nicht auswertbare Bedingung und
+   Zustellfehler werden **geloggt, nicht geworfen** (Named-Client `WebhookNotificationHandler.HttpClientName`).
+   Der Handler läuft synchron im Scope von Start/Submit/Edit – jede Ausnahme dort bricht den Command.
 
 5. **Konsum in der Host-App** (dokumentieren/Beispiel): `AddFlirtyHandler<ThingHappenedNotification,
    MyHandler>()` oder roh `services.AddScoped<INotificationHandler<…>, MyHandler>()`. Mehrere Handler je
@@ -64,8 +74,9 @@ Outbound-Webhooks aus. Referenz: `docs/TRIGGERS.md`, `docs/MEDIATOR.md`.
 ## Definition of Done
 
 Deutsche XML-Docs · Publish-Zeitpunkt in `docs/TRIGGERS.md` dokumentiert (inkl. Reihenfolge und ob
-Resume/Reopen den Trigger auslöst) · Tests in `tests/Flirty.Tests/Runtime/` (Publish-Reihenfolge via
-`SpyPublisher`, Webhook via `RecordingHttpMessageHandler`) grün.
+Resume/Reopen den Trigger auslöst) · Tests in `tests/Flirty.Tests/Runtime/` grün: Publish-Reihenfolge via
+`SpyPublisher`, Webhook isoliert via `RecordingHttpMessageHandler` (`WebhookNotificationHandlerTests`) und
+end-to-end über den echten DI-Stack (`DialogTriggerDispatchTests`).
 
 ## Verifikation
 

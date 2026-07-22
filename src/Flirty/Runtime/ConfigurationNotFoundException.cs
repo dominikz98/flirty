@@ -76,4 +76,13 @@ public sealed class ConfigurationNotFoundException : Exception
     /// <returns>Die vorbereitete Ausnahme.</returns>
     public static ConfigurationNotFoundException ForLoop(Guid loopId)
         => new($"Keine Schleife mit der Id '{loopId}' im angegebenen Dialog gefunden.");
+
+    /// <summary>
+    /// Erstellt eine <see cref="ConfigurationNotFoundException"/> für eine nicht gefundene
+    /// <see cref="TriggerDefinition"/> mit der angegebenen <paramref name="triggerId"/> (im adressierten Dialog).
+    /// </summary>
+    /// <param name="triggerId">Der Primärschlüssel der nicht gefundenen Trigger-Definition.</param>
+    /// <returns>Die vorbereitete Ausnahme.</returns>
+    public static ConfigurationNotFoundException ForTrigger(Guid triggerId)
+        => new($"Kein Trigger mit der Id '{triggerId}' im angegebenen Dialog gefunden.");
 }

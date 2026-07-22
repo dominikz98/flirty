@@ -85,6 +85,9 @@ umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.
   Typen sind bewusst nicht gesetzt (kleinster gemeinsamer Nenner aller Provider; bestätigt in #19).
   Das Schema von `Question.ValidationRules` (camelCase-Felder `minLength`/`maxLength`/`min`/`max`/
   `pattern`, typ-skopiert) wertet seit #30 der `IAnswerValidator` aus – siehe [VALIDATION.md](./VALIDATION.md).
+  Das Schema von `TriggerDefinition.Config` beschreibt seit #42 der öffentliche Typ
+  `Flirty.Domain.TriggerConfig` (camelCase-Felder `url`/`name`; `url` ist bei `Kind = Webhook` Pflicht und
+  eine absolute http-/https-Adresse) – siehe [TRIGGERS.md](./TRIGGERS.md#trigger-definitionen-am-dialog-42).
 - **Skalare `Guid`-Verweise ohne Fremdschlüssel** – die oben unter *Bewusst ohne Navigation*
   gelisteten Verweise bleiben einfache Spalten (keine Relationship, kein Shadow-FK).
 - **Kaskadierendes Löschen** – innerhalb beider Aggregate (`Dialog` → Questions/Options/Transitions/

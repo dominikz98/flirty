@@ -1,0 +1,594 @@
+@* Bewusst NICHT "TriggerDetail" genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp Flirty.Runtime.Admin.TriggerDetail verdecken (wie bei DialogEditor/QuestionEditor). *@
+@page "/dialogs/{DialogId:guid}/triggers/{TriggerId:guid}"
+@rendermode InteractiveServer
+@using Mediator
+@using Flirty.Domain
+@using Flirty.Expressions
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject IExpressionEvaluator Evaluator
+@inject NavigationManager Navigation
+
+<PageTitle>Trigger · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_trigger is null)
+{
+    <h1>Trigger</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        @TriggerLabels.Describe(_trigger.Scope)
+        <span class="badge badge-default">@TriggerLabels.Describe(_trigger.Kind)</span>
+    </h1>
+
+    <p class="intro">
+        Trigger im Dialog <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
+        @if (_trigger.QuestionId is { } boundQuestionId)
+        {
+            <text>· gebunden an die Frage <span class="mono">@QuestionLabel(boundQuestionId)</span></text>
+        }
+    </p>
+
+    @if (_detail.Dialog.IsPublished)
+    {
+        <div class="banner warn">
+            Der Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen durch
+            Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="editor">
+            <h2>Auslöser</h2>
+
+            <div class="field">
+                <label for="scope">Zeitpunkt</label>
+                <InputSelect id="scope" class="input" @bind-Value="_form.Scope">
+                    @foreach (var scope in Enum.GetValues<TriggerScope>())
+                    {
+                        <option value="@scope">@TriggerLabels.Describe(scope)</option>
+                    }
+                </InputSelect>
+                <span class="hint">
+                    Bestimmt, welche Notification den Trigger auslöst – dieselben vier Zeitpunkte, die die
+                    Engine publiziert.
+                </span>
+            </div>
+
+            @if (TriggerLabels.RequiresQuestion(_form.Scope))
+            {
+                <div class="field">
+                    <label for="question">Frage</label>
+                    <InputSelect id="question" class="input" @bind-Value="_form.QuestionId">
+                        <option value="">— wählen —</option>
+                        @foreach (var question in _detail.Questions)
+                        {
+                            <option value="@question.Id">@question.Key — @question.Text</option>
+                        }
+                    </InputSelect>
+                    <span class="hint">Pflicht bei diesem Zeitpunkt: der Trigger löst nur nach dieser Frage aus.</span>
+                </div>
+            }
+            else
+            {
+                <span class="hint">
+                    Dieser Zeitpunkt bezieht sich nicht auf eine einzelne Frage – ein Frage-Bezug wird
+                    beim Speichern entfernt.
+                </span>
+            }
+
+            @if (!TriggerLabels.HasAnswers(_form.Scope) && !string.IsNullOrWhiteSpace(_form.Expression))
+            {
+                <div class="banner warn">
+                    Beim Dialogstart liegen noch <strong>keine Antworten</strong> vor. Eine Bedingung auf
+                    einen Fragen-Schlüssel lässt sich zur Laufzeit nicht auswerten – der Trigger feuert
+                    dann nicht (der Fehler wird nur protokolliert).
+                </div>
+            }
+        </div>
+
+        <div class="editor">
+            <h2>Kanal</h2>
+
+            <div class="field">
+                <label for="kind">Kanal</label>
+                <InputSelect id="kind" class="input" @bind-Value="_form.Kind">
+                    @foreach (var kind in Enum.GetValues<TriggerKind>())
+                    {
+                        <option value="@kind">@TriggerLabels.Describe(kind)</option>
+                    }
+                </InputSelect>
+            </div>
+
+            @if (_form.Kind == TriggerKind.InProcess)
+            {
+                <div class="banner warn">
+                    In-Process-Trigger werden von der Engine <strong>nicht</strong> zugestellt: die
+                    Notification wird ohnehin publiziert, behandelt wird sie von einem Handler der
+                    Host-App. Dieser Eintrag dokumentiert die Absicht (und benennt sie).
+                    <br />
+                    <code>services.AddFlirtyHandler&lt;DialogCompletedNotification, MeinHandler&gt;();</code>
+                </div>
+            }
+
+            @if (_form.UseRawJson)
+            {
+                <div class="banner warn">
+                    Die gespeicherte Konfiguration enthält unbekannte Felder oder ist kein gültiges
+                    JSON-Objekt. Sie wird deshalb roh bearbeitet, damit nichts verloren geht. Bekannt sind
+                    <code>url</code> und <code>name</code>.
+                </div>
+
+                <div class="field">
+                    <label for="rawConfig">Konfiguration (JSON)</label>
+                    <InputTextArea id="rawConfig" class="input mono" rows="5" @bind-Value="_form.RawJson" />
+                </div>
+            }
+            else
+            {
+                @if (_form.Kind == TriggerKind.Webhook)
+                {
+                    <div class="field">
+                        <label for="url">Ziel-URL</label>
+                        <InputText id="url" class="input mono" @bind-Value="_form.Url" />
+                        <span class="hint">
+                            Absolute http-/https-Adresse. Zugestellt wird ein HTTP-POST mit der
+                            Notification als JSON-Körper (Retry/Timeout inklusive, best-effort).
+                        </span>
+                    </div>
+                }
+
+                <div class="field">
+                    <label for="name">Ereignisname (optional)</label>
+                    <InputText id="name" class="input mono" @bind-Value="_form.Name" />
+                    <span class="hint">
+                        Wird als Header <code>X-Flirty-Trigger</code> mitgeliefert; der Zeitpunkt steht
+                        ohnehin in <code>X-Flirty-Event</code>.
+                    </span>
+                </div>
+            }
+        </div>
+
+        <div class="editor">
+            <h2>Bedingung</h2>
+
+            <div class="field">
+                <label for="expression">Ausdruck</label>
+                @* Bewusst ein rohes <textarea> mit @oninput statt <InputTextArea>: Nur so wird bei
+                   JEDER Eingabe validiert (das Formular-Binding feuert erst beim Verlassen des Felds). *@
+                <textarea id="expression" class="input mono" rows="3"
+                          value="@_form.Expression" @oninput="OnExpressionInput"></textarea>
+                <span class="hint">
+                    Boolescher Ausdruck, z. B. <code>role == "dev" &amp;&amp; alter &gt; 18</code>.
+                    Leer bedeutet „löst bedingungslos aus".
+                </span>
+            </div>
+
+            @if (_validation is not null)
+            {
+                @if (_validation.IsValid)
+                {
+                    <p class="expr-status ok">
+                        ✓ @(string.IsNullOrWhiteSpace(_form.Expression)
+                            ? "Ohne Bedingung – der Trigger löst immer aus."
+                            : "Ausdruck ist gültig.")
+                    </p>
+                }
+                else
+                {
+                    @* Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist
+                       englisch – deshalb der deutsche Rahmen davor. *@
+                    <p class="expr-status err">✗ Der Ausdruck ist ungültig: @_validation.Error</p>
+
+                    @if (Caret() is { } caret)
+                    {
+                        <pre class="expr-caret">@_form.Expression
+@caret</pre>
+                    }
+                }
+            }
+
+            <h3>Baustein einfügen</h3>
+
+            @if (BuilderVariables.Count == 0)
+            {
+                <p class="hint">
+                    Es gibt noch keine referenzierbaren Fragen in diesem Dialog – erst Fragen anlegen,
+                    dann lassen sich Bedingungen darauf bauen.
+                </p>
+            }
+            else
+            {
+                <div class="field-row">
+                    <div class="field">
+                        <label for="builderVariable">Variable</label>
+                        <select id="builderVariable" class="input"
+                                @bind="_builderVariable" @bind:after="OnBuilderVariableChanged">
+                            @foreach (var variable in BuilderVariables)
+                            {
+                                <option value="@variable.Name">@variable.Name (@variable.TypeLabel)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="builderOperator">Operator</label>
+                        <select id="builderOperator" class="input" @bind="_builderOperator">
+                            @foreach (var candidate in BuilderOperators)
+                            {
+                                <option value="@candidate">@candidate</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="builderValue">Wert</label>
+                        @if (SelectedVariable?.Kind == ExpressionValueKind.Boolean)
+                        {
+                            <select id="builderValue" class="input" @bind="_builderValue">
+                                <option value="true">true (ja)</option>
+                                <option value="false">false (nein)</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <input id="builderValue" class="input" @bind="_builderValue" @bind:event="oninput" />
+                        }
+                    </div>
+
+                    <div class="field">
+                        <label for="builderConjunction">Verknüpfung</label>
+                        <select id="builderConjunction" class="input" @bind="_builderConjunction"
+                                disabled="@string.IsNullOrWhiteSpace(_form.Expression)">
+                            <option value="&amp;&amp;">und (&amp;&amp;)</option>
+                            <option value="||">oder (||)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="button" class="btn" @onclick="InsertCondition">Einfügen</button>
+                    <span class="hint">Vorschau: <code class="mono">@Preview()</code></span>
+                </div>
+            }
+
+            <h3>Verfügbare Bezeichner</h3>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Bezeichner</th>
+                        <th>Typ</th>
+                        <th>Beispiel</th>
+                        <th>Hinweis</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var variable in _variables)
+                    {
+                        <tr>
+                            <td class="mono">@variable.Name</td>
+                            <td>@variable.TypeLabel</td>
+                            <td class="mono">@(variable.IsUsable ? variable.Example : "—")</td>
+                            <td>
+                                @if (!variable.IsUsable)
+                                {
+                                    <span class="badge badge-draft">nicht nutzbar</span>
+                                }
+                                @variable.Note
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+            <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+        </div>
+    </EditForm>
+
+    <div class="editor">
+        <h2>Trigger löschen</h2>
+
+        <p class="hint">
+            Ohne diesen Trigger läuft der Dialog unverändert weiter – es entfällt nur der Rückkanal.
+        </p>
+
+        <div class="actions">
+            @if (_confirmDelete)
+            {
+                <span class="confirm">Trigger wirklich löschen?</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            }
+            else
+            {
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid DialogId { get; set; }
+
+    /// <summary>Der Primärschlüssel des bearbeiteten Triggers (aus der Route).</summary>
+    [Parameter]
+    public Guid TriggerId { get; set; }
+
+    private DialogDetail? _detail;
+    private TriggerDetail? _trigger;
+    private TriggerFormModel _form = new();
+    private ExpressionContext? _context;
+    private IReadOnlyList<ExpressionVariable> _variables = [];
+    private ExpressionValidationResult? _validation;
+    private string? _builderVariable;
+    private string _builderOperator = "==";
+    private string _builderValue = string.Empty;
+    private string _builderConjunction = "&&";
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _confirmDelete;
+    private (Guid Dialog, Guid Trigger) _loaded;
+
+    private IReadOnlyList<ExpressionVariable> BuilderVariables =>
+        [.. _variables.Where(variable => variable.IsUsable && variable.Kind != ExpressionValueKind.Context)];
+
+    private ExpressionVariable? SelectedVariable =>
+        BuilderVariables.FirstOrDefault(variable => variable.Name == _builderVariable);
+
+    private IReadOnlyList<string> BuilderOperators =>
+        SelectedVariable is { } variable ? DesignerExpressionContext.OperatorsFor(variable.Kind) : [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == (DialogId, TriggerId))
+        {
+            return;
+        }
+
+        _loaded = (DialogId, TriggerId);
+        _message = null;
+        _confirmDelete = false;
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Lädt den Dialog-Graphen und greift den bearbeiteten Trigger heraus. Ein <c>GetDialogQuery</c>
+    /// genügt: er liefert Fragen (für die Auswahl und den Musterkontext), die Loop-Marker (für die
+    /// Collection-Bezeichner im Ausdruck) und die Trigger selbst.
+    /// </summary>
+    private async Task ReloadAsync()
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
+        _detail = result.Value;
+        _error = result.Error;
+
+        _trigger = _detail?.Triggers.FirstOrDefault(trigger => trigger.Id == TriggerId);
+
+        if (_detail is not null && _trigger is null)
+        {
+            _error = $"Der Dialog '{DialogId}' enthält keinen Trigger mit der Id '{TriggerId}'.";
+        }
+
+        if (_detail is not null)
+        {
+            _context = DesignerExpressionContext.Build(_detail);
+            _variables = DesignerExpressionContext.Describe(_detail);
+            _builderVariable = BuilderVariables.FirstOrDefault()?.Name;
+            OnBuilderVariableChanged();
+        }
+
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        if (_trigger is not null)
+        {
+            _form = TriggerFormModel.From(_trigger);
+            ValidateExpression();
+        }
+    }
+
+    private void OnExpressionInput(ChangeEventArgs args)
+    {
+        _form.Expression = args.Value?.ToString();
+        ValidateExpression();
+    }
+
+    /// <summary>
+    /// Prüft den Ausdruck gegen den Musterkontext des Dialogs – bei jeder Eingabe. Derselbe Kontext wie
+    /// beim Branching: <c>TriggerDefinition.Expression</c> läuft über dieselbe Engine.
+    /// </summary>
+    private void ValidateExpression()
+    {
+        _validation = _context is null
+            ? null
+            : DesignerExpressionContext.Validate(Evaluator, _form.NormalizedExpression(), _context);
+    }
+
+    private void OnBuilderVariableChanged()
+    {
+        // Nach einem Variablenwechsel passt der bisherige Operator womöglich nicht mehr (z. B. „>" auf
+        // einer Liste) -> auf den ersten passenden zurücksetzen.
+        if (!BuilderOperators.Contains(_builderOperator))
+        {
+            _builderOperator = BuilderOperators.FirstOrDefault() ?? "==";
+        }
+
+        if (SelectedVariable?.Kind == ExpressionValueKind.Boolean
+            && _builderValue is not ("true" or "false"))
+        {
+            _builderValue = "true";
+        }
+    }
+
+    private string Preview()
+        => SelectedVariable is { } variable
+            ? DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue)
+            : string.Empty;
+
+    private void InsertCondition()
+    {
+        if (SelectedVariable is not { } variable)
+        {
+            return;
+        }
+
+        _form.Expression = DesignerExpressionContext.Append(
+            _form.Expression,
+            DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue),
+            _builderConjunction);
+
+        ValidateExpression();
+    }
+
+    /// <summary>Baut die Caret-Zeile, die unter der gemeldeten Fehlerposition ein „^" setzt.</summary>
+    private string? Caret()
+    {
+        if (_validation?.ErrorPosition is not { } position
+            || string.IsNullOrEmpty(_form.Expression)
+            || position < 0
+            || position > _form.Expression.Length)
+        {
+            return null;
+        }
+
+        return new string(' ', position) + "^";
+    }
+
+    private string QuestionLabel(Guid questionId)
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
+            ?? questionId.ToString();
+
+    /// <summary>
+    /// Speichert den Trigger – nachdem Konfiguration und Ausdruck <b>blockierend</b> geprüft wurden. Ein
+    /// ungültiger Ausdruck fiele zur Laufzeit sonst erst beim Auslösen auf (dort wird er protokolliert
+    /// und der Trigger übersprungen – also stillschweigend nichts zugestellt).
+    /// </summary>
+    private async Task SaveAsync()
+    {
+        if (_detail is null || _trigger is null || _context is null)
+        {
+            return;
+        }
+
+        if (TriggerLabels.RequiresQuestion(_form.Scope) && _form.QuestionId is null)
+        {
+            _error = "Bitte eine Frage wählen – ein Trigger nach einer bestimmten Frage braucht ihren Bezug.";
+            _message = null;
+            return;
+        }
+
+        if (!_form.TryBuildConfig(out var config, out var configError))
+        {
+            _error = configError;
+            _message = null;
+            return;
+        }
+
+        var expression = _form.NormalizedExpression();
+        _validation = DesignerExpressionContext.Validate(Evaluator, expression, _context);
+
+        if (!_validation.IsValid)
+        {
+            _error = $"Die Bedingung ist ungültig: {_validation.Error}";
+            _message = null;
+            return;
+        }
+
+        await RunAsync<TriggerDetail>(
+            (sender, token) => sender.Send(
+                new UpdateTriggerCommand(
+                    DialogId, TriggerId, _form.Scope, _form.NormalizedQuestionId(), _form.Kind, config,
+                    expression),
+                token),
+            "Trigger gespeichert.");
+    }
+
+    private async Task DeleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteTriggerCommand(DialogId, TriggerId), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                _confirmDelete = false;
+                return;
+            }
+
+            Navigation.NavigateTo($"dialogs/{DialogId}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// </summary>
+    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
+    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
+    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<ISender, CancellationToken, ValueTask<TResult>> operation,
+        string successMessage)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(operation);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return false;
+            }
+
+            _error = null;
+            _message = successMessage;
+            await ReloadAsync();
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

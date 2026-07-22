@@ -35,7 +35,8 @@ internal static class FlirtyAdminResponseMappings
             detail.Dialog.UpdatedAt,
             [.. detail.Questions.Select(question => question.ToResponse())],
             [.. detail.Transitions.Select(transition => transition.ToResponse())],
-            [.. detail.Loops.Select(loop => loop.ToResponse())]);
+            [.. detail.Loops.Select(loop => loop.ToResponse())],
+            [.. detail.Triggers.Select(trigger => trigger.ToResponse())]);
 
     public static QuestionResponse ToResponse(this QuestionDetail question)
         => new(
@@ -64,4 +65,14 @@ internal static class FlirtyAdminResponseMappings
 
     public static LoopResponse ToResponse(this LoopDetail loop)
         => new(loop.Id, loop.DialogId, loop.CollectionKey, loop.EntryQuestionId, loop.BreakingQuestionId);
+
+    public static TriggerResponse ToResponse(this TriggerDetail trigger)
+        => new(
+            trigger.Id,
+            trigger.DialogId,
+            trigger.Scope,
+            trigger.QuestionId,
+            trigger.Kind,
+            trigger.Config,
+            trigger.Expression);
 }

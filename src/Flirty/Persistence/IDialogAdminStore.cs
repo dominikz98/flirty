@@ -23,10 +23,8 @@ internal interface IDialogAdminStore
 
     /// <summary>
     /// Lädt den Dialog mit der angegebenen <paramref name="dialogId"/> samt seinem für das
-    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen, Übergänge und Schleifen-Marker) –
+    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen, Übergänge, Schleifen-Marker und Trigger) –
     /// <b>ungetrackt</b> und als Split-Query. Grundlage für die Detail-Abfrage (<c>GetDialogQuery</c>).
-    /// Die Schleifen-Marker kommen bewusst nur lesend mit: sie machen die im Ausdruckskontext
-    /// verfügbaren Loop-Collections sichtbar (Ausdrucks-Validierung im Designer).
     /// </summary>
     /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
     /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
@@ -86,6 +84,25 @@ internal interface IDialogAdminStore
     /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
     /// <returns>Die referenzierenden Schleifen-Marker (leere Liste, wenn keine existieren).</returns>
     Task<IReadOnlyList<LoopDefinition>> GetLoopsReferencingQuestionAsync(
+        Guid questionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt die Trigger-Definition mit der angegebenen <paramref name="triggerId"/> <b>getrackt</b>.
+    /// </summary>
+    /// <param name="triggerId">Der Primärschlüssel der Trigger-Definition.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die getrackte Trigger-Definition oder <see langword="null"/>.</returns>
+    Task<TriggerDefinition?> GetTriggerAsync(Guid triggerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt alle Trigger-Definitionen <b>getrackt</b>, die die Frage mit der angegebenen
+    /// <paramref name="questionId"/> referenzieren (<see cref="TriggerDefinition.QuestionId"/>). Grundlage
+    /// für die Bereinigung verwaister (FK-loser) Trigger beim Löschen einer Frage.
+    /// </summary>
+    /// <param name="questionId">Der Primärschlüssel der Frage.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die referenzierenden Trigger-Definitionen (leere Liste, wenn keine existieren).</returns>
+    Task<IReadOnlyList<TriggerDefinition>> GetTriggersReferencingQuestionAsync(
         Guid questionId, CancellationToken cancellationToken = default);
 
     /// <summary>

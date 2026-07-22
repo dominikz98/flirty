@@ -27,6 +27,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
     /// <item><description><c>POST .../questions/{questionId}/options</c>, <c>PUT/DELETE .../options/{optionId}</c> – Antwortoptionen verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – Übergänge verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/loops</c>, <c>PUT/DELETE .../loops/{loopId}</c> – Schleifen-Marker verwalten.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/triggers</c>, <c>PUT/DELETE .../triggers/{triggerId}</c> – Trigger verwalten.</description></item>
     /// </list>
     /// Voraussetzung ist ein zuvor per <c>services.AddFlirty(...)</c> registrierter Flirty-Stack. Von der
     /// Engine geworfene Ausnahmen werden über denselben Endpunkt-Filter wie bei den Laufzeit-Endpunkten
@@ -66,6 +67,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
         MapAnswerOptionEndpoints(group);
         MapTransitionEndpoints(group);
         MapLoopEndpoints(group);
+        MapTriggerEndpoints(group);
 
         return group;
     }
@@ -256,6 +258,39 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             Guid dialogId, Guid loopId, ISender sender, CancellationToken cancellationToken) =>
         {
             await sender.Send(new DeleteLoopCommand(dialogId, loopId), cancellationToken);
+            return TypedResults.NoContent();
+        });
+    }
+
+    private static void MapTriggerEndpoints(RouteGroupBuilder group)
+    {
+        group.MapPost("/dialogs/{dialogId:guid}/triggers", async (
+            Guid dialogId, CreateTriggerRequest request, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(
+                new CreateTriggerCommand(
+                    dialogId, request.Scope, request.QuestionId, request.Kind, request.Config, request.Expression),
+                cancellationToken);
+            var response = result.ToResponse();
+            return TypedResults.Created($"/dialogs/{dialogId}/triggers/{response.Id}", response);
+        });
+
+        group.MapPut("/dialogs/{dialogId:guid}/triggers/{triggerId:guid}", async (
+            Guid dialogId, Guid triggerId, UpdateTriggerRequest request, ISender sender,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(
+                new UpdateTriggerCommand(
+                    dialogId, triggerId, request.Scope, request.QuestionId, request.Kind, request.Config,
+                    request.Expression),
+                cancellationToken);
+            return TypedResults.Ok(result.ToResponse());
+        });
+
+        group.MapDelete("/dialogs/{dialogId:guid}/triggers/{triggerId:guid}", async (
+            Guid dialogId, Guid triggerId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            await sender.Send(new DeleteTriggerCommand(dialogId, triggerId), cancellationToken);
             return TypedResults.NoContent();
         });
     }
