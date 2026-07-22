@@ -46,4 +46,19 @@ Jedes Projekt referenziert `Flirty` (Context + Provider transitiv) und
   `Flirty`-NuGet-Paket und die Auto-Anwendung beim Start folgen in **#20**; die komfortable
   Provider-Options-API in **#34**.
 
+## Nachtrag (#51)
+
+Die unter „Offen" genannten Punkte sind erledigt:
+
+- **#20** bündelt die drei Migrations-DLLs über `TargetsForTfmSpecificBuildOutput` nach
+  `lib/<tfm>/` ins `Flirty`-Paket; `o.ApplyMigrations()` wendet sie beim Start über den
+  `FlirtyMigrationHostedService` an. `IsPackable=false` bleibt dabei **richtig**: Die DLLs reisen im
+  Core-Paket mit, statt drei eigene Pakete zu sein – der Konsument installiert weiterhin nur `Flirty`.
+- **#34/#37** ersetzen das handgeschriebene `MigrationsAssembly(...)` durch
+  `FlirtyDatabaseProvider` + `DbContextOptionsBuilder.UseFlirtyProvider(...)`; das
+  Provider→MigrationsAssembly-Mapping liegt damit an genau einer Stelle im Core und wird vom Designer
+  (Multi-DB-Profile) mitgenutzt.
+
+An der Entscheidung selbst ändert das nichts – sie ist die Voraussetzung dafür.
+
 Details: [PERSISTENCE.md](../PERSISTENCE.md).

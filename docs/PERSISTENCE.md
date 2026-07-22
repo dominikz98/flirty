@@ -258,4 +258,6 @@ Security-Advisories (NU1903) einschleppen.
   Laufzeit-`IDialogStore` **liest** den Konfigurationsgraphen und schreibt nur Session-Zustand, das
   Admin-Gegenstück schreibt den Graphen selbst (generisches `Add`/`Remove`/`RemoveRange` plus die
   Schlüssel- und Verweis-Abfragen der CRUD-Commands).
-- Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md).
+- Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md)
+  (inkl. Nachtrag: die dort noch offenen Punkte #20 und #34/#37 sind erledigt). Übersicht aller
+  Entscheidungen: [docs/adr/](./adr/README.md).

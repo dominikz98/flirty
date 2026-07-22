@@ -36,12 +36,12 @@ fremde Apps erfolgt über **DI-Extension-Methods** und optional bereitgestellte
 | Thema | Entscheidung |
 |---|---|
 | Target Framework | **.NET 10** (alle Projekte) |
-| DB-Provider | **SQLite + PostgreSQL + SQL Server**, Kern provider-agnostisch via EF Core |
+| DB-Provider | **SQLite + PostgreSQL + SQL Server**, Kern provider-agnostisch via EF Core – [ADR 0001](./adr/0001-migrationen-pro-provider.md) |
 | Designer-Hosting | **Blazor Web App, Server-interaktiv** |
-| Branching | **Expression-/Script-Engine**, gesandboxt (Default: DynamicExpresso) |
+| Branching | **Expression-/Script-Engine**, gesandboxt (Default: DynamicExpresso) – [ADR 0004](./adr/0004-gesandboxte-expression-engine.md) |
 | Trigger | **In-Process (Mediator-Notifications) + Outbound-Webhooks** |
-| Mediator | **Mediator (martinothamar)** – Source-Generator, MIT |
-| Endpunkte | **Optional**, eigenes Projekt `Flirty.AspNetCore`; Core bleibt **ASP.NET-frei** |
+| Mediator | **Mediator (martinothamar)** – Source-Generator, MIT – [ADR 0002](./adr/0002-mediator-als-in-process-bus.md) |
+| Endpunkte | **Optional**, eigenes Projekt `Flirty.AspNetCore`; Core bleibt **ASP.NET-frei** – [ADR 0003](./adr/0003-aspnet-freier-core.md) |
 | NuGet | `Flirty` + `Flirty.AspNetCore` als **veröffentlichbare Packages** |
 | Dokumentation | XML-Docs (CS1591 als Error) + `docs/`-Guides + ADRs, Teil jeder DoD |
 
@@ -171,9 +171,9 @@ gesammelte Collection im Expression-Kontext (z. B. `positions.Count > 0`).
 
 ## 11. Design-Notizen
 
-1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen). **Umgesetzt in #14:** der `AddFlirty()`-Stub verdrahtet den Mediator (`ServiceLifetime.Scoped`) und registriert die offen-generischen Basis-Behaviors `LoggingPipelineBehavior<,>` und `ValidationPipelineBehavior<,>` (manuelle Registrierung – martinothamar-Vorgabe). Der Source-Generator läuft im Core, daher muss der `AddMediator`-Aufruf im Core liegen. Details siehe [MEDIATOR.md](./MEDIATOR.md).
-2. **ASP.NET-frei im Core**: reine Console-/Worker-Nutzung möglich.
-3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IExpressionEvaluator` (Alternative: NCalc).
+1. **Mediator (martinothamar)**: Source-Generator (kein Reflection-Overhead), MIT. Engine-Ops = Commands/Queries, Trigger = Notifications. Cross-Cutting via `IPipelineBehavior` (Logging, Validierung, Transaktionen). **Umgesetzt in #14:** der `AddFlirty()`-Stub verdrahtet den Mediator (`ServiceLifetime.Scoped`) und registriert die offen-generischen Basis-Behaviors `LoggingPipelineBehavior<,>` und `ValidationPipelineBehavior<,>` (manuelle Registrierung – martinothamar-Vorgabe). Der Source-Generator läuft im Core, daher muss der `AddMediator`-Aufruf im Core liegen. Details siehe [MEDIATOR.md](./MEDIATOR.md), verworfene Alternativen in [ADR 0002](./adr/0002-mediator-als-in-process-bus.md).
+2. **ASP.NET-frei im Core**: reine Console-/Worker-Nutzung möglich. Verworfene Alternativen (ein Paket mit ASP.NET-Referenz, `#if`-Varianten) in [ADR 0003](./adr/0003-aspnet-freier-core.md).
+3. **Expression-Sicherheit**: kein roher C#-`eval`. DynamicExpresso ist gesandboxt (Member-Whitelist); Ausdrücke werden im Designer beim Speichern kompiliert/validiert. Austauschbar über `IExpressionEvaluator` (Alternative: NCalc). Verworfene Alternativen (Roslyn-Scripting, eigene Grammatik) in [ADR 0004](./adr/0004-gesandboxte-expression-engine.md).
 4. **Dialog-Versionierung**: Sessions pinnen `DialogVersion` → Editieren publizierter Dialoge bricht laufende Sessions nicht.
 5. **Loops = Branching + Marker**: kein separater Runtime-Sonderpfad.
 6. **NuGet-Packaging**: `Flirty` + `Flirty.AspNetCore` mit vollständigen Metadaten (MIT-Lizenz, Icon, README), SourceLink und Symbolpaketen (`snupkg`); übrige Projekte `IsPackable=false`. Paketversion **datumsbasiert** (`JJJJMM.Revision`, z.B. `202604.1`), Assembly-Version davon entkoppelt (`Jahr.Monat.Revision`, UInt16-Grenze). Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
@@ -187,7 +187,13 @@ Doku ist **Definition-of-Done jedes Issues**:
   `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `GETTING-STARTED-Sample-Web.md`,
   `NUGET-PACKAGING.md`, `CI.md`, `ROADMAP.md`, `BACKLOG.md`. Der Wegweiser mit einer Zeile je Guide steht
   in der `CLAUDE.md` im Repo-Root.
-- ADRs unter `docs/adr/` (Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider).
+- ADRs unter [`docs/adr/`](./adr/README.md) – die Entscheidungen samt **verworfenen Alternativen**:
+  [0001 Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md),
+  [0002 Mediator](./adr/0002-mediator-als-in-process-bus.md),
+  [0003 ASP.NET-freier Core](./adr/0003-aspnet-freier-core.md),
+  [0004 Expression-Engine](./adr/0004-gesandboxte-expression-engine.md). Abgrenzung: Guides
+  beschreiben, **wie** etwas funktioniert, und wachsen mit dem Code; ADRs beschreiben, **warum** es so
+  ist, und werden nicht fortgeschrieben (Nachtrag oder Ablösung statt Umschreiben).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
 
 ## 13. Verifikation
@@ -206,4 +212,5 @@ Doku ist **Definition-of-Done jedes Issues**:
 
 ---
 
-> Backlog / Issue-Liste siehe [BACKLOG.md](./BACKLOG.md). Entscheidungshistorie unter `docs/adr/`.
+> Backlog / Issue-Liste siehe [BACKLOG.md](./BACKLOG.md). Entscheidungshistorie unter
+> [`docs/adr/`](./adr/README.md).
