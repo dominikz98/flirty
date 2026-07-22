@@ -23,10 +23,10 @@ src/
 │                               Domain, Persistence (EF Core), Runtime (Mediator), Expressions,
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
-├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
-│                               (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
-│                               Branching-Editor (#40), Loop-Editor (#41) + Trigger-Editor (#42);
-│                               Test-Runner (#43) offen.
+├─ Flirty.Designer            Blazor Web App (Server-interaktiv). EPIC 7 komplett: Connection-Profil-
+│                               Verwaltung (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
+│                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42) und
+│                               Test-Runner (#43). Offen nur noch die Designer-E2E (#46).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -89,9 +89,11 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   in `src/Flirty/DependencyInjection/FlirtyServiceCollectionExtensions.cs` (Namespace bewusst
   `Microsoft.Extensions.DependencyInjection`). Optionen in `FlirtyOptions.cs`.
 - **Runtime-Facade:** `IFlirtyEngine` (`src/Flirty/Runtime/IFlirtyEngine.cs`) → `StartDialogAsync`,
-  `SubmitAnswerAsync`, `ResumeDialogAsync`, `EditAnswerAsync`. Dahinter Commands/Queries in
-  `src/Flirty/Runtime/` (`StartDialogCommand.cs`, `SubmitAnswerCommand.cs`, …), gemeinsamer
-  `TransitionResolver.cs`.
+  `StartDialogVersionAsync`, `SubmitAnswerAsync`, `ResumeDialogAsync`, `EditAnswerAsync`. Dahinter
+  Commands/Queries in `src/Flirty/Runtime/` (`StartDialogCommand.cs`, `SubmitAnswerCommand.cs`, …),
+  gemeinsamer `TransitionResolver.cs`. `StartDialogVersionCommand` (#43) startet eine **konkrete
+  Dialogversion unabhängig vom Veröffentlichungsstatus** – bewusst **ohne** HTTP-Endpunkt: über HTTP
+  bleibt der Publish-Status die Produktionsschranke.
 - **Admin-CRUD:** Commands/Queries in `src/Flirty/Runtime/Admin/`, Repository
   `src/Flirty/Persistence/IDialogAdminStore.cs`.
 - **Web-Endpunkte:** `src/Flirty.AspNetCore/FlirtyEndpointRouteBuilderExtensions.cs` (Runtime) und
@@ -223,6 +225,20 @@ URL), `Triggers` in `DialogDetail`/`DialogDetailResponse`, `.../triggers`-Endpun
 `/dialogs/{dialogId}/triggers/{triggerId}` (`TriggerEditor.razor`) mit Live-Validierung über den
 **unveränderten** `DesignerExpressionContext`.
 
-**Offen:** **Test-Runner (#43)** im Designer, Designer-E2E (#46), Coverage in CI (#48),
-NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des
-Designers ausgehen.
+**Test-Runner (#43) fertig** – und damit EPIC 7 abgeschlossen. Der Runner (`/dialogs/{id}/test`,
+`DialogTestRunner.razor`) spielt einen Dialog mit der **echten Engine** durch: Verlauf mit
+`Iteration n`-Badges, Antwort-Editieren je Iteration, Live-Ansicht der Ausdrucks-Bindungen und ein
+Protokoll der publizierten Trigger. Neu im Core dafür `StartDialogVersionCommand` +
+`IFlirtyEngine.StartDialogVersionAsync` (siehe oben) – ohne das wäre ein **Entwurf** nicht testbar, und
+„zum Testen kurz veröffentlichen" hätte ihn für echte Anwender scharf geschaltet. Im Designer kam neben
+der Seite dazu: `DesignerGateway` als gemeinsame Basis von `FlirtyAdminGateway` und dem neuen
+`FlirtyRuntimeGateway` (`AdminResult<T>` heißt jetzt `GatewayResult<T>`), `AnswerValueCodec` als
+**einzige** Quelle des JSON-Antwortvertrags (auch `DesignerExpressionContext` leitet seine Beispielwerte
+davon ab), `RunExpressionContext` als Spiegel des Core-`SessionExpressionContextBuilder` (mit
+Vergleichstest, wie bei `LoopAnalyzer`) und `DesignerTriggerLog` samt vier Notification-Handlern – der
+Log wird wie das aktive Profil per `Adopt` in den Kind-Scope durchgereicht. **Achtung:** Testläufe
+schreiben echte Sessions (`ExternalUserKey`-Präfix `designer-test-`) und stellen konfigurierte Webhooks
+tatsächlich zu.
+
+**Offen:** Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
+Doku-/README-Ausbau (#50–#52).

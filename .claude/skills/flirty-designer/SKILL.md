@@ -5,13 +5,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 # Blazor-Designer aufbauen / erweitern
 
-> **Status: teils umgesetzt (EPIC 7, Issues #37–#43).** Fertig sind die
-> **Connection-Profil-Verwaltung (#37)**, das **Dialog-CRUD (#38)**, der **Frage-Editor (#39)**, der
-> **Branching-Editor (#40)**, der **Loop-Editor (#41)** und der **Trigger-Editor (#42)**;
-> `docs/DESIGNER.md` beschreibt alle sechs. Der **Test-Runner (#43)** ist **noch offen**.
-> Dieser Skill ist die **Leitplanke** für den weiteren
-> Aufbau: die beabsichtigte Architektur und die Konventionen, an die man sich beim Implementieren halten
-> soll. Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
+> **Status: EPIC 7 (Issues #37–#43) vollständig umgesetzt** – Connection-Profil-Verwaltung (#37),
+> Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
+> und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Offen ist nur die
+> Playwright-E2E-Abdeckung (#46). Dieser Skill ist die **Leitplanke** für Erweiterungen: die
+> beabsichtigte Architektur und die Konventionen, an die man sich beim Implementieren halten soll.
+> Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
 
 ## Ist-Zustand (verifiziert)
 
@@ -58,10 +57,19 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `GetTriggersReferencingQuestionAsync`, `Triggers` in `DialogDetail`, in `Flirty.AspNetCore`
   `Dtos/Admin/TriggerDtos.cs` + `.../triggers`-Endpunkte – **und die Laufzeit-Auslieferung** im
   `WebhookNotificationHandler` (`IDialogStore.GetTriggersForSessionAsync`).
+- **Test-Runner (#43):** Core-Command `StartDialogVersionCommand` + `IFlirtyEngine.StartDialogVersionAsync`
+  (`src/Flirty/Runtime/`), im Designer `Services/DesignerGateway.cs` (gemeinsame Basis, `GatewayResult<T>`),
+  `Services/FlirtyRuntimeGateway.cs`, `Services/AnswerValueCodec.cs`, `Services/RunExpressionContext.cs`,
+  `Services/DesignerTriggerLog.cs` + `DesignerTriggerLogHandlers.cs`, `Models/AnswerInputModel.cs` +
+  `Models/AnswerChoice.cs`, `Components/AnswerInput.razor` und die Seite
+  `Components/Pages/DialogTestRunner.razor` (`/dialogs/{dialogId}/test`), verlinkt aus dem `DialogEditor`.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
-  `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`) plus im Core
-  `Domain/TriggerConfigTests` und `Runtime/DialogTriggerDispatchTests`.
+  `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
+  `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
+  `DesignerTriggerLogTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
+  `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests` und
+  `Runtime/StartDialogVersionCommandHandlerTests`.
 
 ## Leitplanken für die Umsetzung
 
@@ -151,16 +159,44 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
      nur in die UI: `AfterQuestion` braucht genau dort eine `QuestionId`, `Webhook` eine absolute URL.
    - Wie bei Loops gilt: FK-lose Frage-Verweise räumt `DeleteQuestionCommand` mit ab.
 
-6. **Test-Runner (#43):** ein Dialog-Durchlauf im Designer über `IFlirtyEngine` gegen das gewählte Profil.
+6. **Test-Runner (#43) – umgesetzt.** Ein Dialog-Durchlauf über `IFlirtyEngine` gegen das aktive Profil,
+   je Schritt in einem frischen Scope (`FlirtyRuntimeGateway`, Basis `DesignerGateway`). Merkposten:
 
-## Empfohlene Aufbaureihenfolge (EPIC 7)
+   **Entwürfe brauchen einen eigenen Start.** `StartDialogCommand` löst über den fachlichen Schlüssel auf
+   und startet nur **veröffentlichte** Dialoge. Für den Runner kam deshalb `StartDialogVersionCommand`
+   (Start einer konkreten `DialogId`, veröffentlichungs-unabhängig) dazu – bewusst **ohne**
+   ASP.NET-Endpunkt: über HTTP bleibt der Publish-Status die Produktionsschranke. Alles ab dem Start
+   funktionierte unverändert, weil die Session ihre `DialogId` pinnt.
+
+   **Der Lauf ist echt.** Er schreibt `DialogSession`/`SessionAnswer` in die Datenbank des Profils und
+   stellt konfigurierte Webhooks zu. Je Lauf ein frischer `ExternalUserKey` mit Präfix `designer-test-`
+   (sonst greift Resume statt Neu-Start); aufgeräumt wird nicht – die Engine kennt kein Löschen von
+   Sessions. Beides gehört sichtbar ins UI, nicht in eine Fußnote.
+
+   **Ein Vertrag, eine Stelle.** `AnswerValueCodec` ist die einzige Quelle der JSON-Kodierung je
+   `QuestionType` (verbindlich ist der Core-`AnswerValidator`); `DesignerExpressionContext.SampleJson`
+   leitet seine Beispielwerte davon ab, damit Ausdrucks-Validierung und Testlauf nicht auseinanderlaufen.
+
+   **Scoped Zustand muss adoptiert werden.** Der `DesignerTriggerLog` wird – wie `ActiveConnectionProfile` –
+   per `Adopt` in den Kind-Scope durchgereicht; sonst schrieben die dort konstruierten
+   `INotificationHandler<T>` in eine Wegwerf-Instanz. Gilt für **jeden** weiteren Circuit-Zustand, den ein
+   Gateway braucht (Hook: `DesignerGateway.Prepare`).
+
+   **`iterationIndex` ist kein Fortschrittszähler.** Er meint den Index der zuletzt *gegebenen* Antwort auf
+   die offene Frage (`LoopResolver.ResolveIterationIndex`), nicht die bevorstehende Iteration – als
+   „laufende Iteration" an der aktuellen Frage angezeigt wäre er falsch. Die exakten Indizes stehen an den
+   Verlaufseinträgen (`SessionAnswerView.IterationIndex`).
+
+   **`[Parameter]` erzwingt `public`.** Razor erzeugt Komponenten als `public` Klassen; `internal`
+   Parametertypen scheitern an CS0053. Deshalb sind `AnswerInputModel`/`AnswerChoice` als einzige
+   Designer-Modelle `public` (der Designer ist `IsPackable=false`, es entsteht keine Paket-API).
+
+## Aufbaureihenfolge (EPIC 7 – abgeschlossen)
 
 #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner.
+#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅.
 
-Der Test-Runner (#43) braucht kein neues CRUD, sondern einen Dialog-Durchlauf über `IFlirtyEngine` –
-je Schritt in einem **frischen Scope** (Muster `FlirtyAdminGateway`), sonst klebt er am zuerst benutzten
-Connection-Profil.
+Offen bleibt die Playwright-E2E-Abdeckung des Designers (#46, `tests/Flirty.E2E`).
 
 ## Konventionen
 

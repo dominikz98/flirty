@@ -717,6 +717,28 @@ else
     </div>
 
     <div class="editor">
+        <h2>Testlauf</h2>
+
+        <p class="hint">
+            Den Dialog mit der echten Engine durchspielen – auch als Entwurf. Der Lauf legt eine echte
+            Session in der Datenbank des aktiven Profils an.
+        </p>
+
+        <div class="actions">
+            <button class="btn btn-primary"
+                    disabled="@(_busy || _detail.Dialog.StartQuestionId is null)"
+                    @onclick="OpenTestRunner">
+                Durchspielen
+            </button>
+        </div>
+
+        @if (_detail.Dialog.StartQuestionId is null)
+        {
+            <p class="hint">Ohne gesetzte (und gespeicherte) Einstiegsfrage gibt es nichts durchzuspielen.</p>
+        }
+    </div>
+
+    <div class="editor">
         <h2>Veröffentlichung &amp; Löschen</h2>
         <div class="actions">
             @if (_detail.Dialog.IsPublished)
@@ -1298,6 +1320,10 @@ else
             "Trigger gelöscht.",
             resetForm: false);
     }
+
+    // ---- Test-Runner (#43) ------------------------------------------------------------------------
+
+    private void OpenTestRunner() => Navigation.NavigateTo($"dialogs/{Id}/test");
 
     private async Task DeleteAsync()
     {

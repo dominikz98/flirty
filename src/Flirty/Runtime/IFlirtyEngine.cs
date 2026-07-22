@@ -24,6 +24,29 @@ public interface IFlirtyEngine
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Startet die <b>konkrete Dialogversion</b> mit der angegebenen Id für den Anwender – <b>unabhängig
+    /// vom Veröffentlichungsstatus</b> – oder setzt eine bereits laufende Session dieser Version fort
+    /// (Resume) und liefert die aktuell offene Frage. Gedacht für Vorschau-/Testszenarien, in denen ein
+    /// Entwurf durchgespielt werden soll, bevor er veröffentlicht wird (Designer-Test-Runner, #43).
+    /// </summary>
+    /// <remarks>
+    /// Für den produktiven Start ist <see cref="StartDialogAsync"/> vorgesehen: Es löst über den fachlichen
+    /// Schlüssel auf und startet ausschließlich veröffentlichte Dialoge.
+    /// </remarks>
+    /// <param name="dialogId">Der Primärschlüssel der zu startenden Dialogversion.</param>
+    /// <param name="externalUserKey">Der fachliche Anwenderschlüssel der Host-App (z. B. Benutzer-Id).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <returns>Die (neue oder fortgesetzte) Session samt aktueller Frage.</returns>
+    /// <exception cref="ConfigurationNotFoundException">
+    /// Keine Dialogversion mit der angegebenen <paramref name="dialogId"/> existiert.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Der Dialog besitzt keine Einstiegsfrage bzw. die aktuelle Frage kann nicht aufgelöst werden.
+    /// </exception>
+    Task<StartDialogResult> StartDialogVersionAsync(
+        Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reicht eine Antwort auf die aktuell offene Frage einer laufenden Session ein: persistiert die
     /// Antwort, wertet die Übergänge (Branching) aus und liefert die nächste Frage bzw. signalisiert den
     /// Abschluss des Dialogs.

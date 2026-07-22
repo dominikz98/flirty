@@ -1,0 +1,127 @@
+@* Eingabefeld einer Antwort im Test-Runner (#43) – je Fragetyp die passende Steuerung. Von der
+   aktuellen Frage UND vom Editieren einer früheren Antwort genutzt, deshalb als Komponente. *@
+@using Flirty.Domain
+
+<div class="answer-input">
+    @if (Type == QuestionType.SingleChoice)
+    {
+        @foreach (var option in Options)
+        {
+            // Lokale Kopie: das Lambda liefe sonst gegen den Schleifenzustand nach dem letzten Durchlauf.
+            var choice = option;
+
+            <button type="button" class="btn btn-primary" disabled="@Disabled"
+                    @onclick="() => ChooseAsync(choice.Value)">
+                @choice.Label
+            </button>
+        }
+
+        @if (Options.Count == 0)
+        {
+            <span class="hint">Die Frage hat keine Antwortoptionen – so lässt sie sich nicht beantworten.</span>
+        }
+    }
+    else if (Type == QuestionType.Boolean)
+    {
+        <button type="button" class="btn btn-primary" disabled="@Disabled" @onclick="ChooseYesAsync">Ja</button>
+        <button type="button" class="btn btn-primary" disabled="@Disabled" @onclick="ChooseNoAsync">Nein</button>
+    }
+    else if (Type == QuestionType.MultiChoice)
+    {
+        @foreach (var option in Options)
+        {
+            var choice = option;
+
+            <label class="choice">
+                <input type="checkbox" disabled="@Disabled"
+                       checked="@Input.Selected.Contains(choice.Value)"
+                       @onchange="args => Input.Toggle(choice.Value, args.Value is true)" />
+                @choice.Label
+            </label>
+        }
+
+        @if (Options.Count == 0)
+        {
+            <span class="hint">Die Frage hat keine Antwortoptionen – so lässt sie sich nicht beantworten.</span>
+        }
+
+        <button type="button" class="btn btn-primary" disabled="@(Disabled || !Input.CanSubmit)"
+                @onclick="OnSubmit">
+            @SubmitLabel
+        </button>
+    }
+    else
+    {
+        @* Rohes <input> mit @oninput statt InputText: die Absende-Schaltfläche soll schon beim Tippen
+           aktiv werden, nicht erst beim Verlassen des Feldes. *@
+        <input class="input" type="@InputType" value="@Input.Text" disabled="@Disabled"
+               @oninput="args => Input.Text = args.Value?.ToString() ?? string.Empty"
+               @onkeydown="OnKeyDownAsync" />
+
+        <button type="button" class="btn btn-primary" disabled="@(Disabled || !Input.CanSubmit)"
+                @onclick="OnSubmit">
+            @SubmitLabel
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>Der Antworttyp der Frage – bestimmt die Steuerung.</summary>
+    [Parameter]
+    [EditorRequired]
+    public QuestionType Type { get; set; }
+
+    /// <summary>Die Antwortoptionen (nur bei Einfach-/Mehrfachauswahl relevant).</summary>
+    [Parameter]
+    public IReadOnlyList<AnswerChoice> Options { get; set; } = [];
+
+    /// <summary>Der Eingabezustand, an den gebunden wird.</summary>
+    [Parameter]
+    [EditorRequired]
+    public AnswerInputModel Input { get; set; } = default!;
+
+    /// <summary>Wird ausgelöst, sobald die Antwort abgeschickt werden soll.</summary>
+    [Parameter]
+    [EditorRequired]
+    public EventCallback OnSubmit { get; set; }
+
+    /// <summary>Beschriftung der Absende-Schaltfläche.</summary>
+    [Parameter]
+    public string SubmitLabel { get; set; } = "Antworten";
+
+    /// <summary>Sperrt die Eingabe, solange ein Engine-Schritt läuft.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private string InputType
+        => Type switch
+        {
+            QuestionType.Number => "number",
+            QuestionType.Date => "date",
+            _ => "text",
+        };
+
+    private Task ChooseYesAsync() => ChooseAsync("true");
+
+    private Task ChooseNoAsync() => ChooseAsync("false");
+
+    /// <summary>Übernimmt einen Wert per Klick und schickt ihn direkt ab (Auswahl/Ja-Nein).</summary>
+    /// <param name="value">Der gewählte Wert.</param>
+    private async Task ChooseAsync(string value)
+    {
+        Input.Text = value;
+        await OnSubmit.InvokeAsync();
+    }
+
+    /// <summary>Schickt die Eingabe auch per Eingabetaste ab.</summary>
+    /// <param name="args">Das Tastatur-Ereignis.</param>
+    private async Task OnKeyDownAsync(KeyboardEventArgs args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        if (args.Key == "Enter" && Input.CanSubmit && !Disabled)
+        {
+            await OnSubmit.InvokeAsync();
+        }
+    }
+}

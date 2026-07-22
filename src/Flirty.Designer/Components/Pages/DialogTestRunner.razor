@@ -1,0 +1,507 @@
+@* Bewusst kein Name aus Flirty.Runtime(.Admin): ein gleichnamiger Komponententyp würde den Sichttyp
+   verdecken (dieselbe Konvention wie bei DialogEditor/QuestionEditor/TriggerEditor). *@
+@page "/dialogs/{DialogId:guid}/test"
+@rendermode InteractiveServer
+@using Flirty.Domain
+@using Flirty.Runtime
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject FlirtyRuntimeGateway Runtime
+@inject DesignerTriggerLog TriggerLog
+
+<PageTitle>Testlauf · @(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_detail is null)
+{
+    <h1>Testlauf</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        Testlauf: @_detail.Dialog.Name
+        @if (_detail.Dialog.IsPublished)
+        {
+            <span class="badge badge-published">Veröffentlicht</span>
+        }
+        else
+        {
+            <span class="badge badge-draft">Entwurf</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Spielt den Dialog mit der echten Engine durch – auch als Entwurf, ohne ihn zu veröffentlichen.
+    </p>
+
+    <div class="banner warn">
+        <strong>Der Lauf ist echt.</strong> Er legt in der Datenbank des aktiven Profils eine
+        <code>DialogSession</code> samt Antworten an (Anwenderschlüssel beginnt mit
+        <code>@DialogTestRunner.UserKeyPrefix</code>)@(HasWebhookTrigger
+            ? ", und die am Dialog konfigurierten Webhook-Trigger werden tatsächlich per HTTP zugestellt."
+            : ".")
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    @if (_state is null)
+    {
+        <div class="editor">
+            <h2>Lauf starten</h2>
+
+            @if (_detail.Dialog.StartQuestionId is null)
+            {
+                <p class="empty">
+                    Dieser Dialog hat keine Einstiegsfrage – ohne sie gibt es nichts durchzuspielen.
+                    Im Dialog-Editor eine Einstiegsfrage setzen und speichern.
+                </p>
+            }
+            else
+            {
+                <p class="hint">
+                    Beginnt bei der Einstiegsfrage
+                    <span class="mono">@QuestionLabel(_detail.Dialog.StartQuestionId.Value)</span>.
+                    Jeder Lauf bekommt einen eigenen Anwenderschlüssel und startet daher frisch.
+                </p>
+                <div class="actions">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="StartRunAsync">Lauf starten</button>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="editor">
+            <h2>Verlauf</h2>
+
+            @if (_state.Answers.Count == 0)
+            {
+                <p class="empty">Noch keine Antwort erfasst.</p>
+            }
+            else
+            {
+                <ol class="transcript">
+                    @foreach (var answer in _state.Answers.OrderBy(entry => entry.Sequence))
+                    {
+                        // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
+                        // Schleifenzustand nach dem letzten Durchlauf.
+                        var entry = answer;
+                        var question = QuestionOf(entry.QuestionId);
+
+                        <li class="@(entry.LoopInstanceId is null ? "step" : "step step-loop")">
+                            <div class="step-head">
+                                <span class="mono">@entry.QuestionKey</span>
+                                @if (entry.IterationIndex is { } iteration)
+                                {
+                                    <span class="badge badge-loop" title="Antwort innerhalb einer Schleife">
+                                        Iteration @(iteration + 1)
+                                    </span>
+                                }
+                                <span class="step-time">@entry.AnsweredAt.LocalDateTime.ToString("T")</span>
+                            </div>
+
+                            <div class="step-text">@(question?.Text ?? "Frage gehört nicht mehr zum Dialog")</div>
+                            <div class="step-value">@AnswerValueCodec.Describe(question, entry.Value)</div>
+
+                            @if (question is null)
+                            {
+                                <span class="hint">Ohne Frage im Graphen lässt sich diese Antwort nicht editieren.</span>
+                            }
+                            else if (_editing is { } editing && editing.Answer.Sequence == entry.Sequence)
+                            {
+                                <AnswerInput Type="question.Type"
+                                             Options="AnswerChoice.From(question.Options)"
+                                             Input="editing.Input"
+                                             OnSubmit="SaveEditAsync"
+                                             SubmitLabel="Speichern"
+                                             Disabled="_busy" />
+                                <div class="actions">
+                                    <button class="btn" disabled="@_busy" @onclick="() => _editing = null">Abbrechen</button>
+                                </div>
+                                <span class="hint">
+                                    Beim Speichern werden alle nachgelagerten Antworten verworfen und der Pfad
+                                    ab hier neu berechnet.
+                                </span>
+                            }
+                            else
+                            {
+                                <button class="btn" disabled="@_busy"
+                                        @onclick="() => StartEdit(entry, question)">Bearbeiten</button>
+                            }
+                        </li>
+                    }
+                </ol>
+            }
+        </div>
+
+        <div class="editor">
+            @if (_state.CurrentQuestion is { } current)
+            {
+                <h2>Aktuelle Frage</h2>
+
+                @* Bewusst OHNE Iterations-Badge: der iterationIndex des Kontexts meint die zuletzt
+                   gegebene Antwort auf diese Frage, nicht die bevorstehende – als „laufende Iteration"
+                   gelesen wäre er irreführend. Die exakten Indizes stehen am Verlauf, der rohe Wert
+                   unten im Ausdruckskontext. *@
+                <p class="question-text">
+                    <span class="mono">@current.Key</span>
+                    @current.Text
+                </p>
+                <p class="hint">@QuestionTypeLabels.Describe(current.Type)</p>
+
+                @if (_input is not null)
+                {
+                    <AnswerInput Type="current.Type"
+                                 Options="AnswerChoice.From(current.Options)"
+                                 Input="_input"
+                                 OnSubmit="SubmitAsync"
+                                 Disabled="_busy" />
+                }
+            }
+            else
+            {
+                <h2>Ergebnis</h2>
+
+                <div class="banner ok">
+                    @(_state.Status == SessionStatus.Completed
+                        ? "Dialog abgeschlossen – nach der letzten Frage hat kein Übergang mehr gegriffen."
+                        : $"Keine offene Frage mehr (Status: {_state.Status}).")
+                    Frühere Antworten lassen sich oben weiterhin bearbeiten.
+                </div>
+            }
+
+            <div class="actions">
+                <button class="btn" disabled="@_busy" @onclick="StartRunAsync">Neuen Lauf starten</button>
+            </div>
+        </div>
+
+        <div class="editor">
+            <h2>Ausdruckskontext</h2>
+
+            <p class="hint">
+                Womit die Übergangs- und Trigger-Bedingungen gerade rechnen – dieselben Bindungen, die die
+                Engine im Ausdruck sieht. Die Werte sind roher JSON-Text.
+            </p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Bezeichner</th>
+                        <th>Art</th>
+                        <th>Wert</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var question in _detail.Questions)
+                    {
+                        <tr>
+                            <td class="mono">@question.Key</td>
+                            <td>Antwort</td>
+                            <td class="mono">
+                                @(_snapshot is not null && _snapshot.Answers.TryGetValue(question.Key, out var bound)
+                                    ? bound
+                                    : "— noch nicht beantwortet —")
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var loop in _detail.Loops)
+                    {
+                        var entries = _snapshot?.Collections.GetValueOrDefault(loop.CollectionKey) ?? [];
+
+                        <tr>
+                            <td class="mono">@loop.CollectionKey</td>
+                            <td>Schleife (@entries.Count)</td>
+                            <td class="mono">@(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td class="mono">iterationIndex</td>
+                        <td>Kontext</td>
+                        <td class="mono" title="Iterationsindex der zuletzt gegebenen Antwort auf die offene Frage">
+                            @(_snapshot?.IterationIndex?.ToString() ?? "— außerhalb einer Schleife —")
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="editor">
+            <h2>Trigger</h2>
+
+            <p class="hint">
+                Oben, was die Engine in diesem Lauf publiziert hat; darunter, was am Dialog konfiguriert
+                ist. <strong>In-Process</strong>-Einträge stellt die Engine bewusst nicht selbst zu –
+                dafür hängt die Host-App ihren eigenen <code>INotificationHandler&lt;T&gt;</code> ein.
+            </p>
+
+            @if (TriggerLog.Entries.Count == 0)
+            {
+                <p class="empty">Noch nichts publiziert.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Zeit</th>
+                            <th>Zeitpunkt</th>
+                            <th>Frage</th>
+                            <th>Was</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var logEntry in TriggerLog.Entries)
+                        {
+                            <tr>
+                                <td>@logEntry.OccurredAt.LocalDateTime.ToString("T")</td>
+                                <td>@TriggerLabels.Describe(logEntry.Scope)</td>
+                                <td class="mono">
+                                    @(logEntry.QuestionId is { } questionId ? QuestionLabel(questionId) : "—")
+                                </td>
+                                <td>@logEntry.Detail</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_detail.Triggers.Count == 0)
+            {
+                <p class="hint">Am Dialog ist kein Trigger konfiguriert.</p>
+            }
+            else
+            {
+                <ul class="configured-triggers">
+                    @foreach (var trigger in _detail.Triggers)
+                    {
+                        <li>
+                            @TriggerLabels.Describe(trigger.Scope) · @TriggerLabels.Describe(trigger.Kind)
+                            @if (trigger.QuestionId is { } questionId)
+                            {
+                                <span class="mono">nach @QuestionLabel(questionId)</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(trigger.Expression))
+                            {
+                                <span class="mono">wenn @trigger.Expression</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des durchzuspielenden Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid DialogId { get; set; }
+
+    /// <summary>
+    /// Präfix des je Lauf vergebenen Anwenderschlüssels. Macht die im Testlauf entstandenen Sessions in
+    /// der Datenbank erkennbar – der Runner räumt sie bewusst nicht ab (die Engine kennt kein Löschen
+    /// von Sessions).
+    /// </summary>
+    internal const string UserKeyPrefix = "designer-test-";
+
+    private DialogDetail? _detail;
+    private ResumeDialogResult? _state;
+    private RunExpressionSnapshot? _snapshot;
+    private Guid? _sessionId;
+    private AnswerInputModel? _input;
+    private EditState? _editing;
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private Guid _loadedId;
+
+    /// <summary>Der gerade editierte Verlaufseintrag samt seinem vorbelegten Eingabezustand.</summary>
+    /// <param name="Answer">Die zu überschreibende Antwort.</param>
+    /// <param name="Input">Der vorbelegte Eingabezustand.</param>
+    private sealed record EditState(SessionAnswerView Answer, AnswerInputModel Input);
+
+    private bool HasWebhookTrigger
+        => _detail is not null && _detail.Triggers.Any(trigger => trigger.Kind == TriggerKind.Webhook);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedId == DialogId)
+        {
+            return;
+        }
+
+        _loadedId = DialogId;
+        _state = null;
+        _snapshot = null;
+        _sessionId = null;
+        _input = null;
+        _editing = null;
+        _message = null;
+
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
+        _detail = result.Value;
+        _error = result.Error;
+    }
+
+    /// <summary>
+    /// Startet einen neuen Lauf. Der Anwenderschlüssel ist je Lauf frisch – sonst setzte
+    /// <c>StartDialogVersionAsync</c> die noch offene Session des vorigen Laufs fort (Resume), statt neu
+    /// zu beginnen.
+    /// </summary>
+    private async Task StartRunAsync()
+    {
+        _busy = true;
+        _message = null;
+        _editing = null;
+        TriggerLog.Clear();
+
+        try
+        {
+            var userKey = $"{UserKeyPrefix}{Guid.NewGuid():N}";
+            var started = await Runtime.ExecuteAsync(
+                (engine, token) => engine.StartDialogVersionAsync(DialogId, userKey, token));
+
+            if (!started.Success)
+            {
+                _error = started.Error;
+                return;
+            }
+
+            _error = null;
+            _sessionId = started.Value!.SessionId;
+            _message = "Neuer Lauf gestartet.";
+            await RefreshAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Reicht die Antwort auf die aktuell offene Frage ein.</summary>
+    private async Task SubmitAsync()
+    {
+        if (_state?.CurrentQuestion is not { } current || _input is not { CanSubmit: true })
+        {
+            return;
+        }
+
+        var value = _input.Encode();
+
+        _ = await RunAsync(
+            (engine, token) => engine.SubmitAnswerAsync(_sessionId!.Value, current.Id, value, token),
+            result => result.IsCompleted ? "Antwort erfasst – Dialog abgeschlossen." : "Antwort erfasst.");
+    }
+
+    /// <summary>Öffnet den Editier-Modus für eine bereits gegebene Antwort.</summary>
+    /// <param name="answer">Die zu überschreibende Antwort.</param>
+    /// <param name="question">Die zugehörige Frage (für Typ und Optionen).</param>
+    private void StartEdit(SessionAnswerView answer, QuestionDetail question)
+    {
+        _message = null;
+        _editing = new EditState(answer, AnswerInputModel.From(question.Type, answer.Value));
+    }
+
+    /// <summary>
+    /// Überschreibt eine frühere Antwort. Der Iterationsindex wird mitgegeben, damit innerhalb einer
+    /// Schleife genau die angeklickte Iteration getroffen wird und nicht die früheste.
+    /// </summary>
+    private async Task SaveEditAsync()
+    {
+        if (_editing is not { Input.CanSubmit: true } editing)
+        {
+            return;
+        }
+
+        var value = editing.Input.Encode();
+
+        var saved = await RunAsync(
+            (engine, token) => engine.EditAnswerAsync(
+                _sessionId!.Value, editing.Answer.QuestionId, value, editing.Answer.IterationIndex, token),
+            result => $"Antwort geändert – {result.InvalidatedAnswers} nachgelagerte Antwort(en) verworfen.");
+
+        if (saved)
+        {
+            _editing = null;
+        }
+    }
+
+    /// <summary>
+    /// Führt einen Engine-Schritt aus, meldet Erfolg oder Fehler und liest anschließend den
+    /// Session-Zustand neu – der ist die einzige Quelle für Verlauf, aktuelle Frage und Kontext.
+    /// </summary>
+    /// <typeparam name="TResult">Der Ergebnistyp des Schritts.</typeparam>
+    /// <param name="step">Der auszuführende Engine-Schritt.</param>
+    /// <param name="describe">Formuliert die Erfolgsmeldung aus dem Ergebnis.</param>
+    /// <returns><see langword="true"/>, wenn der Schritt erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<IFlirtyEngine, CancellationToken, Task<TResult>> step, Func<TResult, string> describe)
+    {
+        _busy = true;
+        _message = null;
+
+        try
+        {
+            var result = await Runtime.ExecuteAsync(step);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return false;
+            }
+
+            _error = null;
+            _message = describe(result.Value!);
+            await RefreshAsync();
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Liest den Session-Zustand neu und baut daraus Verlauf, Eingabefeld und Ausdruckskontext auf.
+    /// </summary>
+    private async Task RefreshAsync()
+    {
+        if (_sessionId is not { } sessionId)
+        {
+            return;
+        }
+
+        var result = await Runtime.ExecuteAsync((engine, token) => engine.ResumeDialogAsync(sessionId, token));
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+
+        _state = result.Value!;
+        _snapshot = _detail is null ? null : RunExpressionContext.Build(_detail, _state);
+        _input = _state.CurrentQuestion is { } current ? AnswerInputModel.For(current) : null;
+    }
+
+    private QuestionDetail? QuestionOf(Guid questionId)
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId);
+
+    private string QuestionLabel(Guid questionId)
+        => QuestionOf(questionId)?.Key ?? $"unbekannt ({questionId})";
+}

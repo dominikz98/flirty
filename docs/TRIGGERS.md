@@ -193,3 +193,7 @@ nicht mehr. Der volle Dialog-Graph wird weiterhin nur geladen, wenn mindestens e
 - **MSG0005**: Der Mediator-Source-Generator verlangt je Nachricht einen Handler in der Core-Compilation.
   Weil diese Trigger bewusst erst von Host-Apps behandelt werden, ist die Diagnose je Notification-Typ
   gezielt unterdrückt (`#pragma warning disable MSG0005`).
+- **Designer-Testläufe feuern echt**: Der [Test-Runner](./DESIGNER.md#test-runner-43) des Designers (#43)
+  spielt Dialoge mit der echten Engine durch. Konfigurierte `Kind = Webhook`-Trigger werden dabei
+  tatsächlich per HTTP zugestellt – vor einem Testlauf gegen produktive Ziele also die URL prüfen. Der
+  Runner protokolliert, was publiziert wurde, und weist im UI darauf hin.

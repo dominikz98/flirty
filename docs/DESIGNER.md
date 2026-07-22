@@ -4,11 +4,11 @@ Der **Flirty.Designer** ist eine Blazor Web App (Server-interaktiv, .NET 10) zum
 von Dialogen und zum Verwalten der Datenbank-Verbindungen. Er ist Teil von **EPIC 7** (Issues #37–#43,
 Milestone „M3 – Designer"). Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §4/§8, [PERSISTENCE.md](./PERSISTENCE.md).
 
-> **Stand:** Umgesetzt sind die **Connection-Profil-Verwaltung (Multi-DB, #37)**, das
-> **Dialog-CRUD (#38)**, der **Frage-Editor (#39)**, der **Branching-Editor (#40)**, der
-> **Loop-Editor (#41)** und der **Trigger-Editor (#42)**. Offen ist der **Test-Runner (#43)**. Der
-> Designer arbeitet über die Admin-Commands der Engine (via `ISender`), nicht direkt am
-> `FlirtyDbContext` vorbei.
+> **Stand:** EPIC 7 ist umgesetzt: **Connection-Profil-Verwaltung (Multi-DB, #37)**, **Dialog-CRUD
+> (#38)**, **Frage-Editor (#39)**, **Branching-Editor (#40)**, **Loop-Editor (#41)**,
+> **Trigger-Editor (#42)** und **Test-Runner (#43)**. Offen bleibt nur die Playwright-E2E-Abdeckung
+> des Designers (#46). Der Designer arbeitet über die Commands der Engine (via `ISender`), nicht direkt
+> am `FlirtyDbContext` vorbei.
 
 ## Starten
 
@@ -66,6 +66,7 @@ Darauf setzt der Designer auf (`src/Flirty.Designer/`):
 | `ConnectionProfileContextBuilder` | `Services/` | Baut aus einem Profil via `UseFlirtyProvider` einen `FlirtyDbContext`. |
 | Seite `ConnectionProfiles.razor` | `Components/Pages/` | UI (`/connections`), server-interaktiv. |
 | `FlirtyAdminGateway` | `Services/` | Führt die Admin-Commands je Operation in einem frischen DI-Scope aus (#38). |
+| `FlirtyRuntimeGateway` | `Services/` | Dasselbe für die Laufzeit-Operationen des Test-Runners (#43). |
 
 ### DI-Verdrahtung (`Program.cs`)
 
@@ -82,6 +83,14 @@ builder.Services.AddScoped<ActiveConnectionProfile>();
 builder.Services.AddScoped<IDbContextFactory<FlirtyDbContext>, FlirtyDesignerDbContextFactory>();
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyDbContext>>().CreateDbContext());
 builder.Services.AddScoped<FlirtyAdminGateway>();               // Admin-CRUD, #38
+
+builder.Services.AddScoped<DesignerTriggerLog>();               // Test-Runner, #43
+builder.Services.AddScoped<FlirtyRuntimeGateway>();
+builder.Services
+    .AddFlirtyHandler<DialogStartedNotification, DesignerTriggerLogHandlers.DialogStarted>()
+    .AddFlirtyHandler<AnswerSubmittedNotification, DesignerTriggerLogHandlers.AnswerSubmitted>()
+    .AddFlirtyHandler<QuestionAnsweredNotification, DesignerTriggerLogHandlers.QuestionAnswered>()
+    .AddFlirtyHandler<DialogCompletedNotification, DesignerTriggerLogHandlers.DialogCompleted>();
 ```
 
 Die vorletzte Zeile bindet den (scoped) `FlirtyDbContext` an das aktive Profil – so laufen die
@@ -412,6 +421,89 @@ Zwei Hinweise gibt der Editor zusätzlich:
 - **Kanal `InProcess`** stellt nichts zu: die Notification wird ohnehin publiziert, behandelt wird sie von
   einem Handler der Host-App (`AddFlirtyHandler<T, THandler>()`). Der Eintrag benennt die Absicht.
 
+## Test-Runner (#43)
+
+Der Test-Runner spielt einen Dialog **mit der echten Engine** durch – erreichbar über „Durchspielen" im
+Dialog-Editor oder direkt unter `/dialogs/{dialogId}/test` (`DialogTestRunner.razor`). Er ist das
+Abnahme-Feature von EPIC 7: Fragen, Branching, Schleifen und Trigger lassen sich damit ausprobieren,
+ohne eine Host-App zu bauen.
+
+### Entwürfe durchspielen
+
+Der Runner startet über das Core-API **`IFlirtyEngine.StartDialogVersionAsync(dialogId, …)`** (#43,
+siehe [RUNTIME.md](./RUNTIME.md#startdialogversioncommand-43)) statt über `StartDialogAsync(dialogKey, …)`.
+Der Unterschied ist der ganze Punkt: `StartDialogAsync` löst über den fachlichen Schlüssel auf und startet
+nur **veröffentlichte** Dialoge – ein Entwurf wäre nicht testbar, und „zum Testen kurz veröffentlichen"
+würde ihn für echte Anwender scharf schalten. Alles ab dem Start ist unverändert: Die Session pinnt ihre
+`DialogId`, Submit/Resume/Edit laden ihre Dialogversion ohnehin veröffentlichungs-unabhängig.
+
+Voraussetzung ist lediglich eine gesetzte (und gespeicherte) **Einstiegsfrage**; ohne sie ist
+„Durchspielen" deaktiviert.
+
+### Der Lauf ist echt
+
+Ein Testlauf ist keine Simulation – er schreibt in die Datenbank des aktiven Profils und löst Trigger aus.
+Der Runner weist beides oben als Banner aus:
+
+- Es entsteht eine echte `DialogSession` samt `SessionAnswer`-Zeilen. Der Anwenderschlüssel ist je Lauf
+  frisch und trägt das Präfix **`designer-test-`** – damit sind Testsessions in der Datenbank erkennbar
+  und ein neuer Lauf beginnt garantiert neu, statt die noch offene Session des letzten Laufs
+  fortzusetzen (Resume). Aufgeräumt wird **nicht**: Die Engine kennt bewusst kein Löschen von Sessions.
+- Am Dialog konfigurierte **Webhook**-Trigger werden tatsächlich per HTTP zugestellt (seit #42, siehe
+  [TRIGGERS.md](./TRIGGERS.md)). Vor einem Testlauf gegen produktive Ziele also die URL prüfen.
+
+### Verlauf, Iterationen und Editieren
+
+Nach jedem Schritt liest der Runner den Zustand über `ResumeDialogAsync` neu – eine Quelle für Verlauf,
+aktuelle Frage und Ausdruckskontext. Der Verlauf zeigt je Antwort den Frage-Schlüssel, den lesbaren Wert
+(Options-**Beschriftung** statt Rohwert, `true` → „Ja") und – der Kern des Akzeptanzkriteriums – bei
+Loop-Antworten ein Badge **`Iteration n`**; Antworten derselben `LoopInstanceId` sind als Bereich
+abgesetzt.
+
+Jede Zeile lässt sich **bearbeiten** (`EditAnswerAsync`). Der Iterationsindex wird mitgegeben, damit
+innerhalb einer Schleife genau die angeklickte Iteration getroffen wird und nicht die früheste; die
+Meldung nennt, wie viele nachgelagerte Antworten dabei verworfen wurden.
+
+### Ausdruckskontext
+
+Das Panel „Ausdruckskontext" zeigt, **womit die Bedingungen gerade rechnen**: je Frage die zuletzt
+gegebene Antwort, je Schleife die gesammelten Werte und den `iterationIndex` – alles als roher JSON-Text,
+genau wie im `ExpressionContext` der Engine. Damit wird nachvollziehbar, warum ein Übergang gegriffen hat.
+
+> **`iterationIndex` richtig lesen:** Er meint den Index der **zuletzt gegebenen** Antwort auf die offene
+> Frage, nicht die bevorstehende Iteration (Semantik von `LoopResolver.ResolveIterationIndex`). Deshalb
+> steht er nur im Kontext-Panel und bewusst **nicht** als „laufende Iteration" an der aktuellen Frage –
+> dort wäre er irreführend.
+
+### Trigger-Protokoll
+
+Das Panel „Trigger" listet oben, was die Engine im Lauf publiziert hat (Zeitpunkt/`TriggerScope`, Frage,
+Kurzbeschreibung), darunter die am Dialog konfigurierten `TriggerDefinition`s. `InProcess`-Einträge werden
+dabei ausdrücklich als „stellt die Engine nicht selbst zu" benannt.
+
+### Bausteine
+
+| Baustein | Pfad | Aufgabe |
+|---|---|---|
+| `DesignerGateway` | `Services/DesignerGateway.cs` | Gemeinsame Basis beider Gateways: frischer DI-Scope je Operation, `Adopt`-Durchreichung, Fehler-Mapping (`GatewayResult<T>`). |
+| `FlirtyRuntimeGateway` | `Services/FlirtyRuntimeGateway.cs` | Führt die `IFlirtyEngine`-Aufrufe aus; ergänzt das Mapping um `DialogNotFound`/`SessionNotFound`/`AnswerValidation`. |
+| `AnswerValueCodec` | `Services/AnswerValueCodec.cs` | **Einzige** Quelle des JSON-Vertrags je `QuestionType` (Kodieren, Anzeigen, Zurücklesen). |
+| `RunExpressionContext` | `Services/RunExpressionContext.cs` | Spiegelt den Core-`SessionExpressionContextBuilder` auf `DialogDetail` + `ResumeDialogResult`. |
+| `DesignerTriggerLog` (+ `…Handlers`) | `Services/` | Sammelt die publizierten Notifications; vier `INotificationHandler<T>` schreiben hinein. |
+| `AnswerInputModel`, `AnswerChoice` | `Models/` | Eingabezustand und Auswahloption (`public`, weil `[Parameter]` der Komponente). |
+| `AnswerInput` | `Components/AnswerInput.razor` | Eingabefeld je Fragetyp – von aktueller Frage und Editier-Modus geteilt. |
+| Seite `DialogTestRunner.razor` | `Components/Pages/` | Die Seite (`/dialogs/{dialogId}/test`). |
+
+Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
+
+- **Der Log muss in den Kind-Scope adoptiert werden.** Weil jeder Engine-Schritt in einem frischen Scope
+  läuft, werden dort auch die Notification-Handler konstruiert. Ohne `DesignerTriggerLog.Adopt` (Muster
+  von `ActiveConnectionProfile.Adopt`) schrieben sie in eine Wegwerf-Instanz, und das Panel bliebe
+  dauerhaft leer.
+- **Die Kodierung gehört an genau eine Stelle.** `AnswerValueCodec` ist verbindlich am
+  Core-`AnswerValidator` ausgerichtet; `DesignerExpressionContext` leitet seine Beispielwerte davon ab,
+  damit Ausdrucks-Validierung und Testlauf nicht auseinanderlaufen.
+
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
@@ -452,6 +544,25 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/TriggerFormModelTests` – die Abbildung zwischen Eingabefeldern und `Config`-JSON (#42):
   Lesen/Schreiben über den Core-Typ, Roh-JSON-Fallback samt Erhalt fremder Felder, die kanal-abhängige
   URL-Prüfung und die Normalisierung von Frage-Bezug und Ausdruck.
+- `Designer/FlirtyRuntimeGatewayTests` – der Test-Runner (#43). Kernprobe ist das **Akzeptanzkriterium
+  in Testform**: einen Dialog samt Schleife über die Admin-Commands anlegen und **ohne Veröffentlichung**
+  mit zwei Iterationen durchspielen (inkl. der erwarteten `IterationIndex`-Werte und Loop-Instanz). Dazu
+  das gezielte Editieren einer Iteration und das Fehler-Mapping (ungültige Antwort ohne rohe GUID,
+  unbekannte Session/Dialogversion, fehlendes Profil).
+- `Designer/AnswerValueCodecTests` – die Kodierung der Antwortwerte (#43), geprüft gegen den **echten**
+  `AnswerValidator`: die JSON-Form je Fragetyp, invariante Zahlliterale trotz Dezimalkomma, das
+  Weiterreichen unlesbarer Eingaben an die Engine, die Anzeige (Beschriftung statt Rohwert) und die
+  Umkehrbarkeit von `Decode`/`Encode` für den Editier-Modus.
+- `Designer/RunExpressionContextTests` – die Live-Bindungen des Laufs (#43), als Kernprobe an **jedem**
+  Schritt eines echten Durchlaufs gegen den Core-`SessionExpressionContextBuilder` abgeglichen (kein
+  Auseinanderlaufen der gespiegelten Berechnung), dazu die gesammelte Collection und die Semantik des
+  `iterationIndex`.
+- `Designer/DesignerTriggerLogTests` – das Trigger-Protokoll (#43): dass die Notifications trotz frischem
+  Scope je Schritt im adoptierten Log des Circuits landen, Reihenfolge/Scope-Zuordnung, `Clear()` und
+  dass Admin-Operationen nichts protokollieren.
+- `Designer/DesignerTestHost` – kein Test, sondern der gemeinsame DI-Stack (Spiegel von `Program.cs`) und
+  die SQLite-Temp-Datenbank für die Gateway-Tests. Ändert sich `Program.cs`, ist das die eine Stelle,
+  die nachzuziehen ist.
 
 Dazu kommen im Core die Gegenstücke: `Domain/TriggerConfigTests` (das Schema selbst) und
 `Runtime/DialogTriggerDispatchTests` – der End-to-End-Nachweis, dass ein im Designer konfigurierter
@@ -467,8 +578,4 @@ dotnet test tests/Flirty.Tests
 ## Roadmap (EPIC 7)
 
 #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner. Designer-E2E: #46.
-
-> Für #43 (Test-Runner) genügt der vorhandene Stack: ein Dialog-Durchlauf über `IFlirtyEngine` gegen das
-> aktive Connection-Profil – wie beim Admin-CRUD in einem **frischen Scope** je Schritt (`FlirtyAdminGateway`
-> als Muster), damit der Runner nicht am zuerst benutzten Profil klebt.
+#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅. Offen: Designer-E2E (#46).

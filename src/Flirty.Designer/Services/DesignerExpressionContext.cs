@@ -213,17 +213,19 @@ internal static class DesignerExpressionContext
 
     /// <summary>
     /// Liefert den Beispielwert einer Frage als rohen JSON-Text – im selben Format, in dem
-    /// <c>SessionAnswer.Value</c> zur Laufzeit gespeichert wird.
+    /// <c>SessionAnswer.Value</c> zur Laufzeit gespeichert wird. Die Kodierung stammt bewusst aus dem
+    /// <see cref="AnswerValueCodec"/> (einzige Quelle des Vertrags), damit der Musterkontext nicht anders
+    /// bindet, als der Test-Runner tatsächlich einreicht.
     /// </summary>
     /// <param name="question">Die Frage, für die ein Beispielwert gebraucht wird.</param>
     /// <returns>Der Beispielwert als JSON.</returns>
     private static string SampleJson(QuestionDetail question)
         => question.Type switch
         {
-            QuestionType.Number => "0",
-            QuestionType.Boolean => "true",
-            QuestionType.MultiChoice => JsonSerializer.Serialize(new[] { SampleText(question) }),
-            _ => JsonSerializer.Serialize(SampleText(question)),
+            QuestionType.Number => AnswerValueCodec.Encode(question.Type, "0"),
+            QuestionType.Boolean => AnswerValueCodec.Encode(question.Type, "true"),
+            QuestionType.MultiChoice => AnswerValueCodec.Encode(question.Type, null, [SampleText(question)]),
+            _ => AnswerValueCodec.Encode(question.Type, SampleText(question)),
         };
 
     /// <summary>Der Beispielwert einer zeichenkettenwertigen Frage – unescaped, für Beispiel-Ausdrücke.</summary>
