@@ -232,6 +232,184 @@ else
     </div>
 
     <div class="editor">
+        <h2>Übergänge (Branching)</h2>
+
+        @if (_detail.Questions.Count == 0)
+        {
+            <p class="empty">Erst Fragen anlegen – Übergänge verbinden Fragen miteinander.</p>
+        }
+        else
+        {
+            <p class="hint">
+                Je Ausgangsfrage werden die Übergänge von oben nach unten geprüft; der erste zutreffende
+                gewinnt. Greift keiner, kommt der Default-Übergang zum Zug.
+            </p>
+
+            @foreach (var question in _detail.Questions)
+            {
+                // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den Schleifenzustand
+                // nach dem letzten Durchlauf.
+                var source = question;
+                var outgoing = Outgoing(source.Id);
+
+                <h3 class="group">
+                    <span class="mono">@source.Key</span>
+                    <span class="group-text">— @source.Text</span>
+                    <button class="btn" disabled="@_busy" @onclick="() => StartCreateTransition(source.Id)">
+                        + Übergang
+                    </button>
+                </h3>
+
+                @if (outgoing.Count == 0)
+                {
+                    <p class="hint">Keine Übergänge – der Dialog endet nach dieser Frage.</p>
+                }
+                else
+                {
+                    @foreach (var warning in GroupWarnings(outgoing))
+                    {
+                        <div class="banner warn">@warning</div>
+                    }
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Bedingung</th>
+                                <th>Ziel</th>
+                                <th>Art</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var index = 0; index < outgoing.Count; index++)
+                            {
+                                var position = index;
+                                var transition = outgoing[index];
+
+                                <tr>
+                                    <td>@(position + 1)</td>
+                                    <td class="mono">
+                                        @(string.IsNullOrWhiteSpace(transition.Expression)
+                                            ? "— bedingungslos —"
+                                            : transition.Expression)
+                                    </td>
+                                    <td class="mono">@QuestionLabel(transition.TargetQuestionId)</td>
+                                    <td>
+                                        @if (transition.IsDefault)
+                                        {
+                                            <span class="badge badge-default">Default</span>
+                                        }
+                                        @if (IsBackJump(transition))
+                                        {
+                                            <span class="badge badge-loop" title="Zeigt auf eine frühere Frage – Zyklus/Schleife">Rücksprung</span>
+                                        }
+                                    </td>
+                                    <td class="row-actions">
+                                        <button class="btn" title="Nach oben"
+                                                disabled="@(_busy || position == 0)"
+                                                @onclick="() => MoveTransitionAsync(source.Id, position, position - 1)">↑</button>
+                                        <button class="btn" title="Nach unten"
+                                                disabled="@(_busy || position == outgoing.Count - 1)"
+                                                @onclick="() => MoveTransitionAsync(source.Id, position, position + 1)">↓</button>
+                                        <button class="btn" @onclick="() => OpenTransition(transition)">Bearbeiten</button>
+
+                                        @if (_confirmDeleteTransitionId == transition.Id)
+                                        {
+                                            <span class="confirm">Übergang löschen?</span>
+                                            <button class="btn btn-danger" disabled="@_busy"
+                                                    @onclick="() => DeleteTransitionAsync(transition)">Ja, löschen</button>
+                                            <button class="btn" disabled="@_busy"
+                                                    @onclick="() => _confirmDeleteTransitionId = null">Abbrechen</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-danger" disabled="@_busy"
+                                                    @onclick="() => _confirmDeleteTransitionId = transition.Id">Löschen</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+
+            @if (Orphans().Count > 0)
+            {
+                <div class="banner warn">
+                    @Orphans().Count Übergang/Übergänge zeigen auf eine unbekannte Ausgangsfrage und werden
+                    nie ausgewertet. Sie lassen sich nur löschen:
+                    @foreach (var orphan in Orphans())
+                    {
+                        var stale = orphan;
+                        <button class="btn btn-danger" disabled="@_busy"
+                                @onclick="() => DeleteTransitionAsync(stale)">
+                            @stale.Id löschen
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (_newTransition is null)
+            {
+                <div class="actions">
+                    <button class="btn btn-primary" disabled="@_busy"
+                            @onclick="() => StartCreateTransition(null)">Neuer Übergang</button>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="_newTransition" OnValidSubmit="CreateTransitionAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="transitionFrom">Ausgangsfrage</label>
+                            <InputSelect id="transitionFrom" class="input" @bind-Value="_newTransition.FromQuestionId">
+                                <option value="">— wählen —</option>
+                                @foreach (var question in _detail.Questions)
+                                {
+                                    <option value="@question.Id">@question.Key — @question.Text</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => _newTransition.FromQuestionId" />
+                        </div>
+
+                        <div class="field">
+                            <label for="transitionTarget">Zielfrage</label>
+                            <InputSelect id="transitionTarget" class="input" @bind-Value="_newTransition.TargetQuestionId">
+                                <option value="">— wählen —</option>
+                                @foreach (var question in _detail.Questions)
+                                {
+                                    <option value="@question.Id">@question.Key — @question.Text</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => _newTransition.TargetQuestionId" />
+                        </div>
+                    </div>
+
+                    <div class="field check">
+                        <InputCheckbox id="transitionDefault" @bind-Value="_newTransition.IsDefault" />
+                        <label for="transitionDefault">Default-Übergang (greift, wenn keine Bedingung zutrifft)</label>
+                    </div>
+
+                    <span class="hint">
+                        Die Bedingung wird anschließend im Übergangs-Editor gepflegt – dort wird sie live
+                        gegen die Fragen dieses Dialogs geprüft.
+                    </span>
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                        <button type="button" class="btn" disabled="@_busy"
+                                @onclick="() => _newTransition = null">Abbrechen</button>
+                    </div>
+                </EditForm>
+            }
+        }
+    </div>
+
+    <div class="editor">
         <h2>Veröffentlichung &amp; Löschen</h2>
         <div class="actions">
             @if (_detail.Dialog.IsPublished)
@@ -276,11 +454,13 @@ else
     private DialogDetail? _detail;
     private DialogFormModel _form = new();
     private QuestionFormModel? _newQuestion;
+    private TransitionFormModel? _newTransition;
     private string? _error;
     private string? _message;
     private bool _busy;
     private bool _confirmDelete;
     private Guid? _confirmDeleteQuestionId;
+    private Guid? _confirmDeleteTransitionId;
     private Guid _loadedId;
 
     protected override async Task OnParametersSetAsync()
@@ -294,7 +474,9 @@ else
         _message = null;
         _confirmDelete = false;
         _confirmDeleteQuestionId = null;
+        _confirmDeleteTransitionId = null;
         _newQuestion = null;
+        _newTransition = null;
         await ReloadAsync();
     }
 
@@ -469,6 +651,184 @@ else
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteQuestionCommand(Id, question.Id), token),
             $"Frage „{question.Key}“ gelöscht.",
+            resetForm: false);
+    }
+
+    // ---- Übergänge / Branching (#40) --------------------------------------------------------------
+
+    /// <summary>Die ausgehenden Übergänge einer Frage in Auswertungsreihenfolge.</summary>
+    /// <param name="questionId">Die Ausgangsfrage.</param>
+    /// <returns>Die Übergänge nach <c>Priority</c> sortiert.</returns>
+    private IReadOnlyList<TransitionDetail> Outgoing(Guid questionId)
+        => _detail is null
+            ? []
+            : [.. _detail.Transitions
+                .Where(transition => transition.FromQuestionId == questionId)
+                .OrderBy(transition => transition.Priority)];
+
+    /// <summary>
+    /// Übergänge, deren Ausgangsfrage nicht (mehr) zum Dialog gehört. Über den Designer entstehen sie
+    /// nicht – die Admin-API prüft Frage-Verweise aber bewusst nicht, deshalb werden sie sichtbar
+    /// gemacht statt still verschluckt.
+    /// </summary>
+    private IReadOnlyList<TransitionDetail> Orphans()
+        => _detail is null
+            ? []
+            : [.. _detail.Transitions.Where(
+                transition => _detail.Questions.All(question => question.Id != transition.FromQuestionId))];
+
+    private string QuestionLabel(Guid questionId)
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
+            ?? $"unbekannt ({questionId})";
+
+    /// <summary>
+    /// Gibt an, ob der Übergang auf eine frühere (oder dieselbe) Frage zeigt – damit entsteht ein Zyklus,
+    /// also eine Schleife (der Loop-Marker dazu wird erst mit der Loop-Visualisierung gepflegt).
+    /// </summary>
+    private bool IsBackJump(TransitionDetail transition)
+    {
+        if (_detail is null)
+        {
+            return false;
+        }
+
+        var from = _detail.Questions.ToList().FindIndex(question => question.Id == transition.FromQuestionId);
+        var target = _detail.Questions.ToList().FindIndex(question => question.Id == transition.TargetQuestionId);
+
+        return from >= 0 && target >= 0 && target <= from;
+    }
+
+    /// <summary>
+    /// Meldet Konfigurationen, die zur Laufzeit anders wirken als gedacht. Die Regeln spiegeln den
+    /// <c>TransitionResolver</c> der Engine: erster zutreffender <b>nicht</b>-Default gewinnt, sonst der
+    /// erste Default; trifft nichts, wirft die Runtime.
+    /// </summary>
+    /// <param name="outgoing">Die Übergänge einer Ausgangsfrage in Auswertungsreihenfolge.</param>
+    /// <returns>Die anzuzeigenden Warnungen (leer, wenn alles stimmig ist).</returns>
+    private static IReadOnlyList<string> GroupWarnings(IReadOnlyList<TransitionDetail> outgoing)
+    {
+        var warnings = new List<string>();
+        var defaults = outgoing.Where(transition => transition.IsDefault).ToList();
+        var unconditional = outgoing
+            .Select((transition, index) => (Transition: transition, Index: index))
+            .FirstOrDefault(entry =>
+                !entry.Transition.IsDefault && string.IsNullOrWhiteSpace(entry.Transition.Expression));
+
+        if (defaults.Count == 0 && unconditional.Transition is null)
+        {
+            warnings.Add(
+                "Kein Default-Übergang: Trifft zur Laufzeit keine Bedingung zu, bricht die Session mit "
+                + "einem Fehler ab.");
+        }
+
+        if (defaults.Count > 1)
+        {
+            warnings.Add("Mehrere Default-Übergänge – es greift nur der oberste.");
+        }
+
+        if (defaults.Any(transition => !string.IsNullOrWhiteSpace(transition.Expression)))
+        {
+            warnings.Add("Die Bedingung eines Default-Übergangs wird zur Laufzeit nicht ausgewertet.");
+        }
+
+        if (unconditional.Transition is not null && unconditional.Index < outgoing.Count - 1)
+        {
+            warnings.Add(
+                $"Der bedingungslose Übergang an Position {unconditional.Index + 1} greift immer – die "
+                + "nachfolgenden Übergänge werden nie geprüft.");
+        }
+
+        return warnings;
+    }
+
+    private void StartCreateTransition(Guid? fromQuestionId)
+        => _newTransition = new TransitionFormModel { FromQuestionId = fromQuestionId };
+
+    private void OpenTransition(TransitionDetail transition)
+        => Navigation.NavigateTo($"dialogs/{Id}/transitions/{transition.Id}");
+
+    /// <summary>
+    /// Legt einen Übergang am Ende der Prioritätsliste seiner Ausgangsfrage an. Die Bedingung bleibt
+    /// zunächst leer – sie wird im Übergangs-Editor gepflegt, wo sie live validiert wird.
+    /// </summary>
+    private async Task CreateTransitionAsync()
+    {
+        if (_detail is null || _newTransition is null)
+        {
+            return;
+        }
+
+        var model = _newTransition;
+        var from = model.FromQuestionId!.Value;
+        var target = model.TargetQuestionId!.Value;
+        var siblings = Outgoing(from);
+        var priority = siblings.Count == 0 ? 0 : siblings.Max(transition => transition.Priority) + 1;
+
+        var created = await RunAsync<TransitionDetail>(
+            (sender, token) => sender.Send(
+                new CreateTransitionCommand(Id, from, target, null, priority, model.IsDefault), token),
+            $"Übergang {QuestionLabel(from)} → {QuestionLabel(target)} angelegt.",
+            resetForm: false);
+
+        if (created)
+        {
+            _newTransition = null;
+        }
+    }
+
+    /// <summary>
+    /// Verschiebt einen Übergang innerhalb seiner Ausgangsfrage. Wie bei Fragen und Optionen wird der
+    /// <b>Positionsindex</b> als neue <c>Priority</c> geschrieben (repariert doppelte/lückenhafte Werte);
+    /// alle Updates laufen in einem Gateway-Aufruf.
+    /// </summary>
+    /// <param name="fromQuestionId">Die Ausgangsfrage, deren Übergänge umsortiert werden.</param>
+    /// <param name="from">Die aktuelle Position des Übergangs.</param>
+    /// <param name="to">Die Zielposition.</param>
+    private async Task MoveTransitionAsync(Guid fromQuestionId, int from, int to)
+    {
+        var ordered = Outgoing(fromQuestionId).ToList();
+        if (to < 0 || to >= ordered.Count)
+        {
+            return;
+        }
+
+        (ordered[from], ordered[to]) = (ordered[to], ordered[from]);
+
+        var changed = ordered
+            .Select((transition, index) => (Transition: transition, Index: index))
+            .Where(entry => entry.Transition.Priority != entry.Index)
+            .ToList();
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        await RunAsync<Unit>(
+            async (sender, token) =>
+            {
+                foreach (var (transition, index) in changed)
+                {
+                    _ = await sender.Send(
+                        new UpdateTransitionCommand(
+                            Id, transition.Id, transition.FromQuestionId, transition.TargetQuestionId,
+                            transition.Expression, index, transition.IsDefault),
+                        token);
+                }
+
+                return Unit.Value;
+            },
+            "Reihenfolge der Übergänge geändert.",
+            resetForm: false);
+    }
+
+    private async Task DeleteTransitionAsync(TransitionDetail transition)
+    {
+        _confirmDeleteTransitionId = null;
+
+        await RunAsync<Unit>(
+            (sender, token) => sender.Send(new DeleteTransitionCommand(Id, transition.Id), token),
+            "Übergang gelöscht.",
             resetForm: false);
     }
 

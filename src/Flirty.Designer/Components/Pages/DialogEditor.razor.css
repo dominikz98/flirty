@@ -15,3 +15,18 @@ h1 .badge {
     font-size: 0.9rem;
     color: #b32121;
 }
+
+/* Gruppenüberschrift je Ausgangsfrage im Abschnitt „Übergänge" (#40). */
+h3.group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1.25rem 0 0.5rem;
+    font-size: 1rem;
+}
+
+.group-text {
+    font-weight: 400;
+    color: #555;
+}

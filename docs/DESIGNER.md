@@ -5,9 +5,9 @@ von Dialogen und zum Verwalten der Datenbank-Verbindungen. Er ist Teil von **EPI
 Milestone „M3 – Designer"). Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §4/§8, [PERSISTENCE.md](./PERSISTENCE.md).
 
 > **Stand:** Umgesetzt sind die **Connection-Profil-Verwaltung (Multi-DB, #37)**, das
-> **Dialog-CRUD (#38)** und der **Frage-Editor (#39)**. Die restlichen Editoren (Branching #40,
-> Loops #41, Trigger #42, Test-Runner #43) folgen. Der Designer arbeitet über die Admin-Commands der
-> Engine (via `ISender`), nicht direkt am `FlirtyDbContext` vorbei.
+> **Dialog-CRUD (#38)**, der **Frage-Editor (#39)** und der **Branching-Editor (#40)**. Die restlichen
+> Editoren (Loops #41, Trigger #42, Test-Runner #43) folgen. Der Designer arbeitet über die
+> Admin-Commands der Engine (via `ISender`), nicht direkt am `FlirtyDbContext` vorbei.
 
 ## Starten
 
@@ -210,6 +210,83 @@ reiner Anzeigetext für die Host-UI.
 - `DeleteQuestionCommand` entfernt verweisende Übergänge mit und setzt eine darauf zeigende
   Einstiegsfrage zurück; die UI weist darauf hin, und „Veröffentlichen" sperrt danach wieder.
 
+## Branching-Editor (#40)
+
+Übergänge (`Transition`) werden wie die Fragen zweistufig gepflegt: die **Liste** hängt im Dialog-Editor,
+die **Bedingung** einer Verzweigung hat eine eigene Seite mit Live-Validierung.
+
+| Route | Komponente | Inhalt |
+|---|---|---|
+| `/dialogs/{id:guid}` | `DialogEditor.razor`, Abschnitt „Übergänge (Branching)" | Je Ausgangsfrage eine Tabelle (Position, Bedingung, Ziel, Default-/Rücksprung-Badge), Warnungen, ↑/↓, Löschen mit Inline-Bestätigung, Inline-Formular „Neuer Übergang" (auch je Gruppe über „+ Übergang"). |
+| `/dialogs/{dialogId:guid}/transitions/{transitionId:guid}` | `TransitionEditor.razor` | Ausgangs-/Zielfrage, Default-Kennzeichen, Bedingung mit Live-Validierung, Baustein-Einfüger, Bezeichner-Referenz, Löschen. |
+
+> Auch diese Seite heißt bewusst **`TransitionEditor`** – `TransitionDetail` würde den gleichnamigen
+> Sichttyp aus `Flirty.Runtime.Admin` verdecken (gleiche Falle wie bei `DialogEditor`/`QuestionEditor`).
+
+Verwendet werden ausschließlich `Create/Update/DeleteTransitionCommand` (via `FlirtyAdminGateway`); der
+Zustand kommt aus **einem** `GetDialogQuery`. Die **Priorität** wird nicht direkt getippt: ↑/↓ schreibt
+den Positionsindex **innerhalb der Ausgangsfrage** als neue `Priority` (alle Updates in einem
+Gateway-Aufruf) – dasselbe Muster wie bei Fragen und Optionen. Wechselt man im Editor die Ausgangsfrage,
+bekommt der Übergang die nächste freie Priorität der neuen Gruppe, statt still mit einem bestehenden
+Übergang zu kollidieren.
+
+### Live-Validierung über den Musterkontext
+
+Die Bedingung wird bei **jeder Eingabe** über `IExpressionEvaluator.Validate(...)` kompiliert (nicht
+ausgeführt) und der Status grün/rot angezeigt – bei gemeldeter Position mit einer `^`-Zeile unter der
+Fehlerstelle. Beim Speichern läuft dieselbe Prüfung **blockierend**: ein ungültiger Ausdruck fiele sonst
+erst in einer laufenden Session auf (`ExpressionEvaluationException` mitten im Dialog).
+
+Dafür baut `Services/DesignerExpressionContext.cs` einen **Musterkontext** – das Gegenstück zum
+Core-internen `SessionExpressionContextBuilder`, nur ohne Session:
+
+| Fragetyp | Beispielwert (roh, als JSON) | Typ im Ausdruck |
+|---|---|---|
+| `FreeText` | `"Text"` | `string` |
+| `Number` | `0` | `long` |
+| `Boolean` | `true` | `bool` |
+| `Date` | `"2026-01-01"` | **`string`** (wie zur Laufzeit – kein Vergleich mit `now` möglich) |
+| `SingleChoice` | erster Optionswert als JSON-String | `string` |
+| `MultiChoice` | JSON-Array der Optionswerte | Liste (`.Count`, `.Contains`) |
+
+Maßgeblich sind die **Typen**, nicht die Werte: Sie spiegeln exakt die Deserialisierung des
+`DynamicExpressoExpressionEvaluator` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)).
+Loop-Collections werden – wie vom `LoopResolver` zur Laufzeit – **stets** gebunden (vor der ersten
+Iteration als leere Liste), damit `skills.Count > 0` prüfbar ist; dafür liefert `GetDialogQuery` die
+Schleifen-Marker seit #40 lesend mit (`DialogDetail.Loops`).
+
+Nicht referenzierbare Schlüssel werden in der Referenztabelle als **„nicht nutzbar"** ausgewiesen statt
+stillschweigend zu fehlen: Schlüssel, die keine gültigen Bezeichner sind (`vor-name`), und solche, die
+von den reservierten Kontext-Variablen `now`/`iterationIndex`/`session` verdeckt werden (der Evaluator
+setzt sie zuletzt).
+
+> Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist **englisch**
+> („Unknown identifier 'rolle' (at index 0)"). Der Designer rahmt sie deutsch ein, statt sie zu
+> übersetzen – so bleibt sie zur Engine-Ausgabe konsistent und übersteht einen Engine-Tausch.
+
+### Baustein-Einfüger
+
+Der Ausdruck bleibt ein Textfeld (kein Rückwärts-Parsen). Darunter setzt ein Einfüger aus
+**Variable / Operator / Wert** einen Baustein zusammen und hängt ihn per `&&`/`||` an. Die angebotenen
+Operatoren richten sich nach der Wertart (Zahl: `== != > >= < <=`; Liste: `Anzahl >`, `Anzahl ==`,
+`enthält`), und der Vergleichswert wird typgerecht quotiert. Das Quotieren läuft bewusst **nicht** über
+`JsonSerializer`: dessen `\u00XX`-Escapes lehnt der Parser der Engine ab („Invalid character escape
+sequence") – erzeugt werden nur die C#-Escapes, die DynamicExpresso kennt.
+
+### Warnungen (nicht blockierend)
+
+Die Übergangsliste spiegelt die Regeln des `TransitionResolver` und meldet Konfigurationen, die zur
+Laufzeit anders wirken als gedacht:
+
+- **Kein Default und kein bedingungsloser Übergang** → trifft keine Bedingung zu, bricht die Session ab.
+- **Mehrere Defaults** → es greift nur der oberste.
+- **Default mit Bedingung** → die Bedingung wird nicht ausgewertet (der Resolver prüft sie nicht).
+- **Bedingungsloser Übergang mit Nachfolgern** → er greift immer, die nachfolgenden werden nie geprüft.
+- **Rücksprung** (Ziel liegt nicht nach der Ausgangsfrage) → Badge; der Loop-Marker dazu folgt mit #41.
+- **Frage ohne ausgehende Übergänge** → Hinweis „der Dialog endet nach dieser Frage".
+- **Verwaiste Übergänge** (Ausgangsfrage existiert nicht mehr) werden sichtbar gemacht und lassen sich
+  löschen. Über den Designer entstehen sie nicht – die Admin-API prüft Frage-Verweise aber bewusst nicht.
+
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
@@ -231,9 +308,13 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/ConnectionProfileOperationsTests` – Test-Connection und Migrate gegen eine SQLite-Temp-DB.
 - `Designer/FlirtyAdminGatewayTests` – Admin-CRUD über den echten DI-Stack gegen eine SQLite-Temp-DB:
   Anlegen/Auflisten, Fehler-Mapping (Schlüsselkonflikt, unbekannter Dialog, fehlendes Profil, nicht
-  migrierte Datenbank), – als Regression – dass ein **Profilwechsel sofort greift**, sowie die Fragen-
+  migrierte Datenbank), – als Regression – dass ein **Profilwechsel sofort greift**, die Fragen-
   Flüsse aus #39 (Frage mit Optionen anlegen, Reihenfolge in *einer* Operation tauschen, Rücksetzen der
-  Einstiegsfrage beim Löschen).
+  Einstiegsfrage beim Löschen) und die Übergangs-Flüsse aus #40 (anlegen/löschen, Prioritäten in *einer*
+  Operation neu vergeben, Loop-Marker im Dialog-Graphen).
+- `Designer/DesignerExpressionContextTests` – der Musterkontext der Ausdrucks-Validierung (#40), geprüft
+  gegen die **echte** Engine: gültige Ausdrücke je Fragetyp, Loop-Collection ohne Iteration, Tippfehler
+  mit Position, verdeckte/ungültige Schlüssel und die typgerechte Quotierung des Baustein-Einfügers.
 - `Designer/QuestionFormModelTests` – die Abbildung zwischen Eingabefeldern und Regel-JSON (#39):
   typ-skopiertes Serialisieren, camelCase ohne Nullwerte, Roh-JSON-Fallback bei unbekannten Feldern,
   abgelehnte Muster/Grenzen und – als Kernprobe – dass der `AnswerValidator` der Engine das erzeugte
@@ -247,5 +328,9 @@ dotnet test tests/Flirty.Tests
 
 ## Roadmap (EPIC 7)
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor →
+#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
 #41 Loop-Visualisierung → #42 Trigger-Editor → #43 Test-Runner. Designer-E2E: #46.
+
+> Für #42 (Trigger-Ausdrücke) lässt sich `DesignerExpressionContext` unverändert weiterverwenden –
+> `TriggerDefinition.Expression` läuft über dieselbe Engine und denselben Kontext. #41 braucht zusätzlich
+> ein Loop-CRUD; die lesende Projektion (`DialogDetail.Loops`) steht seit #40.

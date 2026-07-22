@@ -23,8 +23,10 @@ internal interface IDialogAdminStore
 
     /// <summary>
     /// Lädt den Dialog mit der angegebenen <paramref name="dialogId"/> samt seinem für das
-    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen und Übergänge) – <b>ungetrackt</b> und
-    /// als Split-Query. Grundlage für die Detail-Abfrage (<c>GetDialogQuery</c>).
+    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen, Übergänge und Schleifen-Marker) –
+    /// <b>ungetrackt</b> und als Split-Query. Grundlage für die Detail-Abfrage (<c>GetDialogQuery</c>).
+    /// Die Schleifen-Marker kommen bewusst nur lesend mit: sie machen die im Ausdruckskontext
+    /// verfügbaren Loop-Collections sichtbar (Ausdrucks-Validierung im Designer).
     /// </summary>
     /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
     /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>

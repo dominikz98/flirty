@@ -1,0 +1,49 @@
+/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+
+.back {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+}
+
+h1 .badge {
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
+h3 {
+    margin: 0.75rem 0 0.5rem;
+    font-size: 1rem;
+}
+
+.confirm {
+    align-self: center;
+    font-size: 0.9rem;
+    color: #b32121;
+}
+
+/* Live-Status des Compile-Checks (#40). */
+.expr-status {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+}
+
+    .expr-status.ok {
+        color: #1c7c34;
+    }
+
+    .expr-status.err {
+        color: #b32121;
+    }
+
+/* Ausdruck + „^"-Zeile unter der gemeldeten Fehlerposition. */
+.expr-caret {
+    margin: 0.25rem 0 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.35rem;
+    background-color: #fdf0f0;
+    border: 1px solid #e0a5a5;
+    color: #b32121;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+}

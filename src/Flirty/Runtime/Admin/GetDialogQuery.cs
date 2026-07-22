@@ -5,8 +5,8 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Liest den Dialog <see cref="Id"/> samt seinem Konfigurationsgraphen (Fragen inkl. Optionen und
-/// Übergänge). Rein lesend.
+/// Liest den Dialog <see cref="Id"/> samt seinem Konfigurationsgraphen (Fragen inkl. Optionen,
+/// Übergänge und Schleifen-Marker). Rein lesend.
 /// </summary>
 /// <param name="Id">Der Primärschlüssel des abzufragenden Dialogs.</param>
 public sealed record GetDialogQuery([property: Required] Guid Id) : IQuery<DialogDetail>;
