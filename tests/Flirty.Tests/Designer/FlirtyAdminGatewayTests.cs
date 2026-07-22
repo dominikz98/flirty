@@ -1,5 +1,6 @@
 using Flirty.Designer.Models;
 using Flirty.Designer.Services;
+using Flirty.Domain;
 using Flirty.Persistence;
 using Flirty.Runtime.Admin;
 using Microsoft.EntityFrameworkCore;
@@ -133,6 +134,139 @@ public sealed class FlirtyAdminGatewayTests
                 Assert.Single(inA.Value!);
             });
         });
+    }
+
+    /// <summary>
+    /// Frage-Editor (#39): Fragen und Antwortoptionen laufen über dieselben Admin-Commands und müssen
+    /// im <c>GetDialogQuery</c> sortiert wieder auftauchen – darauf baut die Anzeige der Fragenliste auf.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_legt_Frage_mit_Optionen_an_und_liefert_sie_sortiert_im_Dialog_Graphen()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+
+            var frage = await gateway.ExecuteAsync((sender, token) => sender.Send(
+                new CreateQuestionCommand(
+                    dialogId, "farbe", "Welche Farbe?", QuestionType.SingleChoice, 0, true, null),
+                token));
+            Assert.True(frage.Success, frage.Error);
+
+            // Bewusst in verdrehter Reihenfolge anlegen: die Projektion muss nach Order sortieren.
+            foreach (var (key, order) in new[] { ("gruen", 1), ("rot", 0) })
+            {
+                var option = await gateway.ExecuteAsync((sender, token) => sender.Send(
+                    new CreateAnswerOptionCommand(dialogId, frage.Value!.Id, key, key, key, order), token));
+                Assert.True(option.Success, option.Error);
+            }
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            var geladen = Assert.Single(detail.Value!.Questions);
+            Assert.Equal(QuestionType.SingleChoice, geladen.Type);
+            Assert.Equal(["rot", "gruen"], geladen.Options.Select(option => option.Key));
+        });
+    }
+
+    /// <summary>
+    /// Der Frage-Editor schreibt beim Sortieren mehrere <c>UpdateQuestionCommand</c>s in <b>einem</b>
+    /// <see cref="FlirtyAdminGateway.ExecuteAsync{TValue}"/>-Aufruf (ein Scope, ein Fehlerpfad).
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_vertauscht_die_Reihenfolge_zweier_Fragen_in_einer_Operation()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+
+            var erste = await CreateQuestionAsync(gateway, dialogId, "vorname", 0);
+            var zweite = await CreateQuestionAsync(gateway, dialogId, "alter", 1);
+
+            var getauscht = await gateway.ExecuteAsync(async (sender, token) =>
+            {
+                _ = await sender.Send(
+                    new UpdateQuestionCommand(
+                        dialogId, zweite.Id, zweite.Key, zweite.Text, zweite.Type, 0, zweite.IsRequired, null),
+                    token);
+                return await sender.Send(
+                    new UpdateQuestionCommand(
+                        dialogId, erste.Id, erste.Key, erste.Text, erste.Type, 1, erste.IsRequired, null),
+                    token);
+            });
+            Assert.True(getauscht.Success, getauscht.Error);
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            Assert.Equal(["alter", "vorname"], detail.Value!.Questions.Select(question => question.Key));
+        });
+    }
+
+    /// <summary>
+    /// Löscht der Frage-Editor die Einstiegsfrage, muss der Dialog wieder ohne Einstiegsfrage dastehen –
+    /// die Ansicht sperrt daraufhin das Veröffentlichen.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_setzt_beim_Loeschen_der_Einstiegsfrage_die_Einstiegsfrage_zurueck()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var frage = await CreateQuestionAsync(gateway, dialogId, "vorname", 0);
+
+            var gesetzt = await gateway.ExecuteAsync((sender, token) => sender.Send(
+                new UpdateDialogCommand(dialogId, "onboarding", "Onboarding", null, frage.Id), token));
+            Assert.True(gesetzt.Success, gesetzt.Error);
+            Assert.Equal(frage.Id, gesetzt.Value!.StartQuestionId);
+
+            var geloescht = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteQuestionCommand(dialogId, frage.Id), token));
+            Assert.True(geloescht.Success, geloescht.Error);
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            Assert.Null(detail.Value!.Dialog.StartQuestionId);
+            Assert.Empty(detail.Value.Questions);
+        });
+    }
+
+    /// <summary>Legt über das Gateway einen Dialog an und liefert dessen Id.</summary>
+    /// <param name="gateway">Das zu verwendende Gateway.</param>
+    /// <param name="key">Der Schlüssel des Dialogs.</param>
+    /// <returns>Die Id des angelegten Dialogs.</returns>
+    private static async Task<Guid> CreateDialogAsync(FlirtyAdminGateway gateway, string key)
+    {
+        var created = await gateway.ExecuteAsync(
+            (sender, token) => sender.Send(new CreateDialogCommand(key, key, null), token));
+
+        Assert.True(created.Success, created.Error);
+        return created.Value!.Id;
+    }
+
+    /// <summary>Legt über das Gateway eine Freitext-Frage an.</summary>
+    /// <param name="gateway">Das zu verwendende Gateway.</param>
+    /// <param name="dialogId">Die Id des Dialogs.</param>
+    /// <param name="key">Der Schlüssel der Frage.</param>
+    /// <param name="order">Der Reihenfolge-Index.</param>
+    /// <returns>Die angelegte Frage.</returns>
+    private static async Task<QuestionDetail> CreateQuestionAsync(
+        FlirtyAdminGateway gateway, Guid dialogId, string key, int order)
+    {
+        var created = await gateway.ExecuteAsync((sender, token) => sender.Send(
+            new CreateQuestionCommand(dialogId, key, $"Frage {key}?", QuestionType.FreeText, order, false, null),
+            token));
+
+        Assert.True(created.Success, created.Error);
+        return created.Value!;
     }
 
     /// <summary>

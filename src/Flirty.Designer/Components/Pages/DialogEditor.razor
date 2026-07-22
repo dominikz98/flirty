@@ -3,6 +3,7 @@
 @page "/dialogs/{Id:guid}"
 @rendermode InteractiveServer
 @using Mediator
+@using Flirty.Domain
 @using Flirty.Runtime.Admin
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
@@ -94,7 +95,7 @@ else
                 </InputSelect>
                 @if (_detail.Questions.Count == 0)
                 {
-                    <span class="hint">Noch keine Fragen – der Frage-Editor folgt in #39.</span>
+                    <span class="hint">Erst unten eine Frage anlegen – dann lässt sich hier die Einstiegsfrage wählen.</span>
                 }
                 else
                 {
@@ -107,6 +108,127 @@ else
                 <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
             </div>
         </EditForm>
+    </div>
+
+    <div class="editor">
+        <h2>Fragen</h2>
+
+        @if (_detail.Questions.Count == 0)
+        {
+            <p class="empty">Noch keine Fragen angelegt.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Schlüssel</th>
+                        <th>Text</th>
+                        <th>Typ</th>
+                        <th>Pflicht</th>
+                        <th>Optionen</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var index = 0; index < _detail.Questions.Count; index++)
+                    {
+                        // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
+                        // Schleifenzustand nach dem letzten Durchlauf.
+                        var position = index;
+                        var question = _detail.Questions[index];
+
+                        <tr>
+                            <td>@(position + 1)</td>
+                            <td class="mono">
+                                @question.Key
+                                @if (_detail.Dialog.StartQuestionId == question.Id)
+                                {
+                                    <span class="badge badge-start">Einstieg</span>
+                                }
+                            </td>
+                            <td>@question.Text</td>
+                            <td>@QuestionTypeLabels.Describe(question.Type)</td>
+                            <td>@(question.IsRequired ? "ja" : "nein")</td>
+                            <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
+                            <td class="row-actions">
+                                <button class="btn" title="Nach oben"
+                                        disabled="@(_busy || position == 0)"
+                                        @onclick="() => MoveQuestionAsync(position, position - 1)">↑</button>
+                                <button class="btn" title="Nach unten"
+                                        disabled="@(_busy || position == _detail.Questions.Count - 1)"
+                                        @onclick="() => MoveQuestionAsync(position, position + 1)">↓</button>
+                                <button class="btn" @onclick="() => OpenQuestion(question)">Bearbeiten</button>
+
+                                @if (_confirmDeleteQuestionId == question.Id)
+                                {
+                                    <span class="confirm">Frage samt Optionen und Übergängen löschen?</span>
+                                    <button class="btn btn-danger" disabled="@_busy"
+                                            @onclick="() => DeleteQuestionAsync(question)">Ja, löschen</button>
+                                    <button class="btn" disabled="@_busy"
+                                            @onclick="() => _confirmDeleteQuestionId = null">Abbrechen</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-danger" disabled="@_busy"
+                                            @onclick="() => _confirmDeleteQuestionId = question.Id">Löschen</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (_newQuestion is null)
+        {
+            <div class="actions">
+                <button class="btn btn-primary" disabled="@_busy" @onclick="StartCreateQuestion">Neue Frage</button>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="_newQuestion" OnValidSubmit="CreateQuestionAsync">
+                <DataAnnotationsValidator />
+
+                <div class="field">
+                    <label for="questionKey">Schlüssel</label>
+                    <InputText id="questionKey" class="input" @bind-Value="_newQuestion.Key" />
+                    <span class="hint">
+                        Fachlicher, stabiler Schlüssel – im Dialog eindeutig und im Ausdruckskontext des
+                        Branchings sichtbar (z. B. <code>vorname</code>).
+                    </span>
+                    <ValidationMessage For="() => _newQuestion.Key" />
+                </div>
+
+                <div class="field">
+                    <label for="questionText">Fragetext</label>
+                    <InputTextArea id="questionText" class="input" rows="2" @bind-Value="_newQuestion.Text" />
+                    <ValidationMessage For="() => _newQuestion.Text" />
+                </div>
+
+                <div class="field">
+                    <label for="questionType">Typ</label>
+                    <InputSelect id="questionType" class="input" @bind-Value="_newQuestion.Type">
+                        @foreach (var type in Enum.GetValues<QuestionType>())
+                        {
+                            <option value="@type">@QuestionTypeLabels.Describe(type)</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="field check">
+                    <InputCheckbox id="questionRequired" @bind-Value="_newQuestion.IsRequired" />
+                    <label for="questionRequired">Antwort erforderlich</label>
+                </div>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                    <button type="button" class="btn" disabled="@_busy" @onclick="() => _newQuestion = null">Abbrechen</button>
+                </div>
+            </EditForm>
+        }
     </div>
 
     <div class="editor">
@@ -153,10 +275,12 @@ else
 
     private DialogDetail? _detail;
     private DialogFormModel _form = new();
+    private QuestionFormModel? _newQuestion;
     private string? _error;
     private string? _message;
     private bool _busy;
     private bool _confirmDelete;
+    private Guid? _confirmDeleteQuestionId;
     private Guid _loadedId;
 
     protected override async Task OnParametersSetAsync()
@@ -169,16 +293,36 @@ else
         _loadedId = Id;
         _message = null;
         _confirmDelete = false;
+        _confirmDeleteQuestionId = null;
+        _newQuestion = null;
         await ReloadAsync();
     }
 
-    private async Task ReloadAsync()
+    /// <summary>
+    /// Lädt den Dialog samt Graph neu.
+    /// </summary>
+    /// <param name="resetForm">
+    /// Ob das Metadaten-Formular überschrieben werden soll. Bei Fragen-Operationen bewusst
+    /// <see langword="false"/>: sonst gingen dort gerade getippte, noch nicht gespeicherte Metadaten
+    /// verloren. Die Einstiegsfrage wird trotzdem abgeglichen, falls sie serverseitig wegfiel.
+    /// </param>
+    private async Task ReloadAsync(bool resetForm = true)
     {
         var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(Id), token));
         _detail = result.Value;
         _error = result.Error;
 
-        ResetForm();
+        if (resetForm)
+        {
+            ResetForm();
+        }
+        else if (_detail is not null
+            && _form.StartQuestionId is { } selected
+            && _detail.Questions.All(question => question.Id != selected))
+        {
+            // Die gewählte Einstiegsfrage existiert nicht mehr (gelöscht) -> auf den Serverstand zurück.
+            _form.StartQuestionId = _detail.Dialog.StartQuestionId;
+        }
     }
 
     private void ResetForm()
@@ -189,24 +333,32 @@ else
         }
     }
 
-    private Task SaveAsync()
-        => RunAsync(
+    private async Task SaveAsync()
+        => await RunAsync(
             (sender, token) => sender.Send(
                 new UpdateDialogCommand(Id, _form.Key, _form.Name, _form.Description, _form.StartQuestionId), token),
             "Änderungen gespeichert.");
 
-    private Task PublishAsync()
-        => RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
+    private async Task PublishAsync()
+        => await RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
 
-    private Task UnpublishAsync()
-        => RunAsync((sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Veröffentlichung zurückgenommen.");
+    private async Task UnpublishAsync()
+        => await RunAsync(
+            (sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Veröffentlichung zurückgenommen.");
 
     /// <summary>
     /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Dialog neu (die
-    /// Commands liefern nur die Metadaten zurück, die Ansicht braucht auch den Graphen).
+    /// Commands liefern nur ihren eigenen Ausschnitt zurück, die Ansicht braucht den ganzen Graphen).
     /// </summary>
-    private async Task RunAsync(
-        Func<ISender, CancellationToken, ValueTask<DialogSummary>> operation, string successMessage)
+    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
+    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
+    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <param name="resetForm">Ob das Metadaten-Formular vom Serverstand überschrieben werden soll.</param>
+    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<ISender, CancellationToken, ValueTask<TResult>> operation,
+        string successMessage,
+        bool resetForm = true)
     {
         _busy = true;
         _message = null;
@@ -216,17 +368,108 @@ else
             if (!result.Success)
             {
                 _error = result.Error;
-                return;
+                return false;
             }
 
             _error = null;
             _message = successMessage;
-            await ReloadAsync();
+            await ReloadAsync(resetForm);
+            return true;
         }
         finally
         {
             _busy = false;
         }
+    }
+
+    // ---- Fragen (#39) -----------------------------------------------------------------------------
+
+    private void StartCreateQuestion() => _newQuestion = new QuestionFormModel();
+
+    private void OpenQuestion(QuestionDetail question)
+        => Navigation.NavigateTo($"dialogs/{Id}/questions/{question.Id}");
+
+    /// <summary>
+    /// Legt eine Frage am Ende des Dialogs an. Validierungsregeln und Antwortoptionen werden bewusst
+    /// nicht hier, sondern im Frage-Editor gepflegt – so bleibt das Anlegen mehrerer Fragen zügig.
+    /// </summary>
+    private async Task CreateQuestionAsync()
+    {
+        if (_detail is null || _newQuestion is null)
+        {
+            return;
+        }
+
+        var model = _newQuestion;
+        var order = _detail.Questions.Count == 0 ? 0 : _detail.Questions.Max(question => question.Order) + 1;
+
+        var created = await RunAsync<QuestionDetail>(
+            (sender, token) => sender.Send(
+                new CreateQuestionCommand(Id, model.Key, model.Text, model.Type, order, model.IsRequired, null),
+                token),
+            $"Frage „{model.Key}“ angelegt.",
+            resetForm: false);
+
+        if (created)
+        {
+            _newQuestion = null;
+        }
+    }
+
+    /// <summary>
+    /// Verschiebt eine Frage um eine Position. Geschrieben wird der <b>Positionsindex</b> als neue
+    /// <c>Order</c> – das repariert nebenbei doppelte oder lückenhafte Werte, bei denen ein reines
+    /// Vertauschen der beiden Zahlen wirkungslos bliebe. Beide Updates laufen in <b>einem</b>
+    /// Gateway-Aufruf, also im selben DI-Scope mit einem Fehlerpfad.
+    /// </summary>
+    /// <param name="from">Die aktuelle Position der Frage.</param>
+    /// <param name="to">Die Zielposition.</param>
+    private async Task MoveQuestionAsync(int from, int to)
+    {
+        if (_detail is null || to < 0 || to >= _detail.Questions.Count)
+        {
+            return;
+        }
+
+        var ordered = _detail.Questions.ToList();
+        (ordered[from], ordered[to]) = (ordered[to], ordered[from]);
+
+        var changed = ordered
+            .Select((question, index) => (Question: question, Index: index))
+            .Where(entry => entry.Question.Order != entry.Index)
+            .ToList();
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        await RunAsync<Unit>(
+            async (sender, token) =>
+            {
+                foreach (var (question, index) in changed)
+                {
+                    _ = await sender.Send(
+                        new UpdateQuestionCommand(
+                            Id, question.Id, question.Key, question.Text, question.Type, index,
+                            question.IsRequired, question.ValidationRules),
+                        token);
+                }
+
+                return Unit.Value;
+            },
+            "Reihenfolge geändert.",
+            resetForm: false);
+    }
+
+    private async Task DeleteQuestionAsync(QuestionDetail question)
+    {
+        _confirmDeleteQuestionId = null;
+
+        await RunAsync<Unit>(
+            (sender, token) => sender.Send(new DeleteQuestionCommand(Id, question.Id), token),
+            $"Frage „{question.Key}“ gelöscht.",
+            resetForm: false);
     }
 
     private async Task DeleteAsync()

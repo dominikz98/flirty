@@ -40,6 +40,26 @@ h1:focus {
         font-size: 0.9rem;
     }
 
+/* Checkbox + Beschriftung in einer Zeile (statt untereinander wie bei den übrigen Feldern). */
+.field.check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Mehrere schmale Felder nebeneinander (z. B. Schlüssel/Beschriftung/Wert einer Antwortoption). */
+.field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    max-width: 960px;
+}
+
+    .field-row .field {
+        flex: 1 1 12rem;
+        max-width: none;
+    }
+
 .input {
     padding: 0.4rem 0.5rem;
     border: 1px solid #b8b8c4;
@@ -145,6 +165,12 @@ h1:focus {
 .badge-draft {
     background-color: #e3e3ea;
     color: #444;
+}
+
+.badge-start {
+    background-color: #3b3f8f;
+    color: #fff;
+    margin-left: 0.35rem;
 }
 
 .msg {

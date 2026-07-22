@@ -24,7 +24,8 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
-│                               (Multi-DB, #37) + Dialog-CRUD (#38); Frage-/…-Editoren (#39–#43) offen.
+│                               (Multi-DB, #37), Dialog-CRUD (#38) + Frage-Editor (#39);
+│                               Branching-/Loop-/Trigger-/Test-Editoren (#40–#43) offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -179,8 +180,13 @@ Publish/Unpublish, Löschen). Alle Admin-Operationen laufen über `FlirtyAdminGa
 Server lebt ein Scope sonst den ganzen Circuit und pinnt den `FlirtyDbContext` an das zuerst benutzte
 Profil. Folge-Editoren nutzen dieses Gateway ebenfalls. Gemeinsame UI-Klassen liegen global in
 `src/Flirty.Designer/wwwroot/app.css`.
+**Frage-Editor (#39) fertig** – Fragenliste im `DialogEditor` (anlegen, ↑/↓-Sortieren, löschen) plus
+Detailseite `/dialogs/{dialogId}/questions/{questionId}` (`QuestionEditor.razor`) mit Metadaten,
+**typ-skopiertem** Validierungs-Editor (`Models/QuestionFormModel.cs` serialisiert den Core-Typ
+`Flirty.Validation.ValidationRules`; Regex wird beim Speichern kompiliert, unbekanntes JSON landet in
+einem Roh-JSON-Fallback) und Antwortoptionen-CRUD.
 
-**Offen:** restlicher Blazor-**Designer** (Editoren #39–#43, es gibt außer Verbindungen und Dialog-CRUD
-noch keine UI für Fragen/Branching/Loops/Trigger), Designer-E2E (#46), Coverage in CI (#48),
+**Offen:** restlicher Blazor-**Designer** (Editoren #40–#43, es gibt noch keine UI für
+Branching/Loops/Trigger und keinen Test-Runner), Designer-E2E (#46), Coverage in CI (#48),
 NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des
 Designers ausgehen.
