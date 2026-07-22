@@ -1,6 +1,7 @@
 using Flirty.Designer.Components;
 using Flirty.Designer.Services;
 using Flirty.Persistence;
+using Flirty.Runtime;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,17 @@ builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyD
 // Admin-CRUD (#38): führt die Mediator-Commands/Queries je Operation in einem frischen DI-Scope aus,
 // damit der FlirtyDbContext nicht über den ganzen Circuit lebt und Profilwechsel sofort greifen.
 builder.Services.AddScoped<FlirtyAdminGateway>();
+
+// Test-Runner (#43): dasselbe Scope-Muster für die Laufzeit-Operationen (IFlirtyEngine) plus das
+// Trigger-Protokoll des Laufs. Die vier Handler schreiben hinein, was die Engine publiziert; das
+// Gateway reicht den Log des Circuits in den jeweiligen Kind-Scope durch.
+builder.Services.AddScoped<DesignerTriggerLog>();
+builder.Services.AddScoped<FlirtyRuntimeGateway>();
+builder.Services
+    .AddFlirtyHandler<DialogStartedNotification, DesignerTriggerLogHandlers.DialogStarted>()
+    .AddFlirtyHandler<AnswerSubmittedNotification, DesignerTriggerLogHandlers.AnswerSubmitted>()
+    .AddFlirtyHandler<QuestionAnsweredNotification, DesignerTriggerLogHandlers.QuestionAnswered>()
+    .AddFlirtyHandler<DialogCompletedNotification, DesignerTriggerLogHandlers.DialogCompleted>();
 
 var app = builder.Build();
 

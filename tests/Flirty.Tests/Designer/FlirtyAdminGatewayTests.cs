@@ -85,8 +85,8 @@ public sealed class FlirtyAdminGatewayTests
     [Fact]
     public async Task ExecuteAsync_meldet_nicht_migrierte_Datenbank()
     {
-        var store = new InMemoryConnectionProfileStore();
-        using var provider = BuildProvider(store);
+        var store = new DesignerTestHost.InMemoryConnectionProfileStore();
+        using var provider = DesignerTestHost.BuildProvider(store);
         using var scope = provider.CreateScope();
 
         // Erreichbare, aber leere Datenbank (Mode=Memory -> kein Dateimüll): das Schema fehlt, weil nie
@@ -477,89 +477,15 @@ public sealed class FlirtyAdminGatewayTests
     }
 
     /// <summary>
-    /// Baut denselben DI-Stack wie <c>src/Flirty.Designer/Program.cs</c>: Engine ohne fest verdrahteten
-    /// Provider, Kontext-Factory gegen das aktive Profil und das Gateway darüber.
-    /// </summary>
-    /// <param name="store">Der (In-Memory-)Profil-Store.</param>
-    /// <returns>Der fertige Container.</returns>
-    private static ServiceProvider BuildProvider(IConnectionProfileStore store)
-        => new ServiceCollection()
-            .AddLogging()
-            .AddFlirty()
-            .AddSingleton(store)
-            .AddScoped<ActiveConnectionProfile>()
-            .AddScoped<IDbContextFactory<FlirtyDbContext>, FlirtyDesignerDbContextFactory>()
-            .AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyDbContext>>().CreateDbContext())
-            .AddScoped<FlirtyAdminGateway>()
-            .BuildServiceProvider();
-
-    /// <summary>
-    /// Legt eine migrierte SQLite-Temp-Datenbank samt Container/Scope an, führt den Test aus und räumt
-    /// die Dateien wieder weg (Muster aus <see cref="ConnectionProfileOperationsTests"/>).
+    /// Adapter auf <see cref="DesignerTestHost.RunWithTempDbAsync"/>: löst die beiden hier durchgängig
+    /// gebrauchten Dienste aus dem Circuit-Scope auf. Der DI-Stack und die Temp-Datenbank liegen im
+    /// gemeinsamen <see cref="DesignerTestHost"/>, damit sie nicht je Testklasse nachgezogen werden müssen.
     /// </summary>
     /// <param name="test">Der Testkörper (Gateway, aktives Profil des Scopes, migriertes Profil).</param>
-    private static async Task RunWithTempDbAsync(
+    private static Task RunWithTempDbAsync(
         Func<FlirtyAdminGateway, ActiveConnectionProfile, ConnectionProfile, Task> test)
-    {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"flirty-designer-{Guid.NewGuid():N}.db");
-        var profile = new ConnectionProfile
-        {
-            Name = "Temp",
-            Provider = FlirtyDatabaseProvider.Sqlite,
-            // Pooling=False: sonst hält der SQLite-Connection-Pool die Datei offen und der Cleanup scheitert.
-            ConnectionString = $"Data Source={dbPath};Pooling=False",
-        };
-
-        await new ConnectionProfileOperations().ApplyMigrationsAsync(profile);
-
-        var store = new InMemoryConnectionProfileStore();
-        store.Save(profile);
-
-        try
-        {
-            using var provider = BuildProvider(store);
-            using var scope = provider.CreateScope();
-
-            await test(
-                scope.ServiceProvider.GetRequiredService<FlirtyAdminGateway>(),
-                scope.ServiceProvider.GetRequiredService<ActiveConnectionProfile>(),
-                profile);
-        }
-        finally
-        {
-            foreach (var suffix in new[] { string.Empty, "-shm", "-wal" })
-            {
-                var file = dbPath + suffix;
-                if (File.Exists(file))
-                {
-                    File.Delete(file);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Handgeschriebenes TestDouble des <see cref="IConnectionProfileStore"/> (kein Mocking-Framework,
-    /// Projektkonvention): hält die Profile im Speicher statt in einer JSON-Datei.
-    /// </summary>
-    private sealed class InMemoryConnectionProfileStore : IConnectionProfileStore
-    {
-        private readonly List<ConnectionProfile> _profiles = [];
-
-        public IReadOnlyList<ConnectionProfile> GetAll() => [.. _profiles];
-
-        public ConnectionProfile? Get(string id) => _profiles.FirstOrDefault(profile => profile.Id == id);
-
-        public void Save(ConnectionProfile profile)
-        {
-            _profiles.RemoveAll(existing => existing.Id == profile.Id);
-            _profiles.Add(profile);
-        }
-
-        public void Delete(string id) => _profiles.RemoveAll(profile => profile.Id == id);
-
-        public string? DefaultProfileId { get; private set; }
-
-        public void SetDefault(string? id) => DefaultProfileId = id;
-    }
+        => DesignerTestHost.RunWithTempDbAsync((services, profile) => test(
+            services.GetRequiredService<FlirtyAdminGateway>(),
+            services.GetRequiredService<ActiveConnectionProfile>(),
+            profile));
 }

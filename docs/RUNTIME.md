@@ -32,6 +32,9 @@ public interface IFlirtyEngine
     Task<StartDialogResult> StartDialogAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default);
 
+    Task<StartDialogResult> StartDialogVersionAsync(
+        Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default);
+
     Task<SubmitAnswerResult> SubmitAnswerAsync(
         Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 
@@ -44,8 +47,9 @@ public interface IFlirtyEngine
 }
 ```
 
-Die Facade wächst in den Folge-Issues additiv. Aktuell bietet sie den Dialog-Start (#25), das Einreichen
-von Antworten (#26), das Lesen des Session-Zustands (#27) und das Editieren einer früheren Antwort (#28).
+Die Facade wächst in den Folge-Issues additiv. Aktuell bietet sie den Dialog-Start (#25), den Start einer
+konkreten Dialogversion (#43), das Einreichen von Antworten (#26), das Lesen des Session-Zustands (#27)
+und das Editieren einer früheren Antwort (#28).
 
 ## StartDialogCommand
 
@@ -112,6 +116,41 @@ ihre `DialogVersion` gebunden und wird durch spätere Dialog-Änderungen nicht g
 | Kein veröffentlichter Dialog zum Schlüssel | `DialogNotFoundException` (trägt den `DialogKey`) |
 | Veröffentlichter Dialog ohne `StartQuestionId` | `InvalidOperationException` (Fehlkonfiguration) |
 | Leerer/`null` `DialogKey`/`ExternalUserKey` | `ValidationException` (aus der Pipeline) |
+
+## StartDialogVersionCommand (#43)
+
+```csharp
+public sealed record StartDialogVersionCommand(
+    [property: Required] Guid DialogId,
+    [property: Required] string ExternalUserKey) : ICommand<StartDialogResult>;
+```
+
+Startet eine **konkrete Dialogversion – unabhängig vom Veröffentlichungsstatus**. Gegenstück zum
+`StartDialogCommand`, der bewusst nur die höchste *veröffentlichte* Version eines fachlichen Schlüssels
+startet.
+
+Der Handler ist bis auf die Auflösung identisch: statt `GetPublishedDialogAsync(key)` nutzt er
+`GetDialogAsync(dialogId)`. Alles Weitere – Resume-oder-Neu-Entscheid über
+`FindActiveSessionAsync(dialog.Id, externalUserKey)`, Versions-Pinning, `DialogStartedNotification` nur
+beim echten Neu-Start – bleibt gleich. Das funktioniert ohne Sonderpfad, weil die Session ihre
+`DialogId` pinnt und Resume/Submit/Edit ihre Dialogversion ohnehin über das
+veröffentlichungs-**un**abhängige `GetDialogAsync` laden.
+
+**Anwendungsfall:** Vorschau und Test vor dem Veröffentlichen – konkret der Test-Runner des Designers
+(siehe [DESIGNER.md](./DESIGNER.md#test-runner-43)).
+
+### Fehlerfälle
+
+| Situation | Verhalten |
+|---|---|
+| Keine Dialogversion mit dieser Id | `ConfigurationNotFoundException` |
+| Dialog ohne `StartQuestionId` | `InvalidOperationException` (Fehlkonfiguration) |
+| Leerer/`null` `ExternalUserKey` | `ValidationException` (aus der Pipeline) |
+
+> **Bewusst ohne HTTP-Endpunkt.** In `Flirty.AspNetCore` ist der Publish-Status die Produktionsschranke:
+> Über HTTP lassen sich nur veröffentlichte Dialoge starten. Das Umgehen bleibt In-Process-Aufrufern
+> (Designer, Worker, Tests) vorbehalten. Wer den Command in einer eigenen Host-App exponiert, führt die
+> Schranke selbst wieder ein.
 
 ## SubmitAnswerCommand
 
