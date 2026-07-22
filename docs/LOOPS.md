@@ -111,7 +111,18 @@ Die übrigen Fehlerfälle von Submit/Edit gelten unverändert (siehe [RUNTIME.md
 - **Strukturierte Iterations-Objekte** – gesammelt wird je Iteration genau die Einstiegsantwort (ein
   Eintrag pro Iteration), nicht alle Antworten des Bereichs.
 - **`CollectionKey` ↔ `Question.Key`-Kollision** – Designer-Konvention: Collection- und Frage-Schlüssel
-  disjunkt halten.
+  disjunkt halten. Der Branching-Editor weist eine Kollision seit #40 aus (der Frage-Schlüssel wird von
+  der gleichnamigen Collection verdeckt), verhindern kann er sie nicht.
+
+## Schleifen im Designer
+
+Ein **CRUD für Schleifen-Marker gibt es noch nicht** (Issue #41); angelegt werden sie bis dahin direkt
+über den `FlirtyDbContext` (so macht es auch der `DemoDialogProvisioner` der Web-Sample). **Lesend**
+liefert `GetDialogQuery` sie seit #40 aber mit (`DialogDetail.Loops`) – der Branching-Editor braucht die
+`CollectionKey`s, um Ausdrücke wie `skills.Count > 0` überhaupt validieren zu können (siehe
+[DESIGNER.md](./DESIGNER.md#live-validierung-über-den-musterkontext)). Den Zyklus selbst legt man schon
+heute im Branching-Editor an: eine `Transition` auf eine frühere Frage, im Designer als **Rücksprung**
+markiert.
 
 ## Nutzung
 

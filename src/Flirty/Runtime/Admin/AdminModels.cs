@@ -28,15 +28,22 @@ public sealed record DialogSummary(
 
 /// <summary>
 /// Navigationsfreie Sicht auf einen <see cref="Dialog"/> samt seinem im Rahmen des Admin-CRUD
-/// verwalteten Graphen (Fragen inkl. Optionen und Übergänge). Ergebnis von <c>GetDialogQuery</c>.
+/// verwalteten Graphen (Fragen inkl. Optionen, Übergänge und Schleifen-Marker). Ergebnis von
+/// <c>GetDialogQuery</c>.
 /// </summary>
 /// <param name="Dialog">Die Dialog-Metadaten.</param>
 /// <param name="Questions">Die Fragen des Dialogs (inklusive ihrer Antwortoptionen), nach <c>Order</c> sortiert.</param>
 /// <param name="Transitions">Die bedingten Übergänge des Dialogs, nach <c>Priority</c> sortiert.</param>
+/// <param name="Loops">
+/// Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert. Bewusst nur <b>lesend</b>:
+/// Sie machen die im Ausdruckskontext verfügbaren Loop-Collections sichtbar (z. B. für die
+/// Ausdrucks-Validierung im Designer); ein CRUD für Schleifen folgt separat.
+/// </param>
 public sealed record DialogDetail(
     DialogSummary Dialog,
     IReadOnlyList<QuestionDetail> Questions,
-    IReadOnlyList<TransitionDetail> Transitions);
+    IReadOnlyList<TransitionDetail> Transitions,
+    IReadOnlyList<LoopDetail> Loops);
 
 /// <summary>
 /// Navigationsfreie Sicht auf eine <see cref="Question"/> für das Admin-CRUD (mit allen
@@ -97,3 +104,18 @@ public sealed record TransitionDetail(
     string? Expression,
     int Priority,
     bool IsDefault);
+
+/// <summary>
+/// Navigationsfreie Sicht auf eine <see cref="LoopDefinition"/> (Schleifen-Marker) für das Admin-CRUD.
+/// </summary>
+/// <param name="Id">Der Primärschlüssel der Schleifen-Definition.</param>
+/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
+/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
+/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife.</param>
+/// <param name="BreakingQuestionId">Verweis auf die Breaking Question (deren Exit-Übergang den Zyklus verlässt).</param>
+public sealed record LoopDetail(
+    Guid Id,
+    Guid DialogId,
+    string CollectionKey,
+    Guid EntryQuestionId,
+    Guid BreakingQuestionId);

@@ -24,8 +24,8 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI-Endpunkte (dünn über die Mediator-Commands). NuGet-Paket.
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). Bisher: Connection-Profil-Verwaltung
-│                               (Multi-DB, #37), Dialog-CRUD (#38) + Frage-Editor (#39);
-│                               Branching-/Loop-/Trigger-/Test-Editoren (#40–#43) offen.
+│                               (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39) +
+│                               Branching-Editor (#40); Loop-/Trigger-/Test-Editoren (#41–#43) offen.
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
 └─ Flirty.Migrations.SqlServer    /
@@ -185,8 +185,14 @@ Detailseite `/dialogs/{dialogId}/questions/{questionId}` (`QuestionEditor.razor`
 **typ-skopiertem** Validierungs-Editor (`Models/QuestionFormModel.cs` serialisiert den Core-Typ
 `Flirty.Validation.ValidationRules`; Regex wird beim Speichern kompiliert, unbekanntes JSON landet in
 einem Roh-JSON-Fallback) und Antwortoptionen-CRUD.
+**Branching-Editor (#40) fertig** – Abschnitt „Übergänge" im `DialogEditor` (je Ausgangsfrage gruppiert,
+↑/↓ schreibt den Positionsindex als `Priority`, Warnungen nach den Regeln des `TransitionResolver`) plus
+Detailseite `/dialogs/{dialogId}/transitions/{transitionId}` (`TransitionEditor.razor`) mit
+**Live-Validierung** der Bedingung und Baustein-Einfüger. Kern ist der Musterkontext
+`Services/DesignerExpressionContext.cs`: er bindet je Frage einen typrichtigen Beispielwert (Typen wie
+zur Laufzeit – ein Datum ist eine *Zeichenkette*) und jede Loop-Collection als leere Liste. Dafür liefert
+`GetDialogQuery` die Schleifen-Marker seit #40 **lesend** mit (`DialogDetail.Loops`, kein Loop-CRUD).
 
-**Offen:** restlicher Blazor-**Designer** (Editoren #40–#43, es gibt noch keine UI für
-Branching/Loops/Trigger und keinen Test-Runner), Designer-E2E (#46), Coverage in CI (#48),
-NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des
-Designers ausgehen.
+**Offen:** restlicher Blazor-**Designer** (Editoren #41–#43, es gibt noch keine UI für Loops/Trigger und
+keinen Test-Runner), Designer-E2E (#46), Coverage in CI (#48), NuGet-**Publish** (#49),
+Doku-/README-Ausbau (#50–#52). Beim Arbeiten also nicht von Vollständigkeit des Designers ausgehen.

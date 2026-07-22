@@ -1,0 +1,559 @@
+@* Bewusst NICHT "TransitionDetail" genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp Flirty.Runtime.Admin.TransitionDetail verdecken (wie bei DialogEditor/QuestionEditor). *@
+@page "/dialogs/{DialogId:guid}/transitions/{TransitionId:guid}"
+@rendermode InteractiveServer
+@using Mediator
+@using Flirty.Expressions
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject IExpressionEvaluator Evaluator
+@inject NavigationManager Navigation
+
+<PageTitle>Übergang · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_transition is null)
+{
+    <h1>Übergang</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        @QuestionLabel(_transition.FromQuestionId) → @QuestionLabel(_transition.TargetQuestionId)
+        @if (_transition.IsDefault)
+        {
+            <span class="badge badge-default">Default</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Übergang @(_position + 1) von @_group.Count ab der Frage
+        <span class="mono">@QuestionLabel(_transition.FromQuestionId)</span> im Dialog
+        <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
+    </p>
+
+    @if (_detail.Dialog.IsPublished)
+    {
+        <div class="banner warn">
+            Der Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen durch
+            Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="editor">
+            <h2>Übergang</h2>
+
+            <div class="field">
+                <label for="from">Ausgangsfrage</label>
+                <InputSelect id="from" class="input" @bind-Value="_form.FromQuestionId">
+                    <option value="">— wählen —</option>
+                    @foreach (var question in _detail.Questions)
+                    {
+                        <option value="@question.Id">@question.Key — @question.Text</option>
+                    }
+                </InputSelect>
+                <span class="hint">
+                    Wird die Ausgangsfrage gewechselt, rutscht der Übergang in der neuen Frage ans Ende
+                    der Prioritätsliste.
+                </span>
+                <ValidationMessage For="() => _form.FromQuestionId" />
+            </div>
+
+            <div class="field">
+                <label for="target">Zielfrage</label>
+                <InputSelect id="target" class="input" @bind-Value="_form.TargetQuestionId">
+                    <option value="">— wählen —</option>
+                    @foreach (var question in _detail.Questions)
+                    {
+                        <option value="@question.Id">@question.Key — @question.Text</option>
+                    }
+                </InputSelect>
+                <span class="hint">
+                    Zeigt das Ziel auf eine frühere Frage, entsteht ein Zyklus (Schleife) – der Loop-Marker
+                    dazu wird noch nicht im Designer gepflegt.
+                </span>
+                <ValidationMessage For="() => _form.TargetQuestionId" />
+            </div>
+
+            <div class="field check">
+                <InputCheckbox id="isDefault" @bind-Value="_form.IsDefault" />
+                <label for="isDefault">Default-Übergang</label>
+            </div>
+            <span class="hint">
+                Der Default greift, wenn <em>kein</em> bedingter Übergang zutrifft. Seine eigene Bedingung
+                wird dabei <strong>nicht</strong> ausgewertet.
+            </span>
+
+            <div class="field">
+                <label>Priorität</label>
+                <span class="hint">
+                    Position @(_position + 1) – änderbar über die Pfeile in der
+                    <a href="@($"dialogs/{DialogId}")">Übergangsliste des Dialogs</a>. Geprüft wird von oben
+                    nach unten; der erste zutreffende Übergang gewinnt.
+                </span>
+            </div>
+        </div>
+
+        <div class="editor">
+            <h2>Bedingung</h2>
+
+            @if (_form.IsDefault && !string.IsNullOrWhiteSpace(_form.Expression))
+            {
+                <div class="banner warn">
+                    Dieser Übergang ist als Default markiert – seine Bedingung wird zur Laufzeit nicht
+                    ausgewertet. Entweder den Default-Haken entfernen oder die Bedingung leeren.
+                </div>
+            }
+
+            <div class="field">
+                <label for="expression">Ausdruck</label>
+                @* Bewusst ein rohes <textarea> mit @oninput statt <InputTextArea>: Nur so wird bei
+                   JEDER Eingabe validiert (das Formular-Binding feuert erst beim Verlassen des Felds). *@
+                <textarea id="expression" class="input mono" rows="3"
+                          value="@_form.Expression" @oninput="OnExpressionInput"></textarea>
+                <span class="hint">
+                    Boolescher Ausdruck, z. B. <code>role == "dev" &amp;&amp; alter &gt; 18</code>.
+                    Leer bedeutet „bedingungslos zutreffend".
+                </span>
+            </div>
+
+            @if (_validation is not null)
+            {
+                @if (_validation.IsValid)
+                {
+                    <p class="expr-status ok">
+                        ✓ @(string.IsNullOrWhiteSpace(_form.Expression)
+                            ? "Ohne Bedingung – der Übergang greift immer."
+                            : "Ausdruck ist gültig.")
+                    </p>
+                }
+                else
+                {
+                    @* Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist
+                       englisch – deshalb der deutsche Rahmen davor. *@
+                    <p class="expr-status err">✗ Der Ausdruck ist ungültig: @_validation.Error</p>
+
+                    @if (Caret() is { } caret)
+                    {
+                        <pre class="expr-caret">@_form.Expression
+@caret</pre>
+                    }
+                }
+            }
+
+            <h3>Baustein einfügen</h3>
+
+            @if (BuilderVariables.Count == 0)
+            {
+                <p class="hint">
+                    Es gibt noch keine referenzierbaren Fragen in diesem Dialog – erst Fragen anlegen,
+                    dann lassen sich Bedingungen darauf bauen.
+                </p>
+            }
+            else
+            {
+                <div class="field-row">
+                    <div class="field">
+                        <label for="builderVariable">Variable</label>
+                        <select id="builderVariable" class="input"
+                                @bind="_builderVariable" @bind:after="OnBuilderVariableChanged">
+                            @foreach (var variable in BuilderVariables)
+                            {
+                                <option value="@variable.Name">@variable.Name (@variable.TypeLabel)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="builderOperator">Operator</label>
+                        <select id="builderOperator" class="input" @bind="_builderOperator">
+                            @foreach (var candidate in BuilderOperators)
+                            {
+                                <option value="@candidate">@candidate</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="builderValue">Wert</label>
+                        @if (SelectedVariable?.Kind == ExpressionValueKind.Boolean)
+                        {
+                            <select id="builderValue" class="input" @bind="_builderValue">
+                                <option value="true">true (ja)</option>
+                                <option value="false">false (nein)</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <input id="builderValue" class="input" @bind="_builderValue" @bind:event="oninput" />
+                        }
+                    </div>
+
+                    <div class="field">
+                        <label for="builderConjunction">Verknüpfung</label>
+                        <select id="builderConjunction" class="input" @bind="_builderConjunction"
+                                disabled="@string.IsNullOrWhiteSpace(_form.Expression)">
+                            <option value="&amp;&amp;">und (&amp;&amp;)</option>
+                            <option value="||">oder (||)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="button" class="btn" @onclick="InsertCondition">Einfügen</button>
+                    <span class="hint">Vorschau: <code class="mono">@Preview()</code></span>
+                </div>
+            }
+
+            <h3>Verfügbare Bezeichner</h3>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Bezeichner</th>
+                        <th>Typ</th>
+                        <th>Beispiel</th>
+                        <th>Hinweis</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var variable in _variables)
+                    {
+                        <tr>
+                            <td class="mono">@variable.Name</td>
+                            <td>@variable.TypeLabel</td>
+                            <td class="mono">@(variable.IsUsable ? variable.Example : "—")</td>
+                            <td>
+                                @if (!variable.IsUsable)
+                                {
+                                    <span class="badge badge-draft">nicht nutzbar</span>
+                                }
+                                @variable.Note
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+            <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+        </div>
+    </EditForm>
+
+    <div class="editor">
+        <h2>Übergang löschen</h2>
+
+        <p class="hint">
+            Ohne diesen Übergang endet der Dialog nach der Ausgangsfrage, sofern kein weiterer Übergang
+            von ihr ausgeht.
+        </p>
+
+        <div class="actions">
+            @if (_confirmDelete)
+            {
+                <span class="confirm">Übergang wirklich löschen?</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            }
+            else
+            {
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid DialogId { get; set; }
+
+    /// <summary>Der Primärschlüssel des bearbeiteten Übergangs (aus der Route).</summary>
+    [Parameter]
+    public Guid TransitionId { get; set; }
+
+    private DialogDetail? _detail;
+    private TransitionDetail? _transition;
+    private IReadOnlyList<TransitionDetail> _group = [];
+    private int _position;
+    private TransitionFormModel _form = new();
+    private ExpressionContext? _context;
+    private IReadOnlyList<ExpressionVariable> _variables = [];
+    private ExpressionValidationResult? _validation;
+    private string? _builderVariable;
+    private string _builderOperator = "==";
+    private string _builderValue = string.Empty;
+    private string _builderConjunction = "&&";
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _confirmDelete;
+    private (Guid Dialog, Guid Transition) _loaded;
+
+    private IReadOnlyList<ExpressionVariable> BuilderVariables =>
+        [.. _variables.Where(variable => variable.IsUsable && variable.Kind != ExpressionValueKind.Context)];
+
+    private ExpressionVariable? SelectedVariable =>
+        BuilderVariables.FirstOrDefault(variable => variable.Name == _builderVariable);
+
+    private IReadOnlyList<string> BuilderOperators =>
+        SelectedVariable is { } variable ? DesignerExpressionContext.OperatorsFor(variable.Kind) : [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == (DialogId, TransitionId))
+        {
+            return;
+        }
+
+        _loaded = (DialogId, TransitionId);
+        _message = null;
+        _confirmDelete = false;
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Lädt den Dialog-Graphen und greift den bearbeiteten Übergang heraus. Ein <c>GetDialogQuery</c>
+    /// genügt: er liefert Fragen (für die Auswahl und den Musterkontext), Übergänge (für Priorität und
+    /// Gruppe) und die Loop-Marker (für die Collection-Bezeichner im Ausdruck).
+    /// </summary>
+    private async Task ReloadAsync(bool resetForm = true)
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
+        _detail = result.Value;
+        _error = result.Error;
+
+        _transition = _detail?.Transitions.FirstOrDefault(transition => transition.Id == TransitionId);
+
+        if (_detail is not null && _transition is null)
+        {
+            _error = $"Der Dialog '{DialogId}' enthält keinen Übergang mit der Id '{TransitionId}'.";
+        }
+
+        _group = _transition is null || _detail is null
+            ? []
+            : [.. _detail.Transitions
+                .Where(transition => transition.FromQuestionId == _transition.FromQuestionId)
+                .OrderBy(transition => transition.Priority)];
+        _position = _transition is null ? -1 : _group.ToList().FindIndex(transition => transition.Id == TransitionId);
+
+        if (_detail is not null)
+        {
+            _context = DesignerExpressionContext.Build(_detail);
+            _variables = DesignerExpressionContext.Describe(_detail);
+            _builderVariable = BuilderVariables.FirstOrDefault()?.Name;
+            OnBuilderVariableChanged();
+        }
+
+        if (resetForm)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        if (_transition is not null)
+        {
+            _form = TransitionFormModel.From(_transition);
+            ValidateExpression();
+        }
+    }
+
+    private void OnExpressionInput(ChangeEventArgs args)
+    {
+        _form.Expression = args.Value?.ToString();
+        ValidateExpression();
+    }
+
+    /// <summary>
+    /// Prüft den Ausdruck gegen den Musterkontext des Dialogs – bei jeder Eingabe. Der Compile-Check ist
+    /// eine synchrone In-Memory-Operation (DynamicExpresso <c>Parse</c>), daher ohne Entprellung tragbar.
+    /// </summary>
+    private void ValidateExpression()
+    {
+        _validation = _context is null
+            ? null
+            : DesignerExpressionContext.Validate(Evaluator, _form.NormalizedExpression(), _context);
+    }
+
+    private void OnBuilderVariableChanged()
+    {
+        // Nach einem Variablenwechsel passt der bisherige Operator womöglich nicht mehr (z. B. „>" auf
+        // einer Liste) -> auf den ersten passenden zurücksetzen.
+        if (!BuilderOperators.Contains(_builderOperator))
+        {
+            _builderOperator = BuilderOperators.FirstOrDefault() ?? "==";
+        }
+
+        if (SelectedVariable?.Kind == ExpressionValueKind.Boolean
+            && _builderValue is not ("true" or "false"))
+        {
+            _builderValue = "true";
+        }
+    }
+
+    private string Preview()
+        => SelectedVariable is { } variable
+            ? DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue)
+            : string.Empty;
+
+    private void InsertCondition()
+    {
+        if (SelectedVariable is not { } variable)
+        {
+            return;
+        }
+
+        _form.Expression = DesignerExpressionContext.Append(
+            _form.Expression,
+            DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue),
+            _builderConjunction);
+
+        ValidateExpression();
+    }
+
+    /// <summary>Baut die Caret-Zeile, die unter der gemeldeten Fehlerposition ein „^" setzt.</summary>
+    private string? Caret()
+    {
+        if (_validation?.ErrorPosition is not { } position
+            || string.IsNullOrEmpty(_form.Expression)
+            || position < 0
+            || position > _form.Expression.Length)
+        {
+            return null;
+        }
+
+        return new string(' ', position) + "^";
+    }
+
+    private string QuestionLabel(Guid questionId)
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
+            ?? questionId.ToString();
+
+    /// <summary>
+    /// Speichert den Übergang – nachdem der Ausdruck <b>blockierend</b> validiert wurde. Ein ungültiger
+    /// Ausdruck fiele der Runtime sonst erst beim Auswerten der Verzweigung auf die Füße
+    /// (<c>ExpressionEvaluationException</c> mitten in einer laufenden Session).
+    /// </summary>
+    private async Task SaveAsync()
+    {
+        if (_detail is null || _transition is null || _context is null)
+        {
+            return;
+        }
+
+        var expression = _form.NormalizedExpression();
+        _validation = DesignerExpressionContext.Validate(Evaluator, expression, _context);
+
+        if (!_validation.IsValid)
+        {
+            _error = $"Die Bedingung ist ungültig: {_validation.Error}";
+            _message = null;
+            return;
+        }
+
+        var from = _form.FromQuestionId!.Value;
+        var target = _form.TargetQuestionId!.Value;
+
+        // Beim Wechsel der Ausgangsfrage die Priorität neu vergeben: die alte Zahl gehört zur alten
+        // Gruppe und würde in der neuen still mit einem bestehenden Übergang kollidieren.
+        var priority = from == _transition.FromQuestionId ? _transition.Priority : NextPriority(from);
+
+        await RunAsync<TransitionDetail>(
+            (sender, token) => sender.Send(
+                new UpdateTransitionCommand(
+                    DialogId, TransitionId, from, target, expression, priority, _form.IsDefault),
+                token),
+            "Übergang gespeichert.");
+    }
+
+    private int NextPriority(Guid fromQuestionId)
+    {
+        var siblings = _detail!.Transitions
+            .Where(transition => transition.FromQuestionId == fromQuestionId && transition.Id != TransitionId)
+            .ToList();
+
+        return siblings.Count == 0 ? 0 : siblings.Max(transition => transition.Priority) + 1;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteTransitionCommand(DialogId, TransitionId), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                _confirmDelete = false;
+                return;
+            }
+
+            Navigation.NavigateTo($"dialogs/{DialogId}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// </summary>
+    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
+    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
+    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<ISender, CancellationToken, ValueTask<TResult>> operation,
+        string successMessage)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(operation);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return false;
+            }
+
+            _error = null;
+            _message = successMessage;
+            await ReloadAsync();
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

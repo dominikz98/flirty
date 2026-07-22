@@ -24,9 +24,9 @@ internal static class AdminProjection
             dialog.UpdatedAt);
 
     /// <summary>
-    /// Projiziert einen <see cref="Dialog"/> samt geladenem Graphen (Fragen inkl. Optionen und
-    /// Übergänge) auf ein <see cref="DialogDetail"/>. Fragen und Optionen werden nach <c>Order</c>,
-    /// Übergänge nach <c>Priority</c> sortiert.
+    /// Projiziert einen <see cref="Dialog"/> samt geladenem Graphen (Fragen inkl. Optionen,
+    /// Übergänge und Schleifen-Marker) auf ein <see cref="DialogDetail"/>. Fragen und Optionen werden
+    /// nach <c>Order</c>, Übergänge nach <c>Priority</c> und Schleifen nach <c>CollectionKey</c> sortiert.
     /// </summary>
     /// <param name="dialog">Der Dialog mit geladenen Navigationen.</param>
     /// <returns>Die navigationsfreie Detail-Sicht des Dialog-Graphen.</returns>
@@ -34,7 +34,8 @@ internal static class AdminProjection
         => new(
             ToSummary(dialog),
             [.. dialog.Questions.OrderBy(question => question.Order).Select(ToDetail)],
-            [.. dialog.Transitions.OrderBy(transition => transition.Priority).Select(ToDetail)]);
+            [.. dialog.Transitions.OrderBy(transition => transition.Priority).Select(ToDetail)],
+            [.. dialog.Loops.OrderBy(loop => loop.CollectionKey, StringComparer.Ordinal).Select(ToDetail)]);
 
     /// <summary>Projiziert eine <see cref="Question"/> (inkl. Optionen) auf ein <see cref="QuestionDetail"/>.</summary>
     /// <param name="question">Die zu projizierende Frage mit geladenen Optionen.</param>
@@ -69,4 +70,10 @@ internal static class AdminProjection
             transition.Expression,
             transition.Priority,
             transition.IsDefault);
+
+    /// <summary>Projiziert eine <see cref="LoopDefinition"/> auf ein <see cref="LoopDetail"/>.</summary>
+    /// <param name="loop">Der zu projizierende Schleifen-Marker.</param>
+    /// <returns>Die navigationsfreie Schleifen-Sicht.</returns>
+    public static LoopDetail ToDetail(LoopDefinition loop)
+        => new(loop.Id, loop.DialogId, loop.CollectionKey, loop.EntryQuestionId, loop.BreakingQuestionId);
 }

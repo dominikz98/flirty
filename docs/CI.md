@@ -28,11 +28,18 @@ restore  ->  build -c Release  ->  test -c Release  ->  pack -c Release  ->  Art
 
 - `dotnet restore Flirty.sln`
 - `dotnet build Flirty.sln -c Release --no-restore`
-- `dotnet test Flirty.sln -c Release --no-build`
+- `dotnet test tests/Flirty.Tests -c Release --no-build`
+- `dotnet test tests/Flirty.E2E -c Release --no-build`
 - `dotnet pack Flirty.sln -c Release --no-build -o artifacts`
 
 Die Kette nutzt bewusst `--no-restore`/`--no-build`: jeder Schritt baut auf dem Output des vorherigen
 auf. Dadurch wird **einmal** kompiliert, und die getesteten Binaries sind identisch mit den gepackten.
+
+**Warum zwei Test-Schritte statt `dotnet test Flirty.sln`?** Die Solution-Variante startet beide
+Test-Assemblies **parallel**. Die Playwright-E2E hostet ein echtes Kestrel und steuert einen Browser –
+läuft parallel dazu die Unit-Suite (inklusive der Testcontainers-Tests für PostgreSQL/SQL Server), teilen
+sich beide die zwei Kerne des Runners, und die E2E läuft in Playwright-Timeouts. Nacheinander ausgeführt
+ist die E2E-Laufzeit unabhängig davon, wie groß die Unit-Suite gerade ist; die Abdeckung ändert sich nicht.
 
 Da `pack` auf der **Solution** läuft und nur `Flirty` sowie `Flirty.AspNetCore` `IsPackable=true` tragen,
 entstehen automatisch genau diese beiden Pakete – je ein `.nupkg` **und** ein `.snupkg` (Symbolpaket).

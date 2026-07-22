@@ -173,6 +173,19 @@ h1:focus {
     margin-left: 0.35rem;
 }
 
+/* Branching (#40): Default-Übergang und Rücksprung (Zyklus/Schleife). */
+.badge-default {
+    background-color: #5a6270;
+    color: #fff;
+    margin-left: 0.35rem;
+}
+
+.badge-loop {
+    background-color: #8a5a1f;
+    color: #fff;
+    margin-left: 0.35rem;
+}
+
 .msg {
     margin-top: 0.35rem;
     font-size: 0.85rem;

@@ -239,6 +239,129 @@ public sealed class FlirtyAdminGatewayTests
         });
     }
 
+    /// <summary>
+    /// Branching-Editor (#40): Übergänge laufen über dieselben Admin-Commands und müssen mit Bedingung,
+    /// Priorität und Default-Kennzeichen im <c>GetDialogQuery</c> wieder auftauchen – darauf baut die
+    /// Übergangsliste des Dialog-Editors auf.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_legt_Uebergang_an_und_loescht_ihn_wieder()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var role = await CreateQuestionAsync(gateway, dialogId, "role", 0);
+            var language = await CreateQuestionAsync(gateway, dialogId, "language", 1);
+
+            var angelegt = await gateway.ExecuteAsync((sender, token) => sender.Send(
+                new CreateTransitionCommand(dialogId, role.Id, language.Id, "role == \"dev\"", 0, false), token));
+            Assert.True(angelegt.Success, angelegt.Error);
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+            Assert.True(detail.Success, detail.Error);
+
+            var geladen = Assert.Single(detail.Value!.Transitions);
+            Assert.Equal(role.Id, geladen.FromQuestionId);
+            Assert.Equal(language.Id, geladen.TargetQuestionId);
+            Assert.Equal("role == \"dev\"", geladen.Expression);
+            Assert.False(geladen.IsDefault);
+
+            var geloescht = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteTransitionCommand(dialogId, geladen.Id), token));
+            Assert.True(geloescht.Success, geloescht.Error);
+
+            var danach = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+            Assert.Empty(danach.Value!.Transitions);
+        });
+    }
+
+    /// <summary>
+    /// Die ↑/↓-Schaltflächen schreiben den Positionsindex als neue <c>Priority</c> – in <b>einer</b>
+    /// Gateway-Operation. Der Test startet bewusst mit lückenhaften Prioritäten (5/9): ein bloßes
+    /// Vertauschen der Zahlen bliebe hier folgenlos.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_vergibt_die_Prioritaeten_der_Uebergaenge_in_einer_Operation_neu()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var role = await CreateQuestionAsync(gateway, dialogId, "role", 0);
+            var language = await CreateQuestionAsync(gateway, dialogId, "language", 1);
+            var product = await CreateQuestionAsync(gateway, dialogId, "product", 2);
+
+            var bedingt = await CreateTransitionAsync(gateway, dialogId, role.Id, language.Id, "role == \"dev\"", 5, false);
+            var standard = await CreateTransitionAsync(gateway, dialogId, role.Id, product.Id, null, 9, true);
+
+            var sortiert = await gateway.ExecuteAsync(async (sender, token) =>
+            {
+                _ = await sender.Send(
+                    new UpdateTransitionCommand(
+                        dialogId, standard.Id, standard.FromQuestionId, standard.TargetQuestionId,
+                        standard.Expression, 0, standard.IsDefault),
+                    token);
+                return await sender.Send(
+                    new UpdateTransitionCommand(
+                        dialogId, bedingt.Id, bedingt.FromQuestionId, bedingt.TargetQuestionId,
+                        bedingt.Expression, 1, bedingt.IsDefault),
+                    token);
+            });
+            Assert.True(sortiert.Success, sortiert.Error);
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            Assert.Equal([standard.Id, bedingt.Id], detail.Value!.Transitions.Select(transition => transition.Id));
+            Assert.Equal([0, 1], detail.Value.Transitions.Select(transition => transition.Priority));
+        });
+    }
+
+    /// <summary>
+    /// Der Musterkontext der Ausdrucks-Validierung braucht die Loop-Collections, sonst gälte
+    /// <c>skills.Count &gt; 0</c> im Designer als unbekannter Bezeichner. Schleifen-Marker lassen sich
+    /// (noch) nicht über das Admin-CRUD anlegen – wie im <c>DemoDialogProvisioner</c> der Web-Sample wird
+    /// hier direkt über den <see cref="FlirtyDbContext"/> geschrieben und anschließend geprüft, dass
+    /// <c>GetDialogQuery</c> den Marker lesend mitliefert.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_liefert_die_Loop_Marker_im_Dialog_Graphen()
+    {
+        await RunWithTempDbAsync(async (gateway, active, profile) =>
+        {
+            active.Activate(profile);
+            var dialogId = await CreateDialogAsync(gateway, "onboarding");
+            var skill = await CreateQuestionAsync(gateway, dialogId, "skill", 0);
+            var more = await CreateQuestionAsync(gateway, dialogId, "more", 1);
+
+            await using (var context = ConnectionProfileContextBuilder.Create(profile))
+            {
+                context.Set<LoopDefinition>().Add(new LoopDefinition
+                {
+                    Id = Guid.NewGuid(),
+                    DialogId = dialogId,
+                    CollectionKey = "skills",
+                    EntryQuestionId = skill.Id,
+                    BreakingQuestionId = more.Id,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var detail = await gateway.ExecuteAsync(
+                (sender, token) => sender.Send(new GetDialogQuery(dialogId), token));
+
+            Assert.True(detail.Success, detail.Error);
+            var loop = Assert.Single(detail.Value!.Loops);
+            Assert.Equal("skills", loop.CollectionKey);
+            Assert.Equal(skill.Id, loop.EntryQuestionId);
+            Assert.Equal(more.Id, loop.BreakingQuestionId);
+        });
+    }
+
     /// <summary>Legt über das Gateway einen Dialog an und liefert dessen Id.</summary>
     /// <param name="gateway">Das zu verwendende Gateway.</param>
     /// <param name="key">Der Schlüssel des Dialogs.</param>
@@ -263,6 +386,27 @@ public sealed class FlirtyAdminGatewayTests
     {
         var created = await gateway.ExecuteAsync((sender, token) => sender.Send(
             new CreateQuestionCommand(dialogId, key, $"Frage {key}?", QuestionType.FreeText, order, false, null),
+            token));
+
+        Assert.True(created.Success, created.Error);
+        return created.Value!;
+    }
+
+    /// <summary>Legt über das Gateway einen Übergang an.</summary>
+    /// <param name="gateway">Das zu verwendende Gateway.</param>
+    /// <param name="dialogId">Die Id des Dialogs.</param>
+    /// <param name="fromQuestionId">Die Ausgangsfrage.</param>
+    /// <param name="targetQuestionId">Die Zielfrage.</param>
+    /// <param name="expression">Der optionale Bedingungsausdruck.</param>
+    /// <param name="priority">Die Priorität.</param>
+    /// <param name="isDefault">Ob es der Default-Übergang ist.</param>
+    /// <returns>Der angelegte Übergang.</returns>
+    private static async Task<TransitionDetail> CreateTransitionAsync(
+        FlirtyAdminGateway gateway, Guid dialogId, Guid fromQuestionId, Guid targetQuestionId,
+        string? expression, int priority, bool isDefault)
+    {
+        var created = await gateway.ExecuteAsync((sender, token) => sender.Send(
+            new CreateTransitionCommand(dialogId, fromQuestionId, targetQuestionId, expression, priority, isDefault),
             token));
 
         Assert.True(created.Success, created.Error);

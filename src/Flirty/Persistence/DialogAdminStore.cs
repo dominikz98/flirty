@@ -33,6 +33,7 @@ internal sealed class DialogAdminStore : IDialogAdminStore
             .AsSplitQuery()
             .Include(dialog => dialog.Questions).ThenInclude(question => question.Options)
             .Include(dialog => dialog.Transitions)
+            .Include(dialog => dialog.Loops)
             .FirstOrDefaultAsync(dialog => dialog.Id == dialogId, cancellationToken);
 
     /// <inheritdoc />

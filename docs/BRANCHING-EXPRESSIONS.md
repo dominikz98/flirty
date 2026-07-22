@@ -165,6 +165,28 @@ if (!result.IsValid)
 }
 ```
 
+### Musterkontext im Designer (#40)
+
+Der Designer hat beim Bearbeiten eines Übergangs **keine laufende Session** – der Kontext für `Validate`
+wird deshalb aus dem Dialog-Graphen gebaut (`Flirty.Designer/Services/DesignerExpressionContext.cs`).
+Entscheidend sind dabei die **Typen**, nicht die Werte: Der Beispielwert je Frage ist derselbe rohe
+JSON-Text, den die Laufzeit in `SessionAnswer.Value` ablegt, und wird von der Engine identisch
+deserialisiert (`FreeText → "Text"`, `Number → 0`, `Boolean → true`, `Date → "2026-01-01"`,
+`SingleChoice →` erster Optionswert, `MultiChoice →` Array der Optionswerte). Eine **Datumsantwort ist
+damit auch im Designer eine Zeichenkette** – `geburtstag < now` wird zu Recht abgelehnt, weil es zur
+Laufzeit ebenfalls scheitern würde.
+
+Loop-Collections werden wie vom `LoopResolver` **stets** gebunden (vor der ersten Iteration als leere
+Liste), damit `skills.Count > 0` prüfbar bleibt; die dafür nötigen `CollectionKey`s liefert
+`GetDialogQuery` seit #40 lesend mit (`DialogDetail.Loops`). Schlüssel, die keine gültigen Bezeichner
+sind oder von `now`/`iterationIndex`/`session` verdeckt werden, bindet der Designer nicht und weist sie
+in seiner Bezeichner-Referenz als nicht nutzbar aus.
+
+Für **Zeichenketten-Literale** gilt: Die Engine parst C#-Escapes (`\"`, `\\`, `\n`, …), aber **keine**
+`\u00XX`-Escapes. Ein per `JsonSerializer` quotierter Wert ist deshalb nicht zwangsläufig ein gültiges
+Ausdrucks-Literal – dessen Encoder schreibt ein Anführungszeichen als Unicode-Escape, was die Engine mit
+„Invalid character escape sequence" ablehnt.
+
 ## Runtime-Konsum (#26)
 
 Erster Laufzeit-Konsument der Engine ist der `SubmitAnswerCommand`-Handler (#26, siehe
