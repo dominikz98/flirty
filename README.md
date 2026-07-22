@@ -17,7 +17,7 @@ konfiguriert (auch von nicht-technischen Nutzern).
 | `src/Flirty.Samples` | Lauffähiges **Console-Sample** (nur Core, kein ASP.NET) → [`docs/GETTING-STARTED-Console.md`](docs/GETTING-STARTED-Console.md). |
 | `src/Flirty.Samples.Web` | Lauffähiges **Web-Sample** (Minimal-API + statische Chat-UI): Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger → [`docs/GETTING-STARTED-Sample-Web.md`](docs/GETTING-STARTED-Sample-Web.md). |
 | `tests/Flirty.Tests` | Unit-/Integrationstests (xUnit). |
-| `tests/Flirty.E2E` | Playwright-E2E-Tests (Web-Sample-Chat-UI). |
+| `tests/Flirty.E2E` | Playwright-E2E-Tests (Web-Sample-Chat-UI und Blazor-Designer). |
 
 ## Quickstart (Console)
 

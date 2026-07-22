@@ -131,8 +131,8 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 | **M3 – Designer** | EPIC 7 Blazor-Designer (`#37`–`#43`) | baut auf stabiler Core-API + Evaluator auf |
 | **M4 – Qualität & Release** | E2E-Tests `#46`/`#47`, Coverage `#48`, NuGet-Publish `#49`, Docs `#50`–`#52` | Test-, Publish- und Doku-Strang parallel |
 
-> **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)); offen
-> bleibt aus M4 die Designer-E2E `#46`.
+> **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)); die
+> Designer-E2E `#46` aus M4 ist ebenfalls erledigt.
 
 > Innerhalb von M3: `#37` (Connection-Profile) und `#38` (Dialog-CRUD-UI) zuerst, danach sind
 > `#39` Frage-Editor, `#40` Branching-Editor, `#41` Loop-Visualisierung und `#42` Trigger-Editor

@@ -23,8 +23,8 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     [SkippableFact]
     public async Task Durchlauf_Branching_Loop_und_Trigger_Rundlauf()
     {
-        await using var session = await LaunchBrowserAsync();
-        var page = await NewPageAsync(session.Browser);
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await session.NewPageAsync();
         await page.GotoAsync(_fixture.BaseUrl);
 
         // Branching: dev-Zweig -> Freitext language.
@@ -51,8 +51,8 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     [SkippableFact]
     public async Task Reload_stellt_die_Session_wieder_her()
     {
-        await using var session = await LaunchBrowserAsync();
-        var page = await NewPageAsync(session.Browser);
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await session.NewPageAsync();
         await page.GotoAsync(_fixture.BaseUrl);
 
         await page.GetByRole(AriaRole.Button, new() { Name = "Entwickler" }).ClickAsync();
@@ -69,8 +69,8 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     [SkippableFact]
     public async Task Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten()
     {
-        await using var session = await LaunchBrowserAsync();
-        var page = await NewPageAsync(session.Browser);
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await session.NewPageAsync();
         await page.GotoAsync(_fixture.BaseUrl);
 
         await page.GetByRole(AriaRole.Button, new() { Name = "Entwickler" }).ClickAsync();
@@ -90,51 +90,5 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     {
         await page.Locator(".chat__input input.field").FillAsync(text);
         await page.GetByRole(AriaRole.Button, new() { Name = "Senden" }).ClickAsync();
-    }
-
-    private static async Task<IPage> NewPageAsync(IBrowser browser)
-    {
-        // Frischer Context pro Test = leeres localStorage -> neuer externalUserKey -> saubere Session.
-        var context = await browser.NewContextAsync();
-        return await context.NewPageAsync();
-    }
-
-    private static async Task<BrowserSession> LaunchBrowserAsync()
-    {
-        IPlaywright playwright;
-        try
-        {
-            playwright = await Playwright.CreateAsync();
-        }
-        catch (PlaywrightException ex)
-        {
-            Skip.If(true, "Playwright-Treiber nicht verfügbar: " + ex.Message);
-            throw;
-        }
-
-        try
-        {
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
-            return new BrowserSession(playwright, browser);
-        }
-        catch (PlaywrightException ex)
-        {
-            playwright.Dispose();
-            Skip.If(true,
-                "Playwright-Browser nicht installiert. Installation via " +
-                "'pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium'. Detail: " + ex.Message);
-            throw;
-        }
-    }
-
-    private sealed class BrowserSession(IPlaywright playwright, IBrowser browser) : IAsyncDisposable
-    {
-        public IBrowser Browser { get; } = browser;
-
-        public async ValueTask DisposeAsync()
-        {
-            await Browser.DisposeAsync();
-            playwright.Dispose();
-        }
     }
 }

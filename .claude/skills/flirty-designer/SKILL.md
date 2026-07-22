@@ -1,14 +1,14 @@
 ---
 name: flirty-designer
-description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – Dialog-/Frage-/Antwort-/Branching-/Loop-/Trigger-Konfiguration, Multi-DB-Connection-Profile. Verwenden bei "Designer", "Blazor-UI für Dialoge", "Dialog-Editor", "Branching-Editor", "Connection-Profil", "EPIC 7", Issues #37–#43.
+description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – Dialog-/Frage-/Antwort-/Branching-/Loop-/Trigger-Konfiguration, Multi-DB-Connection-Profile. Verwenden bei "Designer", "Blazor-UI für Dialoge", "Dialog-Editor", "Branching-Editor", "Connection-Profil", "Designer-E2E", "EPIC 7", Issues #37–#43 und #46.
 ---
 
 # Blazor-Designer aufbauen / erweitern
 
 > **Status: EPIC 7 (Issues #37–#43) vollständig umgesetzt** – Connection-Profil-Verwaltung (#37),
 > Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
-> und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Offen ist nur die
-> Playwright-E2E-Abdeckung (#46). Dieser Skill ist die **Leitplanke** für Erweiterungen: die
+> und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Die UI ist seit **#46** per
+> Playwright-E2E abgedeckt. Dieser Skill ist die **Leitplanke** für Erweiterungen: die
 > beabsichtigte Architektur und die Konventionen, an die man sich beim Implementieren halten soll.
 > Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
 
@@ -16,10 +16,14 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 - `src/Flirty.Designer/Flirty.Designer.csproj`: `Microsoft.NET.Sdk.Web`, referenziert `..\Flirty` **und
   alle drei** `..\Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}` (für Multi-DB-Migrate), plus
-  `InternalsVisibleTo("Flirty.Tests")`; `BlazorDisableThrowNavigationException=true`.
-- `Program.cs`: `AddRazorComponents().AddInteractiveServerComponents()` +
-  `MapRazorComponents<App>().AddInteractiveServerRenderMode()` → **Blazor Web App, Server-interaktiv**.
-  Ruft seit #37 **`AddFlirty()` (parameterlos)** auf; der `FlirtyDbContext` wird pro aktivem
+  `InternalsVisibleTo("Flirty.Tests")` und `InternalsVisibleTo("Flirty.E2E")`;
+  `BlazorDisableThrowNavigationException=true`.
+- `DesignerApp.cs`: die **gesamte** Komposition (`ConfigureServices(WebApplicationBuilder)` +
+  `Configure(WebApplication)`), `Program.cs` ruft seit #46 nur noch beides auf – so hostet die E2E
+  denselben Aufbau in-Prozess (Muster wie `WebSampleApp`). Neue Dienste/Middleware gehören dorthin,
+  nicht in `Program.cs`. Inhalt: `AddRazorComponents().AddInteractiveServerComponents()` +
+  `MapRazorComponents<App>().AddInteractiveServerRenderMode()` → **Blazor Web App, Server-interaktiv**,
+  seit #37 **`AddFlirty()` (parameterlos)**; der `FlirtyDbContext` wird pro aktivem
   Connection-Profil über `FlirtyDesignerDbContextFactory : IDbContextFactory<FlirtyDbContext>` erzeugt.
 - **Connection-Profile (#37):** `Models/ConnectionProfile.cs`, `Services/IConnectionProfileStore` +
   `JsonConnectionProfileStore` (JSON im ContentRoot, gitignored), `ActiveConnectionProfile` (Scoped,
@@ -69,7 +73,9 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
   `DesignerTriggerLogTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
   `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests` und
-  `Runtime/StartDialogVersionCommandHandlerTests`.
+  `Runtime/StartDialogVersionCommandHandlerTests`. Dazu die Browser-Abdeckung in
+  `tests/Flirty.E2E/` (`DesignerAppFixture`, `DesignerE2ETests`, gemeinsame Browser-Sitzung in
+  `PlaywrightSession`).
 
 ## Leitplanken für die Umsetzung
 
@@ -214,13 +220,19 @@ Offen bleibt die Playwright-E2E-Abdeckung des Designers (#46, `tests/Flirty.E2E`
   sonst die Playwright-E2E (#46).
 - UI-Texte und Doku **deutsch**. Der Designer ist `IsPackable=false` (kein NuGet-Paket) → CS1591 ist
   hier **kein** Fehler, XML-Docs sind optional.
-- E2E-Tests des Designers gehören nach `tests/Flirty.E2E` (Playwright, #46) – aktuell noch Skelett.
+- E2E-Tests des Designers gehören nach `tests/Flirty.E2E` (Playwright, #46). Zwei Fallstricke, die
+  `docs/DESIGNER.md` § Tests ausführt: Der in-Prozess gehostete Designer braucht
+  `ApplicationName = "Flirty.Designer"` **und** `EnvironmentName = "Development"` (sonst fehlt
+  `_framework/blazor.web.js` und nichts ist interaktiv), und nach **jedem** Seitenwechsel verpufft die
+  erste Interaktion still, bis der Circuit die Seite übernommen hat – deshalb wird sie über
+  `InteractWhenReadyAsync` wiederholt und muss idempotent sein.
 
 ## Definition of Done
 
 Feature funktioniert im Server-interaktiven Designer über die Admin-Commands (via `FlirtyAdminGateway`) ·
 Ausdrücke werden beim Speichern validiert · Service-Tests in `tests/Flirty.Tests/Designer/` ·
-`docs/DESIGNER.md` beim jeweiligen Feature erweitern · ggf. Playwright-E2E (#46).
+`docs/DESIGNER.md` beim jeweiligen Feature erweitern · berührt die Änderung einen Fluss der
+Designer-E2E, `tests/Flirty.E2E/DesignerE2ETests` mitziehen.
 
 ## Verifikation
 
@@ -228,4 +240,5 @@ Ausdrücke werden beim Speichern validiert · Service-Tests in `tests/Flirty.Tes
 dotnet build Flirty.sln
 dotnet run --project src/Flirty.Designer     # Designer lokal starten
 dotnet test tests/Flirty.Tests
+dotnet test tests/Flirty.E2E                # Browser-Abdeckung (braucht Chromium, s. docs/DESIGNER.md)
 ```

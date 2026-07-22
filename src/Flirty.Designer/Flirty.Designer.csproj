@@ -11,9 +11,11 @@
     <ProjectReference Include="..\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
   </ItemGroup>
 
-  <!-- Interna (Store/Factory/Operationen) für die xUnit-Service-Tests sichtbar machen (#37). -->
+  <!-- Interna (Store/Factory/Operationen) für die xUnit-Service-Tests sichtbar machen (#37) und für die
+       Playwright-E2E (#46), deren Fixture das Connection-Profil mit den echten Typen seedet. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Flirty.Tests" />
+    <InternalsVisibleTo Include="Flirty.E2E" />
   </ItemGroup>
 
   <PropertyGroup>
