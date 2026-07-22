@@ -15,7 +15,7 @@ konfiguriert. Integration erfolgt über `services.AddFlirty(o => …)` und optio
 Ausführliche Doku liegt in `docs/` (siehe Wegweiser unten) – **die eigentliche Tiefe steckt dort**,
 nicht in dieser Datei und nicht in den GitHub-Issues (die sind nur Backlog-Index).
 
-## Solution-Layout (`Flirty.sln`, 11 Projekte)
+## Solution-Layout (`Flirty.sln`, 10 Projekte)
 
 ```
 src/
@@ -300,4 +300,16 @@ war schlicht falsch. Einmalig manuell einzurichten (kann der Workflow nicht): AP
 mit Glob `Flirty*` und Scope *Push new packages and package versions* sowie die Environment `nuget`
 mit dem Secret.
 
-**Offen:** Doku-/README-Ausbau (#50–#52).
+**docs/-Guides (#50) fertig** – Abschluss-Durchgang durch die acht im Issue genannten Guides (plus die
+klar falschen Sätze in `PERSISTENCE.md`/`MEDIATOR.md`/`RUNTIME.md`). Es war kein Neuschreiben: Die Guides
+wachsen per DoD mit, veraltet waren **Aussagen**, die spätere Issues überholt haben. Die gravierendste:
+`GETTING-STARTED-WebApi.md` behauptete, das Trigger-CRUD sei nicht Teil der Admin-Endpunkte – seit #42
+registriert `MapTriggerEndpoints` drei Routen. Ebenfalls falsch: `TRIGGERS.md` nannte nur den
+`StartDialogCommandHandler` als Publisher von `DialogStarted` (seit #43 tut es auch
+`StartDialogVersionCommandHandler` – ein Designer-Testlauf feuert `OnDialogStarted` also genauso), und
+`BRANCHING-EXPRESSIONS.md` führte #34 noch unter „Ausblick". **Merksatz:** Was eine Änderung *falsch*
+macht, steht selten in der Datei, die man gerade bearbeitet – der Stale-Scan
+`grep -nE 'folgt|folgen in|später(es)? Epic|Ausblick|noch nicht|sobald' docs/*.md` findet solche Zeiger
+auf erledigte Issues. Für tote Querverweise gibt es kein CI-Gate; Anker/Pfade sind vor dem PR zu prüfen.
+
+**Offen:** ADRs (#51) und Root-README-Quickstart (#52).

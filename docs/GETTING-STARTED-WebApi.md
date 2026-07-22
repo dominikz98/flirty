@@ -1,6 +1,7 @@
 # Getting Started – WebAPI (Flirty.AspNetCore)
 
-> Stand: Issues #35 (Laufzeit-Endpunkte) & #36 (Admin-CRUD). Dieser Guide zeigt, wie man die Flirty-Engine als HTTP-API bereitstellt – über das
+> Stand: Issues #35 (Laufzeit-Endpunkte) & #36 (Admin-CRUD), erweitert um die Schleifen-Endpunkte (#41)
+> und die Trigger-Endpunkte (#42). Dieser Guide zeigt, wie man die Flirty-Engine als HTTP-API bereitstellt – über das
 > optionale Paket [`Flirty.AspNetCore`](../src/Flirty.AspNetCore) und die Erweiterungsmethode
 > `MapFlirtyEndpoints`. Die Endpunkte sind eine **dünne Schicht über die Mediator-Commands**: Sie senden
 > die Runtime-Commands direkt per `ISender` und mappen die Ergebnisse auf serialisierbare DTOs. Der Core
@@ -61,6 +62,13 @@ Body. Antwortwerte sind **roher JSON-Text** (Format je Fragetyp, z. B. `"dev"` f
 | `GET /flirty/sessions/{id}` | `ResumeDialogQuery` | `200 OK`, `SessionStateResponse` |
 | `POST /flirty/sessions/{id}/answers` | `SubmitAnswerCommand` | `200 OK`, `SubmitAnswerResponse` |
 | `PUT /flirty/sessions/{id}/answers/{questionId}` | `EditAnswerCommand` | `200 OK`, `EditAnswerResponse` |
+
+> **Bewusst ohne Endpunkt:** `StartDialogVersionCommand` (#43) startet eine **konkrete Dialogversion
+> unabhängig vom Veröffentlichungsstatus** und ist nur über die Facade
+> `IFlirtyEngine.StartDialogVersionAsync` erreichbar (genutzt vom
+> [Test-Runner des Designers](./DESIGNER.md#test-runner-43)). Über HTTP bleibt der Publish-Status die
+> Produktionsschranke – ein Entwurf soll nicht per Request scharf werden. Details:
+> [RUNTIME.md](./RUNTIME.md#startdialogversioncommand-43).
 
 ### Dialog starten (oder fortsetzen)
 
@@ -151,7 +159,8 @@ abgebildet – die Host-App braucht dafür **keine** eigene Exception-Middleware
 ## 4. Admin-CRUD (optional)
 
 Neben den Laufzeit-Endpunkten stellt das Paket optionale **Admin-CRUD-Endpunkte** bereit, um den
-Konfigurationsgraphen (Dialoge, Fragen, Optionen, Übergänge) per HTTP zu pflegen. Sie werden über eine
+kompletten Konfigurationsgraphen (Dialoge, Fragen, Optionen, Übergänge, Schleifen-Marker und Trigger)
+per HTTP zu pflegen – dieselbe Fläche, die auch der [Designer](./DESIGNER.md) bedient. Sie werden über eine
 **eigene, opt-in** Erweiterungsmethode registriert – so lässt sich die Admin-Fläche gezielt absichern,
 ohne die öffentlichen Laufzeit-Endpunkte einzuschränken:
 
@@ -181,6 +190,36 @@ und werden über `GET {prefix}/dialogs/{id}` (kompletter Graph) gelesen.
 | `PUT` \| `DELETE .../transitions/{transitionId}` | Übergang ändern/löschen | `200 OK` \| `204 No Content` |
 | `POST /flirty/admin/dialogs/{dialogId}/loops` | Schleifen-Marker anlegen | `201 Created`, `LoopResponse` |
 | `PUT` \| `DELETE .../loops/{loopId}` | Schleifen-Marker ändern/löschen | `200 OK` \| `204 No Content` |
+| `POST /flirty/admin/dialogs/{dialogId}/triggers` | Trigger anlegen | `201 Created`, `TriggerResponse` |
+| `PUT` \| `DELETE .../triggers/{triggerId}` | Trigger ändern/löschen | `200 OK` \| `204 No Content` |
+
+### Trigger anlegen
+
+Ein Trigger (`TriggerDefinition`, seit #42) verbindet einen **Zeitpunkt** im Dialogablauf mit einem
+**Kanal**. `config` ist die kanal-spezifische Konfiguration als JSON nach dem Schema
+`Flirty.Domain.TriggerConfig`:
+
+```http
+POST /flirty/admin/dialogs/8f3e…/triggers
+Content-Type: application/json
+
+{
+  "scope": 3,
+  "questionId": null,
+  "kind": 1,
+  "config": "{\"url\":\"https://host.example/flirty/completed\",\"name\":\"order-created\"}",
+  "expression": null
+}
+```
+
+`scope` und `kind` sind – wie `type`/`status` oben – **numerische** Enum-Werte:
+`scope` `0` = `OnDialogStarted`, `1` = `AfterAnswer`, `2` = `AfterQuestion`, `3` = `OnDialogCompleted`;
+`kind` `0` = `InProcess`, `1` = `Webhook`. `config` ist ein **JSON-String** (das Schema steckt als Text
+darin, nicht als Objekt) – so, wie es auch in der Spalte `TriggerDefinition.Config` liegt.
+
+Die Feldsemantik (Scope-Mapping, `Config`-Schema, Bedingungen, Verhalten von `Kind = InProcess`)
+steht in [TRIGGERS.md § Trigger-Definitionen am Dialog](./TRIGGERS.md#trigger-definitionen-am-dialog-42) –
+hier bewusst nicht dupliziert.
 
 ### Ablauf: Dialog aufbauen und veröffentlichen
 
@@ -193,7 +232,9 @@ startbar:
 4. `POST .../transitions` – Verzweigungen ergänzen (optional bei nur einer, terminalen Frage).
 5. `POST .../loops` – Zyklen als Schleife markieren, damit ihre Antworten je Iteration gesammelt statt
    überschrieben werden (nur nötig, wenn ein Übergang auf eine frühere Frage zurückzeigt).
-6. `POST /flirty/admin/dialogs/{id}/publish` – veröffentlichen; danach `POST /flirty/sessions` startbar.
+6. `POST .../triggers` – optionale Rückkanäle ergänzen (Webhook-Ziele bzw. dokumentierte
+   In-Process-Absichten).
+7. `POST /flirty/admin/dialogs/{id}/publish` – veröffentlichen; danach `POST /flirty/sessions` startbar.
 
 ### Fehler-Mapping (Admin)
 
@@ -201,18 +242,24 @@ Zusätzlich zum obigen Mapping gelten für das Admin-CRUD:
 
 | Situation | Ausnahme | Status |
 |---|---|---|
-| Unbekannte Dialog-/Frage-/Options-/Übergang-/Schleifen-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
+| Unbekannte Dialog-/Frage-/Options-/Übergang-/Schleifen-/Trigger-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
 | Doppelter Schlüssel (`Key` je Dialog / `(DialogId,Key)` / `(QuestionId,Key)` / `CollectionKey` je Dialog) | `InvalidOperationException` | `409 Conflict` |
 | Veröffentlichen ohne gesetzte Einstiegsfrage | `InvalidOperationException` | `409 Conflict` |
 | Fehlendes Pflichtfeld (`[Required]`) | `ValidationException` | `400 Bad Request` |
+| Trigger: `AfterQuestion` ohne `questionId` – oder `questionId` bei einem anderen Zeitpunkt | `ValidationException` | `400 Bad Request` |
+| Trigger: kaputtes `config`-JSON bzw. `Kind = Webhook` ohne absolute `http`/`https`-URL | `ValidationException` | `400 Bad Request` |
+
+Die beiden Trigger-Zeilen sind **Querfeld-Regeln** (`Runtime/Admin/TriggerValidation.cs`, aufgerufen über
+`IValidatableObject`): Sie prüfen die **Anfrage**, nicht den Datenbankzustand, und laufen deshalb im
+Validierungs-Behavior schon vor dem Handler.
 
 > **Hinweise / bewusste Grenzen:** Anlegen erzeugt stets `Version = 1` je Schlüssel; Editieren erfolgt
 > In-Place (publizierte Dialoge vor Änderungen entpublishen). Die Frage-Verweise von `Transition`
-> (`FromQuestionId`/`TargetQuestionId`) und `LoopDefinition` (`EntryQuestionId`/`BreakingQuestionId`)
-> sind – dem FK-losen Domänenmodell entsprechend – rohe Verweise ohne Existenzprüfung; das Löschen einer
-> Frage bereinigt jedoch verweisende Übergänge **und** Schleifen-Marker und setzt eine darauf zeigende
-> `StartQuestionId` zurück. Versionierung/Copy-on-Write sowie das Trigger-CRUD sind nicht Teil dieses
-> Endpunkt-Sets.
+> (`FromQuestionId`/`TargetQuestionId`), `LoopDefinition` (`EntryQuestionId`/`BreakingQuestionId`) und
+> `TriggerDefinition` (`QuestionId`) sind – dem FK-losen Domänenmodell entsprechend – rohe Verweise ohne
+> Existenzprüfung; das Löschen einer Frage bereinigt jedoch verweisende Übergänge, Schleifen-Marker
+> **und** Trigger und setzt eine darauf zeigende `StartQuestionId` zurück. Versionierung/Copy-on-Write
+> ist nicht Teil dieses Endpunkt-Sets.
 
 ## Verifikation
 

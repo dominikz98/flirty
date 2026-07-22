@@ -30,7 +30,7 @@ ausliefert – siehe die zwei Mediator-Kernregeln in [MEDIATOR.md](./MEDIATOR.md
 
 | Notification | `TriggerScope` | Publiziert von | Nutzlast |
 |---|---|---|---|
-| `DialogStartedNotification` | `OnDialogStarted` | `StartDialogCommandHandler` (nur Neu-Start) | `SessionId, DialogId, DialogKey, ExternalUserKey, CurrentQuestionId?, StartedAt` |
+| `DialogStartedNotification` | `OnDialogStarted` | `StartDialogCommandHandler` **und** (seit #43) `StartDialogVersionCommandHandler` – jeweils nur beim Neu-Start | `SessionId, DialogId, DialogKey, ExternalUserKey, CurrentQuestionId?, StartedAt` |
 | `AnswerSubmittedNotification` | `AfterAnswer` | `SubmitAnswerCommandHandler` | `SessionId, DialogKey, QuestionId, Value, LoopInstanceId?, IterationIndex?` |
 | `QuestionAnsweredNotification` | `AfterQuestion` | `SubmitAnswerCommandHandler` | `SessionId, DialogKey, QuestionId, NextQuestionId?, IsCompleted` |
 | `DialogCompletedNotification` | `OnDialogCompleted` | `SubmitAnswerCommandHandler` **und** `EditAnswerCommandHandler` | `SessionId, DialogKey, Answers` (`IReadOnlyList<SessionAnswerView>`) |
@@ -43,7 +43,10 @@ Das Scope-Mapping deckt sich 1:1 mit `Flirty.Domain.TriggerScope`
 Publiziert wird stets **nach** `SaveChangesAsync`, damit ein Handler den persistierten Zustand sieht.
 
 - **Start (`StartDialogCommand`)**: Ein echter Neu-Start meldet `DialogStarted`. Ein **Resume** einer
-  bereits laufenden Session meldet bewusst **nichts** (nur der erste Start ist ein „Start").
+  bereits laufenden Session meldet bewusst **nichts** (nur der erste Start ist ein „Start"). Für
+  `StartDialogVersionCommand` (#43, Start einer konkreten Version ohne Veröffentlichung) gilt dasselbe:
+  Ein Testlauf im Designer feuert `OnDialogStarted` genauso wie ein produktiver Start – siehe den
+  Hinweis [Designer-Testläufe feuern echt](#hinweise--grenzen).
 - **Antwort (`SubmitAnswerCommand`)**: Nach dem Persistieren der Antwort wird `AnswerSubmitted` gemeldet,
   danach das Übergangs-Ergebnis als `QuestionAnswered` (mit `NextQuestionId`/`IsCompleted`). Schließt die
   Antwort den Dialog ab, folgt zusätzlich `DialogCompleted` (mit allen bisherigen Antworten).
