@@ -10,7 +10,10 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- Coverage-Collector (#48). Muss der .NET-Linie folgen: 6.0.4 (aus dem xUnit-Template, .NET-8-Ära)
+         konnte das net10.0-kompilierte Flirty.dll nicht instrumentieren ("Unable to instrument module")
+         und lieferte einen Report OHNE den Core – also genau ohne das, was gemessen werden soll. -->
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <!-- Bedingtes Überspringen zur Laufzeit (xUnit v2 hat kein Assert.Skip): die Docker-abhängigen
          Provider-Tests (#19) werden ohne Docker sauber übersprungen statt zu scheitern. -->
     <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Konfiguration des Coverage-Collectors (coverlet.collector, #48). Zentral im Repo-Root, damit der
+  CI-Lauf und ein lokaler Lauf exakt dieselben Filter benutzen und die Zahlen vergleichbar bleiben.
+
+  Der Collector wird hier bewusst NICHT aktiviert (kein `enabled`-Attribut): er bleibt an den
+  Schalter `collect:"XPlat Code Coverage"` von `dotnet test` gebunden. Sonst instrumentierte jeder
+  gewöhnliche `dotnet test`-Lauf ungefragt mit und würde langsamer.
+
+  Den genauen Aufruf (samt `settings`-Schalter) zeigen docs/CI.md und CLAUDE.md.
+  Achtung beim Bearbeiten: XML-Kommentare dürfen keine zwei aufeinanderfolgenden Bindestriche
+  enthalten – VSTest lehnt die Datei sonst mit „does not conform to required format" ab.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <!-- Cobertura: das Eingabeformat von ReportGenerator (siehe docs/CI.md). -->
+          <Format>cobertura</Format>
+
+          <!-- Gemessen wird, was ausgeliefert wird: die beiden NuGet-Pakete. -->
+          <Include>[Flirty]*,[Flirty.AspNetCore]*</Include>
+
+          <!-- Bewusst draußen:
+               - Flirty.Migrations.*  generierter EF-Code (Designer-Output), keine Aussagekraft;
+               - Flirty.Samples*      Demo-Anwendungen, nicht das Produkt;
+               - Flirty.Designer      eigene App (#37-#43), kein Paket. -->
+          <Exclude>[Flirty.Migrations.*]*,[Flirty.Samples*]*,[Flirty.Designer]*</Exclude>
+
+          <!-- Compiler-generierte und veraltete Member verzerren die Quote sonst nach unten. -->
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+          <!-- Auto-Properties haben keinen eigenen Code-Pfad – bei den vielen sealed records im
+               Domänenmodell würden sie die Zahl sonst künstlich aufblähen. -->
+          <SkipAutoProps>true</SkipAutoProps>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <!-- Bewusst AUS, obwohl SourceLink repo-weit verdrahtet ist (Directory.Build.props):
+               eingeschaltet schreibt coverlet statt Dateipfaden raw.githubusercontent-URLs auf den
+               Commit von HEAD in den Report. ReportGenerator lädt die nicht nach, der HTML-Report
+               zeigt dann keinen Quellcode – und lokal zeigte er ohnehin den zuletzt commiteten
+               Stand statt des Arbeitsverzeichnisses. -->
+          <UseSourceLink>false</UseSourceLink>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

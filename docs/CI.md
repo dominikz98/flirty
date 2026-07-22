@@ -23,13 +23,15 @@ Läuft auf `ubuntu-latest`. Das .NET-SDK kommt über `actions/setup-dotnet` **au
 10.0.x-SDK, während die CI reproduzierbar genau die angegebene Version installiert.
 
 ```
-restore  ->  build -c Release  ->  test -c Release  ->  pack -c Release  ->  Artefakt-Upload
+restore  ->  build -c Release  ->  test -c Release  ->  Coverage-Report  ->  pack -c Release  ->  Artefakt-Upload
 ```
 
 - `dotnet restore Flirty.sln`
+- `dotnet tool restore` (lokale Tools aus `.config/dotnet-tools.json`, hier `reportgenerator`)
 - `dotnet build Flirty.sln -c Release --no-restore`
-- `dotnet test tests/Flirty.Tests -c Release --no-build`
+- `dotnet test tests/Flirty.Tests -c Release --no-build --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory artifacts/coverage/unit`
 - `dotnet test tests/Flirty.E2E -c Release --no-build`
+- `dotnet reportgenerator …` (siehe [Coverage](#coverage))
 - `dotnet pack Flirty.sln -c Release --no-build -o artifacts`
 
 Die Kette nutzt bewusst `--no-restore`/`--no-build`: jeder Schritt baut auf dem Output des vorherigen
@@ -53,6 +55,87 @@ Da `pack` auf der **Solution** läuft und nur `Flirty` sowie `Flirty.AspNetCore`
 entstehen automatisch genau diese beiden Pakete – je ein `.nupkg` **und** ein `.snupkg` (Symbolpaket).
 Siehe [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
+## Coverage
+
+Umgesetzt in **#48**. Gemessen wird mit `coverlet.collector` (XPlat-Collector des VSTest-Hosts),
+aufbereitet mit **ReportGenerator**, das als lokales Tool in `.config/dotnet-tools.json` gepinnt ist –
+gleiches Muster wie `dotnet ef`, damit die Report-Version im Repo steht und der Report lokal 1:1
+reproduzierbar ist.
+
+### Was gemessen wird
+
+Die Filter stehen zentral in **`coverage.runsettings`** im Repo-Root, damit CI und lokaler Lauf
+dieselben Zahlen liefern. Gemessen werden **nur die beiden NuGet-Pakete**:
+
+| Assembly | im Report | Warum |
+|---|---|---|
+| `Flirty` | **ja** | wird ausgeliefert |
+| `Flirty.AspNetCore` | **ja** | wird ausgeliefert |
+| `Flirty.Migrations.*` | nein | generierter EF-Code, keine Aussagekraft |
+| `Flirty.Samples`, `Flirty.Samples.Web` | nein | Demo-Anwendungen, nicht das Produkt |
+| `Flirty.Designer` | nein | eigene App, kein Paket |
+
+Zusätzlich aus der Quote heraus: compiler-generierte und als `[Obsolete]` markierte Member
+(`ExcludeByAttribute`) sowie Auto-Properties (`SkipAutoProps`) – letztere haben keinen eigenen
+Code-Pfad und würden die Zahl bei den vielen `sealed record`s im Domänenmodell künstlich aufblähen.
+
+Der Collector wird in der Runsettings **nicht** aktiviert, sondern bleibt an `--collect` gebunden:
+ein gewöhnliches `dotnet test` soll nicht ungefragt instrumentieren.
+
+> **Beim Bearbeiten der Runsettings:** XML-Kommentare dürfen keine zwei aufeinanderfolgenden
+> Bindestriche enthalten. VSTest lehnt die Datei sonst mit „Settings file provided does not conform
+> to required format" ab – ein `--collect` im Kommentar reicht schon.
+
+### Warum nur die Unit-Suite instrumentiert wird
+
+Coverage wird **nur** aus `tests/Flirty.Tests` gesammelt, nicht aus der E2E-Suite. Zwei Gründe, beide
+gemessen:
+
+1. **Sie bringt nichts.** Die E2E-Suite treibt den Core zwar durch die Gateways des Designers und die
+   Endpunkte der Web-Sample – aber jeden dieser Pfade deckt die Unit-Suite (463 Tests) schon ab.
+   Zusammengeführt hob die E2E die Branch-Coverage von 368 auf 369 von 430 Zweigen.
+2. **Sie ist dort unzuverlässig.** Im E2E-Ausgabeverzeichnis scheitert coverlet an
+   `Flirty.dll` (`Unable to instrument module`): sein Assembly-Resolver findet
+   `Microsoft.Extensions.DependencyInjection.Abstractions` nicht, die in dieser Komposition allein aus
+   dem Shared Framework `Microsoft.AspNetCore.App` kommt. Der Core fehlte im E2E-Teilreport also
+   **stillschweigend**. Ein Report, der eine Assembly unbemerkt verliert, ist schlechter als keiner.
+
+Dazu kommt: Instrumentierung kostet Laufzeit, und die E2E ist der Lauf, der auf den zwei Kernen des
+Runners ohnehin am ehesten in Playwright-Timeouts kippt (siehe oben).
+
+### Version des Collectors
+
+`coverlet.collector` ist auf **10.0.1** gepinnt und muss der .NET-Linie folgen. Die aus dem
+xUnit-Template stammende **6.0.4** (.NET-8-Ära) konnte das `net10.0`-kompilierte `Flirty.dll` nicht
+instrumentieren und lieferte einen Report **ohne den Core** – also ohne genau das, was gemessen
+werden soll. Der Fehlerfall ist tückisch, weil der Lauf grün bleibt und nur eine Assembly fehlt:
+Beim Anheben des TFM lohnt der Blick, ob die Zeile „Assemblies: 2" im `Summary.txt` noch stimmt.
+
+### Report und Veröffentlichung
+
+```pwsh
+dotnet reportgenerator `
+  -reports:artifacts/coverage/unit/**/coverage.cobertura.xml `
+  -targetdir:artifacts/coverage/report `
+  -reporttypes:"Html;Cobertura;MarkdownSummaryGithub;TextSummary" `
+  -sourcedirs:<Repo-Root> -title:"Flirty"
+```
+
+`-sourcedirs` ist nötig, weil `Directory.Build.targets` für die packbaren Projekte im CI
+`ContinuousIntegrationBuild=true` setzt: zusammen mit SourceLink werden die Quellpfade auf `/_/…`
+normalisiert. (`UseSourceLink` steht in der Runsettings bewusst auf `false` – eingeschaltet schreibt
+coverlet `raw.githubusercontent`-URLs auf den Commit von `HEAD` in den Report, die ReportGenerator
+nicht nachlädt; der HTML-Report zeigte dann keinen Quellcode.)
+
+Veröffentlicht wird auf zwei Wegen, beide ohne zusätzliche Rechte:
+
+- **Job Summary** – `SummaryGithub.md` wird an `$GITHUB_STEP_SUMMARY` angehängt und steht damit
+  direkt auf der Übersichtsseite des Actions-Laufs.
+- **Artefakt `coverage`** – der vollständige HTML-Report plus die zusammengeführte `Cobertura.xml`
+  zum Herunterladen.
+
+`permissions` bleibt dabei auf `contents: read`.
+
 ## Versionierung im CI
 
 Die datumsbasierte Version (`JJJJMM.Revision`, siehe [NUGET-PACKAGING.md](./NUGET-PACKAGING.md)) wird
@@ -72,7 +155,8 @@ GitHub Actions `CI=true` setzt.
 
 ## Artefakte
 
-Der letzte Schritt lädt beide Pakete unter dem Artifact-Namen **`nupkg`** hoch:
+Ein Lauf lädt zwei Artefakte hoch: **`coverage`** (HTML-Report, siehe [Coverage](#coverage)) und
+**`nupkg`** mit beiden Paketen:
 
 ```
 artifacts/*.nupkg      Flirty.202607.<run>.nupkg      Flirty.AspNetCore.202607.<run>.nupkg
@@ -80,11 +164,18 @@ artifacts/*.snupkg     Flirty.202607.<run>.snupkg     Flirty.AspNetCore.202607.<
 ```
 
 `if-no-files-found: error` lässt die Pipeline fehlschlagen, falls kein Paket entsteht – damit ist das
-Akzeptanzkriterium „Artefakte = beide `.nupkg`" hart abgesichert.
+Akzeptanzkriterium „Artefakte = beide `.nupkg`" hart abgesichert. Der Coverage-Upload trägt dieselbe
+Einstellung: bleibt der Report leer, fällt es auf, statt still zu verschwinden.
 
 ## Abgrenzung
 
 - **Kein** `dotnet nuget push`: Das Veröffentlichen auf NuGet.org/Azure Artifacts ist bewusst nicht Teil
   dieses Stubs und folgt in **#49**.
-- **Kein** Coverage-Report: Der Coverage-Collector (`coverlet.collector`) ist eingebunden, der
-  CI-Report kommt aber erst mit **#48**.
+- **Kein Schwellwert-Gate:** Die Pipeline berichtet die Coverage, bricht aber (noch) nicht unterhalb
+  einer Quote ab. Ein Boden-Wert soll auf dem real gemessenen Stand beruhen, nicht auf einer Schätzung
+  – sonst bricht die Pipeline am Tag der Einführung an einer geratenen Zahl.
+- **Kein Coverage-Badge und kein externer Dienst** (Codecov o. ä.): Ein Badge bräuchte einen Commit
+  zurück ins Repo (`contents: write`), ein externer Dienst ein Secret und den Versand der Daten nach
+  außen. Beides widerspricht „die CI baut und testet nur, sie schreibt nichts zurück".
+- **Kein PR-Kommentar:** bräuchte `pull-requests: write` und funktionierte bei Fork-PRs mit dem
+  Default-Token ohnehin nicht. Die Job Summary leistet dasselbe rechtefrei.

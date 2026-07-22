@@ -37,6 +37,10 @@ jobs:
       - name: Restore
         run: dotnet restore Flirty.sln
 
+      # Lokale Tools aus .config/dotnet-tools.json – hier: reportgenerator für den Coverage-Report (#48).
+      - name: Tools wiederherstellen
+        run: dotnet tool restore
+
       - name: Build (Release)
         run: dotnet build Flirty.sln -c Release --no-restore
 
@@ -48,11 +52,40 @@ jobs:
       # Bewusst zwei Läufe statt "dotnet test Flirty.sln": die Solution-Variante startet beide
       # Test-Assemblies PARALLEL. Die Playwright-E2E (echtes Kestrel + Browser) konkurriert dann auf den
       # zwei Kernen des Runners mit der Unit-Suite (inkl. Testcontainers) und läuft in Aktions-Timeouts.
+      #
+      # Die Coverage (#48) kommt allein aus DIESEM Lauf; Filter zentral in coverage.runsettings.
+      # Der E2E-Schritt darunter instrumentiert bewusst nicht – Begründung in docs/CI.md § Coverage.
       - name: Test (Unit/Integration)
-        run: dotnet test tests/Flirty.Tests -c Release --no-build
+        run: >
+          dotnet test tests/Flirty.Tests -c Release --no-build
+          --collect:"XPlat Code Coverage" --settings coverage.runsettings
+          --results-directory artifacts/coverage/unit
 
       - name: Test (E2E, Playwright)
         run: dotnet test tests/Flirty.E2E -c Release --no-build
+
+      # -sourcedirs, weil die packbaren Projekte im CI deterministisch bauen
+      # (ContinuousIntegrationBuild + SourceLink); ohne das wären die Quellpfade nicht auflösbar
+      # und der HTML-Report zeigte keinen Code.
+      - name: Coverage-Report erzeugen
+        run: >
+          dotnet reportgenerator
+          -reports:artifacts/coverage/unit/**/coverage.cobertura.xml
+          -targetdir:artifacts/coverage/report
+          -reporttypes:"Html;Cobertura;MarkdownSummaryGithub;TextSummary"
+          -sourcedirs:${{ github.workspace }}
+          -title:"Flirty"
+
+      # Macht die Quote direkt im Actions-Lauf sichtbar – ohne Schreibrechte (permissions bleibt read).
+      - name: Coverage in die Job Summary schreiben
+        run: cat artifacts/coverage/report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Coverage-Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: artifacts/coverage/report/
+          if-no-files-found: error
 
       - name: Pack (beide NuGet-Pakete)
         run: dotnet pack Flirty.sln -c Release --no-build -o artifacts

@@ -108,7 +108,13 @@ dotnet build Flirty.sln
 dotnet test                                   # oder: dotnet test tests/Flirty.Tests
 dotnet pack -c Release -o artifacts           # nur Flirty + Flirty.AspNetCore
 dotnet pack -c Release -p:BuildRevision=7     # Paketrevision setzen -> Flirty.202607.7.nupkg
-dotnet tool restore                           # einmalig, für dotnet ef (lokales Tool 10.0.9)
+dotnet tool restore                           # einmalig, für dotnet ef + reportgenerator (lokale Tools)
+
+# Coverage wie in der CI (#48): misst NUR Flirty + Flirty.AspNetCore, Filter in coverage.runsettings
+dotnet test tests/Flirty.Tests -c Release --collect:"XPlat Code Coverage" `
+  --settings coverage.runsettings --results-directory artifacts/coverage/unit
+dotnet reportgenerator -reports:artifacts/coverage/unit/**/coverage.cobertura.xml `
+  -targetdir:artifacts/coverage/report -reporttypes:"Html;TextSummary" -sourcedirs:$PWD
 ```
 
 ## Test-Konventionen (`tests/Flirty.Tests`)
@@ -264,4 +270,16 @@ Iterationen. **Zwei Fallen** (beide in `docs/DESIGNER.md` § Tests festgehalten)
 Interaktion still, bis der Circuit die Seite übernommen hat – ein zuverlässiges JS-Signal dafür gibt es
 nicht, deshalb wiederholt `InteractWhenReadyAsync` sie (die Aktion muss idempotent sein).
 
-**Offen:** Coverage in CI (#48), NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52).
+**Coverage in CI (#48) fertig** – die Pipeline misst mit `coverlet.collector` und berichtet über
+**ReportGenerator** (lokales Tool, wie `dotnet ef`): Job Summary am Actions-Lauf + HTML-Artefakt
+`coverage`, `permissions` bleibt `contents: read`. Gemessen werden **nur die beiden NuGet-Pakete**
+(Filter zentral in `coverage.runsettings`); Migrations/Samples/Designer sind ausgeschlossen.
+Ausgangswert: **95,7 % Zeilen / 85,5 % Zweige** (Flirty 95,1 %, Flirty.AspNetCore 98,4 %). Bewusst
+**ohne** Schwellwert-Gate – ein Boden-Wert soll auf dem gemessenen Stand beruhen. Zwei Fallen, beide
+in `docs/CI.md` § Coverage festgehalten: `coverlet.collector` **muss der .NET-Linie folgen** (die
+Template-Version 6.0.4 instrumentierte `net10.0`-Assemblies nicht und ließ den Core still aus dem
+Report fallen → jetzt 10.0.1), und Coverage kommt **nur** aus `tests/Flirty.Tests` – im
+E2E-Ausgabeverzeichnis scheitert coverlet an `Flirty.dll`, und die E2E hob die Abdeckung ohnehin nur
+um einen einzigen Zweig.
+
+**Offen:** NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52).
