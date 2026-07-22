@@ -282,4 +282,22 @@ Report fallen → jetzt 10.0.1), und Coverage kommt **nur** aus `tests/Flirty.Te
 E2E-Ausgabeverzeichnis scheitert coverlet an `Flirty.dll`, und die E2E hob die Abdeckung ohnehin nur
 um einen einzigen Zweig.
 
-**Offen:** NuGet-**Publish** (#49), Doku-/README-Ausbau (#50–#52).
+**NuGet-Publish (#49) fertig** – und damit EPIC 9 abgeschlossen. Der Push liegt in einem **zweiten**
+Workflow `.github/workflows/release.yml`, nicht in der CI: eine auf NuGet.org veröffentlichte Version
+ist unwiderruflich (nur unlisten, nicht löschen), also wird sie manuell ausgelöst
+(`workflow_dispatch`, Inputs `revision` und `dry_run`). Zwei Jobs, damit das Freigabe-Gate
+**zwischen** Bauen und Pushen sitzt: `build` (restore → build → Unit-Suite → pack → **verifizieren**
+→ Artefakt) und `push`, der an der GitHub-Environment `nuget` hängt (Secret `NUGET_API_KEY`,
+optionale Reviewer). Der Verifikationsschritt ist der harte Riegel: er prüft an den realen Dateien
+`.nupkg` **und** `.snupkg` je Paket (= das AC „inkl. Symbols") sowie alle vier DLLs unter
+`lib/net10.0/`. Die `.snupkg` werden von `dotnet nuget push` automatisch mitgeschoben – kein zweiter
+Push. Feed ist **nur NuGet.org**; Azure Artifacts (im Issue-Text genannt) fiel bewusst raus, weil es
+Symbolpakete über `dotnet nuget push` nicht annimmt und damit genau das AC verfehlt.
+**Nebenbefund, in `docs/NUGET-PACKAGING.md` festgehalten:** Die Version ist als MSBuild-Property
+zweistellig (`202607.7`), **NuGet normalisiert aber auf drei Segmente** – Dateiname, `.nuspec` und
+nuget.org zeigen `202607.7.0`. Die Doku behauptete an mehreren Stellen `Flirty.202604.1.nupkg`; das
+war schlicht falsch. Einmalig manuell einzurichten (kann der Workflow nicht): API-Key auf nuget.org
+mit Glob `Flirty*` und Scope *Push new packages and package versions* sowie die Environment `nuget`
+mit dem Secret.
+
+**Offen:** Doku-/README-Ausbau (#50–#52).

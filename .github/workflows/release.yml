@@ -1,0 +1,159 @@
+name: Release
+
+# Veröffentlichung der beiden NuGet-Pakete (#49). BEWUSST manuell: ein Push auf NuGet.org ist
+# unwiderruflich (Versionen lassen sich nur unlisten, nicht löschen). Deshalb kein Tag-/Push-Trigger,
+# sondern workflow_dispatch + Freigabe-Gate über die Environment "nuget". Details: docs/NUGET-PACKAGING.md.
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 'Paket-Revision. Version = JJJJMM.<Revision>.0 (NuGet ergänzt die 3. Stelle). Leer = Run-Nummer dieses Workflows.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Nur bauen, testen, packen und verifizieren – nicht veröffentlichen.'
+        required: false
+        default: false
+        type: boolean
+
+# Der Push braucht keinerlei GitHub-Rechte, nur das Secret aus der Environment.
+permissions:
+  contents: read
+
+concurrency:
+  # Bewusst OHNE cancel-in-progress: einen laufenden Push nicht mitten im Upload abschneiden.
+  group: release
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # MSBuild liest Env-Variablen als Properties -> überschreibt die Default-Revision (1) aus
+  # Directory.Build.targets konsistent für build UND pack. Ohne Input zählt die Run-Nummer dieses
+  # Workflows (eigener, monoton steigender Release-Zähler; die CI pusht ja nie).
+  BuildRevision: ${{ inputs.revision || github.run_number }}
+
+jobs:
+  build:
+    name: build · test · pack · verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (aus global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Flirty.sln
+
+      - name: Build (Release)
+        run: dotnet build Flirty.sln -c Release --no-restore
+
+      # Nur die Unit-/Integrationssuite, bewusst ohne Coverage und ohne die Playwright-E2E:
+      # Dieser Lauf baut die Binaries NEU (anderer Versionsstempel), deshalb müssen genau diese
+      # getestet werden – die Unit-Suite deckt beide Pakete zu 95,7 % (Zeilen) ab. Die E2E hob in #48
+      # gemessen genau einen Zweig (368 -> 369 von 430), kostet aber Browser-Installation und ist der
+      # Lauf, der auf den zwei Kernen des Runners am ehesten in Timeouts kippt. Siehe docs/CI.md.
+      - name: Test (Unit/Integration)
+        run: dotnet test tests/Flirty.Tests -c Release --no-build
+
+      - name: Pack (beide NuGet-Pakete)
+        run: dotnet pack Flirty.sln -c Release --no-build -o artifacts
+
+      # Harter Guard vor dem Push: prüft das Akzeptanzkriterium des Issues ("beide Packages inkl.
+      # Symbols") an den realen Dateien – plus die vier DLLs aus IncludeFlirtyMigrationAssemblies
+      # (src/Flirty/Flirty.csproj), ohne die Paket-Konsumenten nicht auto-migrieren können.
+      - name: Pakete verifizieren
+        run: |
+          set -euo pipefail
+
+          fail() { echo "::error::$1"; exit 1; }
+
+          # Vorsicht: "Flirty.*.nupkg" matcht auch Flirty.AspNetCore.*.nupkg. Die Version beginnt
+          # immer mit einer Ziffer, deshalb trennt "Flirty.[0-9]*" das Core-Paket sauber ab.
+          for expected in \
+            "artifacts/Flirty.[0-9]*.nupkg" \
+            "artifacts/Flirty.[0-9]*.snupkg" \
+            "artifacts/Flirty.AspNetCore.[0-9]*.nupkg" \
+            "artifacts/Flirty.AspNetCore.[0-9]*.snupkg"
+          do
+            compgen -G "$expected" > /dev/null || fail "Erwartete Datei fehlt: $expected"
+          done
+
+          core=$(compgen -G "artifacts/Flirty.[0-9]*.nupkg" | head -n1)
+
+          for dll in Flirty.dll \
+                     Flirty.Migrations.Sqlite.dll \
+                     Flirty.Migrations.PostgreSql.dll \
+                     Flirty.Migrations.SqlServer.dll
+          do
+            unzip -l "$core" | grep -q "lib/net10.0/$dll" \
+              || fail "$dll fehlt unter lib/net10.0/ in $core"
+          done
+
+          {
+            echo "### Pakete (Revision \`$BuildRevision\`)"
+            echo
+            echo '```'
+            ls -1 artifacts/*.nupkg artifacts/*.snupkg
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload NuGet-Artefakte
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+
+  push:
+    name: push · nuget.org
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    # Trägt das Secret NUGET_API_KEY und (optional) die "Required reviewers" – das eigentliche
+    # Freigabe-Gate. Es sitzt bewusst ZWISCHEN Bauen und Pushen, damit das Artefakt vor der
+    # Freigabe eingesehen werden kann.
+    environment: nuget
+    steps:
+      # Hier bewusst NICHT global.json: dieser Job checkt das Repo nicht aus (er lädt nur das
+      # Artefakt). Gebaut wird nichts mehr – die CLI schiebt nur noch fertige Dateien hoch.
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: NuGet-Artefakte holen
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts
+
+      # Das Glob bleibt GEQUOTET: dotnet löst es selbst auf. Die passenden .snupkg werden dabei
+      # automatisch mitgeschoben (sie liegen neben den .nupkg und NuGet.org hat einen Symbol-Server)
+      # -> kein zweiter Push nötig. --skip-duplicate macht einen Wiederholungslauf zum No-op.
+      - name: Push (nupkg + snupkg)
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "${NUGET_API_KEY:-}" ] \
+            || { echo "::error::Secret NUGET_API_KEY fehlt in der Environment 'nuget'."; exit 1; }
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY" \
+            --skip-duplicate
+
+      - name: Zusammenfassung
+        run: |
+          {
+            echo "### Auf nuget.org veröffentlicht"
+            echo
+            for f in artifacts/*.nupkg; do
+              echo "- \`$(basename "$f" .nupkg)\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

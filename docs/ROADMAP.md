@@ -19,8 +19,9 @@ GitHub-Issues (#12–#52).
 >   Details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 > - `#16` CI-Stub — **erledigt**: GitHub-Actions-Workflow `.github/workflows/ci.yml`
 >   (build + test + `dotnet pack` auf `ubuntu-latest`, SDK aus `global.json`) läuft bei Push/PR auf
->   `main` und lädt beide `.nupkg` (+ `.snupkg`) als Artefakt hoch. Push zu NuGet folgt in `#49`.
->   Details: [CI.md](./CI.md).
+>   `main` und lädt beide `.nupkg` (+ `.snupkg`) als Artefakt hoch. Der Push zu NuGet ist seit `#49`
+>   ein **eigener** Workflow `.github/workflows/release.yml` (manuell, Freigabe-Gate).
+>   Details: [CI.md](./CI.md), [NUGET-PACKAGING.md](./NUGET-PACKAGING.md#publizieren-49).
 > - `#14` Mediator-Setup im Core — **umgesetzt**: `AddFlirty()`-Stub verdrahtet den Mediator und
 >   die Basis-Pipeline-Behaviors (Logging/Validierung); Dummy-Command läuft durch die Pipeline
 >   (Tests grün). Siehe [MEDIATOR.md](./MEDIATOR.md).
@@ -131,8 +132,12 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 | **M3 – Designer** | EPIC 7 Blazor-Designer (`#37`–`#43`) | baut auf stabiler Core-API + Evaluator auf |
 | **M4 – Qualität & Release** | E2E-Tests `#46`/`#47`, Coverage `#48`, NuGet-Publish `#49`, Docs `#50`–`#52` | Test-, Publish- und Doku-Strang parallel |
 
-> **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)); die
-> Designer-E2E `#46` aus M4 ist ebenfalls erledigt.
+> **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)).
+>
+> **Stand M4:** EPIC 9 ist **abgeschlossen** – E2E `#46`/`#47`, Coverage `#48` (siehe
+> [CI.md § Coverage](./CI.md#coverage)) und NuGet-Publish `#49` (siehe
+> [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49)) sind erledigt. Offen bleibt
+> der Doku-Strang `#50`–`#52` (EPIC 10).
 
 > Innerhalb von M3: `#37` (Connection-Profile) und `#38` (Dialog-CRUD-UI) zuerst, danach sind
 > `#39` Frage-Editor, `#40` Branching-Editor, `#41` Loop-Visualisierung und `#42` Trigger-Editor
