@@ -2,6 +2,8 @@
 
 > Stand: Issue #14. Dieser Guide beschreibt, wie der Mediator (martinothamar) im Core-Projekt
 > `Flirty` verdrahtet ist und wie man Commands/Queries, Handler und Pipeline-Behaviors ergänzt.
+> **Warum** überhaupt ein Mediator – und was stattdessen zur Wahl stand (MediatR, eigene
+> Service-Interfaces) – steht in [ADR 0002](./adr/0002-mediator-als-in-process-bus.md).
 
 ## Überblick
 
@@ -59,6 +61,10 @@ var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 2. **Pipeline-Behaviors werden nicht automatisch registriert.** Offen-generische Behaviors
    müssen manuell via `AddSingleton(typeof(IPipelineBehavior<,>), typeof(MyBehavior<,>))`
    registriert werden. Die Reihenfolge der Registrierung bestimmt die Verschachtelung der Pipeline.
+
+Beide Regeln sind keine Randnotiz, sondern **Architektur-Invariante** – Regel 1 ist der Grund, warum
+`Flirty.AspNetCore` eine reine Mapping-Schicht über `ISender` bleiben *muss*
+([ADR 0002](./adr/0002-mediator-als-in-process-bus.md), [ADR 0003](./adr/0003-aspnet-freier-core.md)).
 
 ## Basis-Pipeline-Behaviors
 

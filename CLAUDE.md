@@ -69,10 +69,11 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   Trigger = `INotification`, Cross-Cutting = `IPipelineBehavior`. **Der Source-Generator entdeckt
   Handler nur in der Core-Compilation** → alle Commands/Queries/Handler/Notification-Contracts **und**
   der `AddMediator`-Aufruf liegen in `Flirty`. Offen-generische Behaviors werden **manuell** registriert.
-- **ASP.NET-frei im Core** (siehe oben).
+  Grund: ADR `docs/adr/0002-mediator-als-in-process-bus.md`.
+- **ASP.NET-frei im Core** (siehe oben). Grund: ADR `docs/adr/0003-aspnet-freier-core.md`.
 - **Expression-Engine gesandboxt:** Branching-Bedingungen laufen über `IExpressionEvaluator` (Default
   `DynamicExpresso`, Member-Whitelist) – **kein** roher C#-`eval`. Im Designer werden Ausdrücke beim
-  Speichern kompiliert/validiert (`Validate`).
+  Speichern kompiliert/validiert (`Validate`). Grund: ADR `docs/adr/0004-gesandboxte-expression-engine.md`.
 - **Migrationen pro Provider:** getrennte Assemblies `Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`,
   zur Laufzeit per `MigrationsAssembly(...)` gewählt. Grund: ADR `docs/adr/0001-migrationen-pro-provider.md`.
 - **Loops = Branching + Marker** (`LoopDefinition`), kein Runtime-Sonderpfad.
@@ -155,6 +156,9 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
   in `CLAUDE.md` und den zuständigen `docs/`-Guide anpassen (siehe Doku-Wegweiser unten).
 - **Feature abgeschlossen / Projektstatus verschoben** → Abschnitt „Stand & offene Baustellen" unten
   nachziehen (Issue-Nummern, „AKTUELL NUR SKELETT"-Hinweise, fehlende Guides).
+- **Grundsatzentscheidung getroffen** (eine naheliegende Alternative bewusst verworfen, später teuer zu
+  revidieren) → neuer ADR in `docs/adr/` nach der Vorlage in `docs/adr/README.md` und dort in die Tabelle
+  eintragen. Bestehende ADRs werden **nicht umgeschrieben**: Nachtrag oder Ablösung durch einen neuen.
 - **Faustregel:** Wenn eine Aussage in `CLAUDE.md`/einem Skill/`docs/` durch deine Änderung *falsch*
   würde, korrigiere sie jetzt – veralteter Kontext ist schlimmer als keiner.
 
@@ -177,7 +181,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Entscheidungen | `docs/adr/` |
+| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0004 |
 
 ## Stand & offene Baustellen
 
@@ -312,4 +316,19 @@ macht, steht selten in der Datei, die man gerade bearbeitet – der Stale-Scan
 `grep -nE 'folgt|folgen in|später(es)? Epic|Ausblick|noch nicht|sobald' docs/*.md` findet solche Zeiger
 auf erledigte Issues. Für tote Querverweise gibt es kein CI-Gate; Anker/Pfade sind vor dem PR zu prüfen.
 
-**Offen:** ADRs (#51) und Root-README-Quickstart (#52).
+**ADRs (#51) fertig** – `docs/adr/` enthält jetzt die vier im Issue genannten Entscheidungen plus einen
+Index `README.md` (Tabelle, Format-Vorlage, Pflegeregeln): **0001** Migrationen pro Provider (Bestand,
+um einen Nachtrag ergänzt – die dort offenen Punkte #20/#34 sind längst erledigt), **0002** Mediator
+(martinothamar) als In-Process-Bus, **0003** ASP.NET-freier Core, **0004** gesandboxte Expression-Engine.
+Die Arbeit bestand **nicht** darin, Bekanntes umzuformulieren: Das „wie" stand längst in den Guides,
+gefehlt hat das **„warum nicht anders"**. Deshalb ist der Abschnitt *Verworfene Alternativen* der Kern
+jedes ADRs (MediatR und dessen Reflection-/Lizenz-Lage, ein Paket mit ASP.NET-Referenz bzw. `#if`-Varianten,
+Roslyn-Scripting/NCalc/eigene Grammatik). **Zwei Regeln, die im Index festgehalten sind:** Ein ADR wird
+**nicht umgeschrieben** – er bekommt einen *Nachtrag* oder wird durch einen neuen *abgelöst* (Status
+`Abgelöst durch NNNN`), sonst beantwortet er „warum eigentlich?" nicht mehr; und **Nummern werden nie neu
+vergeben** – 0001 bleibt 0001, obwohl die Entscheidung chronologisch nach #13/#14 fiel, weil `CLAUDE.md`,
+`docs/PERSISTENCE.md` und `.claude/skills/flirty-ef-migration/SKILL.md` auf den Dateinamen zeigen.
+Faustregel für neue ADRs: nur, wenn eine naheliegende Alternative bewusst ausgeschieden ist und die
+Entscheidung später teuer zu revidieren wäre – alles andere gehört in den Guide.
+
+**Offen:** Root-README-Quickstart (#52).

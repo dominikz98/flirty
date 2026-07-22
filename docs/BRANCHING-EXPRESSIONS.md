@@ -105,6 +105,11 @@ verwendet. Dadurch werten `age > 18` (bei `"42"`) und `name == "Ada"` (bei `"\"A
 
 ### Sandbox (Member-Whitelist, kein roher C#-`eval`)
 
+> Warum gesandboxt und warum diese Engine – inklusive der verworfenen Alternativen
+> (Roslyn-Scripting, NCalc, eigene Grammatik): [ADR 0004](./adr/0004-gesandboxte-expression-engine.md).
+> Kurzfassung: Ausdrücke kommen aus dem Designer und liegen **in der Datenbank**, sind also Daten –
+> alles, was hier ausführbar wäre, könnte jeder mit Schreibzugriff auf die Konfiguration ausführen.
+
 - Interpreter-Optionen strikt auf `PrimitiveTypes | SystemKeywords` beschränkt: Literale, Vergleichs-,
   Arithmetik- und UND/ODER-Operatoren. `CommonTypes` (`Math`, `Convert`, `Enumerable`) ist **nicht**
   aktiviert.
