@@ -1,0 +1,592 @@
+@* Bewusst NICHT "QuestionDetail" genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp Flirty.Runtime.Admin.QuestionDetail verdecken (wie bei DialogEditor/DialogDetail). *@
+@page "/dialogs/{DialogId:guid}/questions/{QuestionId:guid}"
+@rendermode InteractiveServer
+@using Mediator
+@using Flirty.Domain
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject NavigationManager Navigation
+
+<PageTitle>@(_question?.Key ?? "Frage") · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_question is null)
+{
+    <h1>Frage</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        @_question.Key
+        @if (_detail!.Dialog.StartQuestionId == QuestionId)
+        {
+            <span class="badge badge-start">Einstiegsfrage</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Position @(_position + 1) von @_detail.Questions.Count im Dialog
+        <a href="@($"dialogs/{DialogId}")">@_detail.Dialog.Name</a> ·
+        Typ @QuestionTypeLabels.Describe(_question.Type)
+    </p>
+
+    @if (_detail.Dialog.IsPublished)
+    {
+        <div class="banner warn">
+            Der Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen durch
+            Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    @if (_message is not null)
+    {
+        <div class="banner ok">@_message</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="editor">
+            <h2>Frage</h2>
+
+            <div class="field">
+                <label for="key">Schlüssel</label>
+                <InputText id="key" class="input" @bind-Value="_form.Key" />
+                <span class="hint">
+                    Fachlicher, stabiler Schlüssel – im Dialog eindeutig und im Ausdruckskontext des
+                    Branchings sichtbar. Ein Umbenennen bricht Bedingungen, die ihn verwenden.
+                </span>
+                <ValidationMessage For="() => _form.Key" />
+            </div>
+
+            <div class="field">
+                <label for="text">Fragetext</label>
+                <InputTextArea id="text" class="input" rows="3" @bind-Value="_form.Text" />
+                <ValidationMessage For="() => _form.Text" />
+            </div>
+
+            <div class="field">
+                <label for="type">Typ</label>
+                <InputSelect id="type" class="input" @bind-Value="_form.Type">
+                    @foreach (var type in Enum.GetValues<QuestionType>())
+                    {
+                        <option value="@type">@QuestionTypeLabels.Describe(type)</option>
+                    }
+                </InputSelect>
+                <span class="hint">Der Typ bestimmt, wie die Antwort geparst und validiert wird.</span>
+            </div>
+
+            <div class="field check">
+                <InputCheckbox id="required" @bind-Value="_form.IsRequired" />
+                <label for="required">Antwort erforderlich</label>
+            </div>
+
+            <div class="field">
+                <label>Reihenfolge</label>
+                <span class="hint">
+                    Position @(_position + 1) – änderbar über die Pfeile in der
+                    <a href="@($"dialogs/{DialogId}")">Fragenliste des Dialogs</a>.
+                </span>
+            </div>
+        </div>
+
+        <div class="editor">
+            <h2>Validierung</h2>
+
+            @if (_form.UseRawJson)
+            {
+                <div class="banner warn">
+                    Die gespeicherten Regeln enthalten unbekannte Felder oder sind kein gültiges
+                    JSON-Objekt. Sie werden deshalb roh bearbeitet, damit nichts verloren geht.
+                    Bekannt sind <code>minLength</code>, <code>maxLength</code>, <code>min</code>,
+                    <code>max</code> und <code>pattern</code>.
+                </div>
+
+                <div class="field">
+                    <label for="rawRules">Regeln (JSON)</label>
+                    <InputTextArea id="rawRules" class="input mono" rows="5" @bind-Value="_form.RawJson" />
+                    <span class="hint">Leeren, um die Regeln zu entfernen.</span>
+                </div>
+            }
+            else if (_form.Type == QuestionType.FreeText)
+            {
+                <div class="field">
+                    <label for="minLength">Mindestlänge (Zeichen)</label>
+                    <InputNumber id="minLength" class="input" @bind-Value="_form.MinLength" />
+                </div>
+
+                <div class="field">
+                    <label for="maxLength">Maximallänge (Zeichen)</label>
+                    <InputNumber id="maxLength" class="input" @bind-Value="_form.MaxLength" />
+                </div>
+
+                <div class="field">
+                    <label for="pattern">Muster (regulärer Ausdruck)</label>
+                    <InputText id="pattern" class="input mono" @bind-Value="_form.Pattern" />
+                    <span class="hint">
+                        Teiltreffer – für eine Vollprüfung verankern (z. B. <code>^[A-Za-z ]+$</code>).
+                        Das Muster wird beim Speichern übersetzt; ein ungültiger Ausdruck wird abgelehnt.
+                    </span>
+                </div>
+            }
+            else if (_form.Type == QuestionType.Number)
+            {
+                <div class="field">
+                    <label for="min">Minimum (inklusiv)</label>
+                    <InputNumber id="min" class="input" @bind-Value="_form.Min" />
+                </div>
+
+                <div class="field">
+                    <label for="max">Maximum (inklusiv)</label>
+                    <InputNumber id="max" class="input" @bind-Value="_form.Max" />
+                </div>
+            }
+            else
+            {
+                <p class="hint">
+                    Für diesen Fragetyp gibt es keine konfigurierbaren Regeln – geprüft wird der Wert
+                    selbst (bei Auswahl-Typen gegen die Antwortoptionen unten).
+                </p>
+            }
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+            <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+        </div>
+    </EditForm>
+
+    @if (QuestionTypeLabels.UsesOptions(_question.Type) || _question.Options.Count > 0)
+    {
+        <div class="editor">
+            <h2>Antwortoptionen</h2>
+
+            @if (!QuestionTypeLabels.UsesOptions(_question.Type))
+            {
+                <div class="banner warn">
+                    Der Fragetyp @QuestionTypeLabels.Describe(_question.Type) wertet keine Antwortoptionen
+                    aus – die folgenden Optionen bleiben wirkungslos und können gelöscht werden.
+                </div>
+            }
+            else if (_question.Options.Count == 0)
+            {
+                <div class="banner warn">
+                    Ohne Optionen ist keine Antwort auf diese Frage gültig.
+                </div>
+            }
+
+            @if (_question.Options.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Schlüssel</th>
+                            <th>Beschriftung</th>
+                            <th>Wert</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var index = 0; index < _question.Options.Count; index++)
+                        {
+                            // Lokale Kopien: die Lambdas liefen sonst gegen den Schleifenzustand
+                            // nach dem letzten Durchlauf.
+                            var position = index;
+                            var option = _question.Options[index];
+
+                            <tr>
+                                <td>@(position + 1)</td>
+                                <td class="mono">@option.Key</td>
+                                <td>@option.Label</td>
+                                <td class="mono">@option.Value</td>
+                                <td class="row-actions">
+                                    <button class="btn" title="Nach oben"
+                                            disabled="@(_busy || position == 0)"
+                                            @onclick="() => MoveOptionAsync(position, position - 1)">↑</button>
+                                    <button class="btn" title="Nach unten"
+                                            disabled="@(_busy || position == _question.Options.Count - 1)"
+                                            @onclick="() => MoveOptionAsync(position, position + 1)">↓</button>
+                                    <button class="btn" disabled="@_busy"
+                                            @onclick="() => StartEditOption(option)">Bearbeiten</button>
+
+                                    @if (_confirmDeleteOptionId == option.Id)
+                                    {
+                                        <span class="confirm">Option löschen?</span>
+                                        <button class="btn btn-danger" disabled="@_busy"
+                                                @onclick="() => DeleteOptionAsync(option)">Ja, löschen</button>
+                                        <button class="btn" disabled="@_busy"
+                                                @onclick="() => _confirmDeleteOptionId = null">Abbrechen</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-danger" disabled="@_busy"
+                                                @onclick="() => _confirmDeleteOptionId = option.Id">Löschen</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_optionForm is null)
+            {
+                <div class="actions">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="StartCreateOption">Neue Option</button>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="_optionForm" OnValidSubmit="SaveOptionAsync">
+                    <DataAnnotationsValidator />
+
+                    <h3>@(_editedOptionId is null ? "Neue Option" : "Option bearbeiten")</h3>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="optionKey">Schlüssel</label>
+                            <InputText id="optionKey" class="input" @bind-Value="_optionForm.Key" />
+                            <ValidationMessage For="() => _optionForm.Key" />
+                        </div>
+
+                        <div class="field">
+                            <label for="optionLabel">Beschriftung</label>
+                            <InputText id="optionLabel" class="input" @bind-Value="_optionForm.Label" />
+                            <ValidationMessage For="() => _optionForm.Label" />
+                        </div>
+
+                        <div class="field">
+                            <label for="optionValue">Wert</label>
+                            <InputText id="optionValue" class="input" @bind-Value="_optionForm.Value" />
+                            <ValidationMessage For="() => _optionForm.Value" />
+                        </div>
+                    </div>
+
+                    <span class="hint">
+                        Gespeichert und validiert wird der <em>Wert</em>; die Beschriftung ist reiner
+                        Anzeigetext für die Host-UI.
+                    </span>
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
+                        <button type="button" class="btn" disabled="@_busy" @onclick="CancelEditOption">Abbrechen</button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    }
+
+    <div class="editor">
+        <h2>Frage löschen</h2>
+
+        <p class="hint">
+            Mit der Frage verschwinden ihre Antwortoptionen und alle Übergänge, die sie als Ausgangs-
+            oder Zielfrage verwenden. Ist sie die Einstiegsfrage, wird diese zurückgesetzt.
+        </p>
+
+        <div class="actions">
+            @if (_confirmDelete)
+            {
+                <span class="confirm">Frage „@_question.Key“ wirklich löschen?</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            }
+            else
+            {
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    [Parameter]
+    public Guid DialogId { get; set; }
+
+    /// <summary>Der Primärschlüssel der bearbeiteten Frage (aus der Route).</summary>
+    [Parameter]
+    public Guid QuestionId { get; set; }
+
+    private DialogDetail? _detail;
+    private QuestionDetail? _question;
+    private int _position;
+    private QuestionFormModel _form = new();
+    private AnswerOptionFormModel? _optionForm;
+    private Guid? _editedOptionId;
+    private Guid? _confirmDeleteOptionId;
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _confirmDelete;
+    private (Guid Dialog, Guid Question) _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == (DialogId, QuestionId))
+        {
+            return;
+        }
+
+        _loaded = (DialogId, QuestionId);
+        _message = null;
+        _confirmDelete = false;
+        _confirmDeleteOptionId = null;
+        _optionForm = null;
+        _editedOptionId = null;
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Lädt den Dialog-Graphen und greift die bearbeitete Frage heraus. Ein <c>GetDialogQuery</c> genügt:
+    /// er liefert Fragen inklusive Optionen und dazu die Dialog-Metadaten für Titel, Einstiegsfrage und
+    /// Veröffentlichungs-Hinweis.
+    /// </summary>
+    private async Task ReloadAsync(bool resetForm = true)
+    {
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
+        _detail = result.Value;
+        _error = result.Error;
+
+        _position = _detail is null
+            ? -1
+            : _detail.Questions.Select((question, index) => (question, index))
+                .Where(entry => entry.question.Id == QuestionId)
+                .Select(entry => entry.index)
+                .DefaultIfEmpty(-1)
+                .First();
+        _question = _position < 0 ? null : _detail!.Questions[_position];
+
+        if (_detail is not null && _question is null)
+        {
+            _error = $"Der Dialog '{DialogId}' enthält keine Frage mit der Id '{QuestionId}'.";
+        }
+
+        if (resetForm)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        if (_question is not null)
+        {
+            _form = QuestionFormModel.From(_question);
+        }
+    }
+
+    /// <summary>
+    /// Speichert Metadaten und Validierungsregeln in einem <c>UpdateQuestionCommand</c>. Ungültige Regeln
+    /// (kaputtes Muster, vertauschte Grenzen, unlesbares Roh-JSON) werden vorher abgefangen – die Engine
+    /// bemerkte sie sonst erst beim Validieren einer Antwort zur Laufzeit.
+    /// </summary>
+    private async Task SaveAsync()
+    {
+        if (!_form.TryBuildValidationRules(out var rules, out var ruleError))
+        {
+            _error = ruleError;
+            _message = null;
+            return;
+        }
+
+        await RunAsync<QuestionDetail>(
+            (sender, token) => sender.Send(
+                new UpdateQuestionCommand(
+                    DialogId, QuestionId, _form.Key, _form.Text, _form.Type, _question!.Order,
+                    _form.IsRequired, rules),
+                token),
+            "Frage gespeichert.");
+    }
+
+    private async Task DeleteAsync()
+    {
+        _busy = true;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new DeleteQuestionCommand(DialogId, QuestionId), token));
+
+            if (!result.Success)
+            {
+                _error = result.Error;
+                _confirmDelete = false;
+                return;
+            }
+
+            Navigation.NavigateTo($"dialogs/{DialogId}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ---- Antwortoptionen --------------------------------------------------------------------------
+
+    private void StartCreateOption()
+    {
+        _optionForm = new AnswerOptionFormModel();
+        _editedOptionId = null;
+    }
+
+    private void StartEditOption(AnswerOptionDetail option)
+    {
+        _optionForm = AnswerOptionFormModel.From(option);
+        _editedOptionId = option.Id;
+    }
+
+    private void CancelEditOption()
+    {
+        _optionForm = null;
+        _editedOptionId = null;
+    }
+
+    private async Task SaveOptionAsync()
+    {
+        if (_question is null || _optionForm is null)
+        {
+            return;
+        }
+
+        var model = _optionForm;
+        var edited = _editedOptionId;
+
+        bool saved;
+        if (edited is { } optionId)
+        {
+            var order = _question.Options.First(option => option.Id == optionId).Order;
+            saved = await RunAsync<AnswerOptionDetail>(
+                (sender, token) => sender.Send(
+                    new UpdateAnswerOptionCommand(
+                        DialogId, QuestionId, optionId, model.Key, model.Label, model.Value, order),
+                    token),
+                $"Option „{model.Key}“ gespeichert.",
+                resetForm: false);
+        }
+        else
+        {
+            var order = _question.Options.Count == 0 ? 0 : _question.Options.Max(option => option.Order) + 1;
+            saved = await RunAsync<AnswerOptionDetail>(
+                (sender, token) => sender.Send(
+                    new CreateAnswerOptionCommand(
+                        DialogId, QuestionId, model.Key, model.Label, model.Value, order),
+                    token),
+                $"Option „{model.Key}“ angelegt.",
+                resetForm: false);
+        }
+
+        if (saved)
+        {
+            CancelEditOption();
+        }
+    }
+
+    private async Task DeleteOptionAsync(AnswerOptionDetail option)
+    {
+        _confirmDeleteOptionId = null;
+
+        await RunAsync<Unit>(
+            (sender, token) => sender.Send(new DeleteAnswerOptionCommand(DialogId, QuestionId, option.Id), token),
+            $"Option „{option.Key}“ gelöscht.",
+            resetForm: false);
+    }
+
+    /// <summary>
+    /// Verschiebt eine Option um eine Position. Wie bei den Fragen wird der <b>Positionsindex</b> als
+    /// neue <c>Order</c> geschrieben (repariert doppelte/lückenhafte Werte); alle Updates laufen in
+    /// einem Gateway-Aufruf.
+    /// </summary>
+    /// <param name="from">Die aktuelle Position der Option.</param>
+    /// <param name="to">Die Zielposition.</param>
+    private async Task MoveOptionAsync(int from, int to)
+    {
+        if (_question is null || to < 0 || to >= _question.Options.Count)
+        {
+            return;
+        }
+
+        var ordered = _question.Options.ToList();
+        (ordered[from], ordered[to]) = (ordered[to], ordered[from]);
+
+        var changed = ordered
+            .Select((option, index) => (Option: option, Index: index))
+            .Where(entry => entry.Option.Order != entry.Index)
+            .ToList();
+
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        await RunAsync<Unit>(
+            async (sender, token) =>
+            {
+                foreach (var (option, index) in changed)
+                {
+                    _ = await sender.Send(
+                        new UpdateAnswerOptionCommand(
+                            DialogId, QuestionId, option.Id, option.Key, option.Label, option.Value, index),
+                        token);
+                }
+
+                return Unit.Value;
+            },
+            "Reihenfolge der Optionen geändert.",
+            resetForm: false);
+    }
+
+    /// <summary>
+    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// </summary>
+    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
+    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
+    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <param name="resetForm">
+    /// Ob das Frage-Formular vom Serverstand überschrieben werden soll. Bei Options-Operationen bewusst
+    /// <see langword="false"/>, damit dort noch nicht gespeicherte Eingaben erhalten bleiben.
+    /// </param>
+    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    private async Task<bool> RunAsync<TResult>(
+        Func<ISender, CancellationToken, ValueTask<TResult>> operation,
+        string successMessage,
+        bool resetForm = true)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(operation);
+            if (!result.Success)
+            {
+                _error = result.Error;
+                return false;
+            }
+
+            _error = null;
+            _message = successMessage;
+            await ReloadAsync(resetForm);
+            return true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

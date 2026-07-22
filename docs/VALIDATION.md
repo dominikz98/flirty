@@ -75,6 +75,10 @@ nicht anwendbare Regeln werden ignoriert.
 { "minLength": 2, "maxLength": 50, "pattern": "^[A-Za-z ]+$" }
 ```
 
+Von Hand schreiben muss man das JSON nicht: der **Frage-Editor** des Blazor-Designers pflegt die Regeln
+typ-abhängig über Eingabefelder und übersetzt das `pattern` schon beim Speichern (siehe
+[DESIGNER.md → Validierungsregeln](./DESIGNER.md#validierungsregeln)).
+
 ## `AnswerValidationPipelineBehavior`
 
 Das Behavior verbindet Validator und Mediator-Pipeline:

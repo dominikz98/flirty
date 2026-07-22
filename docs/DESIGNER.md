@@ -4,10 +4,10 @@ Der **Flirty.Designer** ist eine Blazor Web App (Server-interaktiv, .NET 10) zum
 von Dialogen und zum Verwalten der Datenbank-Verbindungen. Er ist Teil von **EPIC 7** (Issues #37–#43,
 Milestone „M3 – Designer"). Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §4/§8, [PERSISTENCE.md](./PERSISTENCE.md).
 
-> **Stand:** Umgesetzt sind die **Connection-Profil-Verwaltung (Multi-DB, #37)** und das
-> **Dialog-CRUD (#38)**. Die restlichen Editoren (Frage-Editor #39, Branching #40, Loops #41,
-> Trigger #42, Test-Runner #43) folgen. Der Designer arbeitet über die Admin-Commands der Engine
-> (via `ISender`), nicht direkt am `FlirtyDbContext` vorbei.
+> **Stand:** Umgesetzt sind die **Connection-Profil-Verwaltung (Multi-DB, #37)**, das
+> **Dialog-CRUD (#38)** und der **Frage-Editor (#39)**. Die restlichen Editoren (Branching #40,
+> Loops #41, Trigger #42, Test-Runner #43) folgen. Der Designer arbeitet über die Admin-Commands der
+> Engine (via `ISender`), nicht direkt am `FlirtyDbContext` vorbei.
 
 ## Starten
 
@@ -122,7 +122,7 @@ Regeln, die die UI sichtbar macht:
 - **Löschen** fragt zweistufig **inline** nach (kein JS-`confirm`, das sonst die Playwright-E2E aus #46
   blockieren würde) und entfernt den gesamten Graphen per DB-Cascade.
 - Die Auswahl der Einstiegsfrage listet die Fragen aus `GetDialogQuery`. Solange es keine gibt, ist sie
-  deaktiviert – der Frage-Editor folgt in #39.
+  deaktiviert – Fragen entstehen im **Frage-Editor** (nächster Abschnitt).
 
 ### Warum ein Gateway statt `@inject ISender`
 
@@ -145,6 +145,71 @@ Fehler eine Meldung erzeugt und nicht den Circuit killt. Das Mapping spiegelt de
 `FlirtyExceptionEndpointFilter` aus `Flirty.AspNetCore` (Not-Found → Validierung → Konflikt) und ergänzt
 Datenbankfehler um den Hinweis, das aktive Profil zu **migrieren** (typisch bei frischer SQLite-Datei).
 
+## Frage-Editor (#39)
+
+Fragen werden zweistufig gepflegt: die **Liste** hängt im Dialog-Editor, die **Details** einer Frage
+(Validierung, Antwortoptionen) haben eine eigene Seite.
+
+| Route | Komponente | Inhalt |
+|---|---|---|
+| `/dialogs/{id:guid}` | `DialogEditor.razor`, Abschnitt „Fragen" | Tabelle (Position, Schlüssel, Text, Typ, Pflicht, Optionen-Anzahl, Einstiegs-Badge), Inline-Formular „Neue Frage", Sortieren via ↑/↓, Löschen mit Inline-Bestätigung. |
+| `/dialogs/{dialogId:guid}/questions/{questionId:guid}` | `QuestionEditor.razor` | Metadaten (Schlüssel, Text, Typ, Pflicht), Validierungsregeln, Antwortoptionen, Frage löschen. |
+
+> Auch diese Seite heißt bewusst **`QuestionEditor`** und nicht `QuestionDetail` – sonst verdeckte der
+> generierte Komponententyp den Sichttyp `Flirty.Runtime.Admin.QuestionDetail` (gleiche Falle wie bei
+> `DialogEditor`).
+
+Verwendet werden ausschließlich die Admin-Commands `Create/Update/DeleteQuestionCommand` und
+`Create/Update/DeleteAnswerOptionCommand` (via `FlirtyAdminGateway`). Der `QuestionEditor` lädt seinen
+Zustand mit **einem** `GetDialogQuery`: der liefert Fragen inklusive Optionen und dazu die
+Dialog-Metadaten für Titel, Einstiegs-Badge und Veröffentlichungs-Hinweis.
+
+### Reihenfolge
+
+Die ↑/↓-Schaltflächen schreiben den **Positionsindex** als neue `Order` – nicht bloß die beiden Werte
+vertauscht. Das repariert nebenbei doppelte oder lückenhafte `Order`-Werte, bei denen ein Tausch
+wirkungslos bliebe (auf `Order` liegt bewusst kein Unique-Index, nur `{DialogId, Key}` ist eindeutig).
+Alle betroffenen `UpdateQuestionCommand`s laufen in **einem** `ExecuteAsync`-Aufruf, also im selben
+DI-Scope mit einem gemeinsamen Fehlerpfad. Für Antwortoptionen gilt dasselbe.
+
+### Validierungsregeln
+
+`Question.ValidationRules` ist eine JSON-Spalte; maßgeblich ist der öffentliche Core-Typ
+`Flirty.Validation.ValidationRules` (`minLength`, `maxLength`, `min`, `max`, `pattern`, siehe
+[VALIDATION.md](./VALIDATION.md)). Das Formular-Modell `Models/QuestionFormModel.cs` bildet ihn auf
+Eingabefelder ab und benutzt ihn direkt als Serialisierungstyp – das Schema wird **nicht** dupliziert.
+
+- **Typ-skopiert:** Die Engine wertet Längen/Muster nur bei `FreeText` und Min/Max nur bei `Number` aus.
+  Die UI blendet entsprechend um, und gespeichert werden ausschließlich die zum aktuellen Typ passenden
+  Regeln – nach einem Typwechsel bleibt kein wirkungsloser Ballast im JSON stehen.
+- **Muster werden beim Speichern übersetzt** (`new Regex(...)` mit demselben 250-ms-Timeout wie im
+  `AnswerValidator`). Ein ungültiger Ausdruck wird mit deutscher Meldung abgelehnt, statt erst zur
+  Laufzeit als `InvalidOperationException` beim Validieren einer Antwort aufzuschlagen. Analog werden
+  vertauschte Grenzen (`MinLength > MaxLength`, `Min > Max`) abgefangen.
+- **Sind keine Regeln gesetzt**, wird `null` gespeichert – kein leeres `{}` in der Spalte.
+- **Roh-JSON-Fallback:** Enthält das gespeicherte JSON Felder, die `ValidationRules` nicht kennt, oder ist
+  es kein gültiges JSON-Objekt, zeigt der Editor statt der Einzelfelder ein Textfeld mit dem Roh-JSON
+  (plus Warnhinweis). Die Eingabe wird nur auf Lesbarkeit geprüft und unverändert durchgereicht – ein
+  Speichern darf fremde Felder nicht stillschweigend verwerfen.
+
+### Antwortoptionen
+
+Der Options-Abschnitt erscheint bei `SingleChoice`/`MultiChoice` – und zusätzlich immer dann, wenn noch
+Optionen vorhanden sind, damit nach einem Typwechsel verwaiste Optionen sichtbar und löschbar bleiben
+(mit Hinweis, dass sie wirkungslos sind). Ein Choice-Typ **ohne** Optionen wird gewarnt: gegen eine leere
+Optionsliste ist keine Antwort gültig. Gespeichert und validiert wird der *Wert*; die *Beschriftung* ist
+reiner Anzeigetext für die Host-UI.
+
+### Zusammenspiel mit dem Dialog-Editor
+
+- Nach dem Anlegen bleibt die Ansicht in der Liste (zügiges Erfassen mehrerer Fragen); Validierung und
+  Optionen pflegt man danach im Frage-Editor.
+- Fragen-Operationen laden den Graphen neu, überschreiben dabei aber **nicht** das Metadaten-Formular –
+  sonst gingen dort gerade getippte, ungespeicherte Änderungen verloren. Nur die Auswahl der
+  Einstiegsfrage wird abgeglichen, falls die gewählte Frage serverseitig wegfiel.
+- `DeleteQuestionCommand` entfernt verweisende Übergänge mit und setzt eine darauf zeigende
+  Einstiegsfrage zurück; die UI weist darauf hin, und „Veröffentlichen" sperrt danach wieder.
+
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
@@ -166,7 +231,13 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/ConnectionProfileOperationsTests` – Test-Connection und Migrate gegen eine SQLite-Temp-DB.
 - `Designer/FlirtyAdminGatewayTests` – Admin-CRUD über den echten DI-Stack gegen eine SQLite-Temp-DB:
   Anlegen/Auflisten, Fehler-Mapping (Schlüsselkonflikt, unbekannter Dialog, fehlendes Profil, nicht
-  migrierte Datenbank) und – als Regression – dass ein **Profilwechsel sofort greift**.
+  migrierte Datenbank), – als Regression – dass ein **Profilwechsel sofort greift**, sowie die Fragen-
+  Flüsse aus #39 (Frage mit Optionen anlegen, Reihenfolge in *einer* Operation tauschen, Rücksetzen der
+  Einstiegsfrage beim Löschen).
+- `Designer/QuestionFormModelTests` – die Abbildung zwischen Eingabefeldern und Regel-JSON (#39):
+  typ-skopiertes Serialisieren, camelCase ohne Nullwerte, Roh-JSON-Fallback bei unbekannten Feldern,
+  abgelehnte Muster/Grenzen und – als Kernprobe – dass der `AnswerValidator` der Engine das erzeugte
+  JSON tatsächlich anwendet.
 
 Die UI selbst wird künftig per Playwright-E2E abgedeckt (`tests/Flirty.E2E`, #46 – noch offen).
 
@@ -176,5 +247,5 @@ dotnet test tests/Flirty.Tests
 
 ## Roadmap (EPIC 7)
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor → #40 Branching-Editor →
+#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor →
 #41 Loop-Visualisierung → #42 Trigger-Editor → #43 Test-Runner. Designer-E2E: #46.

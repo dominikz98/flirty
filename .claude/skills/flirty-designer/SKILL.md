@@ -6,11 +6,11 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 # Blazor-Designer aufbauen / erweitern
 
 > **Status: teils umgesetzt (EPIC 7, Issues #37–#43).** Fertig sind die
-> **Connection-Profil-Verwaltung (#37)** und das **Dialog-CRUD (#38)**; `docs/DESIGNER.md` beschreibt
-> beides. Die weiteren Editoren (Frage-Editor #39 … Test-Runner #43) sind **noch offen**. Dieser Skill
-> ist die **Leitplanke** für den weiteren Aufbau: die beabsichtigte Architektur und die Konventionen, an
-> die man sich beim Implementieren halten soll. Referenz: `docs/DESIGNER.md`,
-> `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
+> **Connection-Profil-Verwaltung (#37)**, das **Dialog-CRUD (#38)** und der **Frage-Editor (#39)**;
+> `docs/DESIGNER.md` beschreibt alle drei. Die weiteren Editoren (Branching #40 … Test-Runner #43) sind
+> **noch offen**. Dieser Skill ist die **Leitplanke** für den weiteren Aufbau: die beabsichtigte
+> Architektur und die Konventionen, an die man sich beim Implementieren halten soll. Referenz:
+> `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
 
 ## Ist-Zustand (verifiziert)
 
@@ -31,8 +31,13 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `Components/Pages/DialogEditor.razor` (`/dialogs/{id:guid}`). Gemeinsame UI-Klassen (`.editor`,
   `.field`, `.input`, `.btn`, `.data-table`, `.badge`, `.msg`, `.banner`, `.empty`) liegen **global** in
   `wwwroot/app.css`; `*.razor.css` enthält nur Seitenspezifisches.
+- **Frage-Editor (#39):** `Models/QuestionFormModel.cs` (Metadaten + Regel-JSON ⇄ Eingabefelder, mit
+  Roh-JSON-Fallback), `Models/AnswerOptionFormModel.cs`, `Models/QuestionTypeLabels.cs` (deutsche
+  Typnamen, `UsesOptions`), Seite `Components/Pages/QuestionEditor.razor`
+  (`/dialogs/{dialogId:guid}/questions/{questionId:guid}`) und der Abschnitt „Fragen" in
+  `DialogEditor.razor` (Liste, Inline-Anlegen, ↑/↓, Löschen).
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
-  `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`).
+  `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`).
 
 ## Leitplanken für die Umsetzung
 
@@ -66,7 +71,14 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 3. **Ausdrücke beim Speichern validieren (#40/#42).** Branching-Bedingungen und Trigger-Ausdrücke über
    `IExpressionEvaluator.Validate(...)` kompilieren/prüfen, bevor gespeichert wird – die Engine ist
-   gesandboxt (kein `eval`), siehe `docs/BRANCHING-EXPRESSIONS.md`.
+   gesandboxt (kein `eval`), siehe `docs/BRANCHING-EXPRESSIONS.md`. Dasselbe Prinzip setzt #39 bereits
+   für Validierungs-**Muster** um: `QuestionFormModel.TryBuildValidationRules` kompiliert die Regex mit
+   demselben 250-ms-Timeout wie der `AnswerValidator`, statt den Fehler bis zur Laufzeit zu vertagen.
+
+   **Fachliches JSON immer über den Core-Typ serialisieren, nicht über ein Duplikat.** `#39` benutzt
+   `Flirty.Validation.ValidationRules` direkt (camelCase, `WhenWritingNull`); enthält gespeichertes JSON
+   unbekannte Felder, fällt der Editor auf ein Roh-JSON-Textfeld zurück, statt sie beim Speichern
+   stillschweigend zu verwerfen. Bei `LoopDefinition`/`TriggerDefinition` (#41/#42) genauso vorgehen.
 
 4. **Loops sind Branching + Marker (#41).** Ein Zyklus entsteht durch eine `Transition` auf eine frühere
    Frage; `LoopDefinition` (CollectionKey/Entry/Breaking) macht ihn sichtbar. Im Designer den Zyklus als
@@ -77,20 +89,24 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 ## Empfohlene Aufbaureihenfolge (EPIC 7)
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor → #40 Branching-Editor →
+#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor →
 #41 Loop-Visualisierung → #42 Trigger-Editor → #43 Test-Runner.
 
-Die Folge-Editoren (#39–#42) hängen sich sinnvoll in die Detailseite
+Die Folge-Editoren (#40–#42) hängen sich sinnvoll in die Detailseite
 `Components/Pages/DialogEditor.razor` (`/dialogs/{id:guid}`) ein – der `GetDialogQuery` liefert dort
-bereits Fragen, Optionen und Übergänge.
+bereits Fragen, Optionen und Übergänge. **Muster aus #39 übernehmen:** Liste (mit Inline-Anlegen,
+↑/↓-Sortieren, Inline-Löschbestätigung) im `DialogEditor`, Details auf einer eigenen Unterseite. Beim
+Sortieren den **Positionsindex** als neue `Order`/`Priority` schreiben statt nur zwei Werte zu tauschen
+(repariert doppelte/lückenhafte Werte) und alle Updates in **einem** `ExecuteAsync`-Aufruf senden.
 
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Pages in `Components/Pages/`), Server-interaktiver Render-Mode
   beibehalten.
-- **Komponentennamen dürfen die Sichttypen aus `Flirty.Runtime.Admin` nicht verdecken** – deshalb heißt
-  die Detailseite `DialogEditor` und nicht `DialogDetail` (sonst verschattet der generierte
-  Komponententyp den Record `DialogDetail`).
+- **Komponentennamen dürfen die Sichttypen aus `Flirty.Runtime.Admin` nicht verdecken** – deshalb heißen
+  die Detailseiten `DialogEditor`/`QuestionEditor` und nicht `DialogDetail`/`QuestionDetail` (sonst
+  verschattet der generierte Komponententyp den gleichnamigen Record). Gilt genauso für kommende
+  Seiten zu `TransitionDetail`/`AnswerOptionDetail`.
 - Gemeinsame UI-Klassen gehören nach `wwwroot/app.css` (global), nicht in jede `*.razor.css` kopiert.
 - Bestätigungen **inline** im Komponentenzustand lösen, **kein** JS-`confirm`/`alert` – das blockiert
   sonst die Playwright-E2E (#46).
