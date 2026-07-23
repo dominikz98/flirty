@@ -134,12 +134,13 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 
 > **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)).
 >
-> **Stand M4:** EPIC 9 ist **abgeschlossen** – E2E `#46`/`#47`, Coverage `#48` (siehe
+> **Stand M4: abgeschlossen** – EPIC 9 mit E2E `#46`/`#47`, Coverage `#48` (siehe
 > [CI.md § Coverage](./CI.md#coverage)) und NuGet-Publish `#49` (siehe
-> [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49)) sind erledigt. Aus EPIC 10
-> sind die `docs/`-Guides `#50` durchgesehen und auf den Stand nach `#43`/`#46`/`#49` gebracht und die
-> ADRs `#51` geschrieben (vier Entscheidungen, siehe [docs/adr/](./adr/README.md)); offen bleibt der
-> Root-README-Ausbau `#52`.
+> [NUGET-PACKAGING.md § Publizieren](./NUGET-PACKAGING.md#publizieren-49)); EPIC 10 mit den
+> durchgesehenen `docs/`-Guides `#50` (Stand nach `#43`/`#46`/`#49`), den ADRs `#51` (vier
+> Entscheidungen, siehe [docs/adr/](./adr/README.md)) und dem Root-README-Ausbau `#52` (Quickstarts aus
+> den Samples, Doku-Index, Paketseiten-Regeln – siehe
+> [NUGET-PACKAGING.md](./NUGET-PACKAGING.md#die-root-readme-ist-die-paketseite-52)).
 
 > Innerhalb von M3: `#37` (Connection-Profile) und `#38` (Dialog-CRUD-UI) zuerst, danach sind
 > `#39` Frage-Editor, `#40` Branching-Editor, `#41` Loop-Visualisierung und `#42` Trigger-Editor
