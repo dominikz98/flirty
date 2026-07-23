@@ -331,4 +331,20 @@ vergeben** – 0001 bleibt 0001, obwohl die Entscheidung chronologisch nach #13/
 Faustregel für neue ADRs: nur, wenn eine naheliegende Alternative bewusst ausgeschieden ist und die
 Entscheidung später teuer zu revidieren wäre – alles andere gehört in den Guide.
 
-**Offen:** Root-README-Quickstart (#52).
+**Root-README (#52) fertig** – und damit EPIC 10 und **M4** abgeschlossen. Die README war wie die
+Guides bei #50 inkrementell mitgewachsen; der Durchgang hat drei Defekte behoben. **Der wichtigste
+Befund:** `Directory.Build.targets` setzt `PackageReadmeFile` – die Root-README ist die
+**Beschreibungsseite beider NuGet-Pakete**, nicht nur die GitHub-Startseite. Auf nuget.org gibt es kein
+Repo-Wurzelverzeichnis, also liefen **alle 15** `](docs/…)`-Links dort ins Leere; sie sind jetzt absolut
+(`https://github.com/dominikz98/flirty/blob/main/…`), die Badge-Hosts (`img.shields.io`,
+`github.com/.../badge.svg`) standen ohnehin auf der Allowlist. Zweitens war das
+**Console-Quickstart-Snippet schlicht kaputt**: `new ServiceCollection()` + `o.ApplyMigrations()` – das
+registriert nur einen `IHostedService`, den ohne Generic Host niemand startet, die DB entstand nie
+(genau die Falle, vor der `GETTING-STARTED-Console.md` §1 warnt). Beide Quickstarts stammen jetzt aus
+den kompilierbaren Samples (`Flirty.Samples/Program.cs`, `Flirty.Samples.Web/WebSampleApp.cs`). Drittens
+fehlten der Designer-Start, die Admin-Endpunkte und 11 der 17 Guides im Doku-Index. Neu abgesichert:
+`tests/Flirty.Tests/Docs/PackageReadmeTests.cs` (README per `Content`-Copy im Testausgabeverzeichnis,
+Muster wie die wwwroot-Kopie in `Flirty.E2E`) prüft „keine relativen Ziele" und „Bilder nur von der
+nuget.org-Allowlist" – nötig, weil die Warnung dazu **nur der Paket-Eigentümer** sieht und sich erst mit
+der nächsten veröffentlichten Version korrigieren lässt. Die Regeln stehen in
+`docs/NUGET-PACKAGING.md` § *Die Root-README ist die Paketseite*.

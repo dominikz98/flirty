@@ -194,7 +194,11 @@ Doku ist **Definition-of-Done jedes Issues**:
   [0004 Expression-Engine](./adr/0004-gesandboxte-expression-engine.md). Abgrenzung: Guides
   beschreiben, **wie** etwas funktioniert, und wachsen mit dem Code; ADRs beschreiben, **warum** es so
   ist, und werden nicht fortgeschrieben (Nachtrag oder Ablösung statt Umschreiben).
-- Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein Doku-Drift).
+- Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein
+  Doku-Drift). Sie ist zugleich die **Paketseite beider NuGet-Pakete** (`PackageReadmeFile`) – daher nur
+  absolute Links und Bilder von der nuget.org-Allowlist, festgehalten in
+  [NUGET-PACKAGING.md](./NUGET-PACKAGING.md#die-root-readme-ist-die-paketseite-52) und abgesichert durch
+  `tests/Flirty.Tests/Docs/PackageReadmeTests.cs`.
 
 ## 13. Verifikation
 

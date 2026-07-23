@@ -34,6 +34,22 @@ Lizenzdatei: `LICENSE` (MIT) im Repo-Root. Bei `PackageLicenseExpression` genüg
 SPDX-Kennung; die Datei selbst wird nicht ins Paket gelegt. Icon: `icon.png` (128×128) im Root,
 gepackt als `icon.png`. README: die Root-`README.md`.
 
+### Die Root-README ist die Paketseite (#52)
+
+`PackageReadmeFile` macht die Root-`README.md` zur **Beschreibungsseite beider Pakete** auf nuget.org –
+sie ist damit nicht nur GitHub-Startseite. Dort gibt es kein Repo-Wurzelverzeichnis, also gelten zwei
+Regeln beim Bearbeiten:
+
+- **Nur absolute Links.** `](docs/RUNTIME.md)` löst auf nuget.org gegen die Paketseite auf und läuft ins
+  Leere. Repo-Inhalte deshalb als `https://github.com/dominikz98/flirty/blob/main/…` verlinken
+  (Anzeigetext bleibt der Repo-Pfad, damit die Datei auf GitHub weiter wie eine Repo-README liest).
+- **Bilder nur von freigegebenen Hosts.** nuget.org rendert Bilder/Badges ausschließlich von einer
+  [Allowlist](https://learn.microsoft.com/en-us/nuget/nuget-org/package-readme-on-nuget-org#allowed-domains-for-images-and-badges)
+  (u. a. `img.shields.io`, `github.com/.../workflows/.../badge.svg`); relative Bildpfade werden gar nicht
+  gerendert. Die Warnung darüber sieht **nur der Paket-Eigentümer**, und korrigieren lässt sie sich erst
+  mit der nächsten veröffentlichten Version – deshalb hält
+  `tests/Flirty.Tests/Docs/PackageReadmeTests.cs` beide Regeln als Test fest.
+
 ## Versionierung (datumsbasiert)
 
 Kein MinVer, keine Git-Tags. Die **NuGet-Paketversion** ist `JJJJMM.Revision`:

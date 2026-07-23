@@ -49,6 +49,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Root-README ins Testausgabeverzeichnis kopieren: PackageReadmeTests (#52) prüft daran die
+       nuget.org-Regeln (nur absolute Links, Bilder von freigegebenen Hosts) – die README wird über
+       PackageReadmeFile in beide Pakete gepackt. Muster wie die wwwroot-Kopie in Flirty.E2E. -->
+  <ItemGroup>
+    <Content Include="..\..\README.md" Link="README.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Core + die drei provider-getrennten Migrations-Assemblies (#19): Letztere liefern die
        InitialCreate-Migrationen, die die Tests via Database.Migrate() gegen jeden Provider anwenden. -->
   <ItemGroup>
