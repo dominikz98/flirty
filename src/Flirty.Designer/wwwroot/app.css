@@ -9,6 +9,28 @@ h1:focus {
     outline: none;
 }
 
+/* Navigationslinks der Kopfzeile. Sie stehen hier GLOBAL und nicht in NavMenu.razor.css, weil sie von
+   der Komponente <NavLink> gerendert werden: CSS-Isolation vergibt ihr Scope-Attribut nur an die
+   HTML-Elemente der eigenen Komponente, nicht an Kind-Komponenten. Scoped waren die Regeln deshalb
+   wirkungslos, und die Links liefen mit der blauen Browser-Standardfarbe auf dem dunklen Grund
+   (Kontrast 1,7:1 – WCAG AA verlangt 4,5:1). */
+.flirty-nav-link {
+    color: #cdd3ff;
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+    .flirty-nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .flirty-nav-link.active {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
 .intro {
     color: #444;
     margin-bottom: 1rem;

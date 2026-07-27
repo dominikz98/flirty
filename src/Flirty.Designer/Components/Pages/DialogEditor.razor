@@ -47,8 +47,23 @@ else
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
-            Dieser Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen
-            durch Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+            <p>
+                Dieser Dialog ist in Version @_detail.Dialog.Version veröffentlicht und deshalb
+                <strong>gesperrt</strong>: Fragen, Antwortoptionen, Übergänge, Schleifen, Trigger und die
+                Einstiegsfrage lassen sich nicht ändern. Laufende Sessions arbeiten auf dieser Version
+                weiter – eine Änderung würde sie brechen.
+            </p>
+            <p>
+                Zum Weiterentwickeln eine <strong>neue Version</strong> anlegen (Kopie als Entwurf; die
+                veröffentlichte Version bleibt unverändert) oder den Dialog <strong>zurückziehen</strong>
+                (dann startet ihn niemand mehr neu, laufende Sessions laufen zu Ende).
+                Name und Beschreibung bleiben auch hier änderbar.
+            </p>
+            <div class="actions">
+                <button class="btn btn-primary" disabled="@_busy" @onclick="CreateVersionAsync">
+                    Neue Version anlegen
+                </button>
+            </div>
         </div>
     }
 
@@ -86,7 +101,7 @@ else
             <div class="field">
                 <label for="startQuestion">Einstiegsfrage</label>
                 <InputSelect id="startQuestion" class="input" @bind-Value="_form.StartQuestionId"
-                             disabled="@(_detail.Questions.Count == 0)">
+                             disabled="@(_detail.Questions.Count == 0 || !Editable)">
                     <option value="">— keine —</option>
                     @foreach (var question in _detail.Questions)
                     {
@@ -154,24 +169,24 @@ else
                             <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
                             <td class="row-actions">
                                 <button class="btn" title="Nach oben"
-                                        disabled="@(_busy || position == 0)"
+                                        disabled="@(_busy || !Editable || position == 0)"
                                         @onclick="() => MoveQuestionAsync(position, position - 1)">↑</button>
                                 <button class="btn" title="Nach unten"
-                                        disabled="@(_busy || position == _detail.Questions.Count - 1)"
+                                        disabled="@(_busy || !Editable || position == _detail.Questions.Count - 1)"
                                         @onclick="() => MoveQuestionAsync(position, position + 1)">↓</button>
                                 <button class="btn" @onclick="() => OpenQuestion(question)">Bearbeiten</button>
 
                                 @if (_confirmDeleteQuestionId == question.Id)
                                 {
                                     <span class="confirm">Frage samt Optionen und Übergängen löschen?</span>
-                                    <button class="btn btn-danger" disabled="@_busy"
+                                    <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                             @onclick="() => DeleteQuestionAsync(question)">Ja, löschen</button>
                                     <button class="btn" disabled="@_busy"
                                             @onclick="() => _confirmDeleteQuestionId = null">Abbrechen</button>
                                 }
                                 else
                                 {
-                                    <button class="btn btn-danger" disabled="@_busy"
+                                    <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                             @onclick="() => _confirmDeleteQuestionId = question.Id">Löschen</button>
                                 }
                             </td>
@@ -184,7 +199,7 @@ else
         @if (_newQuestion is null)
         {
             <div class="actions">
-                <button class="btn btn-primary" disabled="@_busy" @onclick="StartCreateQuestion">Neue Frage</button>
+                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateQuestion">Neue Frage</button>
             </div>
         }
         else
@@ -255,7 +270,7 @@ else
                 <h3 class="group">
                     <span class="mono">@source.Key</span>
                     <span class="group-text">— @source.Text</span>
-                    <button class="btn" disabled="@_busy" @onclick="() => StartCreateTransition(source.Id)">
+                    <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => StartCreateTransition(source.Id)">
                         + Übergang
                     </button>
                 </h3>
@@ -307,24 +322,24 @@ else
                                     </td>
                                     <td class="row-actions">
                                         <button class="btn" title="Nach oben"
-                                                disabled="@(_busy || position == 0)"
+                                                disabled="@(_busy || !Editable || position == 0)"
                                                 @onclick="() => MoveTransitionAsync(source.Id, position, position - 1)">↑</button>
                                         <button class="btn" title="Nach unten"
-                                                disabled="@(_busy || position == outgoing.Count - 1)"
+                                                disabled="@(_busy || !Editable || position == outgoing.Count - 1)"
                                                 @onclick="() => MoveTransitionAsync(source.Id, position, position + 1)">↓</button>
                                         <button class="btn" @onclick="() => OpenTransition(transition)">Bearbeiten</button>
 
                                         @if (_confirmDeleteTransitionId == transition.Id)
                                         {
                                             <span class="confirm">Übergang löschen?</span>
-                                            <button class="btn btn-danger" disabled="@_busy"
+                                            <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                                     @onclick="() => DeleteTransitionAsync(transition)">Ja, löschen</button>
                                             <button class="btn" disabled="@_busy"
                                                     @onclick="() => _confirmDeleteTransitionId = null">Abbrechen</button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-danger" disabled="@_busy"
+                                            <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                                     @onclick="() => _confirmDeleteTransitionId = transition.Id">Löschen</button>
                                         }
                                     </td>
@@ -343,7 +358,7 @@ else
                     @foreach (var orphan in Orphans())
                     {
                         var stale = orphan;
-                        <button class="btn btn-danger" disabled="@_busy"
+                        <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                 @onclick="() => DeleteTransitionAsync(stale)">
                             @stale.Id löschen
                         </button>
@@ -354,7 +369,7 @@ else
             @if (_newTransition is null)
             {
                 <div class="actions">
-                    <button class="btn btn-primary" disabled="@_busy"
+                    <button class="btn btn-primary" disabled="@(_busy || !Editable)"
                             @onclick="() => StartCreateTransition(null)">Neuer Übergang</button>
                 </div>
             }
@@ -472,14 +487,14 @@ else
                                     @if (_confirmDeleteLoopId == loop.Id)
                                     {
                                         <span class="confirm">Marker löschen? Der Zyklus selbst bleibt bestehen.</span>
-                                        <button class="btn btn-danger" disabled="@_busy"
+                                        <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                                 @onclick="() => DeleteLoopAsync(loop)">Ja, löschen</button>
                                         <button class="btn" disabled="@_busy"
                                                 @onclick="() => _confirmDeleteLoopId = null">Abbrechen</button>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-danger" disabled="@_busy"
+                                        <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                                 @onclick="() => _confirmDeleteLoopId = loop.Id">Löschen</button>
                                     }
                                 </td>
@@ -497,7 +512,7 @@ else
                     @foreach (var candidate in UnmarkedBackJumps())
                     {
                         var backJump = candidate;
-                        <button class="btn" disabled="@_busy" @onclick="() => StartCreateLoop(backJump)">
+                        <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => StartCreateLoop(backJump)">
                             @QuestionLabel(backJump.FromQuestionId) → @QuestionLabel(backJump.TargetQuestionId)
                             als Schleife markieren
                         </button>
@@ -508,7 +523,7 @@ else
             @if (_newLoop is null)
             {
                 <div class="actions">
-                    <button class="btn btn-primary" disabled="@_busy"
+                    <button class="btn btn-primary" disabled="@(_busy || !Editable)"
                             @onclick="() => StartCreateLoop(null)">Neue Schleife</button>
                 </div>
             }
@@ -618,14 +633,14 @@ else
                                 @if (_confirmDeleteTriggerId == trigger.Id)
                                 {
                                     <span class="confirm">Trigger löschen?</span>
-                                    <button class="btn btn-danger" disabled="@_busy"
+                                    <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                             @onclick="() => DeleteTriggerAsync(trigger)">Ja, löschen</button>
                                     <button class="btn" disabled="@_busy"
                                             @onclick="() => _confirmDeleteTriggerId = null">Abbrechen</button>
                                 }
                                 else
                                 {
-                                    <button class="btn btn-danger" disabled="@_busy"
+                                    <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                             @onclick="() => _confirmDeleteTriggerId = trigger.Id">Löschen</button>
                                 }
                             </td>
@@ -638,7 +653,7 @@ else
         @if (_newTrigger is null)
         {
             <div class="actions">
-                <button class="btn btn-primary" disabled="@_busy" @onclick="StartCreateTrigger">Neuer Trigger</button>
+                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateTrigger">Neuer Trigger</button>
             </div>
         }
         else
@@ -772,6 +787,36 @@ else
                 Zum Veröffentlichen muss oben eine Einstiegsfrage gesetzt (und gespeichert) sein.
             </p>
         }
+
+        @if (_activeSessions > 0)
+        {
+            <div class="banner warn">
+                <p>
+                    Auf dieser Version laufen <strong>@_activeSessions Session(s)</strong>. Löschen ist
+                    deshalb gesperrt: Die Session-Zeilen überleben den Dialog, wären danach aber weder
+                    fortsetzbar noch lesbar. Beende sie zuerst – Antworten und Verlauf bleiben erhalten,
+                    nur der Status wechselt auf „abgebrochen".
+                </p>
+                <div class="actions">
+                    @if (_confirmAbandon)
+                    {
+                        <span class="confirm">@_activeSessions laufende Session(s) endgültig beenden?</span>
+                        <button class="btn btn-danger" disabled="@_busy" @onclick="AbandonSessionsAsync">
+                            Ja, beenden
+                        </button>
+                        <button class="btn" disabled="@_busy" @onclick="() => _confirmAbandon = false">
+                            Abbrechen
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn" disabled="@_busy" @onclick="() => _confirmAbandon = true">
+                            Laufende Sessions beenden
+                        </button>
+                    }
+                </div>
+            </div>
+        }
     </div>
 }
 
@@ -791,11 +836,21 @@ else
     private string? _message;
     private bool _busy;
     private bool _confirmDelete;
+    private bool _confirmAbandon;
+    private int _activeSessions;
     private Guid? _confirmDeleteQuestionId;
     private Guid? _confirmDeleteTransitionId;
     private Guid? _confirmDeleteLoopId;
     private Guid? _confirmDeleteTriggerId;
     private Guid _loadedId;
+
+    /// <summary>
+    /// Ob der Konfigurationsgraph bearbeitbar ist. Eine <b>veröffentlichte</b> Version ist gesperrt –
+    /// die Engine lehnt Graph-Änderungen daran mit einem Konflikt ab (<c>DialogPublishedException</c>),
+    /// damit laufende Sessions nicht brechen. Die Sperre spiegelt diese Regel in der Oberfläche, statt
+    /// den Anwender in die Fehlermeldung laufen zu lassen. Name und Beschreibung bleiben änderbar.
+    /// </summary>
+    private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -833,6 +888,19 @@ else
         _error = result.Error;
         _loops = _detail is null ? [] : LoopAnalyzer.Analyze(_detail);
 
+        // Laufende Sessions sperren das Löschen (DeleteDialogCommand) – die Zahl gehört an den
+        // Löschen-Abschnitt, damit sie vor dem Klick sichtbar ist und nicht erst als Fehlermeldung.
+        if (_detail is not null)
+        {
+            var sessions = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new CountActiveSessionsQuery(Id), token));
+            _activeSessions = sessions.Success ? sessions.Value : 0;
+        }
+        else
+        {
+            _activeSessions = 0;
+        }
+
         if (resetForm)
         {
             ResetForm();
@@ -866,6 +934,47 @@ else
     private async Task UnpublishAsync()
         => await RunAsync(
             (sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Veröffentlichung zurückgenommen.");
+
+    /// <summary>
+    /// Leitet eine neue Version aus dem angezeigten Dialog ab und wechselt in deren Editor. Der
+    /// Seitenwechsel ist Absicht: Ab hier arbeitet man am Entwurf, nicht mehr an der veröffentlichten
+    /// Version.
+    /// </summary>
+    /// <returns>Ein Task, der abgeschlossen ist, sobald die Version angelegt (oder der Fehler
+    /// angezeigt) wurde.</returns>
+    private async Task CreateVersionAsync()
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Admin.ExecuteAsync(
+                (sender, token) => sender.Send(new CreateDialogVersionCommand(Id), token));
+            if (!result.Success || result.Value is null)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            _error = null;
+            Navigation.NavigateTo($"dialogs/{result.Value.Dialog.Id}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Beendet die laufenden Sessions dieser Dialogversion (Status <c>Abandoned</c>).</summary>
+    /// <returns>Ein Task, der abgeschlossen ist, sobald die Sessions beendet wurden.</returns>
+    private async Task AbandonSessionsAsync()
+    {
+        _confirmAbandon = false;
+        var count = _activeSessions;
+        await RunAsync(
+            (sender, token) => sender.Send(new AbandonDialogSessionsCommand(Id), token),
+            $"{count} laufende Session(s) beendet.");
+    }
 
     /// <summary>
     /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Dialog neu (die

@@ -51,9 +51,13 @@ internal sealed class UpdateTriggerCommandHandler : ICommandHandler<UpdateTrigge
     /// <exception cref="ConfigurationNotFoundException">
     /// Kein Trigger mit der angegebenen Id im angegebenen Dialog existiert.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<TriggerDetail> Handle(UpdateTriggerCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var trigger = await _store.GetTriggerAsync(command.TriggerId, cancellationToken);
         if (trigger is null || trigger.DialogId != command.DialogId)

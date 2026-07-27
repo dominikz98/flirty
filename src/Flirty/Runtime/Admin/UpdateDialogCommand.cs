@@ -38,8 +38,13 @@ internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogC
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Der Schlüssel kollidiert mit einem anderen Dialog, oder die angegebene Einstiegsfrage gehört
-    /// nicht zu diesem Dialog.
+    /// Der Schlüssel kollidiert mit einer anderen Dialog-Familie, der Schlüssel einer mehrfach
+    /// versionierten Familie soll umbenannt werden, oder die angegebene Einstiegsfrage gehört nicht zu
+    /// diesem Dialog.
+    /// </exception>
+    /// <exception cref="DialogPublishedException">
+    /// Der Dialog ist veröffentlicht und die <b>Einstiegsfrage</b> soll geändert werden (der Rest der
+    /// Metadaten bleibt änderbar).
     /// </exception>
     public async ValueTask<DialogSummary> Handle(UpdateDialogCommand command, CancellationToken cancellationToken)
     {
@@ -48,10 +53,31 @@ internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogC
         var dialog = await _store.GetDialogAsync(command.Id, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.Id);
 
-        if (await _store.DialogKeyExistsAsync(command.Key, command.Id, cancellationToken))
+        // Die Einstiegsfrage ist Teil des Graphen – an einer veröffentlichten Version gesperrt.
+        // Name/Beschreibung bleiben bewusst änderbar (rein beschreibend, ohne Wirkung auf den Ablauf).
+        if (dialog.StartQuestionId != command.StartQuestionId)
         {
-            throw new InvalidOperationException(
-                $"Es existiert bereits ein anderer Dialog mit dem Schlüssel '{command.Key}'.");
+            DialogEditGuard.EnsureEditable(dialog);
+        }
+
+        // Der Schlüssel identifiziert die Dialog-Familie: alle Versionen teilen ihn. Deshalb ist er nur
+        // dann prüfpflichtig, wenn er sich tatsächlich ändert – sonst kollidierte jede Version mit ihren
+        // Geschwistern.
+        if (!string.Equals(command.Key, dialog.Key, StringComparison.Ordinal))
+        {
+            if (await _store.DialogKeyExistsAsync(command.Key, cancellationToken: cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Es existiert bereits ein anderer Dialog mit dem Schlüssel '{command.Key}'.");
+            }
+
+            if (await _store.DialogKeyExistsAsync(dialog.Key, dialog.Id, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"Der Schlüssel '{dialog.Key}' hat mehrere Versionen. Ein Umbenennen würde die "
+                  + "Versionsreihe zerreißen – benenne stattdessen alle Versionen um oder lege eine "
+                  + "neue Dialog-Familie an.");
+            }
         }
 
         if (command.StartQuestionId is Guid startQuestionId)

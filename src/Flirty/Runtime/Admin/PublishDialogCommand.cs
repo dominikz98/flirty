@@ -41,8 +41,20 @@ internal sealed class PublishDialogCommandHandler : ICommandHandler<PublishDialo
                 $"Der Dialog '{dialog.Key}' kann ohne Einstiegsfrage (StartQuestionId) nicht veröffentlicht werden.");
         }
 
+        var now = DateTimeOffset.UtcNow;
+
+        // Je Schlüssel ist höchstens eine Version produktiv: Das Veröffentlichen einer Version zieht die
+        // bisherige zurück. Ohne das trügen ältere Versionen weiter den Status „veröffentlicht", obwohl
+        // StartDialogAsync ohnehin nur die höchste veröffentlichte Version startet. Laufende Sessions der
+        // alten Version bleiben davon unberührt – sie hängen an ihrer Dialog-Id, nicht am Status.
+        foreach (var previous in await _store.GetPublishedVersionsAsync(dialog.Key, dialog.Id, cancellationToken))
+        {
+            previous.IsPublished = false;
+            previous.UpdatedAt = now;
+        }
+
         dialog.IsPublished = true;
-        dialog.UpdatedAt = DateTimeOffset.UtcNow;
+        dialog.UpdatedAt = now;
         await _store.SaveChangesAsync(cancellationToken);
 
         return AdminProjection.ToSummary(dialog);

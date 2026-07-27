@@ -39,13 +39,17 @@ internal sealed class CreateTransitionCommandHandler : ICommandHandler<CreateTra
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<TransitionDetail> Handle(
         CreateTransitionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        _ = await _store.GetDialogAsync(command.DialogId, cancellationToken)
+        var dialog = await _store.GetDialogAsync(command.DialogId, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.DialogId);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        DialogEditGuard.EnsureEditable(dialog);
 
         var transition = new Transition
         {

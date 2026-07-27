@@ -97,7 +97,26 @@ else
                         <button class="btn" disabled="@busy" @onclick="() => MigrateAsync(profile)">Migrieren</button>
                         <button class="btn" disabled="@(busy || profile.Id == _activeId)" @onclick="() => ActivateProfile(profile)">Aktivieren</button>
                         <button class="btn" disabled="@busy" @onclick="() => StartEdit(profile)">Bearbeiten</button>
-                        <button class="btn btn-danger" disabled="@busy" @onclick="() => DeleteProfile(profile)">Löschen</button>
+
+                        @* Zweistufig wie alle Löschaktionen des Designers (inline statt JS-confirm, das
+                           sonst die Playwright-E2E blockieren würde). Ein Profil ist nicht
+                           wiederherstellbar und kann Zugangsdaten enthalten. *@
+                        @if (_confirmDeleteId == profile.Id)
+                        {
+                            <span class="confirm">
+                                Profil „@profile.Name" löschen?
+                                @if (profile.Id == _activeId)
+                                {
+                                    <text>Es ist gerade aktiv – der Designer arbeitet danach gegen kein Profil mehr.</text>
+                                }
+                            </span>
+                            <button class="btn btn-danger" disabled="@busy" @onclick="() => DeleteProfile(profile)">Ja, löschen</button>
+                            <button class="btn" disabled="@busy" @onclick="() => _confirmDeleteId = null">Abbrechen</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-danger" disabled="@busy" @onclick="() => _confirmDeleteId = profile.Id">Löschen</button>
+                        }
                     </td>
                 </tr>
             }
@@ -111,6 +130,7 @@ else
     private bool _isNew;
     private string? _activeId;
     private string? _busyProfileId;
+    private string? _confirmDeleteId;
 
     private readonly Dictionary<string, string> _testResults = [];
     private readonly Dictionary<string, bool> _testSuccess = [];
@@ -153,9 +173,21 @@ else
 
     private void DeleteProfile(ConnectionProfile profile)
     {
+        var wasActive = profile.Id == _activeId;
+
         Store.Delete(profile.Id);
         _testResults.Remove(profile.Id);
         _migrateResults.Remove(profile.Id);
+        _confirmDeleteId = null;
+
+        // War es das aktive Profil, muss auch DIESER Circuit es loslassen: Store.Delete nimmt nur den
+        // Standard aus der Datei, ActiveConnectionProfile hält es sonst weiter und der Designer arbeitete
+        // gegen ein Profil, das in der Verwaltung nicht mehr existiert (erst ein Reload räumte das auf).
+        if (wasActive)
+        {
+            Active.Clear();
+        }
+
         Reload();
     }
 

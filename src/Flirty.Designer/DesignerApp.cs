@@ -1,3 +1,4 @@
+using System.Globalization;
 using Flirty.Designer.Components;
 using Flirty.Designer.Services;
 using Flirty.Persistence;
@@ -18,6 +19,15 @@ public static class DesignerApp
     public const string ConnectionProfilesFileName = "connection-profiles.json";
 
     /// <summary>
+    /// Kultur, in der der Designer Zahlen, Datum und Uhrzeit formatiert. Fest gesetzt, weil die
+    /// Oberfläche durchgängig deutsch ist: Ohne diese Festlegung folgt die Formatierung der Kultur des
+    /// Hosts, und auf einem englischen System stünde „7/27/2026 10:38 AM" mitten im deutschen Text.
+    /// Betrifft nur die <b>Anzeige</b> – die Antwortwerte kodiert <c>AnswerValueCodec</c> unabhängig davon
+    /// invariant.
+    /// </summary>
+    public const string DisplayCulture = "de-DE";
+
+    /// <summary>
     /// Verdrahtet alle Dienste des Designers: Blazor (server-interaktiv), die Flirty-Engine ohne fest
     /// verdrahteten Provider, die Connection-Profil-Verwaltung samt Kontext-Factory sowie die beiden
     /// Gateways und das Trigger-Protokoll des Test-Runners.
@@ -26,6 +36,13 @@ public static class DesignerApp
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        // Anzeige-Kultur des gesamten Werkzeugs festlegen (siehe DisplayCulture). Über die Default-Kultur
+        // des Prozesses statt über RequestLocalization: In Blazor Server läuft das Rendern im Circuit,
+        // nicht in einem HTTP-Request – eine Request-Middleware erreicht es gar nicht.
+        var culture = CultureInfo.GetCultureInfo(DisplayCulture);
+        CultureInfo.DefaultThreadCurrentCulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
 
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();

@@ -89,6 +89,40 @@ internal sealed class DialogAdminStore : IDialogAdminStore
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<int> GetMaxDialogVersionAsync(string key, CancellationToken cancellationToken = default)
+    {
+        // Über einen nullbaren Zwischentyp: MaxAsync würde bei leerer Menge werfen.
+        var versions = await _context.Dialogs
+            .AsNoTracking()
+            .Where(dialog => dialog.Key == key)
+            .Select(dialog => (int?)dialog.Version)
+            .MaxAsync(cancellationToken);
+
+        return versions ?? 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Dialog>> GetPublishedVersionsAsync(
+        string key, Guid excludeDialogId, CancellationToken cancellationToken = default)
+        => await _context.Dialogs
+            .Where(dialog => dialog.Key == key && dialog.IsPublished && dialog.Id != excludeDialogId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task<int> CountActiveSessionsAsync(Guid dialogId, CancellationToken cancellationToken = default)
+        => _context.DialogSessions
+            .CountAsync(
+                session => session.DialogId == dialogId && session.Status == SessionStatus.InProgress,
+                cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DialogSession>> GetActiveSessionsAsync(
+        Guid dialogId, CancellationToken cancellationToken = default)
+        => await _context.DialogSessions
+            .Where(session => session.DialogId == dialogId && session.Status == SessionStatus.InProgress)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<bool> DialogKeyExistsAsync(
         string key, Guid? excludeDialogId = null, CancellationToken cancellationToken = default)
         => _context.Dialogs

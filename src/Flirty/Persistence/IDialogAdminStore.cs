@@ -106,8 +106,54 @@ internal interface IDialogAdminStore
         Guid questionId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Prüft, ob bereits ein <b>anderer</b> Dialog mit dem fachlichen <paramref name="key"/> existiert
-    /// (Eindeutigkeit des Schlüssels; Versionierung ist in #36 nicht im Umfang).
+    /// Ermittelt die höchste vergebene Versionsnummer zum fachlichen <paramref name="key"/>. Grundlage
+    /// für <c>CreateDialogVersionCommand</c>, das die Folgeversion anlegt.
+    /// </summary>
+    /// <param name="key">Der fachliche Dialog-Schlüssel.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die höchste vergebene Version oder <c>0</c>, wenn der Schlüssel unbekannt ist.</returns>
+    Task<int> GetMaxDialogVersionAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt alle <b>veröffentlichten</b> Dialoge zum fachlichen <paramref name="key"/> außer
+    /// <paramref name="excludeDialogId"/> – <b>getrackt</b>. Grundlage dafür, dass
+    /// <c>PublishDialogCommand</c> die zuvor produktive Version zurückzieht: Je Schlüssel soll höchstens
+    /// eine Version veröffentlicht sein, sonst wäre nur die höchste startbar und die übrigen führten
+    /// einen irreführenden Status.
+    /// </summary>
+    /// <param name="key">Der fachliche Dialog-Schlüssel.</param>
+    /// <param name="excludeDialogId">Die Id der Version, die veröffentlicht wird (bleibt unberührt).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die getrackten, bislang veröffentlichten Geschwister-Versionen.</returns>
+    Task<IReadOnlyList<Dialog>> GetPublishedVersionsAsync(
+        string key, Guid excludeDialogId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Zählt die Sessions des Dialogs <paramref name="dialogId"/> mit Status
+    /// <see cref="SessionStatus.InProgress"/>. Grundlage für die Löschschranke in
+    /// <c>DeleteDialogCommand</c> – ein gelöschter Dialog macht seine Sessions unlesbar.
+    /// </summary>
+    /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die Anzahl laufender Sessions.</returns>
+    Task<int> CountActiveSessionsAsync(Guid dialogId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt die laufenden Sessions (<see cref="SessionStatus.InProgress"/>) des Dialogs
+    /// <paramref name="dialogId"/> <b>getrackt</b>. Grundlage für
+    /// <c>AbandonDialogSessionsCommand</c>, das sie gesammelt auf
+    /// <see cref="SessionStatus.Abandoned"/> setzt.
+    /// </summary>
+    /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die getrackten laufenden Sessions (leere Liste, wenn keine existieren).</returns>
+    Task<IReadOnlyList<DialogSession>> GetActiveSessionsAsync(
+        Guid dialogId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Prüft, ob bereits ein <b>anderer</b> Dialog mit dem fachlichen <paramref name="key"/> existiert.
+    /// Wird für Anlegen und Metadaten-Update genutzt; die <b>Versionierung</b> umgeht die Prüfung
+    /// bewusst, weil mehrere Versionen denselben Schlüssel teilen (Unique-Index <c>(Key, Version)</c>).
     /// </summary>
     /// <param name="key">Der zu prüfende fachliche Dialog-Schlüssel.</param>
     /// <param name="excludeDialogId">Optional die Id des Dialogs, der bei der Prüfung ausgeklammert wird (Update).</param>

@@ -23,6 +23,8 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
     /// <list type="bullet">
     /// <item><description><c>POST/GET {prefix}/dialogs</c>, <c>GET/PUT/DELETE {prefix}/dialogs/{id}</c> – Dialoge verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{id}/publish</c> bzw. <c>/unpublish</c> – Veröffentlichung steuern.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{id}/versions</c> – neue Version als Entwurf aus dieser ableiten.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{id}/abandon-sessions</c> – laufende Sessions dieser Version beenden.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/questions</c>, <c>PUT/DELETE .../questions/{questionId}</c> – Fragen verwalten.</description></item>
     /// <item><description><c>POST .../questions/{questionId}/options</c>, <c>PUT/DELETE .../options/{optionId}</c> – Antwortoptionen verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – Übergänge verwalten.</description></item>
@@ -123,6 +125,23 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             Guid id, ISender sender, CancellationToken cancellationToken) =>
         {
             var result = await sender.Send(new UnpublishDialogCommand(id), cancellationToken);
+            return TypedResults.Ok(result.ToResponse());
+        });
+
+        // Neue Version aus einer bestehenden ableiten: der vorgesehene Weg, einen veröffentlichten
+        // Dialog weiterzuentwickeln, ohne laufende Sessions zu brechen.
+        group.MapPost("/dialogs/{id:guid}/versions", async (
+            Guid id, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new CreateDialogVersionCommand(id), cancellationToken);
+            var response = result.ToResponse();
+            return TypedResults.Created($"{prefix}/dialogs/{response.Id}", response);
+        });
+
+        group.MapPost("/dialogs/{id:guid}/abandon-sessions", async (
+            Guid id, ISender sender, CancellationToken cancellationToken) =>
+        {
+            var result = await sender.Send(new AbandonDialogSessionsCommand(id), cancellationToken);
             return TypedResults.Ok(result.ToResponse());
         });
     }

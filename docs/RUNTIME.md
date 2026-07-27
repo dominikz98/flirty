@@ -104,10 +104,26 @@ Der Handler nutzt ausschließlich `IDialogStore`:
 ### Versions-Pinning
 
 `FindActiveSessionAsync` filtert auf die exakte `dialog.Id` – also die **aktuell veröffentlichte**
-Version. Resume gilt damit nur innerhalb dieser Version: Wird zwischen zwei Aufrufen eine neue
-Dialogversion veröffentlicht, findet der zweite Aufruf die auf die alte Version gepinnte Session
-nicht und startet eine neue Session auf der neuen Version. Eine bereits laufende Session bleibt an
-ihre `DialogVersion` gebunden und wird durch spätere Dialog-Änderungen nicht gebrochen.
+Version. Resume gilt damit nur innerhalb dieser Version: Wird eine neue Dialogversion veröffentlicht,
+findet der nächste Start-Aufruf die auf die alte Version gepinnte Session nicht und beginnt eine neue
+Session auf der neuen Version. Eine bereits laufende Session bleibt an **ihre** Version gebunden und
+läuft dort zu Ende – Submit/Resume/Edit laden ihren Graphen über die gepinnte `DialogId`.
+
+Damit diese Zusage hält, sind zwei Regeln im Admin-CRUD nötig (beide seit
+[ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md)):
+
+1. **Eine veröffentlichte Version ist unveränderlich.** Jede Änderung an ihrem Graphen (Fragen,
+   Antwortoptionen, Übergänge, Schleifen-Marker, Trigger, Einstiegsfrage) wird mit
+   `DialogPublishedException` → **409** abgelehnt. Sonst schlüge sie sofort in die laufenden Sessions
+   durch: Sie pinnen die Version, laden aber dieselbe Zeile, die das CRUD verändert.
+2. **Weiterentwickelt wird über eine neue Version** – `CreateDialogVersionCommand` klont den Graphen als
+   Entwurf mit der nächsten Versionsnummer. `PublishDialogCommand` zieht die bisher produktive Version
+   desselben Schlüssels dabei zurück, sodass je Schlüssel höchstens eine Version veröffentlicht ist.
+
+> **Was die Zusage nicht abdeckt:** Wird eine Version **gelöscht**, während Sessions darauf laufen,
+> fehlt ihnen ihr Graph – jeder Zugriff endet im Konflikt. Deshalb lehnt `DeleteDialogCommand` das
+> Löschen ab, solange Sessions mit `InProgress` existieren, und
+> `AbandonDialogSessionsCommand` beendet sie auf Wunsch vorher (Status `Abandoned`, Antworten bleiben).
 
 ### Fehlerfälle
 

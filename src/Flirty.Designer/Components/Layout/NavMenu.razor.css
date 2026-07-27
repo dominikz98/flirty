@@ -1,3 +1,8 @@
+/* Die Navigationsleiste selbst (echte HTML-Elemente dieser Komponente) darf isoliert gestylt werden.
+   Die <NavLink>-Regeln liegen dagegen GLOBAL in wwwroot/app.css: CSS-Isolation gibt ihr Scope-Attribut
+   (b-…) nicht an Kind-Komponenten weiter, deshalb greift ".flirty-nav-link[b-…]" auf dem von NavLink
+   gerenderten <a> nie – die Links behielten die blaue Browser-Standardfarbe auf dunklem Grund
+   (Kontrast 1,7:1). */
 .flirty-nav {
     display: flex;
     align-items: center;
@@ -17,21 +22,4 @@
 .flirty-nav-links {
     display: flex;
     gap: 1rem;
-}
-
-.flirty-nav-link {
-    color: #cdd3ff;
-    text-decoration: none;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-}
-
-.flirty-nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #fff;
-}
-
-.flirty-nav-link.active {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: #fff;
 }
