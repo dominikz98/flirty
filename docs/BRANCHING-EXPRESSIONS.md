@@ -161,6 +161,15 @@ Verhalten:
 - Ein `null`er/leerer Ausdruck gilt als **gültig** („bedingungslos zutreffend", konsistent zur Runtime).
 - `Validate` **wirft nie** für einen fehlerhaften Ausdruck – Fehler landen im Ergebnis. Einzige Ausnahme:
   ein `null`er Kontext (`ArgumentNullException`).
+- Meldungen kommen bis auf **einen** Fall unverändert von DynamicExpresso (samt Position – „Unbekannter
+  Bezeichner 'xy' (an Stelle 0)" sagt dem Dialog-Autor genau das Richtige). Ausgetauscht wird nur die
+  Meldung zum **Reflexions-Zugriff**: Die Bibliothek rät dort dazu, Reflection per
+  `Interpreter.EnableReflection()` einzuschalten – ein Hinweis an den Einbettenden der Bibliothek, nicht
+  an den Anwender im Designer, und genau der Sandbox-Entscheidung entgegengesetzt (#97). Erkannt wird der
+  Fall am Ausnahmetyp `ReflectionNotAllowedException`, nicht am (lokalisierten) Meldungstext. Wo die
+  Grenze der Bibliothek liegt: Sie greift bei Membern, die selbst wieder ein reflexives Objekt liefern
+  (`.Assembly`, `MethodInfo` …); ein blankes `GetType()` bzw. `GetType().Name` läuft durch – daraus lässt
+  sich kein Code ausführen, es bleibt beim Typnamen.
 
 ```csharp
 // Designer beim Speichern:

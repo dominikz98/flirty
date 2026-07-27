@@ -112,9 +112,13 @@ else
                 {
                     <span class="hint">Erst unten eine Frage anlegen – dann lässt sich hier die Einstiegsfrage wählen.</span>
                 }
-                else
+                else if (_form.StartQuestionId is null)
                 {
                     <span class="hint">Ohne Einstiegsfrage lässt sich der Dialog nicht veröffentlichen.</span>
+                }
+                else
+                {
+                    <span class="hint">Hier beginnt jede Session dieses Dialogs.</span>
                 }
             </div>
 
@@ -760,11 +764,19 @@ else
             {
                 <button class="btn" disabled="@_busy" @onclick="UnpublishAsync">Zurückziehen</button>
             }
+            else if (_confirmPublish)
+            {
+                <span class="confirm">Trotz der Warnungen veröffentlichen?</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="PublishAsync">
+                    Ja, veröffentlichen
+                </button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmPublish = false">Abbrechen</button>
+            }
             else
             {
                 <button class="btn btn-primary"
                         disabled="@(_busy || _detail.Dialog.StartQuestionId is null)"
-                        @onclick="PublishAsync">
+                        @onclick="StartPublish">
                     Veröffentlichen
                 </button>
             }
@@ -786,6 +798,27 @@ else
             <p class="hint">
                 Zum Veröffentlichen muss oben eine Einstiegsfrage gesetzt (und gespeichert) sein.
             </p>
+        }
+
+        @{
+            var openWarnings = GraphWarnings();
+        }
+        @if (!_detail.Dialog.IsPublished && openWarnings.Count > 0)
+        {
+            <div class="banner warn">
+                <p>
+                    Der Graph hat offene Warnungen. Sie sind hier wiederholt, weil eine veröffentlichte
+                    Version <strong>gesperrt</strong> ist: Was jetzt durchrutscht, lässt sich erst über eine
+                    neue Version oder ein Zurückziehen heilen – während laufende Sessions bereits in den
+                    Fehler laufen.
+                </p>
+                <ul>
+                    @foreach (var warning in openWarnings)
+                    {
+                        <li>@warning</li>
+                    }
+                </ul>
+            </div>
         }
 
         @if (_activeSessions > 0)
@@ -837,6 +870,7 @@ else
     private bool _busy;
     private bool _confirmDelete;
     private bool _confirmAbandon;
+    private bool _confirmPublish;
     private int _activeSessions;
     private Guid? _confirmDeleteQuestionId;
     private Guid? _confirmDeleteTransitionId;
@@ -862,6 +896,7 @@ else
         _loadedId = Id;
         _message = null;
         _confirmDelete = false;
+        _confirmPublish = false;
         _confirmDeleteQuestionId = null;
         _confirmDeleteTransitionId = null;
         _confirmDeleteLoopId = null;
@@ -928,8 +963,49 @@ else
                 new UpdateDialogCommand(Id, _form.Key, _form.Name, _form.Description, _form.StartQuestionId), token),
             "Änderungen gespeichert.");
 
+    /// <summary>
+    /// Sammelt die Übergangs-Warnungen des gesamten Graphen (dieselben Regeln wie je Ausgangsfrage in
+    /// <see cref="GroupWarnings"/>), jeweils mit dem Schlüssel der Ausgangsfrage davor.
+    /// </summary>
+    /// <returns>Die offenen Warnungen; leer, wenn der Graph stimmig ist.</returns>
+    private IReadOnlyList<string> GraphWarnings()
+    {
+        if (_detail is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. from question in _detail.Questions
+               let outgoing = Outgoing(question.Id)
+               where outgoing.Count > 0
+               from warning in GroupWarnings(outgoing)
+               select $"{question.Key}: {warning}"
+        ];
+    }
+
+    /// <summary>
+    /// Startet das Veröffentlichen. Bei offenen Graph-Warnungen wird erst rückgefragt – veröffentlicht
+    /// ist der Graph gesperrt, ein übersehener Konfigurationsfehler kostet dann eine neue Version.
+    /// </summary>
+    /// <returns>Ein Task, der abgeschlossen ist, sobald veröffentlicht (oder rückgefragt) wurde.</returns>
+    private async Task StartPublish()
+    {
+        if (GraphWarnings().Count > 0)
+        {
+            _confirmPublish = true;
+            return;
+        }
+
+        await PublishAsync();
+    }
+
     private async Task PublishAsync()
-        => await RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
+    {
+        _confirmPublish = false;
+        await RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
+    }
 
     private async Task UnpublishAsync()
         => await RunAsync(

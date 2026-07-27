@@ -120,6 +120,14 @@ HTTP-Endpunkte an und hält keinen Server-Zustand:
 > bei `Boolean` kippte die Antwort still auf „Nein". Deshalb bekommt der Edit-Pfad dieselben Controls und
 > das Feld wird mit dem **rohen** Wert vorbelegt (`decodeRaw`, nicht `decodeForDisplay`).
 
+> **Ein Request zur Zeit.** Für die Dauer eines Submits bzw. Edits setzt `setBusy(true)` die
+> **✏️**-Schaltflächen aller Antwortblasen auf `disabled` – die Eingabezeile ist beim Absenden ohnehin
+> geleert. Ohne diese Sperre konnte ein schnell geklickter Edit die noch fliegende Antwort überholen: Der
+> Server kannte die letzte Antwort dann noch nicht, verwarf beim Edit eine Antwort zu wenig und lehnte den
+> nachlaufenden Submit mit `409` („ist nicht die aktuell offene Frage") ab. Die Daten blieben dabei
+> konsistent – die Anzeige aber nicht plausibel. Aufgefallen ist das an einem darauf reagierenden
+> E2E-Test (#97).
+
 ## 4. Trigger: Handler + Webhook-Empfänger
 
 - **In-Process-Handler:** [`DemoDialogCompletedHandler`](../src/Flirty.Samples.Web/DemoDialogCompletedHandler.cs)

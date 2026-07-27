@@ -22,6 +22,7 @@ const state = {
     userKey: null,
     sessionId: null,
     questionsById: new Map(), // questionId -> { key, text, type, options }
+    busy: false,              // solange ein Antwort-Request läuft: keine weitere Eingabe annehmen
 };
 
 // ---------- HTTP-Helfer ----------
@@ -113,9 +114,21 @@ function renderAnswerBubble(answer, question) {
     const bubble = addMessage("msg--user",
         `<span class="msg__key">${answer.questionKey}${iter}</span>${value}` +
         `<button class="msg__edit" title="Antwort editieren">✏️</button>`);
-    bubble.querySelector(".msg__edit").addEventListener("click",
-        () => startEditing(answer, question, label));
+    const edit = bubble.querySelector(".msg__edit");
+    edit.disabled = state.busy;
+    edit.addEventListener("click", () => startEditing(answer, question, label));
     return bubble;
+}
+
+// Sperrt bzw. entsperrt die Editier-Schaltflächen für die Dauer eines Requests. Die Eingabezeile wird
+// beim Absenden ohnehin geleert; die Stifte der Antwortblasen blieben ohne das hier klickbar, und ein
+// Edit konnte die noch fliegende Antwort überholen: Der Server verwarf dann zu wenig (er kannte die
+// letzte Antwort noch nicht) und lehnte den nachlaufenden Submit mit 409 ab.
+function setBusy(value) {
+    state.busy = value;
+    for (const button of dom.chatLog.querySelectorAll(".msg__edit")) {
+        button.disabled = value;
+    }
 }
 
 // Baut die Eingabesteuerung zu einer Frage in die Eingabezeile: Auswahl-Buttons bei SingleChoice/Boolean,
@@ -222,14 +235,18 @@ async function refreshAndRender(statusText) {
 
 async function submitAnswer(question, rawInput) {
     // Eingabesteuerung sofort entfernen: verhindert Doppel-Submit und (im Test) das Treffen des
-    // veralteten Feldes, während der Netzwerk-Roundtrip + Re-Render noch laufen.
+    // veralteten Feldes, während der Netzwerk-Roundtrip + Re-Render noch laufen. setBusy sperrt
+    // zusätzlich die Editier-Stifte – sonst überholt ein Edit die noch fliegende Antwort.
     dom.inputArea.replaceChildren();
+    setBusy(true);
     setStatus("Sende …");
     try {
         const value = encodeAnswer(question.type, rawInput);
         const result = await http("POST", `/flirty/sessions/${state.sessionId}/answers`, { questionId: question.id, value });
+        setBusy(false);
         await refreshAndRender(result.isCompleted ? "Dialog abgeschlossen – Trigger ausgelöst." : "");
     } catch (err) {
+        setBusy(false);
         setStatus("Fehler: " + err.message);
     }
 }
@@ -253,14 +270,17 @@ function startEditing(answer, question, label) {
         onSubmit: async rawInput => {
             const value = encodeAnswer(type, rawInput);
             dom.inputArea.replaceChildren();
+            setBusy(true);
             setStatus("Speichere …");
             try {
                 const body = { value };
                 // Innerhalb einer Schleife trägt jede Iteration eine eigene Antwort -> gezielt editieren.
                 if (answer.iterationIndex != null) body.iterationIndex = answer.iterationIndex;
                 const result = await http("PUT", `/flirty/sessions/${state.sessionId}/answers/${answer.questionId}`, body);
+                setBusy(false);
                 await refreshAndRender(`Antwort editiert – ${result.invalidatedAnswers} nachgelagerte Antwort(en) verworfen.`);
             } catch (err) {
+                setBusy(false);
                 setStatus("Fehler: " + err.message);
             }
         },

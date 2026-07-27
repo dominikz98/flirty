@@ -5,6 +5,14 @@
    bleibt nur echt Seitenspezifisches.
    -------------------------------------------------------------------------------------------- */
 
+/* Schriftfamilie für die gesamte Oberfläche. Ohne diese Regel rendert der Designer in der
+   Browser-Standardschrift (auf Windows: Times New Roman) – dieselbe Stack-Angabe nutzt die Chat-UI
+   des Web-Samples (src/Flirty.Samples.Web/wwwroot/styles.css). Steht hier global, weil die
+   CSS-Isolation der Layout-Komponenten <body> nicht erreicht. */
+body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
 h1:focus {
     outline: none;
 }

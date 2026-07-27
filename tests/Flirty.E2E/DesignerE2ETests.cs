@@ -14,7 +14,7 @@ namespace Flirty.E2E;
 /// <remarks>
 /// Der aufgebaute Graph spiegelt bewusst <c>DesignerTestHost.ArrangeLoopDialogAsync</c> aus
 /// <c>tests/Flirty.Tests</c>: <c>position</c> → <c>more</c>, bei <c>more == "yes"</c> zurück auf
-/// <c>position</c>, sonst weiter auf <c>summary</c>; Schleife <c>positions</c>. So beschreiben
+/// <c>position</c>, sonst weiter auf <c>summary</c>; Schleife <c>position_liste</c>. So beschreiben
 /// Service-Tests und E2E denselben Dialog – nur einmal über die Commands, einmal durch die UI.
 /// </remarks>
 public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
@@ -67,7 +67,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
         // Die Schleife trägt das Badge „Schleife" statt „n Warnung(en)": der LoopAnalyzer findet also
         // einen erreichbaren Ausstieg – der Zyklus ist keine Endlosschleife.
-        var loopRow = Section(page, "Schleifen (Loops)").Locator("tbody tr").Filter(new() { HasText = "positions" });
+        var loopRow = Section(page, "Schleifen (Loops)").Locator("tbody tr").Filter(new() { HasText = "position_liste" });
         await Assertions.Expect(loopRow.Locator(".badge")).ToHaveTextAsync("Schleife", SlowText);
     }
 
@@ -105,7 +105,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(page.Locator(".transcript")).ToContainTextAsync("Iteration 2", SlowContains);
 
         // … und der Ausdruckskontext zeigt beide Werte unter dem Collection-Schlüssel.
-        var collection = Section(page, "Ausdruckskontext").Locator("tbody tr").Filter(new() { HasText = "positions" });
+        var collection = Section(page, "Ausdruckskontext").Locator("tbody tr").Filter(new() { HasText = "position_liste" });
         await Assertions.Expect(collection).ToContainTextAsync("Backend", SlowContains);
         await Assertions.Expect(collection).ToContainTextAsync("Frontend", SlowContains);
     }
@@ -286,7 +286,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             () => Assertions.Expect(page.Locator("#loopKey")).ToBeVisibleAsync(QuickVisible));
 
         // Der Collection-Schlüssel ist aus dem Rücksprung vorbelegt (LoopFormModel.SuggestCollectionKey).
-        await Assertions.Expect(page.Locator("#loopKey")).ToHaveValueAsync("positions", new() { Timeout = 15_000 });
+        await Assertions.Expect(page.Locator("#loopKey")).ToHaveValueAsync("position_liste", new() { Timeout = 15_000 });
 
         await loops.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
         await Assertions.Expect(loops.Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);

@@ -35,6 +35,15 @@ public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
     private const InterpreterOptions SandboxOptions =
         InterpreterOptions.PrimitiveTypes | InterpreterOptions.SystemKeywords;
 
+    /// <summary>
+    /// Meldung für einen Reflexions-Zugriff (<c>x.GetType()</c>, <c>…Assembly</c>). Ersetzt die Meldung
+    /// von DynamicExpresso, die zum Aktivieren von Reflection rät – das ist hier bewusst ausgeschlossen.
+    /// </summary>
+    private const string ReflectionNotAllowedMessage =
+        "Zugriffe auf Typen und Reflexion (z. B. GetType()) sind in Bedingungen nicht erlaubt. "
+        + "Verfügbar sind nur die Antworten des Dialogs, die Schleifen-Sammlungen sowie now, "
+        + "iterationIndex und session.";
+
     /// <inheritdoc/>
     /// <exception cref="ArgumentException"><paramref name="expression"/> ist <see langword="null"/>, leer oder nur Leerraum.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="context"/> ist <see langword="null"/>.</exception>
@@ -53,6 +62,16 @@ public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
         try
         {
             return interpreter.Eval<bool>(expression);
+        }
+        catch (ReflectionNotAllowedException ex)
+        {
+            // Dieselbe eigene Meldung wie in Validate – der Ausdruck kann auch ohne Designer (direkt über
+            // das Admin-API) in die Datenbank gelangen und schlägt dann erst hier auf.
+            throw new ExpressionEvaluationException(
+                expression,
+                $"Der Bedingungsausdruck '{expression}' konnte nicht ausgewertet werden: "
+                + ReflectionNotAllowedMessage,
+                ex);
         }
         catch (Exception ex) when (ex is not ExpressionEvaluationException)
         {
@@ -87,10 +106,18 @@ public sealed class DynamicExpressoExpressionEvaluator : IExpressionEvaluator
                 : ExpressionValidationResult.Invalid(
                     $"Der Ausdruck ergibt kein boolesches Ergebnis (Typ: {lambda.ReturnType.Name}).");
         }
+        catch (ReflectionNotAllowedException ex)
+        {
+            // Eigene Meldung statt der durchgereichten Bibliotheks-Meldung: DynamicExpresso rät dort zu
+            // `Interpreter.EnableReflection()` – ein Hinweis an den Einbettenden der Bibliothek, nicht an
+            // den Dialog-Autor, der den Ausdruck im Designer tippt. Genau dieses Aktivieren ist bewusst
+            // ausgeschlossen (ADR 0004), der Rat also irreführend.
+            return ExpressionValidationResult.Invalid(ReflectionNotAllowedMessage, ex.Position);
+        }
         catch (ParseException ex)
         {
-            // Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen (Reflection/nicht gewhitelistete
-            // Typen), deaktivierte Zuweisung – alle mit gemeldeter Position.
+            // Syntaxfehler, unbekannte Bezeichner, nicht gewhitelistete Typen, deaktivierte Zuweisung –
+            // alle mit gemeldeter Position und mit einer Meldung, die dem Dialog-Autor etwas sagt.
             return ExpressionValidationResult.Invalid(ex.Message, ex.Position);
         }
         catch (Exception ex)

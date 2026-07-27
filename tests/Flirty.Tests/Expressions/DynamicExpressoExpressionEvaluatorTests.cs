@@ -240,6 +240,41 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
         Assert.NotNull(result.Error);
     }
 
+    /// <summary>
+    /// Ein Reflexions-Zugriff wird nicht nur abgelehnt, sondern auch verständlich begründet: DynamicExpresso
+    /// rät in seiner eigenen Meldung dazu, Reflection per <c>Interpreter.EnableReflection()</c>
+    /// einzuschalten – ein Hinweis an den Einbettenden der Bibliothek, nicht an den Dialog-Autor im
+    /// Designer, und der Sandbox-Entscheidung (ADR 0004) entgegengesetzt.
+    /// </summary>
+    /// <remarks>
+    /// Wo die Grenze der Bibliothek verläuft: Sie greift bei Membern, die selbst wieder ein reflexives
+    /// Objekt liefern (<c>Assembly</c>, <c>MethodInfo</c> …). Ein blankes <c>GetType()</c> und
+    /// <c>GetType().Name</c> (ein String) laufen durch – daraus lässt sich kein Code ausführen, es bleibt
+    /// beim Typnamen.
+    /// </remarks>
+    [Theory]
+    [InlineData("\"x\".GetType().Assembly != null")]
+    [InlineData("session.GetType().Assembly != null")]
+    public void Validate_Reflexion_meldet_eigene_Begruendung_ohne_EnableReflection_Rat(string expression)
+    {
+        var result = Evaluator.Validate(expression, Context());
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Reflexion", result.Error!, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnableReflection", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Dieselbe Meldung greift auch zur Laufzeit – ein Ausdruck kann am Designer vorbei entstehen.</summary>
+    [Fact]
+    public void Evaluate_Reflexion_meldet_eigene_Begruendung_ohne_EnableReflection_Rat()
+    {
+        var exception = Assert.Throws<ExpressionEvaluationException>(
+            () => Evaluator.Evaluate("session.GetType().Assembly != null", Context()));
+
+        Assert.Contains("Reflexion", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnableReflection", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Validate_unbekannter_Bezeichner_ist_ungueltig_mit_Position()
     {

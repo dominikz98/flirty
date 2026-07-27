@@ -137,6 +137,11 @@ Regeln, die die UI sichtbar macht:
 - Ein neuer Dialog entsteht als **Entwurf** (`Version = 1`, `IsPublished = false`, ohne Einstiegsfrage).
 - **Veröffentlichen** ist deaktiviert, solange keine Einstiegsfrage gesetzt *und gespeichert* ist –
   `PublishDialogCommand` würde sonst mit `InvalidOperationException` abbrechen.
+- Hat der Graph **offene Übergangs-Warnungen** (dieselben Regeln wie je Ausgangsfrage, gesammelt in
+  `GraphWarnings`), wiederholt der Abschnitt „Veröffentlichung & Löschen" sie und fragt vor dem
+  Veröffentlichen zurück. Grund: Veröffentlicht ist der Graph gesperrt – ein durchgerutschter
+  Konfigurationsfehler (etwa ein bedingter Übergang ohne Default) kostet dann eine neue Version, während
+  laufende Sessions bereits in den 409 der Laufzeit laufen (#97).
 - Ein **veröffentlichter** Dialog ist gesperrt: Die Editoren für Fragen, Übergänge, Schleifen, Trigger
   und die Einstiegsfrage sind deaktiviert, ein Banner nennt die beiden Auswege (neue Version anlegen
   oder zurückziehen). Name und Beschreibung bleiben änderbar. Details unten unter
@@ -394,9 +399,11 @@ Breaking Question stehen ihre Übergänge getrennt als **↩ Rücksprung** (Ziel
 Rücksprung-Übergänge ohne passenden Marker listet der Dialog-Editor als Hinweis auf – ohne Marker
 **überschreibt** die Laufzeit die Antworten des Zyklus, statt sie je Iteration zu sammeln. Ein Klick öffnet
 das Anlege-Formular vorbelegt: Einstiegsfrage = Ziel des Rücksprungs, Breaking Question = dessen
-Ausgangsfrage, `CollectionKey` = Plural des Frage-Schlüssels (`skill` → `skills`). Kollidiert der Vorschlag
-mit einem vorhandenen Frage-/Collection-Schlüssel oder ist er kein gültiger Bezeichner, bleibt das Feld
-leer – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein leeres Pflichtfeld.
+Ausgangsfrage, `CollectionKey` = Frage-Schlüssel plus `_liste` (`skill` → `skill_liste`, `belag` →
+`belag_liste`). Bewusst **keine** Pluralbildung mit angehängtem „s": Die passt nur zu englischen
+Schlüsseln und erzeugt in einem deutschsprachigen Dialog Wortmüll wie `belags` (#97). Kollidiert der
+Vorschlag mit einem vorhandenen Frage-/Collection-Schlüssel oder ist er kein gültiger Bezeichner, bleibt
+das Feld leer – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein leeres Pflichtfeld.
 
 ## Trigger-Editor (#42)
 
