@@ -40,10 +40,14 @@ internal sealed class UpdateTransitionCommandHandler : ICommandHandler<UpdateTra
     /// <exception cref="ConfigurationNotFoundException">
     /// Kein Übergang mit der angegebenen Id im angegebenen Dialog existiert.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<TransitionDetail> Handle(
         UpdateTransitionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var transition = await _store.GetTransitionAsync(command.TransitionId, cancellationToken);
         if (transition is null || transition.DialogId != command.DialogId)

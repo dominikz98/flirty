@@ -35,7 +35,10 @@ public sealed class DialogSession
     /// <summary>Zeitpunkt des Starts der Session.</summary>
     public DateTimeOffset StartedAt { get; set; }
 
-    /// <summary>Zeitpunkt des Abschlusses der Session oder <see langword="null"/>, solange sie läuft.</summary>
+    /// <summary>
+    /// Zeitpunkt, an dem die Session endete – abgeschlossen (<see cref="SessionStatus.Completed"/>) oder
+    /// abgebrochen (<see cref="SessionStatus.Abandoned"/>) – oder <see langword="null"/>, solange sie läuft.
+    /// </summary>
     public DateTimeOffset? CompletedAt { get; set; }
 
     /// <summary>Die im Verlauf der Session gegebenen Antworten.</summary>

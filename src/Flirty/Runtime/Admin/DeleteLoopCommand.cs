@@ -30,9 +30,13 @@ internal sealed class DeleteLoopCommandHandler : ICommandHandler<DeleteLoopComma
     /// <exception cref="ConfigurationNotFoundException">
     /// Keine Schleife mit der angegebenen Id im angegebenen Dialog existiert.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<Unit> Handle(DeleteLoopCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var loop = await _store.GetLoopAsync(command.LoopId, cancellationToken);
         if (loop is null || loop.DialogId != command.DialogId)

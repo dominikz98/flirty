@@ -22,10 +22,14 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 - Mehrfach-Verweise auf dieselbe Entity: `Transition.FromQuestionId`/`TargetQuestionId`,
   `LoopDefinition.EntryQuestionId`/`BreakingQuestionId`, `TriggerDefinition.QuestionId`,
   `Dialog.StartQuestionId`, `DialogSession.CurrentQuestionId`.
-- **Runtime → Konfiguration**: `DialogSession.DialogId` und `SessionAnswer.QuestionId`. Sessions
-  pinnen über `DialogVersion` die Dialogversion und bleiben dadurch vom editierbaren
-  Konfigurationsgraphen entkoppelt (ARCHITECTURE.md §11.4) – so brechen spätere Dialogänderungen
-  keine laufenden Sessions.
+- **Runtime → Konfiguration**: `DialogSession.DialogId` und `SessionAnswer.QuestionId`. Sessions pinnen
+  über `DialogId`/`DialogVersion` genau die Version, auf der sie gestartet sind, und laufen dort zu Ende
+  (ARCHITECTURE.md §11.4). Getragen wird das durch die Unveränderlichkeit veröffentlichter Versionen:
+  Änderungen am Graphen sind dort gesperrt, weiterentwickelt wird über eine **neue Version**
+  (`CreateDialogVersionCommand`) – siehe [RUNTIME.md § Versions-Pinning](./RUNTIME.md#versions-pinning)
+  und [ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md). Ein **Löschen** der
+  Version bricht ihre Sessions dagegen weiterhin; deshalb lehnt `DeleteDialogCommand` es ab, solange
+  Sessions laufen.
 
 ## Enums
 

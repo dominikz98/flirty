@@ -180,8 +180,10 @@ und werden über `GET {prefix}/dialogs/{id}` (kompletter Graph) gelesen.
 | `GET /flirty/admin/dialogs` | Dialoge auflisten (Metadaten) | `200 OK`, `DialogResponse[]` |
 | `GET /flirty/admin/dialogs/{id}` | Dialog samt Graph lesen | `200 OK`, `DialogDetailResponse` |
 | `PUT /flirty/admin/dialogs/{id}` | Metadaten/`StartQuestionId` ändern | `200 OK`, `DialogResponse` |
-| `DELETE /flirty/admin/dialogs/{id}` | Dialog + Graph löschen | `204 No Content` |
+| `DELETE /flirty/admin/dialogs/{id}` | Dialog + Graph löschen (nur ohne laufende Sessions) | `204 No Content` |
 | `POST /flirty/admin/dialogs/{id}/publish` \| `/unpublish` | Veröffentlichung steuern | `200 OK`, `DialogResponse` |
+| `POST /flirty/admin/dialogs/{id}/versions` | neue Version als Entwurf ableiten (Klon) | `201 Created` + `Location`, `DialogDetailResponse` |
+| `POST /flirty/admin/dialogs/{id}/abandon-sessions` | laufende Sessions dieser Version beenden | `200 OK`, `AbandonSessionsResponse` |
 | `POST /flirty/admin/dialogs/{dialogId}/questions` | Frage anlegen | `201 Created`, `QuestionResponse` |
 | `PUT` \| `DELETE .../questions/{questionId}` | Frage ändern/löschen | `200 OK` \| `204 No Content` |
 | `POST .../questions/{questionId}/options` | Option anlegen | `201 Created`, `AnswerOptionResponse` |
@@ -245,6 +247,9 @@ Zusätzlich zum obigen Mapping gelten für das Admin-CRUD:
 | Unbekannte Dialog-/Frage-/Options-/Übergang-/Schleifen-/Trigger-Id (oder Kind fremd zum Eltern) | `ConfigurationNotFoundException` | `404 Not Found` |
 | Doppelter Schlüssel (`Key` je Dialog / `(DialogId,Key)` / `(QuestionId,Key)` / `CollectionKey` je Dialog) | `InvalidOperationException` | `409 Conflict` |
 | Veröffentlichen ohne gesetzte Einstiegsfrage | `InvalidOperationException` | `409 Conflict` |
+| Graph-Änderung an einer **veröffentlichten** Version (Frage/Option/Übergang/Schleife/Trigger/Einstiegsfrage) | `DialogPublishedException` | `409 Conflict` |
+| Löschen einer Version mit laufenden Sessions | `InvalidOperationException` | `409 Conflict` |
+| Schlüssel umbenennen, obwohl mehrere Versionen existieren | `InvalidOperationException` | `409 Conflict` |
 | Fehlendes Pflichtfeld (`[Required]`) | `ValidationException` | `400 Bad Request` |
 | Trigger: `AfterQuestion` ohne `questionId` – oder `questionId` bei einem anderen Zeitpunkt | `ValidationException` | `400 Bad Request` |
 | Trigger: kaputtes `config`-JSON bzw. `Kind = Webhook` ohne absolute `http`/`https`-URL | `ValidationException` | `400 Bad Request` |
@@ -253,13 +258,27 @@ Die beiden Trigger-Zeilen sind **Querfeld-Regeln** (`Runtime/Admin/TriggerValida
 `IValidatableObject`): Sie prüfen die **Anfrage**, nicht den Datenbankzustand, und laufen deshalb im
 Validierungs-Behavior schon vor dem Handler.
 
-> **Hinweise / bewusste Grenzen:** Anlegen erzeugt stets `Version = 1` je Schlüssel; Editieren erfolgt
-> In-Place (publizierte Dialoge vor Änderungen entpublishen). Die Frage-Verweise von `Transition`
+> **Hinweise / bewusste Grenzen:** `POST /dialogs` erzeugt stets `Version = 1`; Folgeversionen entstehen
+> ausschließlich über `POST /dialogs/{id}/versions`. Am **Entwurf** wird In-Place editiert, eine
+> **veröffentlichte** Version ist gesperrt (siehe Fehler-Mapping oben und
+> [ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md)) – Name und Beschreibung
+> bleiben davon ausgenommen. Die Frage-Verweise von `Transition`
 > (`FromQuestionId`/`TargetQuestionId`), `LoopDefinition` (`EntryQuestionId`/`BreakingQuestionId`) und
 > `TriggerDefinition` (`QuestionId`) sind – dem FK-losen Domänenmodell entsprechend – rohe Verweise ohne
 > Existenzprüfung; das Löschen einer Frage bereinigt jedoch verweisende Übergänge, Schleifen-Marker
-> **und** Trigger und setzt eine darauf zeigende `StartQuestionId` zurück. Versionierung/Copy-on-Write
-> ist nicht Teil dieses Endpunkt-Sets.
+> **und** Trigger und setzt eine darauf zeigende `StartQuestionId` zurück.
+
+### Eine produktive Version weiterentwickeln
+
+```http
+POST /flirty/admin/dialogs/{id}/versions      -> 201, Kopie als Entwurf (Version n+1)
+… Änderungen am Entwurf über die üblichen CRUD-Routen …
+POST /flirty/admin/dialogs/{copyId}/publish   -> 200, zieht Version n automatisch zurück
+```
+
+Laufende Sessions bleiben dabei auf ihrer Version und laufen dort zu Ende; neue Sessions starten auf der
+neu veröffentlichten. Soll eine Version **gelöscht** werden, müssen ihre Sessions beendet sein –
+`POST /dialogs/{id}/abandon-sessions` setzt sie auf `Abandoned` (Antworten bleiben erhalten).
 
 ## Verifikation
 

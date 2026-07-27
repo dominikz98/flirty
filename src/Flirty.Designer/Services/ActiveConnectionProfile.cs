@@ -58,4 +58,19 @@ internal sealed class ActiveConnectionProfile
         _current = profile;
         _initialized = true;
     }
+
+    /// <summary>
+    /// Gibt das aktive Profil in <b>diesem</b> Scope frei – gedacht für das Löschen des aktiven Profils.
+    /// Ohne diesen Schritt hielte der Circuit das gelöschte Profil weiter und die Admin-Operationen
+    /// liefen gegen eine Verbindung, die in der Verwaltung nicht mehr existiert.
+    /// </summary>
+    /// <remarks>
+    /// Setzt bewusst <c>_initialized</c>, damit <see cref="Current"/> nicht erneut den (inzwischen
+    /// entfernten) Store-Default liest, sondern <see langword="null"/> bleibt.
+    /// </remarks>
+    public void Clear()
+    {
+        _current = null;
+        _initialized = true;
+    }
 }

@@ -73,3 +73,11 @@ public sealed record DialogDetailResponse(
     IReadOnlyList<TransitionResponse> Transitions,
     IReadOnlyList<LoopResponse> Loops,
     IReadOnlyList<TriggerResponse> Triggers);
+
+/// <summary>
+/// Antwort auf <c>POST {prefix}/dialogs/{id}/abandon-sessions</c>: Anzahl der Sessions, die von
+/// laufend auf abgebrochen gesetzt wurden.
+/// </summary>
+/// <param name="DialogId">Die Dialogversion, deren Sessions beendet wurden.</param>
+/// <param name="AbandonedSessions">Die Anzahl der beendeten Sessions (<c>0</c>, wenn keine lief).</param>
+public sealed record AbandonSessionsResponse(Guid DialogId, int AbandonedSessions);

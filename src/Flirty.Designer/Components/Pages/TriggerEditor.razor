@@ -45,8 +45,10 @@ else
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
-            Der Dialog ist veröffentlicht. Laufende Sessions pinnen ihre Dialog-Version und brechen durch
-            Änderungen nicht – trotzdem empfiehlt es sich, ihn vor dem Bearbeiten zurückzuziehen.
+            Der Dialog ist in Version @_detail.Dialog.Version veröffentlicht: Sein Graph ist <strong>gesperrt</strong>,
+            damit laufende Sessions nicht brechen. Zum Ändern im
+            <a href="@($"dialogs/{DialogId}")">Dialog-Editor</a> eine neue Version anlegen oder den Dialog
+            zurückziehen.
         </div>
     }
 
@@ -308,8 +310,8 @@ else
         </div>
 
         <div class="actions">
-            <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
-            <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Speichern</button>
+            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Zurücksetzen</button>
         </div>
     </EditForm>
 
@@ -324,12 +326,12 @@ else
             @if (_confirmDelete)
             {
                 <span class="confirm">Trigger wirklich löschen?</span>
-                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
-                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Ja, löschen</button>
+                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Abbrechen</button>
             }
             else
             {
-                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Löschen</button>
             }
         </div>
     </div>
@@ -344,6 +346,12 @@ else
     [Parameter]
     public Guid TriggerId { get; set; }
 
+    /// <summary>
+    /// Ob der Graph bearbeitbar ist: an einer veröffentlichten Version lehnt die Engine
+    /// Graph-Änderungen mit einem Konflikt ab (<c>DialogPublishedException</c>), damit laufende Sessions
+    /// nicht brechen. Die Sperre spiegelt das in der Oberfläche.
+    /// </summary>
+    private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
     private DialogDetail? _detail;
     private TriggerDetail? _trigger;
     private TriggerFormModel _form = new();

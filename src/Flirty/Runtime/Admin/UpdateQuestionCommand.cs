@@ -46,9 +46,13 @@ internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuest
     /// Keine Frage mit der angegebenen Id im angegebenen Dialog existiert.
     /// </exception>
     /// <exception cref="InvalidOperationException">Im Dialog existiert bereits eine andere Frage mit diesem Schlüssel.</exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<QuestionDetail> Handle(UpdateQuestionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);
         if (question is null || question.DialogId != command.DialogId)

@@ -41,12 +41,16 @@ internal sealed class CreateLoopCommandHandler : ICommandHandler<CreateLoopComma
     /// <exception cref="InvalidOperationException">
     /// Im Dialog existiert bereits eine Schleife mit diesem Collection-Schlüssel.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<LoopDetail> Handle(CreateLoopCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        _ = await _store.GetDialogAsync(command.DialogId, cancellationToken)
+        var dialog = await _store.GetDialogAsync(command.DialogId, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.DialogId);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        DialogEditGuard.EnsureEditable(dialog);
 
         if (await _store.LoopCollectionKeyExistsAsync(
                 command.DialogId, command.CollectionKey, cancellationToken: cancellationToken))

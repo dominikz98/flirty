@@ -41,9 +41,13 @@ internal sealed class UpdateLoopCommandHandler : ICommandHandler<UpdateLoopComma
     /// <exception cref="InvalidOperationException">
     /// Im Dialog existiert bereits eine andere Schleife mit diesem Collection-Schlüssel.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<LoopDetail> Handle(UpdateLoopCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var loop = await _store.GetLoopAsync(command.LoopId, cancellationToken);
         if (loop is null || loop.DialogId != command.DialogId)

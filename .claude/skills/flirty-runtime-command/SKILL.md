@@ -59,6 +59,18 @@ in derselben Compilation entdeckt. Referenz: `docs/RUNTIME.md`, `docs/MEDIATOR.m
 
 6. **Endpunkt** (optional, nur wenn HTTP nötig): siehe Abschnitt unten.
 
+> **Ändert der Command den Konfigurationsgraphen eines Dialogs** (Fragen, Antwortoptionen, Übergänge,
+> Schleifen-Marker, Trigger, Einstiegsfrage)? Dann gehört als **erste** Vorbedingung im Handler
+> ```csharp
+> await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
+> ```
+> hinein – bzw. `DialogEditGuard.EnsureEditable(dialog)`, wenn der Dialog schon geladen ist. Eine
+> veröffentlichte Version ist unveränderlich, weil laufende Sessions ihren Graphen aus derselben Zeile
+> laden (ADR `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`). Der Guard steht **vor**
+> dem Auflösen der Kind-Elemente, damit die verständliche Konflikt-Meldung gewinnt und nicht ein
+> Not-Found aus einer Folgeprüfung. Im Test: der Fall „veröffentlicht → `DialogPublishedException`"
+> gehört dazu (Muster: `tests/Flirty.Tests/Runtime/DialogVersioningTests.cs`).
+
 ## Optionaler ASP.NET-Endpunkt (`Flirty.AspNetCore`)
 
 - Request-/Response-**DTO** in `src/Flirty.AspNetCore/Dtos/` (Admin: `Dtos/Admin/`).

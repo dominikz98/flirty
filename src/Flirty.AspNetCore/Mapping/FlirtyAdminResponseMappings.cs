@@ -38,6 +38,9 @@ internal static class FlirtyAdminResponseMappings
             [.. detail.Loops.Select(loop => loop.ToResponse())],
             [.. detail.Triggers.Select(trigger => trigger.ToResponse())]);
 
+    public static AbandonSessionsResponse ToResponse(this AbandonSessionsResult result)
+        => new(result.DialogId, result.AbandonedSessions);
+
     public static QuestionResponse ToResponse(this QuestionDetail question)
         => new(
             question.Id,

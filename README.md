@@ -23,6 +23,7 @@ Console-, Worker- und Web-Anwendungen. HTTP-Endpunkte sind opt-in über das Zusa
 | Loops (Liste bis zur Abbruchfrage) | Branching-Zyklus + Schleifen-Marker, Iterationen als Collection im Kontext |
 | Trigger nach Antwort / Abschluss | In-Process-Notifications (Mediator) **und** Outbound-Webhooks |
 | Antwort-Validierung | Typprüfung + `ValidationRules` je Frage, vor dem Handler in der Pipeline |
+| Dialog-Versionierung | Veröffentlichte Versionen sind unveränderlich; Änderungen laufen über eine neue Version, laufende Sessions bleiben auf ihrer |
 | Multi-DB + Auto-Migration | SQLite / PostgreSQL / SQL Server, Migrationen pro Provider |
 | Einfache Integration | `services.AddFlirty(o => …)`, optional `app.MapFlirtyEndpoints()` |
 
@@ -176,7 +177,7 @@ Resume nach Reload, das Editieren einzelner Antworten sowie ausgelöste Trigger 
 - NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
 - CI-Pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
 - Roadmap / Backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
-- Entscheidungen (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – warum Mediator, warum ASP.NET-freier Core, warum eine gesandboxte Expression-Engine, warum Migrationen pro Provider
+- Entscheidungen (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – warum Mediator, warum ASP.NET-freier Core, warum eine gesandboxte Expression-Engine, warum Migrationen pro Provider, warum veröffentlichte Dialogversionen unveränderlich sind
 
 ## Build & Test
 

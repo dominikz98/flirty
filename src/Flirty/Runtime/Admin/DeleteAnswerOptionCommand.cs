@@ -30,9 +30,13 @@ internal sealed class DeleteAnswerOptionCommandHandler : ICommandHandler<DeleteA
     /// <exception cref="ConfigurationNotFoundException">
     /// Die Frage (im Dialog) oder die Option (in der Frage) existiert nicht.
     /// </exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<Unit> Handle(DeleteAnswerOptionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);
         if (question is null || question.DialogId != command.DialogId)

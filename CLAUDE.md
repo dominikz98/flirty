@@ -82,8 +82,13 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   `WebhookNotificationHandler`. `Kind = InProcess` stellt bewusst nichts zu (die Host-App hängt ihren
   `INotificationHandler<T>` rein). Alles dort ist **best-effort**: Konfigurations-, Ausdrucks- und
   Zustellfehler werden geloggt, nie geworfen – ein Trigger darf Start/Submit/Edit nicht brechen.
-- **Dialog-Versionierung:** Sessions pinnen `DialogVersion`/`DialogId` → das Editieren publizierter
-  Dialoge bricht laufende Sessions nicht.
+- **Dialog-Versionierung:** Sessions pinnen `DialogVersion`/`DialogId`. Damit das trägt, ist eine
+  **veröffentlichte** Version unveränderlich: Graph-Änderungen (Fragen, Optionen, Übergänge, Loops,
+  Trigger, Einstiegsfrage) werfen `DialogPublishedException` → 409 (`DialogEditGuard` als erste
+  Vorbedingung der 15 Graph-Commands). Weiterentwickelt wird über `CreateDialogVersionCommand` (Klon als
+  Entwurf, `Version`+1); `PublishDialogCommand` zieht die bisher produktive Version zurück. Gelöscht
+  wird nur ohne laufende Sessions (`AbandonDialogSessionsCommand` beendet sie vorher). Grund: ADR
+  `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`.
 
 ## Zentrale Einstiegspunkte (mit Pfaden)
 
@@ -181,7 +186,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0004 |
+| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0005 |
 
 ## Stand & offene Baustellen
 
@@ -330,6 +335,28 @@ vergeben** – 0001 bleibt 0001, obwohl die Entscheidung chronologisch nach #13/
 `docs/PERSISTENCE.md` und `.claude/skills/flirty-ef-migration/SKILL.md` auf den Dateinamen zeigen.
 Faustregel für neue ADRs: nur, wenn eine naheliegende Alternative bewusst ausgeschieden ist und die
 Entscheidung später teuer zu revidieren wäre – alles andere gehört in den Guide.
+
+**Abnahme-Befunde (#95) behoben** – ein manueller Durchgang durch die laufende Anwendung (Build, Tests,
+Console-Sample, Web-Sample über HTTP und im Browser, Designer per Playwright) hat acht Befunde ergeben.
+Der gravierende: **Die Dialog-Versionierung gab es nur auf dem Papier.** `Version` wurde nur beim
+Anlegen gesetzt, ein zweiter Dialog mit gleichem `Key` wurde abgelehnt – es gab also **keinen Weg zu
+einer zweiten Version**, und weil die Laufzeit den Graphen einer Session über die `DialogId` aus
+derselben Zeile lädt, die das Admin-CRUD ändert, brach das Löschen der offenen Frage eines
+veröffentlichten Dialogs die laufende Session (Resume **und** Submit → 409). Genau das Gegenteil stand
+in vier Guides und hier. Umgesetzt ist jetzt die Zusage (ADR 0005): veröffentlichte Versionen sind
+gesperrt (`DialogEditGuard` in allen 15 Graph-Commands, `UpdateDialogCommand` nur für die
+Einstiegsfrage – Name/Beschreibung bleiben frei), `CreateDialogVersionCommand` +
+`POST .../dialogs/{id}/versions` klont den Graphen als Entwurf mit `Version`+1 (alle Frage-Verweise
+umgeschrieben), `PublishDialogCommand` zieht die Vorgängerversion zurück, und `DeleteDialogCommand`
+verweigert das Löschen bei laufenden Sessions (`AbandonDialogSessionsCommand` +
+`POST .../abandon-sessions` beendet sie). Kernprobe als Test: eine Session läuft auf Version 1 zu Ende,
+während Version 2 abgeleitet, geändert und veröffentlicht wird. Die übrigen Befunde waren UI-seitig:
+Navigationslinks mit Kontrast **1,7:1** (Ursache: CSS-Isolation reicht ihr Scope-Attribut **nicht** an
+Kind-Komponenten wie `<NavLink>` weiter – die Regeln liegen jetzt global in `wwwroot/app.css`),
+veraltete Startseite („Editoren folgen in späteren Ausbaustufen" – sie sind seit #43 alle da), englische
+404-Seite, Connection-Profil-Löschen ohne Rückfrage, ein gelöschtes **aktives** Profil, das im Circuit
+weiterlebte (`ActiveConnectionProfile.Clear()`), und Datumsformate in der Host-Kultur mitten in
+deutschem Text (`DesignerApp.DisplayCulture = "de-DE"`).
 
 **Root-README (#52) fertig** – und damit EPIC 10 und **M4** abgeschlossen. Die README war wie die
 Guides bei #50 inkrementell mitgewachsen; der Durchgang hat drei Defekte behoben. **Der wichtigste

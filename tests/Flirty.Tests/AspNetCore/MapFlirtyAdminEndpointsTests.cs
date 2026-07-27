@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Flirty.AspNetCore.Dtos;
 using Flirty.AspNetCore.Dtos.Admin;
 using Flirty.Domain;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Flirty.Tests.AspNetCore;
 
@@ -497,6 +498,92 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.False(unpublished!.IsPublished);
     }
 
+    // ---- Versionierung ----
+
+    /// <summary>
+    /// Am veröffentlichten Dialog liefern Graph-Änderungen <c>409</c> – die Meldung nennt den Ausweg.
+    /// </summary>
+    [Fact]
+    public async Task Graph_Aenderung_am_veroeffentlichten_Dialog_liefert_409()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var (dialog, question) = await CreatePublishedDialogAsync(host, "locked");
+
+        var created = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions",
+            new CreateQuestionRequest("weitere", "Weitere?", QuestionType.FreeText, 1, false, null));
+        Assert.Equal(HttpStatusCode.Conflict, created.StatusCode);
+
+        var deleted = await host.Client.DeleteAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, deleted.StatusCode);
+
+        var problem = await created.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Contains("neue Version", problem!.Detail);
+    }
+
+    /// <summary>
+    /// <c>POST .../versions</c> liefert die Kopie als Entwurf mit der nächsten Versionsnummer – und die
+    /// ist wieder bearbeitbar.
+    /// </summary>
+    [Fact]
+    public async Task Versions_legt_eine_bearbeitbare_Folgeversion_an()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var (dialog, _) = await CreatePublishedDialogAsync(host, "versioned");
+
+        var response = await host.Client.PostAsync($"/flirty/admin/dialogs/{dialog.Id}/versions", content: null);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var copy = await response.Content.ReadFromJsonAsync<DialogDetailResponse>();
+        Assert.NotNull(copy);
+        Assert.Equal("versioned", copy.Key);
+        Assert.Equal(2, copy.Version);
+        Assert.False(copy.IsPublished);
+        Assert.NotEqual(dialog.Id, copy.Id);
+        Assert.Single(copy.Questions);
+
+        // Der Entwurf lässt sich ändern, die veröffentlichte Version bleibt gesperrt.
+        var added = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{copy.Id}/questions",
+            new CreateQuestionRequest("weitere", "Weitere?", QuestionType.FreeText, 1, false, null));
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+    }
+
+    /// <summary>
+    /// Löschen mit laufender Session liefert <c>409</c>; nach <c>abandon-sessions</c> greift es. Die
+    /// Session bleibt danach als abgebrochene Zeile erhalten.
+    /// </summary>
+    [Fact]
+    public async Task Delete_mit_laufender_Session_liefert_409_und_greift_nach_dem_Abbruch()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var (dialog, _) = await CreatePublishedDialogAsync(host, "busy");
+
+        var start = await host.Client.PostAsJsonAsync(
+            "/flirty/sessions", new StartSessionRequest("busy", "user-1"));
+        start.EnsureSuccessStatusCode();
+        var session = await start.Content.ReadFromJsonAsync<StartSessionResponse>();
+
+        var blocked = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+        var problem = await blocked.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Contains("1 Session(s)", problem!.Detail);
+
+        var abandon = await host.Client.PostAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/abandon-sessions", content: null);
+        Assert.Equal(HttpStatusCode.OK, abandon.StatusCode);
+        var abandoned = await abandon.Content.ReadFromJsonAsync<AbandonSessionsResponse>();
+        Assert.Equal(1, abandoned!.AbandonedSessions);
+
+        // Die abgebrochene Session ist weiterhin lesbar (nur nicht mehr fortsetzbar).
+        var state = await host.Client.GetAsync($"/flirty/sessions/{session!.SessionId}");
+        Assert.Equal(HttpStatusCode.OK, state.StatusCode);
+
+        var deleted = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+    }
+
     // ---- End-to-End ----
 
     /// <summary>
@@ -571,6 +658,23 @@ public sealed class MapFlirtyAdminEndpointsTests
             new CreateTransitionRequest(fromQuestionId, targetQuestionId, null, 0, isDefault));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TransitionResponse>())!;
+    }
+
+    /// <summary>
+    /// Legt einen veröffentlichten Dialog mit genau einer (terminalen) Frage an – Ausgangspunkt der
+    /// Versionierungs-Tests.
+    /// </summary>
+    private static async Task<(DialogResponse Dialog, QuestionResponse Question)> CreatePublishedDialogAsync(
+        FlirtyTestHost host, string key)
+    {
+        var dialog = await CreateDialogAsync(host, key);
+        var question = await CreateQuestionAsync(host, dialog.Id, "start", QuestionType.FreeText, 0);
+        await SetStartQuestionAsync(host, dialog, question.Id);
+
+        var publish = await host.Client.PostAsync($"/flirty/admin/dialogs/{dialog.Id}/publish", content: null);
+        publish.EnsureSuccessStatusCode();
+
+        return (dialog, question);
     }
 
     private static async Task SetStartQuestionAsync(FlirtyTestHost host, DialogResponse dialog, Guid startQuestionId)

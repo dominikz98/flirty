@@ -32,7 +32,11 @@ Auf der Seite **Verbindungen** (`/connections`) lassen sich Profile:
 - **migrieren** („Migrieren" → wendet ausstehende Migrationen via `Database.MigrateAsync()` an und meldet,
   welche angewendet wurden),
 - **aktivieren** – das aktive Profil bestimmt, gegen welche Datenbank der Designer (und ab #38 die
-  Admin-Commands) arbeitet.
+  Admin-Commands) arbeitet,
+- **löschen** – zweistufig inline bestätigt, wie alle Löschaktionen des Designers. Wird das **aktive**
+  Profil gelöscht, gibt `ActiveConnectionProfile.Clear()` es auch im laufenden Circuit frei; ohne diesen
+  Schritt arbeitete der Designer bis zum nächsten vollständigen Reload gegen ein Profil weiter, das in
+  der Verwaltung nicht mehr existiert.
 
 > **SQLite-Hinweis:** „Testen" meldet erst dann Erfolg, wenn die Datei existiert. Bei einem frischen
 > SQLite-Profil daher zuerst **migrieren** (legt die Datei + Schema an), dann testen.
@@ -133,8 +137,10 @@ Regeln, die die UI sichtbar macht:
 - Ein neuer Dialog entsteht als **Entwurf** (`Version = 1`, `IsPublished = false`, ohne Einstiegsfrage).
 - **Veröffentlichen** ist deaktiviert, solange keine Einstiegsfrage gesetzt *und gespeichert* ist –
   `PublishDialogCommand` würde sonst mit `InvalidOperationException` abbrechen.
-- Bei einem veröffentlichten Dialog weist ein Hinweis darauf hin, ihn vor dem Bearbeiten
-  zurückzuziehen (laufende Sessions pinnen ihre `DialogVersion` und brechen nicht).
+- Ein **veröffentlichter** Dialog ist gesperrt: Die Editoren für Fragen, Übergänge, Schleifen, Trigger
+  und die Einstiegsfrage sind deaktiviert, ein Banner nennt die beiden Auswege (neue Version anlegen
+  oder zurückziehen). Name und Beschreibung bleiben änderbar. Details unten unter
+  [Versionierung](#versionierung-95).
 - **Löschen** fragt zweistufig **inline** nach (kein JS-`confirm`, das sonst die Playwright-E2E aus #46
   blockieren würde) und entfernt den gesamten Graphen per DB-Cascade.
 - Die Auswahl der Einstiegsfrage listet die Fragen aus `GetDialogQuery`. Solange es keine gibt, ist sie
@@ -160,6 +166,33 @@ Das Gateway liefert ein `AdminResult<T>` (`Success` / `Value` / `Error`) statt A
 Fehler eine Meldung erzeugt und nicht den Circuit killt. Das Mapping spiegelt den
 `FlirtyExceptionEndpointFilter` aus `Flirty.AspNetCore` (Not-Found → Validierung → Konflikt) und ergänzt
 Datenbankfehler um den Hinweis, das aktive Profil zu **migrieren** (typisch bei frischer SQLite-Datei).
+
+## Versionierung (#95)
+
+Eine **veröffentlichte** Dialogversion ist unveränderlich – die Engine lehnt Graph-Änderungen daran mit
+`DialogPublishedException` (→ 409) ab, damit laufende Sessions nicht brechen (Begründung und verworfene
+Alternativen: [ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md), Mechanik:
+[RUNTIME.md § Versions-Pinning](./RUNTIME.md#versions-pinning)). Der Designer spiegelt diese Regel,
+statt den Anwender in die Fehlermeldung laufen zu lassen:
+
+- Jede Seite kennt eine Eigenschaft `Editable` (`_detail is not null && !_detail.Dialog.IsPublished`).
+  Daran hängen die Mutations-Schaltflächen aller Graph-Abschnitte – Anlegen, Sortieren (↑/↓), Löschen,
+  Speichern in den Detail-Editoren sowie die Auswahl der Einstiegsfrage. **Ansehen bleibt möglich:**
+  „Bearbeiten" navigiert weiterhin in die Detailseiten, dort ist nur das Speichern gesperrt.
+- Der Banner am veröffentlichten Dialog nennt die beiden Wege und bietet **„Neue Version anlegen"** an
+  (`CreateDialogVersionCommand`): Das klont den Graphen als Entwurf mit der nächsten Versionsnummer und
+  wechselt direkt in dessen Editor. Ab da arbeitet man am Entwurf – der Seitenwechsel ist Absicht.
+- **Veröffentlichen** der neuen Version zieht die bisher produktive zurück (je Schlüssel ist höchstens
+  eine Version veröffentlicht). In der Dialogliste stehen die Versionen als eigene Zeilen, sortiert nach
+  Schlüssel und Version.
+- Der **Löschen**-Abschnitt zeigt die Anzahl laufender Sessions (`CountActiveSessionsQuery`) und bietet
+  „Laufende Sessions beenden" an (`AbandonDialogSessionsCommand`, Status `Abandoned`, Antworten bleiben).
+  Ohne diesen Schritt lehnt die Engine das Löschen ab, weil die Sessions es überlebten und danach weder
+  fortsetzbar noch lesbar wären.
+
+> **Der Test-Runner ist davon nicht betroffen:** Er startet über `StartDialogVersionAsync` eine konkrete
+> Version – auch einen Entwurf. Genau dafür gibt es ihn (#43): eine neue Version durchspielen, *bevor*
+> sie veröffentlicht wird.
 
 ## Frage-Editor (#39)
 
@@ -520,6 +553,15 @@ Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
   noch Seitenspezifisches. Neue Editor-Seiten nutzen diese Klassen, statt sie zu duplizieren.
 - UI-Texte und Doku **deutsch**. Der Designer ist `IsPackable=false` → CS1591 ist hier **kein** Fehler,
   XML-Docs sind optional (die übrigen Warnungen bleiben aber via `TreatWarningsAsErrors` Fehler).
+- **Anzeige-Kultur fest `de-DE`** (`DesignerApp.DisplayCulture`, gesetzt als
+  `CultureInfo.DefaultThreadCurrentCulture`). Ohne diese Festlegung folgte die Formatierung der Kultur
+  des Hosts – auf einem englischen System stand „7/27/2026 10:38 AM" mitten im deutschen Text. Bewusst
+  über die Prozess-Kultur statt `RequestLocalization`: In Blazor Server rendert der Circuit, nicht ein
+  HTTP-Request. Antwort**werte** bleiben davon unberührt – die kodiert `AnswerValueCodec` invariant.
+- Alle Regeln der `*.razor.css`-Dateien gelten nur für die HTML-Elemente **der eigenen** Komponente:
+  CSS-Isolation vergibt ihr Scope-Attribut nicht an Kind-Komponenten. Styles für gerenderte Komponenten
+  (`<NavLink>` &c.) gehören deshalb global nach `wwwroot/app.css` – siehe den Kommentar in
+  `NavMenu.razor.css`, wo genau das die Navigationslinks unlesbar gemacht hatte.
 - Zeitstempel UTC.
 
 ## Tests

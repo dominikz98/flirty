@@ -44,10 +44,14 @@ internal sealed class UpdateAnswerOptionCommandHandler
     /// Die Frage (im Dialog) oder die Option (in der Frage) existiert nicht.
     /// </exception>
     /// <exception cref="InvalidOperationException">In der Frage existiert bereits eine andere Option mit diesem Schlüssel.</exception>
+    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
     public async ValueTask<AnswerOptionDetail> Handle(
         UpdateAnswerOptionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);
         if (question is null || question.DialogId != command.DialogId)
