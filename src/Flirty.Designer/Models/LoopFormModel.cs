@@ -49,11 +49,13 @@ internal sealed class LoopFormModel
     }
 
     /// <summary>
-    /// Schlägt zum Schlüssel der Einstiegsfrage einen Collection-Schlüssel vor: der Plural im Sinne der
-    /// Doku (<c>skill</c> → <c>skills</c>, <c>position</c> → <c>positions</c>, vgl.
-    /// <c>docs/LOOPS.md</c>). Ist das Ergebnis kein referenzierbarer Bezeichner oder bereits als
-    /// Frage-/Collection-Schlüssel vergeben, wird bewusst <b>nichts</b> vorgeschlagen – ein stiller
-    /// Ausweichname wäre schwerer nachzuvollziehen als ein leeres Pflichtfeld.
+    /// Schlägt zum Schlüssel der Einstiegsfrage einen Collection-Schlüssel vor: der Schlüssel mit dem
+    /// Zusatz <c>_liste</c> (<c>skill</c> → <c>skill_liste</c>, <c>belag</c> → <c>belag_liste</c>).
+    /// Bewusst <b>keine</b> Pluralbildung mit angehängtem „s": Die trifft nur für englische Schlüssel zu
+    /// und erzeugt in einem deutschsprachigen Dialog Wortmüll wie <c>belags</c>. Ist das Ergebnis kein
+    /// referenzierbarer Bezeichner oder bereits als Frage-/Collection-Schlüssel vergeben, wird bewusst
+    /// <b>nichts</b> vorgeschlagen – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein
+    /// leeres Pflichtfeld.
     /// </summary>
     /// <param name="entryQuestionKey">Der Schlüssel der Einstiegsfrage.</param>
     /// <param name="detail">Der Dialog samt Graph, gegen den auf Kollisionen geprüft wird.</param>
@@ -62,7 +64,7 @@ internal sealed class LoopFormModel
     {
         ArgumentNullException.ThrowIfNull(detail);
 
-        var candidate = $"{entryQuestionKey}s";
+        var candidate = $"{entryQuestionKey}_liste";
 
         if (!DesignerExpressionContext.IsBindable(candidate)
             || detail.Questions.Any(question => string.Equals(question.Key, candidate, StringComparison.Ordinal))

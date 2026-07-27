@@ -33,6 +33,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     private static readonly LocatorAssertionsToContainTextOptions SlowContains = new() { Timeout = 15_000 };
     private static readonly LocatorAssertionsToHaveTextOptions SlowText = new() { Timeout = 15_000 };
     private static readonly LocatorAssertionsToHaveValueOptions SlowValue = new() { Timeout = 15_000 };
+    private static readonly LocatorAssertionsToHaveCountOptions SlowCount = new() { Timeout = 15_000 };
 
     private readonly WebSampleAppFixture _fixture;
 
@@ -135,6 +136,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         var page = await ArrangeDevBranchAsync(session);
 
         await FillAndSendAsync(page, "EF Core");
+        await AwaitAnsweredAsync(page);
 
         await EditAsync(page, "language");
 
@@ -170,6 +172,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         var page = await ArrangeDevBranchAsync(session);
 
         await FillAndSendAsync(page, "EF Core");
+        await AwaitAnsweredAsync(page);
 
         await EditAsync(page, "role");
         // Einfachauswahl: das Edit-Formular bietet dieselben Options-Buttons wie die normale Eingabe,
@@ -275,6 +278,23 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await EditField(page).FillAsync(text);
         await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Senden", Exact = true }).ClickAsync();
     }
+
+    /// <summary>
+    /// Wartet, bis die zuletzt gesendete Antwort serverseitig verbucht ist – erkennbar daran, dass die
+    /// Statuszeile den Sende-Hinweis wieder abgelegt hat und die Editier-Stifte nicht mehr gesperrt sind.
+    /// </summary>
+    /// <remarks>
+    /// Nötig vor einem <see cref="EditAsync"/> direkt nach <see cref="FillAndSendAsync"/>: Ohne das
+    /// Warten überholt der Edit-Aufruf den noch laufenden Submit. Der Server kennt die letzte Antwort
+    /// dann noch nicht, verwirft eine Antwort zu wenig und weist den nachlaufenden Submit mit 409 ab
+    /// („ist nicht die aktuell offene Frage"). Auf schneller Hardware war das reproduzierbar rot (#97).
+    /// Die Chat-UI sperrt die Stifte inzwischen selbst für die Dauer des Requests; dieses Warten hier
+    /// macht die Vorbedingung im Test trotzdem sichtbar, statt sie stillschweigend vorauszusetzen.
+    /// </remarks>
+    /// <param name="page">Die Seite.</param>
+    /// <returns>Ein Task, der abgeschlossen ist, sobald die Antwort verbucht ist.</returns>
+    private static Task AwaitAnsweredAsync(IPage page)
+        => Assertions.Expect(page.Locator("#chatLog .msg__edit:disabled")).ToHaveCountAsync(0, SlowCount);
 
     /// <summary>
     /// Klickt einen Auswahl-Button der Eingabezeile (Antwortoption bzw. Ja/Nein). Bewusst auf die

@@ -375,3 +375,23 @@ Muster wie die wwwroot-Kopie in `Flirty.E2E`) prüft „keine relativen Ziele" u
 nuget.org-Allowlist" – nötig, weil die Warnung dazu **nur der Paket-Eigentümer** sieht und sich erst mit
 der nächsten veröffentlichten Version korrigieren lässt. Die Regeln stehen in
 `docs/NUGET-PACKAGING.md` § *Die Root-README ist die Paketseite*.
+
+**Testdurchlauf-Befunde (#97) behoben** – ein zweiter manueller Durchgang (Build, beide Suiten, beide
+Samples, Designer per Playwright, eigener Dialog Ende-zu-Ende) hat sieben Punkte ergeben; die Engine
+selbst war sauber. Der wichtigste: **ein reproduzierbar roter E2E-Test**
+(`Editieren_der_Verzweigungsfrage_wechselt_den_Zweig`) – kein Produktfehler, sondern ein Rennen im Test.
+`FillAndSendAsync` kehrt sofort zurück, der folgende Edit überholte den noch fliegenden Submit, der
+Server verwarf eine Antwort zu wenig (1 statt 2). Behoben an **beiden** Enden: Die Chat-UI sperrt die
+✏️-Schaltflächen für die Dauer eines Requests (`setBusy`), und der Test macht die Vorbedingung mit
+`AwaitAnsweredAsync` sichtbar, statt sie stillschweigend vorauszusetzen. **Merksatz:** Ein grüner Test
+auf CI-Hardware heißt nicht, dass er kein Rennen hat – wer eine Aktion auslöst und sofort die nächste
+klickt, braucht ein Signal dafür, dass die erste durch ist. Die übrigen Punkte: Der Designer setzte
+**keine `font-family`** und lief damit komplett in der Browser-Standardschrift (Times New Roman) –
+`body`-Regel jetzt global in `wwwroot/app.css`, wie in der Chat-UI; der Hinweis „Ohne Einstiegsfrage …"
+stand auch bei gesetzter Einstiegsfrage; **Veröffentlichen** ignorierte offene Übergangs-Warnungen
+(jetzt: `GraphWarnings()` wiederholt sie im Veröffentlichungs-Abschnitt und fragt zurück – veröffentlicht
+ist der Graph gesperrt, der Fehler kostet dann eine neue Version); die Ausdrucks-Sandbox reichte die
+DynamicExpresso-Meldung „Aktivieren Sie Spiegelung mittels `Interpreter.EnableReflection()`" an den
+Dialog-Autor durch (jetzt eigene Meldung, erkannt am Typ `ReflectionNotAllowedException`, nicht am
+lokalisierten Text); und der Loop-Vorschlag pluralisierte englisch (`belag` → `belags`, jetzt
+`belag_liste`).
