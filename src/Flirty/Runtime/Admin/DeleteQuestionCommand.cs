@@ -6,11 +6,11 @@ namespace Flirty.Runtime.Admin;
 /// <summary>
 /// Löscht die Frage <see cref="QuestionId"/> im Dialog <see cref="DialogId"/> samt ihren Optionen
 /// (Datenbank-Cascade). Da <see cref="Flirty.Domain.Transition"/>,
-/// <see cref="Flirty.Domain.LoopDefinition"/> und <see cref="Flirty.Domain.TriggerDefinition"/> die
-/// Fragen FK-los referenzieren, werden verweisende Übergänge (Ausgangs- oder Zielfrage),
-/// Schleifen-Marker (Einstiegs- oder Breaking Question) und Trigger (Scope <c>AfterQuestion</c>) mit
-/// entfernt; zeigt die Einstiegsfrage des Dialogs auf die gelöschte Frage, wird sie auf
-/// <see langword="null"/> gesetzt.
+/// <see cref="Flirty.Domain.LoopDefinition"/>, <see cref="Flirty.Domain.TriggerDefinition"/> und
+/// <see cref="Flirty.Domain.DialogLayout"/> die Fragen FK-los referenzieren, werden verweisende
+/// Übergänge (Ausgangs- oder Zielfrage), Schleifen-Marker (Einstiegs- oder Breaking Question), Trigger
+/// (Scope <c>AfterQuestion</c>) und die gespeicherte Canvas-Position mit entfernt; zeigt die
+/// Einstiegsfrage des Dialogs auf die gelöschte Frage, wird sie auf <see langword="null"/> gesetzt.
 /// </summary>
 /// <param name="DialogId">Die Id des Dialogs, zu dem die Frage gehört.</param>
 /// <param name="QuestionId">Der Primärschlüssel der zu löschenden Frage.</param>
@@ -70,6 +70,16 @@ internal sealed class DeleteQuestionCommandHandler : ICommandHandler<DeleteQuest
         if (referencingTriggers.Count > 0)
         {
             _store.RemoveRange(referencingTriggers);
+        }
+
+        // Und die gespeicherte Canvas-Position: Auch DialogLayout.ElementId ist FK-los, die Zeile bliebe
+        // sonst als Position eines Knotens stehen, den es nicht mehr gibt – und würde beim Ableiten der
+        // nächsten Dialogversion mitgeschleppt.
+        var referencingLayout =
+            await _store.GetLayoutsReferencingElementAsync(command.QuestionId, cancellationToken);
+        if (referencingLayout.Count > 0)
+        {
+            _store.RemoveRange(referencingLayout);
         }
 
         // Einstiegsfrage zurücksetzen, falls sie auf die gelöschte Frage zeigt.

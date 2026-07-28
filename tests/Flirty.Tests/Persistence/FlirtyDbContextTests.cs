@@ -216,6 +216,7 @@ public sealed class FlirtyDbContextTests : IDisposable
                 .Include(entry => entry.Transitions)
                 .Include(entry => entry.Loops)
                 .Include(entry => entry.Triggers)
+                .Include(entry => entry.Layout)
                 .Single(entry => entry.Id == dialogId);
 
             context.Dialogs.Remove(dialog);
@@ -230,6 +231,7 @@ public sealed class FlirtyDbContextTests : IDisposable
             Assert.Empty(context.Set<Transition>());
             Assert.Empty(context.Set<LoopDefinition>());
             Assert.Empty(context.Set<TriggerDefinition>());
+            Assert.Empty(context.Set<DialogLayout>());
         }
     }
 
@@ -242,6 +244,35 @@ public sealed class FlirtyDbContextTests : IDisposable
         Assert.Single(context.Model.FindEntityType(typeof(Transition))!.GetForeignKeys());
         // LoopDefinition ebenso: nur der Dialog-FK, EntryQuestionId/BreakingQuestionId bleiben skalar.
         Assert.Single(context.Model.FindEntityType(typeof(LoopDefinition))!.GetForeignKeys());
+        // DialogLayout ebenso: nur der Dialog-FK, ElementId bleibt skalar (#102).
+        Assert.Single(context.Model.FindEntityType(typeof(DialogLayout))!.GetForeignKeys());
+    }
+
+    /// <summary>
+    /// Je Element höchstens eine Position: Der Unique-Index über
+    /// (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) verhindert zwei widersprüchliche Zeilen –
+    /// welche gälte, wäre sonst nicht bestimmbar.
+    /// </summary>
+    [Fact]
+    public void Zweite_Position_desselben_Elements_verletzt_den_Unique_Index()
+    {
+        var dialogId = Guid.NewGuid();
+
+        using var context = CreateContext();
+        context.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out var questionId));
+        context.SaveChanges();
+
+        context.Set<DialogLayout>().Add(new DialogLayout
+        {
+            Id = Guid.NewGuid(),
+            DialogId = dialogId,
+            ElementKind = LayoutElementKind.Question,
+            ElementId = questionId,
+            X = 10,
+            Y = 20,
+        });
+
+        Assert.Throws<DbUpdateException>(() => context.SaveChanges());
     }
 
     private static Type? ProviderTypeOf<TEntity>(FlirtyDbContext context, string propertyName)

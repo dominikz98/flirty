@@ -91,6 +91,35 @@ namespace Flirty.Migrations.Sqlite.Migrations
                     b.ToTable("Dialogs");
                 });
 
+            modelBuilder.Entity("Flirty.Domain.DialogLayout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DialogId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ElementId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ElementKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("X")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DialogId", "ElementKind", "ElementId")
+                        .IsUnique();
+
+                    b.ToTable("DialogLayout");
+                });
+
             modelBuilder.Entity("Flirty.Domain.DialogSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -300,6 +329,17 @@ namespace Flirty.Migrations.Sqlite.Migrations
                     b.Navigation("Question");
                 });
 
+            modelBuilder.Entity("Flirty.Domain.DialogLayout", b =>
+                {
+                    b.HasOne("Flirty.Domain.Dialog", "Dialog")
+                        .WithMany("Layout")
+                        .HasForeignKey("DialogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Dialog");
+                });
+
             modelBuilder.Entity("Flirty.Domain.LoopDefinition", b =>
                 {
                     b.HasOne("Flirty.Domain.Dialog", "Dialog")
@@ -357,6 +397,8 @@ namespace Flirty.Migrations.Sqlite.Migrations
 
             modelBuilder.Entity("Flirty.Domain.Dialog", b =>
                 {
+                    b.Navigation("Layout");
+
                     b.Navigation("Loops");
 
                     b.Navigation("Questions");

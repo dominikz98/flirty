@@ -30,13 +30,19 @@ public enum GraphEdgeShape
 /// gelten alle Fragen als erreichbar – sonst wäre der ganze Graph als defekt markiert, obwohl nur eine
 /// Angabe fehlt.
 /// </param>
+/// <param name="IsPinned">
+/// Ob <see cref="X"/>/<see cref="Y"/> aus einer gespeicherten Position stammen (<c>DialogLayout</c>) und
+/// nicht aus dem Auto-Layout. <see cref="Layer"/> und <see cref="Slot"/> kommen auch dann weiterhin aus
+/// der Anordnung – ein Zug ändert die Position, nicht die Struktur.
+/// </param>
 public sealed record GraphNodePosition(
     Guid QuestionId,
     int Layer,
     int Slot,
     double X,
     double Y,
-    bool IsReachable);
+    bool IsReachable,
+    bool IsPinned);
 
 /// <summary>Der berechnete Verlauf einer Kante.</summary>
 /// <param name="TransitionId">Der Übergang, den die Kante zeigt.</param>

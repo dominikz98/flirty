@@ -30,6 +30,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – Übergänge verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/loops</c>, <c>PUT/DELETE .../loops/{loopId}</c> – Schleifen-Marker verwalten.</description></item>
     /// <item><description><c>POST {prefix}/dialogs/{dialogId}/triggers</c>, <c>PUT/DELETE .../triggers/{triggerId}</c> – Trigger verwalten.</description></item>
+    /// <item><description><c>PUT/DELETE {prefix}/dialogs/{dialogId}/layout</c> – Canvas-Positionen setzen bzw. verwerfen.</description></item>
     /// </list>
     /// Voraussetzung ist ein zuvor per <c>services.AddFlirty(...)</c> registrierter Flirty-Stack. Von der
     /// Engine geworfene Ausnahmen werden über denselben Endpunkt-Filter wie bei den Laufzeit-Endpunkten
@@ -70,6 +71,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
         MapTransitionEndpoints(group);
         MapLoopEndpoints(group);
         MapTriggerEndpoints(group);
+        MapLayoutEndpoints(group);
 
         return group;
     }
@@ -310,6 +312,50 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             Guid dialogId, Guid triggerId, ISender sender, CancellationToken cancellationToken) =>
         {
             await sender.Send(new DeleteTriggerCommand(dialogId, triggerId), cancellationToken);
+            return TypedResults.NoContent();
+        });
+    }
+
+    /// <summary>
+    /// Registriert die Endpunkte für die Canvas-Positionen des Designers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b><c>PUT</c> ist hier ein Merge, kein Ersatz.</b> Gesetzt werden nur die im Körper genannten
+    /// Elemente; nicht genannte Zeilen bleiben stehen. Grund: Eine Zieh-Geste im Designer verschiebt
+    /// meist ein einzelnes Element und soll dafür nicht das gesamte Layout mitschicken müssen. Ein
+    /// vollständiges Verwerfen leistet <c>DELETE</c>.
+    /// </para>
+    /// <para>
+    /// Beide Endpunkte greifen <b>auch bei veröffentlichtem Dialog</b> und liefern kein 409 –
+    /// Koordinaten sind kein Teil des Graphen (ADR 0007). Die Publish-Sperre der übrigen
+    /// Graph-Endpunkte bleibt davon unberührt.
+    /// </para>
+    /// </remarks>
+    /// <param name="group">Die Admin-Route-Gruppe.</param>
+    private static void MapLayoutEndpoints(RouteGroupBuilder group)
+    {
+        group.MapPut("/dialogs/{dialogId:guid}/layout", async (
+            Guid dialogId, SetDialogLayoutRequest request, ISender sender,
+            CancellationToken cancellationToken) =>
+        {
+            var entries = request.Entries is null
+                ? []
+                : request.Entries
+                    .Select(entry => new DialogLayoutEntry(
+                        entry.ElementKind, entry.ElementId, entry.X, entry.Y))
+                    .ToArray();
+
+            var result = await sender.Send(
+                new SetDialogLayoutCommand(dialogId, entries), cancellationToken);
+
+            return TypedResults.Ok(result.Select(layout => layout.ToResponse()).ToArray());
+        });
+
+        group.MapDelete("/dialogs/{dialogId:guid}/layout", async (
+            Guid dialogId, ISender sender, CancellationToken cancellationToken) =>
+        {
+            await sender.Send(new ResetDialogLayoutCommand(dialogId), cancellationToken);
             return TypedResults.NoContent();
         });
     }

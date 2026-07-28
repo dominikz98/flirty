@@ -464,6 +464,191 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Empty(body.Triggers);
     }
 
+    // ---- Canvas-Layout (#102) ----
+
+    /// <summary>
+    /// Setzen, Nachziehen und Verwerfen über die Endpunkte. <c>PUT</c> ist bewusst ein <b>Merge</b>:
+    /// Eine Zieh-Geste verschiebt ein Element und schickt nicht das ganze Layout mit.
+    /// </summary>
+    [Fact]
+    public async Task Layout_setzen_und_zuruecksetzen_ueber_die_Endpunkte()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "layout");
+        var first = await CreateQuestionAsync(host, dialog.Id, "eins", QuestionType.FreeText, 0);
+        var second = await CreateQuestionAsync(host, dialog.Id, "zwei", QuestionType.FreeText, 1);
+
+        var set = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+            [
+                new DialogLayoutEntryRequest(LayoutElementKind.Question, first.Id, 100, 200),
+                new DialogLayoutEntryRequest(LayoutElementKind.Question, second.Id, 300, 400),
+            ]));
+
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+        Assert.Equal(2, (await set.Content.ReadFromJsonAsync<DialogLayoutResponse[]>())!.Length);
+
+        // Merge: Nur die erste Frage wird genannt, die zweite behält ihre Position.
+        var move = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, first.Id, 140, 260)]));
+
+        Assert.Equal(HttpStatusCode.OK, move.StatusCode);
+        var merged = (await move.Content.ReadFromJsonAsync<DialogLayoutResponse[]>())!;
+        Assert.Equal(2, merged.Length);
+        Assert.Equal(140, Assert.Single(merged, row => row.ElementId == first.Id).X);
+        Assert.Equal(300, Assert.Single(merged, row => row.ElementId == second.Id).X);
+
+        var reset = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}/layout");
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.NotNull(body);
+        Assert.Empty(body.Layout);
+    }
+
+    /// <summary>Der Dialog-Detail-Endpunkt liefert die Positionen mit – Quelle der Graph-Ansicht.</summary>
+    [Fact]
+    public async Task GetDialog_liefert_das_Layout_mit()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "layoutread");
+        var question = await CreateQuestionAsync(host, dialog.Id, "q", QuestionType.FreeText, 0);
+
+        var set = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 88, 99)]));
+        set.EnsureSuccessStatusCode();
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.NotNull(body);
+
+        var layout = Assert.Single(body.Layout);
+        Assert.Equal(question.Id, layout.ElementId);
+        Assert.Equal(88, layout.X);
+        Assert.Equal(99, layout.Y);
+    }
+
+    /// <summary>
+    /// <b>Die Zusage dieser Stufe über HTTP:</b> Ein veröffentlichter Dialog lässt sich anordnen. Wo
+    /// jede Graph-Änderung 409 liefert, antwortet der Layout-Endpunkt mit 200 (ADR 0007).
+    /// </summary>
+    [Fact]
+    public async Task SetLayout_bei_veroeffentlichtem_Dialog_liefert_200()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var (dialog, question) = await CreatePublishedDialogAsync(host, "layoutpublished");
+
+        // Gegenprobe: Eine echte Graph-Änderung ist an genau diesem Dialog gesperrt.
+        var rename = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}",
+            new UpdateQuestionRequest("start", "Neu?", QuestionType.FreeText, 0, false, null));
+        Assert.Equal(HttpStatusCode.Conflict, rename.StatusCode);
+
+        var move = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 640, 480)]));
+
+        Assert.Equal(HttpStatusCode.OK, move.StatusCode);
+
+        var reset = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}/layout");
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+    }
+
+    /// <summary>Anfrage-Regeln des Batches schlagen als 400 durch, nicht als 409.</summary>
+    [Fact]
+    public async Task SetLayout_mit_doppeltem_Element_liefert_400()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "layoutinvalid");
+        var question = await CreateQuestionAsync(host, dialog.Id, "q", QuestionType.FreeText, 0);
+
+        var response = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+            [
+                new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 10, 10),
+                new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 20, 20),
+            ]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>Unbekannter Dialog: 404, nicht 204 – ein stilles Nichts wäre irreführend.</summary>
+    [Fact]
+    public async Task Layout_eines_unbekannten_Dialogs_liefert_404()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+
+        var set = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{Guid.NewGuid()}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, Guid.NewGuid(), 1, 1)]));
+        Assert.Equal(HttpStatusCode.NotFound, set.StatusCode);
+
+        var reset = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{Guid.NewGuid()}/layout");
+        Assert.Equal(HttpStatusCode.NotFound, reset.StatusCode);
+    }
+
+    /// <summary>
+    /// Das Ableiten einer Version nimmt die Positionen mit und schreibt sie auf die geklonten Fragen um –
+    /// über HTTP geprüft, weil genau dieser Zweig Handarbeit ist.
+    /// </summary>
+    [Fact]
+    public async Task CreateDialogVersion_klont_das_Layout_auf_die_neuen_Frage_Ids()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var (dialog, question) = await CreatePublishedDialogAsync(host, "layoutclone");
+
+        var set = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 120, 240)]));
+        set.EnsureSuccessStatusCode();
+
+        var version = await host.Client.PostAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/versions", content: null);
+        Assert.Equal(HttpStatusCode.Created, version.StatusCode);
+
+        var copy = (await version.Content.ReadFromJsonAsync<DialogDetailResponse>())!;
+        var layout = Assert.Single(copy.Layout);
+
+        Assert.Equal(120, layout.X);
+        Assert.Equal(240, layout.Y);
+        Assert.NotEqual(question.Id, layout.ElementId);
+        Assert.Equal(Assert.Single(copy.Questions).Id, layout.ElementId);
+    }
+
+    /// <summary>
+    /// Das Löschen einer Frage räumt ihre Position mit ab – <c>ElementId</c> ist FK-los, die Datenbank
+    /// tut das nicht von allein.
+    /// </summary>
+    [Fact]
+    public async Task DeleteQuestion_entfernt_die_Layout_Zeile()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "layoutcleanup");
+        var question = await CreateQuestionAsync(host, dialog.Id, "q", QuestionType.FreeText, 0);
+
+        var set = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/layout",
+            new SetDialogLayoutRequest(
+                [new DialogLayoutEntryRequest(LayoutElementKind.Question, question.Id, 10, 20)]));
+        set.EnsureSuccessStatusCode();
+
+        var delete = await host.Client.DeleteAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var body = await host.Client.GetFromJsonAsync<DialogDetailResponse>($"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.NotNull(body);
+        Assert.Empty(body.Layout);
+    }
+
     // ---- Publish-Workflow ----
 
     /// <summary>Ein Dialog ohne Einstiegsfrage kann nicht veröffentlicht werden (409).</summary>

@@ -90,6 +90,13 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   Entwurf, `Version`+1); `PublishDialogCommand` zieht die bisher produktive Version zurück. Gelöscht
   wird nur ohne laufende Sessions (`AbandonDialogSessionsCommand` beendet sie vorher). Grund: ADR
   `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`.
+- **Canvas-Positionen liegen außerhalb des Graphen:** `DialogLayout` (eigene Tabelle, FK-lose
+  `ElementId`, unique über `(DialogId, ElementKind, ElementId)`) trägt die Anordnung des Designers.
+  `Set/ResetDialogLayoutCommand` laufen **bewusst ohne `DialogEditGuard`** – ein veröffentlichter Dialog
+  muss anordbar bleiben, und Koordinaten berühren die Session-Semantik nicht. Das ist die einzige
+  Ausnahme von der Publish-Sperre und keine Lücke, sondern ihr Rand. Die Laufzeit liest die Tabelle nie
+  (`IDialogStore` lädt `Layout` nicht). Preis: Klonen (`CreateDialogVersionCommand`) und Aufräumen
+  (`DeleteQuestionCommand`) sind Handarbeit. Grund: ADR `docs/adr/0007-layout-als-eigene-tabelle.md`.
 
 ## Zentrale Einstiegspunkte (mit Pfaden)
 
@@ -103,7 +110,8 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   Dialogversion unabhängig vom Veröffentlichungsstatus** – bewusst **ohne** HTTP-Endpunkt: über HTTP
   bleibt der Publish-Status die Produktionsschranke.
 - **Admin-CRUD:** Commands/Queries in `src/Flirty/Runtime/Admin/`, Repository
-  `src/Flirty/Persistence/IDialogAdminStore.cs`.
+  `src/Flirty/Persistence/IDialogAdminStore.cs`. Darin liegen auch `SetDialogLayoutCommand` /
+  `ResetDialogLayoutCommand` (#102) – die beiden Commands **ohne** `DialogEditGuard`.
 - **Web-Endpunkte:** `src/Flirty.AspNetCore/FlirtyEndpointRouteBuilderExtensions.cs` (Runtime) und
   `FlirtyAdminEndpointRouteBuilderExtensions.cs` (Admin), Fehler-Mapping in
   `FlirtyExceptionEndpointFilter.cs` (Namespace `Microsoft.AspNetCore.Builder`).
@@ -187,7 +195,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0006 |
+| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0007 |
 
 ## Stand & offene Baustellen
 
@@ -459,3 +467,47 @@ Pan/Zoom). Vier Dinge, die den Ausschlag gegeben haben:
 Determinismus-Test hat einen echten Zeichenfehler aufgedeckt, den keine Assertion gesucht hatte – bei
 80 px Schichtabstand überkreuzten sich die Bézier-Kontrollpunkte (`C 160 206 160 146`), die Kante lief
 als S-Schlaufe. Der Biegeradius ist jetzt an die halbe Spannweite gekoppelt.
+
+**Layout-Persistenz (#102) fertig** – Stufe 2 von EPIC 11 und die **einzige Stufe mit
+Schema-Änderung**. Knoten sind auf dem Canvas verschiebbar; die Position liegt in der neuen Tabelle
+`DialogLayout` (`ElementKind`/`ElementId`, unique über `(DialogId, ElementKind, ElementId)`, Cascade am
+Dialog) samt Migration `AddDialogLayout` in allen drei Provider-Sets. Neu im Core: `DialogLayout` +
+`LayoutElementKind`, `Dialog.Layout`, `IDialogAdminStore.GetLayoutAsync`/`GetLayoutsReferencingElementAsync`,
+`SetDialogLayoutCommand` (Batch-Upsert) und `ResetDialogLayoutCommand`, `DialogLayoutDetail`/`DialogLayoutEntry`
+und `DialogDetail.Layout`; in `Flirty.AspNetCore` `PUT`/`DELETE .../dialogs/{id}/layout` plus `Layout` in
+`DialogDetailResponse`. Begründung: ADR `docs/adr/0007-layout-als-eigene-tabelle.md`. Fünf Punkte, die den
+Ausschlag gegeben haben:
+
+- **Die Tabelle existiert wegen des Schreibpfads, nicht wegen der Erweiterbarkeit.** Zwei Spalten
+  `LayoutX`/`LayoutY` an `Question` wären billiger gewesen und hätten Klonen und Aufräumen gratis
+  mitgebracht. Aber: Ein Layout-Schreibvorgang darf **nicht** unter `DialogEditGuard` fallen, sonst
+  ließe sich ein veröffentlichter Dialog nicht einmal übersichtlich anordnen – und genau den öffnet man
+  am häufigsten. Bei zwei Spalten an einer gesperrten Entity wäre das eine **Konvention** (ein Feld, das
+  man am Guard vorbei schreibt, und jeder künftige Pfad müsste die Ausnahme kennen); bei einer eigenen
+  Tabelle ist es **strukturell**: Es gibt nichts Gesperrtes zu umgehen. Zwei Tests halten das fest –
+  „Layout am veröffentlichten Dialog geht" **und** die Gegenprobe „Graph-Änderung an demselben Dialog
+  liefert 409".
+- **Eine designer-lokale JSON-Datei war die eigentliche Versuchung** – und scheitert nicht am Komfort,
+  sondern an ADR 0005: `CreateDialogVersionCommand` vergibt jeder Frage eine neue Guid und gibt die
+  `questionIdMap` nicht heraus. Jede neue Version – der einzige Weg, einen produktiven Dialog zu
+  ändern – startete mit verworfenem Layout, genau im Moment des Weiterarbeitens.
+- **Gespeicherte Positionen greifen an *einer* Stelle:** am Ende von `GraphLayout.Render`, wo die
+  Knotenboxen entstehen. Schichtung, Kantenform, Baryzentrum und Kanalvergabe bleiben am Auto-Layout –
+  sonst könnte ein einziger Zug den ganzen Graphen umsortieren. Weil Kantenrouting und Schleifenrahmen
+  aus denselben Boxen lesen, folgen sie automatisch mit; die Zeichenfläche wächst um verschobene Knoten.
+- **Der Zug braucht drei Kleinigkeiten, ohne die er nicht bedienbar ist:** eine **4-px-Schwelle** (sonst
+  verschluckt jeder wackelige Klick die Auswahl), das **Verschlucken des folgenden `click`** (sonst wählt
+  jeder Zug den Knoten zusätzlich aus – eine zweite Nachricht, die niemand ausgelöst hat) und
+  `viewport.getScreenCTM().inverse()` statt einer Rechnung über den Zoomfaktor: Die Matrix enthält auch
+  die `viewBox`-Skalierung gegenüber der CSS-Breite, ohne sie liefe der Knoten je nach Fensterbreite
+  schneller oder langsamer als der Zeiger. Die anliegenden Kanten werden während des Zugs **gedimmt**,
+  nicht im Browser neu gerechnet – ihre Geometrie liegt in C# und ist dort getestet.
+- **`invokeMethodAsync` steht ausschließlich in `onPointerUp`.** Das ist die Form, in der das AC „eine
+  Server-Nachricht je Geste" gehalten wird; das Messgerüst des Spikes (#100) liegt auf dem nie gemergten
+  Branch `spike/dz/100` und stand hier nicht zur Verfügung. Im Modulkopf steht die Zusage samt Warnung.
+
+**Merksatz:** Ein fehlgeschlagener E2E-Drag zeigt die Auswirkung, nie die Ursache. Der Test war rot, weil
+`page.Mouse` **fensterbezogene** Koordinaten nimmt und der 70 vh hohe Canvas-Host unter Kopfzeile,
+Hinweis und Werkzeugleiste steht – die Geste zielte an einem Knoten der unteren Schichten vorbei, ohne
+jede Meldung. `ScrollIntoViewIfNeededAsync` vor dem Zug, und `DragToAsync` gar nicht erst versuchen: Das
+nutzt die HTML5-Drag-and-Drop-API, die auf einem Pointer-Events-Canvas nichts auslöst.

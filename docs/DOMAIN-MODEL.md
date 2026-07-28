@@ -11,8 +11,9 @@
 Das Modell hat zwei Aggregate mit klaren Grenzen:
 
 - **Konfigurations-Aggregat** – Wurzel `Dialog`. Der Dialog bündelt seine `Question`s,
-  `Transition`s, `LoopDefinition`s und `TriggerDefinition`s; eine `Question` bündelt ihre
-  `AnswerOption`s. Navigationen bilden diesen Baum ab (`Dialog.Questions`, `Question.Options`, …).
+  `Transition`s, `LoopDefinition`s, `TriggerDefinition`s und seine `DialogLayout`-Zeilen; eine
+  `Question` bündelt ihre `AnswerOption`s. Navigationen bilden diesen Baum ab (`Dialog.Questions`,
+  `Question.Options`, …).
 - **Runtime-Aggregat** – Wurzel `DialogSession`. Die Session bündelt ihre `SessionAnswer`s
   (`DialogSession.Answers`).
 
@@ -22,6 +23,8 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 - Mehrfach-Verweise auf dieselbe Entity: `Transition.FromQuestionId`/`TargetQuestionId`,
   `LoopDefinition.EntryQuestionId`/`BreakingQuestionId`, `TriggerDefinition.QuestionId`,
   `Dialog.StartQuestionId`, `DialogSession.CurrentQuestionId`.
+- **Polymorpher Verweis**: `DialogLayout.ElementId` zeigt je `ElementKind` auf verschiedene Entities und
+  kann deshalb gar kein Fremdschlüssel sein.
 - **Runtime → Konfiguration**: `DialogSession.DialogId` und `SessionAnswer.QuestionId`. Sessions pinnen
   über `DialogId`/`DialogVersion` genau die Version, auf der sie gestartet sind, und laufen dort zu Ende
   (ARCHITECTURE.md §11.4). Getragen wird das durch die Unveränderlichkeit veröffentlichter Versionen:
@@ -38,18 +41,27 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 | `QuestionType` | SingleChoice(0), MultiChoice(1), FreeText(2), Number(3), Date(4), Boolean(5) |
 | `TriggerScope` | OnDialogStarted(0), AfterAnswer(1), AfterQuestion(2), OnDialogCompleted(3) |
 | `TriggerKind` | InProcess(0), Webhook(1) |
+| `LayoutElementKind` | Question(0) |
 | `SessionStatus` | InProgress(0), Completed(1), Abandoned(2) |
 
 ## Konfigurations-Entities
 
 | Entity | Properties | Navigationen |
 |---|---|---|
-| `Dialog` | `Id`, `Key`, `Name`, `Description?`, `Version`, `IsPublished`, `StartQuestionId?`, `CreatedAt`, `UpdatedAt` | `Questions`, `Transitions`, `Loops`, `Triggers` |
+| `Dialog` | `Id`, `Key`, `Name`, `Description?`, `Version`, `IsPublished`, `StartQuestionId?`, `CreatedAt`, `UpdatedAt` | `Questions`, `Transitions`, `Loops`, `Triggers`, `Layout` |
 | `Question` | `Id`, `DialogId`, `Key`, `Text`, `Type`, `Order`, `IsRequired`, `ValidationRules?` (JSON) | `Dialog`, `Options` |
 | `AnswerOption` | `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order` | `Question` |
 | `Transition` | `Id`, `DialogId`, `FromQuestionId`, `Expression?`, `TargetQuestionId`, `Priority`, `IsDefault` | `Dialog` |
 | `LoopDefinition` | `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` | `Dialog` |
 | `TriggerDefinition` | `Id`, `DialogId`, `Scope`, `QuestionId?`, `Kind`, `Config` (JSON), `Expression?` | `Dialog` |
+| `DialogLayout` | `Id`, `DialogId`, `ElementKind`, `ElementId`, `X`, `Y` | `Dialog` |
+
+`DialogLayout` (#102) hält die vom Autor gewählte Position eines Elements auf dem Graph-Canvas des
+Designers – **reine Anzeigedaten**, die die Laufzeit nie liest. Ohne Zeile ordnet dort das Auto-Layout
+an; das ist zugleich der Weg zurück (`ResetDialogLayoutCommand` löscht schlicht die Zeilen). Die Tabelle
+existiert statt zweier Spalten an `Question`, weil sie die Graph-Entities frei von Anzeigebelangen hält
+**und** weil ihr Schreibpfad damit strukturell außerhalb der Publish-Sperre liegt – Begründung samt
+verworfener Alternativen in [ADR 0007](./adr/0007-layout-als-eigene-tabelle.md).
 
 ## Runtime-Entities
 
@@ -81,8 +93,9 @@ umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.
 - **Fluent-API-Konfiguration** – je Entity eine `internal sealed`
   `IEntityTypeConfiguration<T>`-Klasse unter `Persistence/Configurations/`; angewendet über
   `ApplyConfigurationsFromAssembly`. Die POCOs bleiben frei von Data Annotations.
-- **Enum-Storage als `int`** – `QuestionType`, `TriggerScope`, `TriggerKind`, `SessionStatus` werden
-  explizit über `HasConversion<int>()` gemappt (Guard passend zum Ordinal-Pinning der Domain-Tests).
+- **Enum-Storage als `int`** – `QuestionType`, `TriggerScope`, `TriggerKind`, `LayoutElementKind` und
+  `SessionStatus` werden explizit über `HasConversion<int>()` gemappt (Guard passend zum Ordinal-Pinning
+  der Domain-Tests).
 - **JSON-Spalten = einfache Textspalten** – `SessionAnswer.Value`, `TriggerDefinition.Config`
   (Pflicht) und `Question.ValidationRules` (optional) tragen anwendungsseitig serialisiertes JSON und
   werden als unbegrenzte Textspalten (ohne `MaxLength`) gespeichert. Provider-native `json`/`jsonb`-
@@ -95,7 +108,8 @@ umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.
 - **Skalare `Guid`-Verweise ohne Fremdschlüssel** – die oben unter *Bewusst ohne Navigation*
   gelisteten Verweise bleiben einfache Spalten (keine Relationship, kein Shadow-FK).
 - **Kaskadierendes Löschen** – innerhalb beider Aggregate (`Dialog` → Questions/Options/Transitions/
-  Loops/Triggers; `DialogSession` → Answers) via `OnDelete(Cascade)` mit explizitem `HasForeignKey`.
+  Loops/Triggers/Layout; `DialogSession` → Answers) via `OnDelete(Cascade)` mit explizitem
+  `HasForeignKey`.
 
 ### Keys & Indizes
 
@@ -107,6 +121,7 @@ umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.
 | `Transition` | PK `Id`; `(DialogId, FromQuestionId, Priority)` | nicht eindeutig (Auswertungsreihenfolge) |
 | `LoopDefinition` | PK `Id` | – |
 | `TriggerDefinition` | PK `Id` | – |
+| `DialogLayout` | PK `Id`; `(DialogId, ElementKind, ElementId)` | **eindeutig** (je Element eine Position) |
 | `DialogSession` | PK `Id`; `(DialogId, ExternalUserKey)` | nicht eindeutig (mehrere Sessions je Anwender) |
 | `SessionAnswer` | PK `Id`; `(SessionId, Sequence)` | nicht eindeutig |
 

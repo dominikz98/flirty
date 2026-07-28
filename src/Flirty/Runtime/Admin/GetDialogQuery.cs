@@ -6,7 +6,7 @@ namespace Flirty.Runtime.Admin;
 
 /// <summary>
 /// Liest den Dialog <see cref="Id"/> samt seinem Konfigurationsgraphen (Fragen inkl. Optionen,
-/// Übergänge, Schleifen-Marker und Trigger). Rein lesend.
+/// Übergänge, Schleifen-Marker und Trigger) sowie den gespeicherten Canvas-Positionen. Rein lesend.
 /// </summary>
 /// <param name="Id">Der Primärschlüssel des abzufragenden Dialogs.</param>
 public sealed record GetDialogQuery([property: Required] Guid Id) : IQuery<DialogDetail>;

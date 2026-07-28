@@ -96,6 +96,35 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                     b.ToTable("Dialogs");
                 });
 
+            modelBuilder.Entity("Flirty.Domain.DialogLayout", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DialogId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ElementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ElementKind")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("X")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DialogId", "ElementKind", "ElementId")
+                        .IsUnique();
+
+                    b.ToTable("DialogLayout");
+                });
+
             modelBuilder.Entity("Flirty.Domain.DialogSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -305,6 +334,17 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                     b.Navigation("Question");
                 });
 
+            modelBuilder.Entity("Flirty.Domain.DialogLayout", b =>
+                {
+                    b.HasOne("Flirty.Domain.Dialog", "Dialog")
+                        .WithMany("Layout")
+                        .HasForeignKey("DialogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Dialog");
+                });
+
             modelBuilder.Entity("Flirty.Domain.LoopDefinition", b =>
                 {
                     b.HasOne("Flirty.Domain.Dialog", "Dialog")
@@ -362,6 +402,8 @@ namespace Flirty.Migrations.PostgreSql.Migrations
 
             modelBuilder.Entity("Flirty.Domain.Dialog", b =>
                 {
+                    b.Navigation("Layout");
+
                     b.Navigation("Loops");
 
                     b.Navigation("Questions");

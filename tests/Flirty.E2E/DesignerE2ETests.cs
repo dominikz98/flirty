@@ -169,6 +169,106 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
+    /// Rauchprobe der Layout-Persistenz (#102): Ein Knoten wird gezogen, die Position überlebt den
+    /// Reload – also den vollständigen Neuaufbau der Seite aus der Datenbank – und „Layout zurücksetzen"
+    /// stellt die Position des Auto-Layouts wieder her.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Gezogen wird der <b>veröffentlichte</b> Dialog. Damit belegt der Test zugleich das Kernversprechen
+    /// der Stufe: Wo jede Graph-Änderung 409 liefert, geht das Verschieben durch (ADR 0007) – hier
+    /// sichtbar daran, dass keine Fehlermeldung erscheint und die Position wirklich gespeichert wird.
+    /// </para>
+    /// <para>
+    /// Auch dieser Test wartet auf <c>data-canvas-ready</c> statt <c>InteractWhenReadyAsync</c> zu
+    /// benutzen – ein wiederholter Zug verschöbe doppelt. Der Zug läuft über mehrere
+    /// <c>Mouse.MoveAsync</c>-Schritte: Ein einziger Sprung erzeugt genau ein <c>pointermove</c>, was die
+    /// 4-px-Schwelle zwar überschritte, aber nicht wie eine echte Geste aussähe.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Knoten_verschieben_ueberlebt_den_Reload()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Veröffentlichen" }).ClickAsync();
+        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", SlowText);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        var node = page.Locator(".graph-node").Filter(new() { HasText = "summary" });
+        var pinnedNode = page.Locator(".graph-node.is-pinned").Filter(new() { HasText = "summary" });
+        var before = await TransformOfAsync(node);
+
+        // Vor dem Zug ist nichts gepinnt – sonst prüfte der Reload unten eine Position, die schon stand.
+        await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(
+            page.GetByRole(AriaRole.Button, new() { Name = "Layout zurücksetzen" })).ToBeHiddenAsync();
+
+        await DragByAsync(page, node, 180, 120);
+
+        // Der Knoten trägt jetzt eine eigene Position – die Markierung kommt aus dem neu gebauten
+        // Modell, also erst nachdem der Server den Zug übernommen hat.
+        await Assertions.Expect(pinnedNode).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        var afterDrag = await TransformOfAsync(node);
+        Assert.NotEqual(before, afterDrag);
+
+        // Der Nachweis: Nach dem Reload rendert der Server den Knoten aus der Datenbank.
+        await page.ReloadAsync();
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+        await Assertions.Expect(pinnedNode).ToHaveCountAsync(1, SlowCount);
+        Assert.Equal(afterDrag, await TransformOfAsync(node));
+
+        // Zurücksetzen verwirft die Zeile – danach liegt der Knoten wieder, wo das Auto-Layout ihn hatte.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Layout zurücksetzen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Ja, zurücksetzen" }).ClickAsync();
+
+        await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(0, SlowCount);
+        Assert.Equal(before, await TransformOfAsync(node));
+    }
+
+    /// <summary>Liest das <c>transform</c> eines Knotens – die im DOM sichtbare Position.</summary>
+    private static async Task<string?> TransformOfAsync(ILocator node)
+        => await node.GetAttributeAsync("transform");
+
+    /// <summary>
+    /// Zieht ein Element um den angegebenen Versatz. Bewusst über <c>Mouse</c> statt
+    /// <c>DragToAsync</c>: Letzteres nutzt die HTML5-Drag-and-Drop-API, die auf einem SVG-Canvas mit
+    /// Pointer-Events gar nicht auslöst.
+    /// </summary>
+    private static async Task DragByAsync(IPage page, ILocator target, int deltaX, int deltaY)
+    {
+        // Der Canvas-Host ist 70vh hoch und steht unter Kopfzeile, Hinweis und Werkzeugleiste – ein
+        // Knoten der unteren Schichten liegt damit leicht außerhalb des Fensters. Mouse-Koordinaten
+        // sind fensterbezogen; ohne das Scrollen zielte die Geste ins Leere.
+        await target.ScrollIntoViewIfNeededAsync();
+
+        var box = await target.BoundingBoxAsync();
+        Assert.NotNull(box);
+
+        const int steps = 5;
+        var startX = box.X + (box.Width / 2);
+        var startY = box.Y + (box.Height / 2);
+
+        await page.Mouse.MoveAsync(startX, startY);
+        await page.Mouse.DownAsync();
+
+        // Mehrere Schritte: eine echte Geste, und der erste überschreitet die 4-px-Schwelle des Moduls.
+        for (var step = 1; step <= steps; step++)
+        {
+            await page.Mouse.MoveAsync(
+                startX + (deltaX * step / (float)steps), startY + (deltaY * step / (float)steps));
+        }
+
+        await page.Mouse.UpAsync();
+    }
+
+    /// <summary>
     /// Legt einen Webhook-Trigger auf die Abschlussfrage an – die Vorbedingung dafür, dass die
     /// Graph-Ansicht überhaupt einen Trigger-Chip zeigen kann.
     /// </summary>

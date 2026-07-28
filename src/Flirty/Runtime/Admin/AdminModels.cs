@@ -39,12 +39,18 @@ public sealed record DialogSummary(
 /// Die Trigger-Definitionen des Dialogs, nach <c>Scope</c>, <c>Kind</c> und Konfiguration sortiert
 /// (die Entity kennt keine eigene Reihenfolge).
 /// </param>
+/// <param name="Layout">
+/// Die gespeicherten Canvas-Positionen des Dialogs, nach <c>ElementKind</c> und <c>ElementId</c>
+/// sortiert. Reine Anzeigedaten des Designers; ist für ein Element keine Zeile vorhanden, ordnet dort
+/// das Auto-Layout an.
+/// </param>
 public sealed record DialogDetail(
     DialogSummary Dialog,
     IReadOnlyList<QuestionDetail> Questions,
     IReadOnlyList<TransitionDetail> Transitions,
     IReadOnlyList<LoopDetail> Loops,
-    IReadOnlyList<TriggerDetail> Triggers);
+    IReadOnlyList<TriggerDetail> Triggers,
+    IReadOnlyList<DialogLayoutDetail> Layout);
 
 /// <summary>
 /// Navigationsfreie Sicht auf eine <see cref="Question"/> für das Admin-CRUD (mit allen
@@ -143,3 +149,39 @@ public sealed record TriggerDetail(
     TriggerKind Kind,
     string Config,
     string? Expression);
+
+/// <summary>
+/// Navigationsfreie Sicht auf eine <see cref="DialogLayout"/>-Zeile (gespeicherte Canvas-Position) für
+/// das Admin-CRUD.
+/// </summary>
+/// <param name="Id">Der Primärschlüssel der Layout-Zeile.</param>
+/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
+/// <param name="ElementKind">Die Art des positionierten Elements.</param>
+/// <param name="ElementId">Verweis auf das Element (heute stets eine <see cref="Question.Id"/>).</param>
+/// <param name="X">Die waagerechte Canvas-Koordinate in px.</param>
+/// <param name="Y">Die senkrechte Canvas-Koordinate in px.</param>
+public sealed record DialogLayoutDetail(
+    Guid Id,
+    Guid DialogId,
+    LayoutElementKind ElementKind,
+    Guid ElementId,
+    int X,
+    int Y);
+
+/// <summary>
+/// Eine zu setzende Canvas-Position – die Eingabeform eines Eintrags im Batch von
+/// <c>SetDialogLayoutCommand</c>.
+/// </summary>
+/// <remarks>
+/// Ohne <c>Id</c>: Identifiziert wird über (<see cref="ElementKind"/>, <see cref="ElementId"/>), weil
+/// der Aufrufer eine Position setzt und nicht wissen muss, ob dafür schon eine Zeile existiert.
+/// </remarks>
+/// <param name="ElementKind">Die Art des positionierten Elements.</param>
+/// <param name="ElementId">Verweis auf das Element (heute stets eine <see cref="Question.Id"/>).</param>
+/// <param name="X">Die waagerechte Canvas-Koordinate in px; darf nicht negativ sein.</param>
+/// <param name="Y">Die senkrechte Canvas-Koordinate in px; darf nicht negativ sein.</param>
+public sealed record DialogLayoutEntry(
+    LayoutElementKind ElementKind,
+    Guid ElementId,
+    int X,
+    int Y);

@@ -1,23 +1,27 @@
-// Verschieben und Zoomen des Graph-Canvas (#101).
+// Verschieben und Zoomen des Graph-Canvas (#101) sowie das Ziehen einzelner Knoten (#102).
 //
 // Warum das hier und nicht in C#: Der Designer ist Blazor *Server*. Jedes Blazor-Ereignis ist ein
 // SignalR-Roundtrip – liefe das Verschieben in C#, kostete jeder Zeigerschritt eine Netzwerkumlaufzeit.
 // Der Spike zu #100 hat das gemessen (40 px Rückstand hinter dem Zeiger, 68 Nachrichten je Geste);
 // ADR 0006 macht daraus eine Zusage: Zwischen pointerdown und pointerup geht KEINE Nachricht an den
-// Server.
+// Server. Für den Knoten-Zug (#102) gilt sie genauso – die einzige Stelle in dieser Datei, die
+// invokeMethodAsync aufruft, ist onPointerUp. Wer hier einen Aufruf in onPointerMove ergänzt, bricht
+// ein Akzeptanzkriterium.
 //
 // Die Wahrheit über die Ansicht liegt deshalb im DOM, nicht im C#-Zustand. Das ist der Grund, warum
 // DialogGraph.razor auf .graph-viewport niemals selbst ein transform rendert: Der nächste Re-Render
-// würde Verschiebung und Zoom sonst zurücksetzen.
+// würde Verschiebung und Zoom sonst zurücksetzen. Beim Knoten dagegen *ist* das transform C#-Zustand –
+// deshalb schreibt der Zug es nur vorläufig und der Commit lässt C# denselben Wert rendern.
 
 const states = new WeakMap();
+
+/** Ab wie vielen Bildschirm-Pixeln aus einem Klick ein Zug wird. */
+const DRAG_THRESHOLD = 4;
 
 /**
  * Bindet Zeiger- und Rad-Steuerung an einen Canvas.
  * @param {SVGSVGElement} canvas Das SVG-Element.
- * @param {object} dotNetRef Rückkanal nach C#. In dieser Stufe ungenutzt – ohne Layout-Persistenz
- *   braucht der Server die Ansicht nicht zu kennen. Er wird trotzdem gehalten, damit die Stufen 2 und 3
- *   ihre Rückrufe anhängen können, ohne die Signatur zu brechen.
+ * @param {object} dotNetRef Rückkanal nach C# – Ziel von MoveNodeAsync beim Loslassen eines Knotens.
  * @param {{minZoom: number, maxZoom: number, zoomStep: number}} options Grenzwerte aus GraphMetrics.
  */
 export function attach(canvas, dotNetRef, options) {
@@ -39,6 +43,7 @@ export function attach(canvas, dotNetRef, options) {
         y: 0,
         scale: 1,
         pan: null,
+        drag: null,
     };
 
     state.onPointerDown = (event) => onPointerDown(state, event);
@@ -126,13 +131,38 @@ export function focusNode(canvas, nodeId) {
 }
 
 function onPointerDown(state, event) {
-    // Trifft die Geste ein bedienbares Element, gehört sie diesem – und zwar VOLLSTÄNDIG: kein
-    // preventDefault(), sonst verpufft der nachfolgende Klick und damit Blazors @onclick.
-    if (event.target.closest(".graph-node, .graph-edge-hit, .graph-loop-label, .chip, button")) {
+    if (event.button !== 0) {
         return;
     }
 
-    if (event.button !== 0) {
+    // Ein Knoten wird gezogen – aber erst ab der Schwelle. Bis dahin bleibt die Geste ein Klick, damit
+    // Blazors @onclick (die Auswahl) weiter funktioniert. Deshalb hier KEIN preventDefault und noch
+    // keine Pointer-Capture.
+    const node = event.target.closest(".graph-node");
+    if (node) {
+        const origin = nodeOrigin(node);
+        const point = toUserSpace(state, event);
+        if (origin && point) {
+            state.drag = {
+                pointerId: event.pointerId,
+                node,
+                nodeId: node.getAttribute("data-node-id"),
+                startX: event.clientX,
+                startY: event.clientY,
+                grabX: point.x - origin.x,
+                grabY: point.y - origin.y,
+                x: origin.x,
+                y: origin.y,
+                moved: false,
+            };
+        }
+
+        return;
+    }
+
+    // Trifft die Geste ein anderes bedienbares Element, gehört sie diesem – und zwar VOLLSTÄNDIG: kein
+    // preventDefault(), sonst verpufft der nachfolgende Klick und damit Blazors @onclick.
+    if (event.target.closest(".graph-edge-hit, .graph-loop-label, .chip, button")) {
         return;
     }
 
@@ -150,6 +180,12 @@ function onPointerDown(state, event) {
 }
 
 function onPointerMove(state, event) {
+    const drag = state.drag;
+    if (drag && drag.pointerId === event.pointerId) {
+        onNodeMove(state, drag, event);
+        return;
+    }
+
     const pan = state.pan;
     if (!pan || pan.pointerId !== event.pointerId) {
         return;
@@ -161,7 +197,53 @@ function onPointerMove(state, event) {
     event.preventDefault();
 }
 
+function onNodeMove(state, drag, event) {
+    if (!drag.moved) {
+        const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+        if (distance < DRAG_THRESHOLD) {
+            return;
+        }
+
+        beginNodeDrag(state, drag, event);
+    }
+
+    const point = toUserSpace(state, event);
+    if (!point) {
+        return;
+    }
+
+    // Nie über den Ursprung hinaus: Die viewBox beginnt links bei 0, ein negativer Wert schöbe den
+    // Knoten aus der Zeichenfläche – und der Command lehnt ihn ohnehin ab.
+    drag.x = Math.max(0, Math.round(point.x - drag.grabX));
+    drag.y = Math.max(0, Math.round(point.y - drag.grabY));
+
+    drag.node.setAttribute("transform", `translate(${drag.x} ${drag.y})`);
+    event.preventDefault();
+}
+
+function beginNodeDrag(state, drag, event) {
+    drag.moved = true;
+
+    state.canvas.classList.add("is-dragging");
+    drag.node.classList.add("is-dragging");
+
+    // Die anliegenden Kanten werden gedimmt statt live neu berechnet: Ihr Verlauf entsteht in C#
+    // (GraphLayout.Route) und ist dort getestet – ihn im Browser nachzubauen wäre eine zweite Quelle
+    // für dieselbe Geometrie. Nach dem Commit zeichnet C# die exakten Pfade.
+    for (const edge of incidentEdges(state.canvas, drag.nodeId)) {
+        edge.classList.add("is-stale");
+    }
+
+    state.canvas.setPointerCapture(event.pointerId);
+}
+
 function onPointerUp(state, event) {
+    const drag = state.drag;
+    if (drag && drag.pointerId === event.pointerId) {
+        endNodeDrag(state, drag, event);
+        return;
+    }
+
     const pan = state.pan;
     if (!pan || pan.pointerId !== event.pointerId) {
         return;
@@ -169,9 +251,75 @@ function onPointerUp(state, event) {
 
     state.pan = null;
     state.canvas.classList.remove("is-panning");
-    if (state.canvas.hasPointerCapture(event.pointerId)) {
-        state.canvas.releasePointerCapture(event.pointerId);
+    releasePointer(state, event.pointerId);
+}
+
+function endNodeDrag(state, drag, event) {
+    state.drag = null;
+
+    if (!drag.moved) {
+        // Unter der Schwelle geblieben: Das war ein Klick. Nichts anfassen – der folgende click
+        // trägt Blazors Auswahl.
+        return;
     }
+
+    state.canvas.classList.remove("is-dragging");
+    drag.node.classList.remove("is-dragging");
+    releasePointer(state, event.pointerId);
+
+    swallowNextClick(state);
+
+    // Genau EINE Nachricht je Geste – die einzige Interop-Stelle dieses Moduls.
+    state.dotNetRef?.invokeMethodAsync("MoveNodeAsync", drag.nodeId, drag.x, drag.y);
+}
+
+/**
+ * Verschluckt das click, das der Browser nach dem Loslassen noch auf den Knoten feuert. Ohne diesen
+ * Riegel wählte jeder Zug den Knoten zusätzlich aus – eine zweite Nachricht und ein Nebeneffekt, den
+ * niemand ausgelöst hat.
+ *
+ * Der Timeout räumt den Horcher auch dann ab, wenn ausnahmsweise kein click folgt (etwa weil der Zeiger
+ * das Fenster verlassen hat). Er läuft nach dem click derselben Geste – sonst bliebe der Riegel liegen
+ * und schluckte irgendwann einen echten Klick.
+ */
+function swallowNextClick(state) {
+    const swallow = (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+    };
+
+    state.canvas.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => state.canvas.removeEventListener("click", swallow, { capture: true }), 0);
+}
+
+function releasePointer(state, pointerId) {
+    if (state.canvas.hasPointerCapture(pointerId)) {
+        state.canvas.releasePointerCapture(pointerId);
+    }
+}
+
+function incidentEdges(canvas, nodeId) {
+    return canvas.querySelectorAll(
+        `.graph-edge[data-from="${nodeId}"], .graph-edge[data-to="${nodeId}"]`);
+}
+
+/** Liest die linke obere Ecke eines Knotens aus seinem transform. */
+function nodeOrigin(node) {
+    const matrix = node.transform?.baseVal?.consolidate()?.matrix;
+    return matrix ? { x: matrix.e, y: matrix.f } : null;
+}
+
+/**
+ * Rechnet einen Zeigerpunkt in Nutzerkoordinaten des Viewports um.
+ *
+ * Über getScreenCTM statt über state.scale: Die Matrix enthält auch die Skalierung, die die viewBox
+ * gegenüber der CSS-Breite des SVG erzeugt. Wer nur durch state.scale teilt, unterschlägt diesen
+ * Faktor – der Knoten liefe dann je nach Fensterbreite schneller oder langsamer als der Zeiger.
+ */
+function toUserSpace(state, event) {
+    const matrix = state.viewport.getScreenCTM();
+
+    return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
 }
 
 function onWheel(state, event) {

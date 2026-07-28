@@ -19,6 +19,7 @@ wurde, hier.
 | [0004](./0004-gesandboxte-expression-engine.md) | Gesandboxte Expression-Engine hinter einer Abstraktion | Akzeptiert | #22/#23 |
 | [0005](./0005-unveraenderliche-veroeffentlichte-dialogversion.md) | Veröffentlichte Dialogversionen sind unveränderlich | Akzeptiert | #95 |
 | [0006](./0006-canvas-technik-im-designer.md) | Canvas-Technik im Designer: Eigenbau-SVG statt Diagramm-Bibliothek | Akzeptiert | #100 |
+| [0007](./0007-layout-als-eigene-tabelle.md) | Canvas-Layout als eigene Tabelle, mit guard-freiem Layout-Command | Akzeptiert | #102 |
 
 Die ADRs stützen sich gegenseitig: 0002 erzwingt, dass alle Handler im Core liegen – was 0003
 (dünne, austauschbare Web-Schicht) technisch absichert. 0004 hängt an der Designer-Fähigkeit,
@@ -27,7 +28,10 @@ ist der Nachzügler: Es macht eine Zusage einlösbar, die das Domänenmodell sei
 hatte – und ist damit das Beispiel dafür, dass ein Guide beschreiben kann, was der Code nicht hält.
 0006 ist die Kehrseite von 0003: Weil dort der *Core* von ASP.NET freigehalten wird, darf der Designer
 umgekehrt browsernah sein – ein collocated JS-Modul im Designer verletzt keine Zusage des Pakets. Und
-es ist der einzige ADR, der auf **gemessenen** Zahlen steht statt auf einer Abwägung.
+es ist der einzige ADR, der auf **gemessenen** Zahlen steht statt auf einer Abwägung. 0007 zieht eine
+Grenze an 0005: Die Publish-Sperre gilt dem *Graphen*, und weil Canvas-Koordinaten in einer eigenen
+Tabelle liegen, ist der guard-freie Layout-Command keine Lücke, sondern der Rand des Geltungsbereichs.
+0005 wird dabei **nicht** umgeschrieben – seine 16 Aufrufstellen bleiben, wie sie sind.
 
 ## Format
 

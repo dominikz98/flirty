@@ -78,14 +78,27 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `Models/GraphWarning.cs`, `DialogGraphModel.cs`, `GraphLayoutResult.cs`, `GraphMetrics.cs`,
   `SvgFormat.cs`. **Kein Core-Code** – Datenquelle bleibt `GetDialogQuery`. Verlinkt aus `Dialogs.razor`
   und dem Kopf des `DialogEditor`.
+- **Layout-Persistenz (#102):** die einzige Stufe von EPIC 11 mit **Schema-Änderung**. Im Core neu:
+  `Domain/DialogLayout.cs` + `Domain/LayoutElementKind.cs`, `Dialog.Layout`,
+  `Persistence/Configurations/DialogLayoutConfiguration.cs` (Unique-Index über
+  `(DialogId, ElementKind, ElementId)`), `IDialogAdminStore.GetLayoutAsync` /
+  `GetLayoutsReferencingElementAsync`, `Runtime/Admin/SetDialogLayoutCommand.cs` (Batch-Upsert) und
+  `ResetDialogLayoutCommand.cs` – **beide ohne `DialogEditGuard`** (ADR 0007) –, `DialogLayoutDetail` /
+  `DialogLayoutEntry` + `DialogDetail.Layout`, je eine Migration `AddDialogLayout` in **allen drei**
+  Migrations-Projekten, in `Flirty.AspNetCore` `Dtos/Admin/DialogLayoutDtos.cs`,
+  `PUT`/`DELETE .../dialogs/{id}/layout` und `Layout` in `DialogDetailResponse`. Dazu die zwei
+  Handarbeits-Zweige: `CreateDialogVersionCommand` klont die Zeilen über die `questionIdMap`,
+  `DeleteQuestionCommand` räumt verweisende ab. Im Designer: gespeicherte Positionen in
+  `GraphLayout.Render`, `IsPinned` an `GraphNodePosition`/`GraphNode`, Knoten-Drag im JS-Modul plus
+  `[JSInvokable] MoveNodeAsync` und „Layout zurücksetzen" in `DialogGraph.razor`.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
   `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphLayoutTests`,
   `DialogGraphBuilderTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
-  `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests` und
-  `Runtime/StartDialogVersionCommandHandlerTests`. Dazu die Browser-Abdeckung in
+  `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests`,
+  `Runtime/StartDialogVersionCommandHandlerTests` und `Runtime/DialogLayoutTests`. Dazu die Browser-Abdeckung in
   `tests/Flirty.E2E/` (`DesignerAppFixture`, `DesignerE2ETests`, gemeinsame Browser-Sitzung in
   `PlaywrightSession`).
 
@@ -243,6 +256,33 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    schließt `foreignObject` aus, Kindelemente entstehen also im HTML-Namensraum. Damit sind Knoten echte
    `<button>`: Fokusring, Enter/Leertaste und Screenreader-Rolle kommen von der Plattform.
 
+8. **Canvas-Positionen liegen in `DialogLayout`, nicht am Graphen (ADR 0007, seit #102 umgesetzt).**
+   Muster für jede weitere Geste, die eine Position schreibt:
+
+   - **Schreibpfad ohne `DialogEditGuard`.** Koordinaten berühren die Session-Semantik nicht; ein
+     veröffentlichter Dialog muss anordbar bleiben. Weil `DialogLayout` eine eigene Tabelle ist, ist das
+     keine Umgehung der Publish-Sperre, sondern deren Grenze. Wer einen weiteren Layout-Command ergänzt,
+     setzt dort **keinen** Guard – und schreibt einen Test dagegen, der das festnagelt.
+   - **Ziehen in drei Schritten:** `pointerdown` merkt vor (kein `preventDefault`, keine Capture) →
+     Schwelle **4 px**, erst darüber wird aus dem Klick ein Zug → `pointerup` schluckt das folgende
+     `click` und ruft **einmal** `invokeMethodAsync`. `invokeMethodAsync` gehört ausschließlich in
+     `onPointerUp`.
+   - **Bildschirm → Nutzerkoordinaten über `viewport.getScreenCTM().inverse()`**, nie über den
+     Zoomfaktor allein: Die Matrix enthält auch die `viewBox`-Skalierung gegenüber der CSS-Breite.
+   - **Geometrie bleibt in C#.** Während des Zugs werden anliegende Kanten gedimmt (`data-from`/`data-to`
+     am Kanten-`<g>`), nicht im Browser neu gerechnet – sonst gäbe es zwei Quellen für dieselbe
+     Routing-Logik.
+   - **Gespeicherte Positionen greifen erst in `GraphLayout.Render`.** Schichtung, Kantenform,
+     Baryzentrum und Kanalvergabe bleiben am Auto-Layout: Ein Zug ändert eine Position, nicht die
+     Struktur. Die Zeichenfläche wächst um verschobene Knoten mit.
+   - **Der Commit lädt nicht neu.** Das `DialogDetail` liegt in einem Feld; die Antwort des Commands
+     ersetzt darin `Layout`, und das Modell wird lokal neu gebaut – ein `GetDialogQuery` je Geste wäre
+     ein zweiter Roundtrip für Daten, die man schon hat.
+   - **Ein neuer `LayoutElementKind` kostet zwei Handarbeits-Zweige:** den Klon in
+     `CreateDialogVersionCommand` (kind-bewusst, nicht abbildbare Zeilen verwerfen) und das Aufräumen in
+     `DeleteQuestionCommand`. Beide sind heute je durch einen Test in `Runtime/DialogLayoutTests`
+     gesichert – für den neuen Kind kommen zwei dazu.
+
 ## Aufbaureihenfolge
 
 **EPIC 7 – abgeschlossen:** #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ →
@@ -250,7 +290,7 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 #46 Designer-E2E ✅.
 
 **EPIC 11 – visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
-#101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`, eigener ADR) →
+#101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`) ✅ (ADR 0007) →
 #103 Editieren auf dem Canvas → #104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.
 
 ## Konventionen
@@ -281,6 +321,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   läuft, ist es zugleich der Nachweis, dass der Circuit die Seite übernommen hat. Es ist das **erste**
   `data-`-Attribut im Designer und bewusst eine Ausnahme von der sonstigen Selektor-Praxis (Rolle,
   Überschrift, Feld-`id`, CSS-Klasse).
+- **Ein Drag in der E2E braucht `ScrollIntoViewIfNeededAsync` und `page.Mouse`.** `DragToAsync` nutzt die
+  HTML5-Drag-and-Drop-API und löst auf einem SVG-Canvas mit Pointer-Events gar nicht aus; und
+  Maus-Koordinaten sind fensterbezogen, während der Canvas-Host 70 vh hoch unter Kopfzeile, Hinweis und
+  Werkzeugleiste steht – ohne Scrollen zielt die Geste bei einem Knoten der unteren Schichten ins Leere,
+  ohne jede Fehlermeldung. Über mehrere `Mouse.MoveAsync`-Schritte ziehen, damit die 4-px-Schwelle wie
+  bei einer echten Geste überschritten wird.
 - **Warnungstexte sind Vertrag.** `TransitionWarningAnalyzer` und `LoopAnalyzer` liefern
   `GraphWarning` (Ziel + Text). Der Text ist derselbe, den die Listenansicht seit jeher zeigt – die
   Publish-Rückfrage zählt ihn und die E2E-Suite sucht darin. Wer umformuliert, ändert die Oberfläche

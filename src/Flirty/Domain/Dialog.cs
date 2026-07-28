@@ -2,7 +2,7 @@ namespace Flirty.Domain;
 
 /// <summary>
 /// Ein konfigurierbarer Dialog (Chatbot-Konversation) und zugleich das Aggregat-Root der
-/// Konfigurationsebene: er bündelt seine Fragen, Übergänge, Schleifen und Trigger.
+/// Konfigurationsebene: er bündelt seine Fragen, Übergänge, Schleifen, Trigger und das Canvas-Layout.
 /// </summary>
 public sealed class Dialog
 {
@@ -50,4 +50,10 @@ public sealed class Dialog
 
     /// <summary>Die Trigger-Definitionen (Rückkanäle) dieses Dialogs.</summary>
     public ICollection<TriggerDefinition> Triggers { get; set; } = [];
+
+    /// <summary>
+    /// Die gespeicherten Canvas-Positionen dieses Dialogs – reine Anzeigedaten des Designers, von der
+    /// Laufzeit nie gelesen.
+    /// </summary>
+    public ICollection<DialogLayout> Layout { get; set; } = [];
 }

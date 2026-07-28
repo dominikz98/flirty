@@ -120,6 +120,11 @@
                 classes.Add("in-loop");
             }
 
+            if (Node.IsPinned)
+            {
+                classes.Add("is-pinned");
+            }
+
             if (Node.Warnings.Count > 0)
             {
                 classes.Add("has-warning");

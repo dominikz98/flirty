@@ -88,6 +88,14 @@ internal static class TestDialogFactory
                     Kind = TriggerKind.Webhook, Config = "{\"url\":\"https://example.test/hook\"}",
                 },
             },
+            Layout =
+            {
+                new DialogLayout
+                {
+                    Id = Guid.NewGuid(), DialogId = dialogId,
+                    ElementKind = LayoutElementKind.Question, ElementId = qId, X = 320, Y = 160,
+                },
+            },
         };
     }
 
