@@ -74,6 +74,29 @@
             }
         </button>
     </foreignObject>
+
+    @if (Editable)
+    {
+        @* Der Port ist ein GESCHWISTER der Karte, kein Kind: Ein <button> in einem <button> ist
+           ungültiges HTML, und der äußere verschluckte Klick und Fokus. Er liegt später im Markup und
+           damit über der Karte – der Zeiger trifft ihn zuerst, was das JS-Modul im pointerdown
+           voraussetzt (es prüft .graph-port VOR .graph-node). *@
+        <foreignObject x="@SvgFormat.N((GraphMetrics.NodeWidth - GraphMetrics.PortSize) / 2)"
+                       y="@SvgFormat.N(GraphMetrics.NodeHeight - (GraphMetrics.PortSize / 2))"
+                       width="@SvgFormat.N(GraphMetrics.PortSize)"
+                       height="@SvgFormat.N(GraphMetrics.PortSize)">
+            @* Kein disabled bei laufender Geste: Blazor rendert das Attribut sonst mitten in einem Zug
+               neu, und die Pointer-Capture geht dabei verloren. Gesperrt wird über data-busy am <svg>
+               per CSS (pointer-events), was kein Attribut am Knoten anfasst. *@
+            <button type="button"
+                    class="graph-port @(IsLinkSource ? "is-active" : "")"
+                    aria-label="@(IsLinkSource
+                        ? $"Verbindung von {Node.Key} läuft – Zielfrage wählen oder erneut betätigen zum Abbrechen"
+                        : $"Übergang von {Node.Key} ziehen – oder betätigen und dann die Zielfrage wählen")"
+                    aria-pressed="@(IsLinkSource ? "true" : "false")"
+                    @onclick="OnStartLink">＋</button>
+        </foreignObject>
+    }
 </g>
 
 @code {
@@ -89,6 +112,22 @@
     [Parameter]
     public EventCallback<Guid> Select { get; set; }
 
+    /// <summary>
+    /// Ob der Graph bearbeitbar ist. Bei einer veröffentlichten Version wird der Ausgangs-Port
+    /// <b>nicht gerendert</b> statt deaktiviert: Ein Port, der nichts tut, wäre irritierender als
+    /// keiner – und die Engine lehnte die Geste ohnehin mit einem Konflikt ab.
+    /// </summary>
+    [Parameter]
+    public bool Editable { get; set; }
+
+    /// <summary>Ob gerade eine Verbindung von diesem Knoten aus gelegt wird (Tastaturpfad).</summary>
+    [Parameter]
+    public bool IsLinkSource { get; set; }
+
+    /// <summary>Wird ausgelöst, wenn der Ausgangs-Port betätigt wird – der Zeigerlose Weg zu verbinden.</summary>
+    [Parameter]
+    public EventCallback<Guid> StartLink { get; set; }
+
     private string StateClasses
     {
         get
@@ -98,6 +137,11 @@
             if (Selected)
             {
                 classes.Add("is-selected");
+            }
+
+            if (IsLinkSource)
+            {
+                classes.Add("is-link-source");
             }
 
             if (Node.IsStart)
@@ -135,4 +179,6 @@
     }
 
     private Task OnSelect() => Select.InvokeAsync(Node.QuestionId);
+
+    private Task OnStartLink() => StartLink.InvokeAsync(Node.QuestionId);
 }

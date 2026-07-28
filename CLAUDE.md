@@ -27,7 +27,8 @@ src/
 │                               Verwaltung (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
 │                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42),
 │                               Test-Runner (#43) und Playwright-E2E der UI (#46). Dazu aus EPIC 11
-│                               die lesende Graph-Ansicht (#101, SVG-Canvas). Komposition in
+│                               der Graph-Canvas (SVG): lesend (#101), Layout-Persistenz (#102) und
+│                               Editieren per Geste (#103). Komposition in
 │                               `DesignerApp.cs` (Program.cs ruft nur ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
@@ -97,6 +98,12 @@ Zentral in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packag
   Ausnahme von der Publish-Sperre und keine Lücke, sondern ihr Rand. Die Laufzeit liest die Tabelle nie
   (`IDialogStore` lädt `Layout` nicht). Preis: Klonen (`CreateDialogVersionCommand`) und Aufräumen
   (`DeleteQuestionCommand`) sind Handarbeit. Grund: ADR `docs/adr/0007-layout-als-eigene-tabelle.md`.
+- **Canvas-Gesten schreiben über die bestehenden Admin-Commands** (#103): Ein Palette-Drop ist
+  `CreateQuestionCommand` + `SetDialogLayoutCommand`, eine Verbindung `CreateTransitionCommand` – alles in
+  **einem** Gateway-Aufruf. Kein Canvas-CRUD, kein neuer Core-Command. Nach jeder Graph-Mutation wird
+  **neu geladen** (die Warnungen entstehen graphweit); Gesten sind **nicht idempotent** und deshalb
+  zweistufig gesperrt (JS-`send()` am Versprechen von `invokeMethodAsync` + Frühausstieg in
+  `RunGestureAsync`). Grund: ADR `docs/adr/0008-gesten-auf-dem-canvas.md`.
 
 ## Zentrale Einstiegspunkte (mit Pfaden)
 
@@ -195,7 +202,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0007 |
+| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0008 |
 
 ## Stand & offene Baustellen
 
@@ -511,3 +518,68 @@ Ausschlag gegeben haben:
 Hinweis und Werkzeugleiste steht – die Geste zielte an einem Knoten der unteren Schichten vorbei, ohne
 jede Meldung. `ScrollIntoViewIfNeededAsync` vor dem Zug, und `DragToAsync` gar nicht erst versuchen: Das
 nutzt die HTML5-Drag-and-Drop-API, die auf einem Pointer-Events-Canvas nichts auslöst.
+
+**Editieren auf dem Canvas (#103) fertig** – Stufe 3 von EPIC 11 und die Stufe, die den Canvas zum
+Editor macht: Palette der Fragetypen (ziehen legt an der Drop-Stelle an, klicken hängt hinten an),
+Ausgangs-Port je Knoten (ziehen verbindet, ins Leere gezogen entstehen Frage **und** Übergang in einem
+Zug), Inspector-Panels für Kopffelder, Auswertungsreihenfolge, Default-Umschaltung, Bedingung, Trigger
+und Löschen; Schleifen-Vorschlag **am Zyklus** statt in einer Liste; veröffentlichter Dialog ⇒ echter
+Lesemodus, in dem Verschieben weiter geht. **Kein Core-Code, keine Schema-Änderung** – Begründung in ADR
+`docs/adr/0008-gesten-auf-dem-canvas.md`. Sechs Punkte, die den Ausschlag gaben:
+
+- **Nach einer Graph-Mutation wird neu geladen** – das schränkt ADR 0007s „der Commit lädt nicht neu"
+  ausdrücklich auf den *Layout*-Pfad ein. Nicht wegen der Entitäten, sondern wegen der **Warnungen**:
+  `TransitionWarningAnalyzer`/`LoopAnalyzer` rechnen über den *ganzen* `DialogDetail`, ein neuer Übergang
+  kann eine Warnung an einer anderen Frage aufheben. Und `DeleteQuestionCommand` räumt Übergänge, Marker,
+  Trigger und Layout-Zeilen mit ab – diese Kaskade lokal nachzubauen wäre die zweite Wahrheit, die das
+  Issue verbietet. Gemeldet wird sie als Differenz vor/nach dem Reload; `ReconcileSelection()` verwirft
+  eine Auswahl, deren Element weg ist (sonst rendert der Inspector in einen leeren Zweig).
+- **Der Gesten-Riegel braucht beide Enden.** Die Sperre des `DialogEditor` ist ausschließlich das
+  gerenderte `disabled` – ein `[JSInvokable]`-Aufruf sieht davon nichts, und jedes `await` gibt den
+  Circuit-Kontext ab. Clientseitig läuft alles über `send()`, wobei **das Versprechen von
+  `invokeMethodAsync` die Quittung ist** (kein zweiter Rückkanal, den man vergessen kann); serverseitig
+  steigt `RunGestureAsync` bei `_busy` früh aus. `MoveNodeAsync` hing bis dahin **ganz ohne** Gate und war
+  nur deshalb harmlos, weil `SetDialogLayoutCommand` ein Upsert ist.
+- **Der leere Dialog rendert jetzt eine Zeichenfläche.** Vorher ersetzte ein Hinweis den Canvas, solange
+  es keine Fragen gab – auf eine nicht vorhandene Fläche lässt sich nichts ziehen, und genau dort beginnt
+  jeder neue Dialog. Der Hinweis steht darüber, `GraphMetrics.MinCanvasWidth/Height` gibt eine Untergrenze
+  (vorher 80 × 80 px), und das Flag `_canvasAttached` entfiel: Wahrheit ist `_module`.
+- **`data-editable` gehört C#, das JS liest es nur** – bei jeder Geste frisch statt als `attach`-Option
+  eingefroren. Das ist die Kehrseite der ADR-0006-Regel „was das JS setzt, rendert C# nie", nicht ihr
+  Bruch. Ebenso `data-busy`: Gesperrt wird über `pointer-events`, **nicht** über `disabled` an Port und
+  Palette-Eintrag – Blazor rendert ein Attribut sonst mitten im Zug neu und die Pointer-Capture geht
+  verloren.
+- **Gummiband und Drop-Vorschau sind von C# gerenderte, leere Platzhalter** (`.graph-rubber`,
+  `.graph-ghost`); das Modul setzt nur ihre Geometrie. Per `createElement` erzeugtes DOM in einem von
+  Blazor verwalteten Container bringt den Renderer beim nächsten Diff über die Kindindizes aus dem Tritt.
+  Beide brauchen `pointer-events: none`, weil der Ziel-Hit-Test über `document.elementFromPoint` läuft
+  (nach `setPointerCapture` ist `event.target` das Capture-Element) und sonst das Gummiband trifft.
+- **Regeln, die im `@code`-Block liegen, sind nicht prüfbar** – der Designer hat kein bUnit. `NextOrder`,
+  `NextPriority` je Ausgangsfrage und die Umsortierung (Positionsindex → `Priority`, repariert doppelte
+  Werte) sind deshalb nach `Services/GraphEditing.cs` gewandert, `IsBackJump`/`UnmarkedBackJumps` in den
+  `LoopAnalyzer`; beide Ansichten benutzen sie jetzt. Neu: `QuestionFormModel.SuggestKey` – anders als
+  `LoopFormModel.SuggestCollectionKey` darf es **nie leer** liefern, weil der Vorschlag eine Geste trägt,
+  die sofort schreibt. Dabei fiel auf, dass `SuggestCollectionKey` selbst ungetestet war.
+
+**Der Testbau hat zwei echte Defekte gefunden, die kein Unit-Test sehen konnte** – der Grund, warum der
+Inspector-Pfad trotz „E2E gehört nach #105" doch einen Browser-Test bekommen hat: Die Panels arbeiten
+jetzt **ohne `EditForm`** (rohe Felder mit `@oninput`, Pflichtprüfung im Handler, `@key` an der
+Element-Id). `onchange` liefert den Wert erst beim Verlassen des Felds und verlor ihn, weil das Panel nach
+jeder Geste neu aufgebaut wird – gespeichert wurde stillschweigend der **alte** Wert; und der Submit einer
+`EditForm` kam in einem Panel innerhalb wechselnder `@if`-Zweige gar nicht an. Dazu die E2E-Lehre: **Ein
+DOM-Wert beweist nicht, dass Blazor die Eingabe gesehen hat.** Verpufft die erste Interaktion auf einem
+frisch gerenderten Feld, steht der getippte Wert trotzdem im DOM, bis der nächste Render ihn überschreibt –
+`ToHaveValueAsync` meldet dann Erfolg, und der Test wird **unter Last** rot und allein grün. Geprüft wird
+eine serverseitig erzeugte Wirkung, und die wiederholte Einheit umfasst Füllen *und* Speichern; umgekehrt
+darf eine Geste, die ihren eigenen Auslöser sperrt (`disabled` während `_busy`), nicht allein wiederholt
+werden.
+
+**Merksatz:** Eine neue Affordanz bricht bestehende Selektoren mit Zwangsläufigkeit. Der Knoten trägt
+jetzt einen zweiten Button (den Port), und `GetByRole(Button)` innerhalb von `.graph-node` wurde damit zur
+Strict-Mode-Verletzung – der E2E-Test aus #101 war betroffen, ohne dass sich an seiner Absicht etwas
+geändert hat. Zweiter Fund derselben Art: `swallowNextClick` horchte auf dem Canvas, der `click` nach
+einem Palette-Zug feuert aber am **Palette-Eintrag** – ohne eigenen Riegel dort legte jeder Zug
+zusätzlich die Klick-Frage an, zwei Fragen aus einer Geste. Nebenbefund der Zusammenlegung des
+Ausdrucks-Editors zu `Components/ExpressionField.razor`: `.expr-status`/`.expr-caret` lagen scoped im
+`TransitionEditor`, wurden vom `TriggerEditor` seit #42 aber mitbenutzt – dort war der Live-Status
+**unstyled**.

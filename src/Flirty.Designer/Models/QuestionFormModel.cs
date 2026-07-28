@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Flirty.Designer.Services;
 using Flirty.Domain;
 using Flirty.Runtime.Admin;
 using Flirty.Validation;
@@ -106,6 +107,64 @@ internal sealed class QuestionFormModel
         model.ReadValidationRules(question.ValidationRules);
         return model;
     }
+
+    /// <summary>
+    /// Schlägt für eine <b>per Geste</b> angelegte Frage einen freien Schlüssel vor: ein Stamm nach dem
+    /// Fragetyp (<c>text</c>, <c>zahl</c>, <c>datum</c>, <c>auswahl</c>, <c>mehrfach</c>, <c>janein</c>),
+    /// bei Belegung mit angehängter Zahl (<c>text2</c>, <c>text3</c> …).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bewusst anders als <see cref="LoopFormModel.SuggestCollectionKey"/>, das bei einer Kollision
+    /// <b>leer</b> liefert: Dort füllt der Vorschlag ein Pflichtfeld, das der Autor ohnehin bewusst
+    /// wählen muss. Hier trägt er eine Geste, die sofort schreibt – ein leerer Schlüssel ließe sie am
+    /// <c>CreateQuestionCommand</c> scheitern. Der Schlüssel ist ein Platzhalter, den der Inspector
+    /// umbenennbar macht.
+    /// </para>
+    /// <para>
+    /// Geprüft wird gegen Frage- <b>und</b> Collection-Schlüssel: Ein Frage-Schlüssel, der einen
+    /// <c>CollectionKey</c> doppelt, wird im Ausdruckskontext von ihm verdeckt – die Geste erzeugte
+    /// sonst auf der Stelle eine Warnung. <see cref="DesignerExpressionContext.IsBindable"/> hält
+    /// zugleich die reservierten Namen (<c>now</c>, <c>iterationIndex</c>, <c>session</c>) frei.
+    /// </para>
+    /// </remarks>
+    /// <param name="type">Der Fragetyp, der den Stamm bestimmt.</param>
+    /// <param name="detail">Der Dialog samt Graph, gegen den auf Kollisionen geprüft wird.</param>
+    /// <returns>Ein freier, referenzierbarer Schlüssel – nie leer.</returns>
+    public static string SuggestKey(QuestionType type, DialogDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+
+        var stem = type switch
+        {
+            QuestionType.SingleChoice => "auswahl",
+            QuestionType.MultiChoice => "mehrfach",
+            QuestionType.Number => "zahl",
+            QuestionType.Date => "datum",
+            QuestionType.Boolean => "janein",
+            _ => "text",
+        };
+
+        // Die Obergrenze ist erreichbar konstruiert, nicht geraten: Ein freier Name liegt spätestens bei
+        // (Anzahl belegter Namen + 1), weil jeder Durchlauf einen anderen Kandidaten prüft.
+        var limit = detail.Questions.Count + detail.Loops.Count + 2;
+
+        for (var suffix = 1; suffix <= limit; suffix++)
+        {
+            var candidate = suffix == 1 ? stem : $"{stem}{suffix}";
+
+            if (DesignerExpressionContext.IsBindable(candidate) && IsFree(candidate, detail))
+            {
+                return candidate;
+            }
+        }
+
+        return stem;
+    }
+
+    private static bool IsFree(string candidate, DialogDetail detail)
+        => !detail.Questions.Any(question => string.Equals(question.Key, candidate, StringComparison.Ordinal))
+            && !detail.Loops.Any(loop => string.Equals(loop.CollectionKey, candidate, StringComparison.Ordinal));
 
     /// <summary>
     /// Baut aus den Eingabefeldern das JSON für <see cref="Flirty.Domain.Question.ValidationRules"/>.

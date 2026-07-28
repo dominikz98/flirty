@@ -1,0 +1,324 @@
+@*
+    Der Ausdrucks-Editor: Eingabefeld mit Live-Validierung, Fehlerstelle, Baustein-Einfüger und
+    Bezeichner-Referenz.
+
+    Herausgezogen aus TransitionEditor und TriggerEditor (#103), wo er Zeile für Zeile identisch stand –
+    bis auf einen Satz („der Übergang greift immer" / „der Trigger löst immer aus"). Der Canvas-Inspector
+    braucht ihn als dritte Stelle; eine dritte Kopie hätte die Konvention „rohes <textarea> mit @oninput,
+    nicht <InputTextArea>" endgültig unhaltbar gemacht.
+
+    Der Parametersatz besteht ausschließlich aus öffentlichen Typen: Razor erzeugt Komponenten als
+    public, ein internal Typ an einem [Parameter] wäre CS0053 – unter TreatWarningsAsErrors ein
+    Buildfehler. Deshalb kommt DialogDetail (öffentlicher Core-Typ) herein und die Komponente baut
+    Musterkontext und Bezeichnerliste selbst; ExpressionVariable bleibt internal.
+
+    Die BLOCKIERENDE Prüfung vor dem Speichern bleibt beim Aufrufer. Hier wird angezeigt, dort
+    entschieden – sonst müsste jeder Aufrufer den Zustand dieser Komponente kennen.
+*@
+@using Flirty.Expressions
+@using Flirty.Runtime.Admin
+
+<div class="field">
+    <label for="@FieldId">Ausdruck</label>
+    @* Bewusst ein rohes <textarea> mit @oninput statt <InputTextArea>: Nur so wird bei JEDER Eingabe
+       validiert (das Formular-Binding feuert erst beim Verlassen des Felds). *@
+    <textarea id="@FieldId" class="input mono" rows="3" disabled="@Disabled"
+              value="@_expression" @oninput="OnExpressionInput"></textarea>
+    <span class="hint">
+        Boolescher Ausdruck, z. B. <code>role == "dev" &amp;&amp; alter &gt; 18</code>.
+        Leer bedeutet „@EmptyHint".
+    </span>
+</div>
+
+@if (_validation is not null)
+{
+    @if (_validation.IsValid)
+    {
+        <p class="expr-status ok">
+            ✓ @(string.IsNullOrWhiteSpace(_expression)
+                ? $"Ohne Bedingung – {EmptyMeaning}."
+                : "Ausdruck ist gültig.")
+        </p>
+    }
+    else
+    {
+        @* Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist englisch –
+           deshalb der deutsche Rahmen davor. *@
+        <p class="expr-status err">✗ Der Ausdruck ist ungültig: @_validation.Error</p>
+
+        @if (Caret() is { } caret)
+        {
+            <pre class="expr-caret">@_expression
+@caret</pre>
+        }
+    }
+}
+
+@if (ShowBuilder)
+{
+    <h3>Baustein einfügen</h3>
+
+    @if (BuilderVariables.Count == 0)
+    {
+        <p class="hint">
+            Es gibt noch keine referenzierbaren Fragen in diesem Dialog – erst Fragen anlegen,
+            dann lassen sich Bedingungen darauf bauen.
+        </p>
+    }
+    else
+    {
+        <div class="field-row">
+            <div class="field">
+                <label for="@($"{FieldId}Variable")">Variable</label>
+                <select id="@($"{FieldId}Variable")" class="input" disabled="@Disabled"
+                        @bind="_builderVariable" @bind:after="OnBuilderVariableChanged">
+                    @foreach (var variable in BuilderVariables)
+                    {
+                        <option value="@variable.Name">@variable.Name (@variable.TypeLabel)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="@($"{FieldId}Operator")">Operator</label>
+                <select id="@($"{FieldId}Operator")" class="input" disabled="@Disabled"
+                        @bind="_builderOperator">
+                    @foreach (var candidate in BuilderOperators)
+                    {
+                        <option value="@candidate">@candidate</option>
+                    }
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="@($"{FieldId}Value")">Wert</label>
+                @if (SelectedVariable?.Kind == ExpressionValueKind.Boolean)
+                {
+                    <select id="@($"{FieldId}Value")" class="input" disabled="@Disabled"
+                            @bind="_builderValue">
+                        <option value="true">true (ja)</option>
+                        <option value="false">false (nein)</option>
+                    </select>
+                }
+                else
+                {
+                    <input id="@($"{FieldId}Value")" class="input" disabled="@Disabled"
+                           @bind="_builderValue" @bind:event="oninput" />
+                }
+            </div>
+
+            <div class="field">
+                <label for="@($"{FieldId}Conjunction")">Verknüpfung</label>
+                <select id="@($"{FieldId}Conjunction")" class="input" @bind="_builderConjunction"
+                        disabled="@(Disabled || string.IsNullOrWhiteSpace(_expression))">
+                    <option value="&amp;&amp;">und (&amp;&amp;)</option>
+                    <option value="||">oder (||)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button type="button" class="btn" disabled="@Disabled"
+                    @onclick="InsertCondition">Einfügen</button>
+            <span class="hint">Vorschau: <code class="mono">@Preview()</code></span>
+        </div>
+    }
+
+    <h3>Verfügbare Bezeichner</h3>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Bezeichner</th>
+                <th>Typ</th>
+                <th>Beispiel</th>
+                <th>Hinweis</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var variable in _variables)
+            {
+                <tr>
+                    <td class="mono">@variable.Name</td>
+                    <td>@variable.TypeLabel</td>
+                    <td class="mono">@(variable.IsUsable ? variable.Example : "—")</td>
+                    <td>
+                        @if (!variable.IsUsable)
+                        {
+                            <span class="badge badge-draft">nicht nutzbar</span>
+                        }
+                        @variable.Note
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    /// <summary>Der Dialog, gegen dessen Musterkontext geprüft wird.</summary>
+    [Parameter, EditorRequired]
+    public required DialogDetail Detail { get; set; }
+
+    /// <summary>Der bearbeitete Ausdruck; <see langword="null"/> oder leer heißt „bedingungslos".</summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>Meldet jede Eingabe – bindbar über <c>@bind-Value</c>.</summary>
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    /// <summary>Ob das Feld gesperrt ist (veröffentlichter Dialog oder laufende Geste).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
+    /// Was ein leerer Ausdruck bedeutet – der einzige fachliche Unterschied zwischen den Aufrufern
+    /// („bedingungslos zutreffend" beim Übergang, „löst bedingungslos aus" beim Trigger).
+    /// </summary>
+    [Parameter]
+    public string EmptyHint { get; set; } = "bedingungslos zutreffend";
+
+    /// <summary>Derselbe Sachverhalt als Satzteil für die Erfolgsmeldung.</summary>
+    [Parameter]
+    public string EmptyMeaning { get; set; } = "der Übergang greift immer";
+
+    /// <summary>
+    /// Ob Baustein-Einfüger und Bezeichner-Referenz mitgezeigt werden. Im schmalen Inspector-Panel
+    /// bewusst abschaltbar – dort ist der Platz knapp und der Vollteditor einen Sprung entfernt.
+    /// </summary>
+    [Parameter]
+    public bool ShowBuilder { get; set; } = true;
+
+    /// <summary>
+    /// Die <c>id</c> des Eingabefelds. Vorgabe <c>expression</c>, damit die bestehenden Editoren (und
+    /// deren E2E-Selektoren) sich nicht ändern; wo zwei Felder auf einer Seite liegen, wird sie gesetzt.
+    /// </summary>
+    [Parameter]
+    public string FieldId { get; set; } = "expression";
+
+    [Inject]
+    private IExpressionEvaluator Evaluator { get; set; } = default!;
+
+    private string? _expression;
+    private ExpressionContext? _context;
+    private IReadOnlyList<ExpressionVariable> _variables = [];
+    private ExpressionValidationResult? _validation;
+    private string? _builderVariable;
+    private string _builderOperator = "==";
+    private string _builderValue = string.Empty;
+    private string _builderConjunction = "&&";
+
+    /// <summary>
+    /// Der Dialog, für den Kontext und Bezeichner zuletzt gerechnet wurden. Ohne diesen Vergleich liefe
+    /// die ganze Kontextbildung bei <b>jedem</b> Tastendruck erneut – <c>OnParametersSet</c> läuft nach
+    /// jedem Elternteil-Render.
+    /// </summary>
+    private DialogDetail? _contextFor;
+
+    private IReadOnlyList<ExpressionVariable> BuilderVariables =>
+        [.. _variables.Where(variable => variable.IsUsable && variable.Kind != ExpressionValueKind.Context)];
+
+    private ExpressionVariable? SelectedVariable =>
+        BuilderVariables.FirstOrDefault(variable => variable.Name == _builderVariable);
+
+    private IReadOnlyList<string> BuilderOperators =>
+        SelectedVariable is { } variable ? DesignerExpressionContext.OperatorsFor(variable.Kind) : [];
+
+    protected override void OnParametersSet()
+    {
+        var contextChanged = !ReferenceEquals(_contextFor, Detail);
+
+        if (contextChanged)
+        {
+            _contextFor = Detail;
+            _context = DesignerExpressionContext.Build(Detail);
+            _variables = DesignerExpressionContext.Describe(Detail);
+            _builderVariable = BuilderVariables.FirstOrDefault()?.Name;
+            OnBuilderVariableChanged();
+        }
+
+        // Von außen gesetzter Wert (Auswahlwechsel, Zurücksetzen) übernimmt; die eigene Eingabe steht
+        // schon in _expression und wird hier nicht überschrieben.
+        if (_expression != Value)
+        {
+            _expression = Value;
+            Validate();
+        }
+        else if (contextChanged)
+        {
+            Validate();
+        }
+    }
+
+    private async Task OnExpressionInput(ChangeEventArgs args)
+    {
+        _expression = args.Value?.ToString();
+        Validate();
+        await ValueChanged.InvokeAsync(_expression);
+    }
+
+    /// <summary>
+    /// Prüft den Ausdruck gegen den Musterkontext des Dialogs – bei jeder Eingabe. Der Compile-Check ist
+    /// eine synchrone In-Memory-Operation (DynamicExpresso <c>Parse</c>), daher ohne Entprellung tragbar.
+    /// </summary>
+    private void Validate()
+    {
+        var normalized = string.IsNullOrWhiteSpace(_expression) ? null : _expression!.Trim();
+
+        _validation = _context is null
+            ? null
+            : DesignerExpressionContext.Validate(Evaluator, normalized, _context);
+    }
+
+    private void OnBuilderVariableChanged()
+    {
+        // Nach einem Variablenwechsel passt der bisherige Operator womöglich nicht mehr (z. B. „>" auf
+        // einer Liste) -> auf den ersten passenden zurücksetzen.
+        if (!BuilderOperators.Contains(_builderOperator))
+        {
+            _builderOperator = BuilderOperators.FirstOrDefault() ?? "==";
+        }
+
+        if (SelectedVariable?.Kind == ExpressionValueKind.Boolean
+            && _builderValue is not ("true" or "false"))
+        {
+            _builderValue = "true";
+        }
+    }
+
+    private string Preview()
+        => SelectedVariable is { } variable
+            ? DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue)
+            : string.Empty;
+
+    private async Task InsertCondition()
+    {
+        if (SelectedVariable is not { } variable)
+        {
+            return;
+        }
+
+        _expression = DesignerExpressionContext.Append(
+            _expression,
+            DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue),
+            _builderConjunction);
+
+        Validate();
+        await ValueChanged.InvokeAsync(_expression);
+    }
+
+    /// <summary>Baut die Caret-Zeile, die unter der gemeldeten Fehlerposition ein „^" setzt.</summary>
+    private string? Caret()
+    {
+        if (_validation?.ErrorPosition is not { } position
+            || string.IsNullOrEmpty(_expression)
+            || position < 0
+            || position > _expression.Length)
+        {
+            return null;
+        }
+
+        return new string(' ', position) + "^";
+    }
+}

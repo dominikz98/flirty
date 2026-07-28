@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Flirty.Designer.Models;
+using Flirty.Designer.Services;
 using Flirty.Domain;
 using Flirty.Runtime.Admin;
 using Flirty.Validation;
@@ -284,10 +285,88 @@ public sealed class QuestionFormModelTests
         Assert.Equal(original, wiederhergestellt);
     }
 
+    // ---- Schlüssel-Vorschlag für Gesten auf dem Canvas (#103) ---------------------------------------
+
+    [Theory]
+    [InlineData(QuestionType.FreeText, "text")]
+    [InlineData(QuestionType.Number, "zahl")]
+    [InlineData(QuestionType.Date, "datum")]
+    [InlineData(QuestionType.Boolean, "janein")]
+    [InlineData(QuestionType.SingleChoice, "auswahl")]
+    [InlineData(QuestionType.MultiChoice, "mehrfach")]
+    public void SuggestKey_nutzt_einen_Stamm_je_Fragetyp(QuestionType type, string erwartet)
+        => Assert.Equal(erwartet, QuestionFormModel.SuggestKey(type, Dialog()));
+
+    [Fact]
+    public void SuggestKey_haengt_bei_Belegung_eine_Zahl_an()
+    {
+        var detail = Dialog(Frage(QuestionType.FreeText, null) with { Key = "text" });
+
+        Assert.Equal("text2", QuestionFormModel.SuggestKey(QuestionType.FreeText, detail));
+    }
+
+    [Fact]
+    public void SuggestKey_weicht_auch_einem_Collection_Schluessel_aus()
+    {
+        // Ein Frage-Schlüssel, der einen CollectionKey doppelt, wird im Ausdruckskontext von ihm
+        // verdeckt – die Geste erzeugte sonst auf der Stelle eine Warnung.
+        var detail = Dialog() with
+        {
+            Loops = [new LoopDetail(Guid.NewGuid(), Guid.NewGuid(), "text", Guid.NewGuid(), Guid.NewGuid())],
+        };
+
+        Assert.Equal("text2", QuestionFormModel.SuggestKey(QuestionType.FreeText, detail));
+    }
+
+    /// <summary>
+    /// Anders als <c>LoopFormModel.SuggestCollectionKey</c> darf hier <b>nie</b> leer herauskommen: Der
+    /// Vorschlag trägt eine Geste, die sofort schreibt – ein leerer Schlüssel ließe sie am
+    /// <c>CreateQuestionCommand</c> scheitern.
+    /// </summary>
+    [Fact]
+    public void SuggestKey_liefert_auch_bei_vielen_Kollisionen_einen_freien_Schluessel()
+    {
+        var belegt = Enumerable.Range(1, 5)
+            .Select(index => Frage(QuestionType.Number, null) with { Key = index == 1 ? "zahl" : $"zahl{index}" })
+            .ToArray();
+
+        var vorschlag = QuestionFormModel.SuggestKey(QuestionType.Number, Dialog(belegt));
+
+        Assert.Equal("zahl6", vorschlag);
+        Assert.DoesNotContain(vorschlag, belegt.Select(frage => frage.Key));
+    }
+
+    /// <summary>
+    /// Der Vorschlag muss als Ausdrucks-Variable bindbar sein – Frage-Schlüssel werden im
+    /// Musterkontext des Branching-Editors gebunden.
+    /// </summary>
+    [Theory]
+    [InlineData(QuestionType.FreeText)]
+    [InlineData(QuestionType.Boolean)]
+    [InlineData(QuestionType.MultiChoice)]
+    public void SuggestKey_ist_immer_ein_bindbarer_Bezeichner(QuestionType type)
+    {
+        var vorschlag = QuestionFormModel.SuggestKey(type, Dialog());
+
+        Assert.NotEqual(string.Empty, vorschlag);
+        Assert.True(DesignerExpressionContext.IsBindable(vorschlag));
+    }
+
     /// <summary>Baut eine Frage-Sicht, wie sie der <c>GetDialogQuery</c> liefert.</summary>
     /// <param name="type">Der Fragetyp.</param>
     /// <param name="validationRules">Die gespeicherten Regeln als JSON.</param>
     /// <returns>Die Frage-Sicht.</returns>
     private static QuestionDetail Frage(QuestionType type, string? validationRules)
         => new(Guid.NewGuid(), Guid.NewGuid(), "vorname", "Wie heißt du?", type, 0, true, validationRules, []);
+
+    private static DialogDetail Dialog(params QuestionDetail[] questions)
+        => new(
+            new DialogSummary(
+                Guid.NewGuid(), "dialog", "Dialog", null, 1, false, null,
+                DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            questions,
+            [],
+            [],
+            [],
+            []);
 }

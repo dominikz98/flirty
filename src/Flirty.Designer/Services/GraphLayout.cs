@@ -59,7 +59,9 @@ internal static class GraphLayout
 
         if (detail.Questions.Count == 0)
         {
-            return new GraphLayoutResult([], [], 0, GraphMetrics.MarginX * 2, GraphMetrics.MarginY * 2);
+            // Die Mindestfläche ist keine Kosmetik: Auf einen leeren Dialog wird die erste Frage aus der
+            // Palette gezogen (#103) – eine 80 × 80 px große Fläche wäre kein Ziel.
+            return new GraphLayoutResult([], [], 0, GraphMetrics.MinCanvasWidth, GraphMetrics.MinCanvasHeight);
         }
 
         var order = Normalize(detail);
@@ -504,10 +506,18 @@ internal static class GraphLayout
             boxes.Values.Max(box => box.X) + GraphMetrics.NodeWidth);
 
         var lanes = AssignLanes(order, layers, shapes);
-        var width = contentWidth + GraphMetrics.MarginX + (lanes.Count * GraphMetrics.GutterStep);
+
+        // Die Untergrenze gilt auch für einen kleinen Graphen: Ein Dialog mit zwei Fragen soll noch Platz
+        // zum Ablegen der dritten haben (#103). Beide Konstanten sind ganzzahlig – die Determinismus-Zusage
+        // bleibt unberührt.
+        var width = Math.Max(
+            GraphMetrics.MinCanvasWidth,
+            contentWidth + GraphMetrics.MarginX + (lanes.Count * GraphMetrics.GutterStep));
         var height = Math.Max(
-            GraphMetrics.MarginY + (slots.Count * GraphMetrics.PitchY) - GraphMetrics.GapY,
-            boxes.Values.Max(box => box.Y) + GraphMetrics.NodeHeight) + GraphMetrics.MarginY;
+            GraphMetrics.MinCanvasHeight,
+            Math.Max(
+                GraphMetrics.MarginY + (slots.Count * GraphMetrics.PitchY) - GraphMetrics.GapY,
+                boxes.Values.Max(box => box.Y) + GraphMetrics.NodeHeight) + GraphMetrics.MarginY);
 
         var fans = order.Edges
             .GroupBy(edge => (edge.FromQuestionId, edge.TargetQuestionId))

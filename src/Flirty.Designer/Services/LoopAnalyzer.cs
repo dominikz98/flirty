@@ -51,6 +51,81 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
+    /// Zeigt der Übergang auf eine frühere (oder dieselbe) Frage <b>der Listenreihenfolge</b>? Dann
+    /// entsteht ein Zyklus – also eine Schleife, sobald ein Marker dazukommt.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst über die Listenreihenfolge und nicht über die Schichtung des Layouts, damit
+    /// Listenansicht, Graph-Kante und Schleifen-Vorschlag <b>dieselbe</b> Aussage treffen. Die
+    /// Überladung mit vorbereiteter Reihenfolge gibt es für <see cref="DialogGraphBuilder"/>, der sie je
+    /// Kante braucht; die Regel selbst steht nur hier.
+    /// </remarks>
+    /// <param name="order">Die Frage-Ids in Listenreihenfolge.</param>
+    /// <param name="transition">Der zu prüfende Übergang.</param>
+    /// <returns><see langword="true"/>, wenn der Übergang zurückspringt.</returns>
+    public static bool IsBackJump(IReadOnlyList<Guid> order, TransitionDetail transition)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        ArgumentNullException.ThrowIfNull(transition);
+
+        var from = IndexOf(order, transition.FromQuestionId);
+        var target = IndexOf(order, transition.TargetQuestionId);
+
+        return from >= 0 && target >= 0 && target <= from;
+    }
+
+    /// <summary>Wie <see cref="IsBackJump(IReadOnlyList{Guid}, TransitionDetail)"/>, aber über den Dialog.</summary>
+    /// <param name="detail">Der Dialog samt Graph.</param>
+    /// <param name="transition">Der zu prüfende Übergang.</param>
+    /// <returns><see langword="true"/>, wenn der Übergang zurückspringt.</returns>
+    public static bool IsBackJump(DialogDetail detail, TransitionDetail transition)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+
+        return IsBackJump([.. detail.Questions.Select(question => question.Id)], transition);
+    }
+
+    /// <summary>
+    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Ohne Marker sammelt die
+    /// Laufzeit die Antworten des Zyklus nicht, sondern überschreibt sie – deshalb werden sie
+    /// ausgewiesen statt still hingenommen.
+    /// </summary>
+    /// <remarks>
+    /// Herausgezogen aus <c>DialogEditor</c>, weil der Canvas (#103) den Vorschlag <b>am Zyklus</b>
+    /// anbietet statt in einer Liste. Beide Ansichten fragen dieselbe Methode – sonst könnte ein
+    /// Rücksprung in der Liste als unmarkiert gelten und auf dem Graphen nicht.
+    /// </remarks>
+    /// <param name="detail">Der Dialog samt Graph.</param>
+    /// <returns>Die unmarkierten Rücksprünge in Dialog-Reihenfolge.</returns>
+    public static IReadOnlyList<TransitionDetail> UnmarkedBackJumps(DialogDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+
+        var order = detail.Questions.Select(question => question.Id).ToList();
+
+        return
+        [
+            .. detail.Transitions.Where(transition =>
+                IsBackJump(order, transition)
+                && !detail.Loops.Any(loop => loop.EntryQuestionId == transition.TargetQuestionId
+                                          && loop.BreakingQuestionId == transition.FromQuestionId)),
+        ];
+    }
+
+    private static int IndexOf(IReadOnlyList<Guid> order, Guid id)
+    {
+        for (var index = 0; index < order.Count; index++)
+        {
+            if (order[index] == id)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// Bestimmt den Schleifen-Bereich eines Markers – identisch zur Vorberechnung im
     /// Core-<c>LoopResolver</c>. Fehlt die Einstiegs- oder Breaking Question im Dialog, ist der Bereich
     /// leer (der Marker zeigt ins Leere und wird als Warnung ausgewiesen).

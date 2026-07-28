@@ -59,7 +59,7 @@ Flirty.sln
 │  │                        dünne Schicht über die Mediator-Commands
 │  ├─ Flirty.Designer     Blazor Web App (Server-interaktiv): Dialog-/Frage-/Antwort-/
 │  │                        Branching-/Loop-/Trigger-Konfiguration, Test-Runner, Multi-DB,
-│  │                        lesende Graph-Ansicht (SVG-Canvas)
+│  │                        Graph-Canvas (SVG) mit Editier-Gesten
 │  ├─ Flirty.Migrations.Sqlite       \
 │  ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider (IsPackable=false,
 │  ├─ Flirty.Migrations.SqlServer    /    DLLs werden ins Flirty-Paket gebündelt)

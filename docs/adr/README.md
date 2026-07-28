@@ -20,6 +20,7 @@ wurde, hier.
 | [0005](./0005-unveraenderliche-veroeffentlichte-dialogversion.md) | Veröffentlichte Dialogversionen sind unveränderlich | Akzeptiert | #95 |
 | [0006](./0006-canvas-technik-im-designer.md) | Canvas-Technik im Designer: Eigenbau-SVG statt Diagramm-Bibliothek | Akzeptiert | #100 |
 | [0007](./0007-layout-als-eigene-tabelle.md) | Canvas-Layout als eigene Tabelle, mit guard-freiem Layout-Command | Akzeptiert | #102 |
+| [0008](./0008-gesten-auf-dem-canvas.md) | Editier-Gesten auf dem Canvas: bestehende Commands, Neuladen, Sperre je Geste | Akzeptiert | #103 |
 
 Die ADRs stützen sich gegenseitig: 0002 erzwingt, dass alle Handler im Core liegen – was 0003
 (dünne, austauschbare Web-Schicht) technisch absichert. 0004 hängt an der Designer-Fähigkeit,
@@ -31,7 +32,11 @@ umgekehrt browsernah sein – ein collocated JS-Modul im Designer verletzt keine
 es ist der einzige ADR, der auf **gemessenen** Zahlen steht statt auf einer Abwägung. 0007 zieht eine
 Grenze an 0005: Die Publish-Sperre gilt dem *Graphen*, und weil Canvas-Koordinaten in einer eigenen
 Tabelle liegen, ist der guard-freie Layout-Command keine Lücke, sondern der Rand des Geltungsbereichs.
-0005 wird dabei **nicht** umgeschrieben – seine 16 Aufrufstellen bleiben, wie sie sind.
+0005 wird dabei **nicht** umgeschrieben – seine 16 Aufrufstellen bleiben, wie sie sind. 0008 schränkt
+umgekehrt 0007 ein: Dessen „der Commit lädt nicht neu" gilt weiter, aber nur für den *Layout*-Pfad, weil
+nur dessen Command den vollständigen Stand zurückgibt – eine Graph-Änderung muss neu laden, sonst wären
+die graphweit gerechneten Warnungen eine Behauptung des Clients. Auch hier wird 0007 nicht
+umgeschrieben, sondern zitiert.
 
 ## Format
 

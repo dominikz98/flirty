@@ -1,11 +1,21 @@
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Die Art des Graph-Elements, auf das sich eine <see cref="GraphWarning"/> bezieht.
+/// Die Art eines Graph-Elements – Ziel einer <see cref="GraphWarning"/> und zugleich Art der Auswahl in
+/// <see cref="GraphSelection"/>.
 /// </summary>
+/// <remarks>
+/// Die beiden Rollen decken sich nicht vollständig: <see cref="Trigger"/> ist ausschließlich auswählbar
+/// (es gibt keine Warnung an einem Trigger), und <see cref="Dialog"/> trägt als Auswahl die
+/// Scope-Marker – die Trigger ohne Frage-Bezug. Ein zweites Enum dafür wäre ein Duplikat mit vier
+/// identischen Werten.
+/// </remarks>
 public enum GraphElementKind
 {
-    /// <summary>Der Dialog als Ganzes – die Warnung hat kein einzelnes Element als Ursache.</summary>
+    /// <summary>
+    /// Der Dialog als Ganzes: eine Warnung ohne einzelnes Element als Ursache – bzw., als Auswahl, die
+    /// Scope-Marker mit den Triggern ohne Frage-Bezug (#103).
+    /// </summary>
     Dialog = 0,
 
     /// <summary>Eine Frage (Knoten auf dem Canvas).</summary>
@@ -16,6 +26,9 @@ public enum GraphElementKind
 
     /// <summary>Ein Schleifen-Marker (Bereichsrahmen auf dem Canvas).</summary>
     Loop = 3,
+
+    /// <summary>Ein einzelner Trigger (Chip am Knoten oder am Scope-Marker) – nur als Auswahl (#103).</summary>
+    Trigger = 4,
 }
 
 /// <summary>
