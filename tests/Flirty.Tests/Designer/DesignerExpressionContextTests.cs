@@ -205,6 +205,7 @@ public sealed class DesignerExpressionContextTests
             questions,
             [],
             [new LoopDetail(Guid.NewGuid(), dialogId, "skills", Guid.NewGuid(), Guid.NewGuid())],
+            [],
             []);
     }
 

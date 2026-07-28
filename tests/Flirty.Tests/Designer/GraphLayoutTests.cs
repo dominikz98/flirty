@@ -285,6 +285,126 @@ public sealed class GraphLayoutTests
         }
     }
 
+    // ---- Gespeicherte Positionen (#102) -------------------------------------------------------------
+
+    /// <summary>
+    /// Eine gespeicherte Position schlägt die berechnete – das ist der ganze Zweck der Tabelle
+    /// <c>DialogLayout</c>. Die übrigen Knoten bleiben, wo das Auto-Layout sie hingelegt hat.
+    /// </summary>
+    [Fact]
+    public void Gespeicherte_Position_ueberschreibt_das_Auto_Layout()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
+        var automatic = GraphLayout.Compute(detail);
+
+        var pinned = GraphLayout.Compute(WithLayout(detail, (ids.RoleQuestionId, 700, 500)));
+
+        var node = Node(pinned, ids.RoleQuestionId);
+        Assert.True(node.IsPinned);
+        Assert.Equal(700, node.X);
+        Assert.Equal(500, node.Y);
+
+        // Struktur unverändert: Nur die Position wandert, nicht die Schicht.
+        Assert.Equal(Node(automatic, ids.RoleQuestionId).Layer, node.Layer);
+
+        var untouched = Node(pinned, ids.DevQuestionId);
+        Assert.False(untouched.IsPinned);
+        Assert.Equal(Node(automatic, ids.DevQuestionId).X, untouched.X);
+        Assert.Equal(Node(automatic, ids.DevQuestionId).Y, untouched.Y);
+    }
+
+    /// <summary>
+    /// Die Kanten folgen mit. Ohne das säße der Knoten woanders als seine Anschlüsse – der eigentliche
+    /// Grund, warum die Positionen im Layout und nicht erst im Zeichenmodell einfließen.
+    /// </summary>
+    [Fact]
+    public void Kanten_folgen_der_gespeicherten_Position()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
+        var automatic = GraphLayout.Compute(detail);
+
+        var pinned = GraphLayout.Compute(WithLayout(detail, (ids.DevQuestionId, 900, 600)));
+
+        var incoming = detail.Transitions.Single(
+            transition => transition.TargetQuestionId == ids.DevQuestionId);
+
+        var before = automatic.Edges.Single(edge => edge.TransitionId == incoming.Id);
+        var after = pinned.Edges.Single(edge => edge.TransitionId == incoming.Id);
+
+        Assert.NotEqual(before.Path, after.Path);
+        Assert.Equal(before.Shape, after.Shape);
+
+        // Der Pfad endet an der Oberkante des verschobenen Knotens: x = 900 + halbe Knotenbreite.
+        Assert.EndsWith(
+            $"{SvgFormat.N(900 + (GraphMetrics.NodeWidth / 2))} {SvgFormat.N(600)}",
+            after.Path,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>Ohne Zeile bleibt alles beim Auto-Layout – der Weg zurück ist „keine Zeile".</summary>
+    [Fact]
+    public void Ohne_Layout_Zeile_greift_das_Auto_Layout()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
+
+        var pinned = GraphLayout.Compute(WithLayout(detail, (ids.RoleQuestionId, 700, 500)));
+        var reset = GraphLayout.Compute(detail with { Layout = [] });
+        var automatic = GraphLayout.Compute(detail);
+
+        Assert.NotEqual(Node(pinned, ids.RoleQuestionId).X, Node(reset, ids.RoleQuestionId).X);
+        Assert.Equal(automatic.Nodes, reset.Nodes);
+        Assert.Equal(automatic.Edges, reset.Edges);
+        Assert.DoesNotContain(reset.Nodes, node => node.IsPinned);
+    }
+
+    /// <summary>
+    /// Die Zeichenfläche wächst um einen weit gezogenen Knoten. Andernfalls läge er außerhalb der
+    /// <c>viewBox</c> und wäre nur noch über die Tastatur erreichbar.
+    /// </summary>
+    [Fact]
+    public void Zeichenflaeche_waechst_um_einen_weit_gezogenen_Knoten()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
+        var automatic = GraphLayout.Compute(detail);
+
+        var pinned = GraphLayout.Compute(WithLayout(detail, (ids.DevQuestionId, 2000, 1500)));
+
+        Assert.True(pinned.Width > automatic.Width);
+        Assert.True(pinned.Height > automatic.Height);
+        Assert.True(pinned.Width >= 2000 + GraphMetrics.NodeWidth);
+        Assert.True(pinned.Height >= 1500 + GraphMetrics.NodeHeight);
+    }
+
+    /// <summary>
+    /// Eine Zeile auf eine Frage, die es nicht (mehr) gibt, wird übergangen. Sie darf weder werfen noch
+    /// die Zeichenfläche aufblähen – der Aufräum-Zweig in <c>DeleteQuestionCommand</c> ist die
+    /// Regel, diese Prüfung der Gürtel.
+    /// </summary>
+    [Fact]
+    public void Position_ohne_Frage_wird_uebergangen()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _));
+        var automatic = GraphLayout.Compute(detail);
+
+        var withOrphan = GraphLayout.Compute(WithLayout(detail, (Guid.NewGuid(), 5000, 5000)));
+
+        Assert.Equal(automatic.Nodes, withOrphan.Nodes);
+        Assert.Equal(automatic.Width, withOrphan.Width);
+        Assert.Equal(automatic.Height, withOrphan.Height);
+    }
+
+    /// <summary>Setzt gespeicherte Positionen auf einen Dialog.</summary>
+    private static DialogDetail WithLayout(DialogDetail detail, params (Guid ElementId, int X, int Y)[] entries)
+        => detail with
+        {
+            Layout =
+            [
+                .. entries.Select(entry => new DialogLayoutDetail(
+                    Guid.NewGuid(), detail.Dialog.Id, LayoutElementKind.Question,
+                    entry.ElementId, entry.X, entry.Y)),
+            ],
+        };
+
     private static GraphNodePosition Node(GraphLayoutResult result, Guid questionId)
         => result.Nodes.Single(node => node.QuestionId == questionId);
 
@@ -323,6 +443,7 @@ public sealed class GraphLayoutTests
                 Question(d, "d", 4),
             ],
             [Edge(root, a), Edge(root, b), Edge(a, d), Edge(b, c)],
+            [],
             [],
             []);
     }

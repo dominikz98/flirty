@@ -42,7 +42,9 @@ else
 
     <p class="intro">
         Ablauf des Dialogs <span class="mono">@_model.Dialog.Key</span> in Version @_model.Dialog.Version.
-        Diese Ansicht ist <b>lesend</b> – geändert wird in den Editoren, die eine Auswahl hier öffnet.
+        Knoten lassen sich <b>verschieben</b> – auch bei veröffentlichtem Dialog, denn eine Position
+        gehört nicht zum Graphen. Am Graphen selbst wird in den Editoren geändert, die eine Auswahl hier
+        öffnet.
     </p>
 
     @if (_model.Nodes.Count == 0)
@@ -56,6 +58,11 @@ else
     }
     else
     {
+        @if (_error is not null)
+        {
+            <div class="banner err">@_error</div>
+        }
+
         @foreach (var warning in _model.DialogWarnings)
         {
             <div class="banner warn">@warning.Text</div>
@@ -86,7 +93,27 @@ else
             <button class="btn" @onclick="ZoomIn" aria-label="Vergrößern">＋</button>
             <button class="btn" @onclick="ZoomOut" aria-label="Verkleinern">－</button>
             <button class="btn" @onclick="ResetView">Ansicht zurücksetzen</button>
-            <span class="hint">Ziehen verschiebt die Ansicht, das Mausrad zoomt.</span>
+
+            @if (_confirmLayoutReset)
+            {
+                <span class="confirm">
+                    @PinnedCount gespeicherte Position(en) verwerfen? Danach ordnet das Auto-Layout an.
+                </span>
+                <button class="btn btn-danger" disabled="@_busy"
+                        @onclick="ResetLayoutAsync">Ja, zurücksetzen</button>
+                <button class="btn" disabled="@_busy"
+                        @onclick="() => _confirmLayoutReset = false">Abbrechen</button>
+            }
+            else if (PinnedCount > 0)
+            {
+                <button class="btn" disabled="@_busy"
+                        @onclick="() => _confirmLayoutReset = true">Layout zurücksetzen</button>
+            }
+
+            <span class="hint">
+                Einen Knoten ziehen verschiebt ihn, Ziehen auf freier Fläche die Ansicht; das Mausrad
+                zoomt.
+            </span>
         </div>
 
         <div class="graph-layout">
@@ -140,9 +167,12 @@ else
                             </g>
                         }
 
+                        @* data-from/data-to sind für das JS-Modul: Beim Ziehen eines Knotens dimmt es
+                           die anliegenden Kanten, statt ihren Verlauf im Browser nachzurechnen. *@
                         @foreach (var edge in _model.Edges)
                         {
-                            <g class="graph-edge @EdgeClasses(edge)" @key="edge.TransitionId">
+                            <g class="graph-edge @EdgeClasses(edge)" @key="edge.TransitionId"
+                               data-from="@edge.FromQuestionId" data-to="@edge.TargetQuestionId">
                                 <path class="graph-edge-line" d="@edge.Path"
                                       marker-end="@(edge.Warnings.Count > 0 ? "url(#graph-arrow-warn)" : "url(#graph-arrow)")" />
                                 @* Ein breiter, unsichtbarer Pfad macht die dünne Linie greifbar. Er liegt
@@ -195,15 +225,21 @@ else
     [Parameter]
     public Guid Id { get; set; }
 
+    private DialogDetail? _detail;
     private DialogGraphModel? _model;
     private GraphSelection? _selection;
     private string? _error;
     private Guid _loadedId;
+    private bool _busy;
+    private bool _confirmLayoutReset;
 
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private DotNetObjectReference<DialogGraph>? _self;
     private bool _canvasAttached;
+
+    /// <summary>Wie viele Knoten an einer vom Autor gespeicherten Position liegen.</summary>
+    private int PinnedCount => _model?.Nodes.Count(node => node.IsPinned) ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -228,12 +264,104 @@ else
         var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(Id), token));
         if (!result.Success)
         {
+            _detail = null;
             _model = null;
             _error = result.Error;
             return;
         }
 
-        _model = DialogGraphBuilder.Build(result.Value!);
+        // Der geladene Dialog bleibt liegen: Eine geänderte Position lässt sich damit lokal einrechnen,
+        // ohne den ganzen Graphen erneut abzufragen.
+        _detail = result.Value!;
+        _model = DialogGraphBuilder.Build(_detail);
+    }
+
+    /// <summary>Baut das Zeichenmodell aus dem gepufferten Dialog mit dem angegebenen Layout neu.</summary>
+    /// <param name="layout">Das neue Layout (Ergebnis des Commands bzw. leer nach dem Zurücksetzen).</param>
+    private void Rebuild(IReadOnlyList<DialogLayoutDetail> layout)
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        _detail = _detail with { Layout = layout };
+        _model = DialogGraphBuilder.Build(_detail);
+    }
+
+    // ---- Verschieben (#102) -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Übernimmt die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der <b>einzige</b> Rückruf des JS-Moduls und damit die einzige Nachricht je Zieh-Geste: Während
+    /// des Ziehens schreibt das Modul nur das <c>transform</c> des Knotens (ADR 0006). Der Commit
+    /// schreibt denselben Wert anschließend aus C# – die Ansicht springt dabei nicht, weil
+    /// <c>SvgFormat.N</c> ganze Zahlen genauso formatiert wie das Modul.
+    /// </para>
+    /// <para>
+    /// Ein Fehlschlag baut das Modell aus dem <b>gespeicherten</b> Stand neu: Der Knoten springt dann
+    /// sichtbar zurück. Ihn stehen zu lassen behauptete eine Position, die es in der Datenbank nicht
+    /// gibt – und der nächste Reload widerspräche.
+    /// </para>
+    /// </remarks>
+    /// <param name="questionId">Die verschobene Frage.</param>
+    /// <param name="x">Die neue waagerechte Canvas-Koordinate in px.</param>
+    /// <param name="y">Die neue senkrechte Canvas-Koordinate in px.</param>
+    [JSInvokable]
+    public async Task MoveNodeAsync(Guid questionId, int x, int y)
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        _error = null;
+        var entries = new[] { new DialogLayoutEntry(LayoutElementKind.Question, questionId, x, y) };
+
+        var result = await Admin.ExecuteAsync((sender, token) =>
+            sender.Send(new SetDialogLayoutCommand(Id, entries), token));
+
+        if (result.Success)
+        {
+            Rebuild(result.Value!);
+        }
+        else
+        {
+            _error = result.Error;
+            Rebuild(_detail.Layout);
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Verwirft alle gespeicherten Positionen; danach greift wieder das Auto-Layout.</summary>
+    private async Task ResetLayoutAsync()
+    {
+        _confirmLayoutReset = false;
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var result = await Admin.ExecuteAsync((sender, token) =>
+                sender.Send(new ResetDialogLayoutCommand(Id), token));
+
+            if (result.Success)
+            {
+                Rebuild([]);
+            }
+            else
+            {
+                _error = result.Error;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

@@ -23,8 +23,9 @@ internal interface IDialogAdminStore
 
     /// <summary>
     /// Lädt den Dialog mit der angegebenen <paramref name="dialogId"/> samt seinem für das
-    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen, Übergänge, Schleifen-Marker und Trigger) –
-    /// <b>ungetrackt</b> und als Split-Query. Grundlage für die Detail-Abfrage (<c>GetDialogQuery</c>).
+    /// Admin-CRUD relevanten Graphen (Fragen inkl. Optionen, Übergänge, Schleifen-Marker, Trigger und
+    /// Canvas-Layout) – <b>ungetrackt</b> und als Split-Query. Grundlage für die Detail-Abfrage
+    /// (<c>GetDialogQuery</c>).
     /// </summary>
     /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
     /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
@@ -104,6 +105,28 @@ internal interface IDialogAdminStore
     /// <returns>Die referenzierenden Trigger-Definitionen (leere Liste, wenn keine existieren).</returns>
     Task<IReadOnlyList<TriggerDefinition>> GetTriggersReferencingQuestionAsync(
         Guid questionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt alle Layout-Zeilen des Dialogs mit der angegebenen <paramref name="dialogId"/>
+    /// <b>getrackt</b>. Grundlage für den Batch-Upsert (<c>SetDialogLayoutCommand</c>) und das
+    /// Zurücksetzen (<c>ResetDialogLayoutCommand</c>).
+    /// </summary>
+    /// <param name="dialogId">Der Primärschlüssel des Dialogs.</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die Layout-Zeilen des Dialogs (leere Liste, wenn keine gespeichert sind).</returns>
+    Task<IReadOnlyList<DialogLayout>> GetLayoutAsync(
+        Guid dialogId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lädt alle Layout-Zeilen <b>getrackt</b>, die das Element mit der angegebenen
+    /// <paramref name="elementId"/> referenzieren. Grundlage für die Bereinigung verwaister (FK-loser)
+    /// Positionen beim Löschen einer Frage.
+    /// </summary>
+    /// <param name="elementId">Der Primärschlüssel des Elements (heute stets eine Frage).</param>
+    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
+    /// <returns>Die referenzierenden Layout-Zeilen (leere Liste, wenn keine existieren).</returns>
+    Task<IReadOnlyList<DialogLayout>> GetLayoutsReferencingElementAsync(
+        Guid elementId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Ermittelt die höchste vergebene Versionsnummer zum fachlichen <paramref name="key"/>. Grundlage

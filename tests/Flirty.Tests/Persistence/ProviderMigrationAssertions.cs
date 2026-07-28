@@ -37,6 +37,7 @@ internal static class ProviderMigrationAssertions
                 .Include(dialog => dialog.Transitions)
                 .Include(dialog => dialog.Loops)
                 .Include(dialog => dialog.Triggers)
+                .Include(dialog => dialog.Layout)
                 .Single(dialog => dialog.Id == dialogId);
 
             Assert.Equal("onboarding", loaded.Key);
@@ -45,13 +46,22 @@ internal static class ProviderMigrationAssertions
             Assert.Single(loaded.Transitions);
             Assert.Single(loaded.Loops);
             Assert.Single(loaded.Triggers);
+
+            var layout = Assert.Single(loaded.Layout);
+            Assert.Equal(320, layout.X);
+            Assert.Equal(160, layout.Y);
         }
 
         using (var context = new FlirtyDbContext(options))
         {
-            // Belegt, dass das Schema aus einer angewandten Migration stammt (nicht aus EnsureCreated).
+            // Belegt, dass das Schema aus angewandten Migrationen stammt (nicht aus EnsureCreated) und
+            // dass alle Sets dieses Providers vollständig sind – hier hängt das Akzeptanzkriterium
+            // „Migration läuft gegen alle drei Provider" (#102).
             Assert.Empty(context.Database.GetPendingMigrations());
-            Assert.Contains(context.Database.GetAppliedMigrations(), migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
+
+            var applied = context.Database.GetAppliedMigrations().ToArray();
+            Assert.Contains(applied, migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
+            Assert.Contains(applied, migration => migration.EndsWith("AddDialogLayout", StringComparison.Ordinal));
         }
     }
 }

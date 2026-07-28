@@ -25,10 +25,11 @@ internal static class AdminProjection
 
     /// <summary>
     /// Projiziert einen <see cref="Dialog"/> samt geladenem Graphen (Fragen inkl. Optionen,
-    /// Übergänge, Schleifen-Marker und Trigger) auf ein <see cref="DialogDetail"/>. Fragen und Optionen
-    /// werden nach <c>Order</c>, Übergänge nach <c>Priority</c>, Schleifen nach <c>CollectionKey</c> und
-    /// Trigger nach <c>Scope</c>/<c>Kind</c>/<c>Config</c> sortiert (Trigger haben keine eigene
-    /// Reihenfolge – die Sortierung dient nur einer stabilen Anzeige).
+    /// Übergänge, Schleifen-Marker, Trigger und Canvas-Layout) auf ein <see cref="DialogDetail"/>.
+    /// Fragen und Optionen werden nach <c>Order</c>, Übergänge nach <c>Priority</c>, Schleifen nach
+    /// <c>CollectionKey</c>, Trigger nach <c>Scope</c>/<c>Kind</c>/<c>Config</c> und Layout-Zeilen nach
+    /// <c>ElementKind</c>/<c>ElementId</c> sortiert (Trigger und Layout haben keine eigene Reihenfolge –
+    /// die Sortierung dient nur einer stabilen Anzeige).
     /// </summary>
     /// <param name="dialog">Der Dialog mit geladenen Navigationen.</param>
     /// <returns>Die navigationsfreie Detail-Sicht des Dialog-Graphen.</returns>
@@ -42,7 +43,8 @@ internal static class AdminProjection
                 .OrderBy(trigger => trigger.Scope)
                 .ThenBy(trigger => trigger.Kind)
                 .ThenBy(trigger => trigger.Config, StringComparer.Ordinal)
-                .Select(ToDetail)]);
+                .Select(ToDetail)],
+            ToDetail(dialog.Layout));
 
     /// <summary>Projiziert eine <see cref="Question"/> (inkl. Optionen) auf ein <see cref="QuestionDetail"/>.</summary>
     /// <param name="question">Die zu projizierende Frage mit geladenen Optionen.</param>
@@ -96,4 +98,22 @@ internal static class AdminProjection
             trigger.Kind,
             trigger.Config,
             trigger.Expression);
+
+    /// <summary>Projiziert eine <see cref="DialogLayout"/>-Zeile auf ein <see cref="DialogLayoutDetail"/>.</summary>
+    /// <param name="layout">Die zu projizierende Layout-Zeile.</param>
+    /// <returns>Die navigationsfreie Layout-Sicht.</returns>
+    public static DialogLayoutDetail ToDetail(DialogLayout layout)
+        => new(layout.Id, layout.DialogId, layout.ElementKind, layout.ElementId, layout.X, layout.Y);
+
+    /// <summary>
+    /// Sortiert Layout-Zeilen in eine stabile Anzeigereihenfolge und projiziert sie. Die Entity kennt
+    /// keine eigene Reihenfolge – die Sortierung dient nur einer wiederholbaren Ausgabe.
+    /// </summary>
+    /// <param name="layout">Die zu projizierenden Layout-Zeilen.</param>
+    /// <returns>Die sortierte, navigationsfreie Layout-Sicht.</returns>
+    public static IReadOnlyList<DialogLayoutDetail> ToDetail(IEnumerable<DialogLayout> layout)
+        => [.. layout
+            .OrderBy(entry => entry.ElementKind)
+            .ThenBy(entry => entry.ElementId)
+            .Select(ToDetail)];
 }

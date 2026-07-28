@@ -35,6 +35,7 @@ internal sealed class DialogAdminStore : IDialogAdminStore
             .Include(dialog => dialog.Transitions)
             .Include(dialog => dialog.Loops)
             .Include(dialog => dialog.Triggers)
+            .Include(dialog => dialog.Layout)
             .FirstOrDefaultAsync(dialog => dialog.Id == dialogId, cancellationToken);
 
     /// <inheritdoc />
@@ -86,6 +87,20 @@ internal sealed class DialogAdminStore : IDialogAdminStore
         Guid questionId, CancellationToken cancellationToken = default)
         => await _context.Set<TriggerDefinition>()
             .Where(trigger => trigger.QuestionId == questionId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DialogLayout>> GetLayoutAsync(
+        Guid dialogId, CancellationToken cancellationToken = default)
+        => await _context.Set<DialogLayout>()
+            .Where(layout => layout.DialogId == dialogId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DialogLayout>> GetLayoutsReferencingElementAsync(
+        Guid elementId, CancellationToken cancellationToken = default)
+        => await _context.Set<DialogLayout>()
+            .Where(layout => layout.ElementId == elementId)
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />

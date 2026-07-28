@@ -47,10 +47,14 @@ damit auch reine Paket-Konsumenten migrieren können.
 ```
 src/
 ├─ Flirty                     Core: FlirtyDbContext + Konfigurationen, referenziert alle 3 Provider
-├─ Flirty.Migrations.Sqlite       InitialCreate + SqliteDesignTimeDbContextFactory
-├─ Flirty.Migrations.PostgreSql   InitialCreate + PostgreSqlDesignTimeDbContextFactory
-└─ Flirty.Migrations.SqlServer    InitialCreate + SqlServerDesignTimeDbContextFactory
+├─ Flirty.Migrations.Sqlite       Migrationen + SqliteDesignTimeDbContextFactory
+├─ Flirty.Migrations.PostgreSql   Migrationen + PostgreSqlDesignTimeDbContextFactory
+└─ Flirty.Migrations.SqlServer    Migrationen + SqlServerDesignTimeDbContextFactory
 ```
+
+Jedes Set enthält denselben Stand, Migration für Migration namensgleich: `InitialCreate` (#19) und
+`AddDialogLayout` (#102, Tabelle `DialogLayout` für die Canvas-Positionen des Designers – siehe
+[ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)).
 
 Jedes Migrations-Projekt referenziert `Flirty` (bringt Context + Provider transitiv) und
 `Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`). Eine `internal sealed`
@@ -183,6 +187,9 @@ Wesentliche Entscheidungen:
 - **Dialog-Graph ungetrackt + Split-Query.** Der Konfigurationsgraph (Fragen/Optionen, Übergänge,
   Schleifen, Trigger) ist zur Laufzeit unveränderlich; `AsNoTracking()` spart Overhead. Wegen der vier
   Geschwister-Collections wird per `AsSplitQuery()` geladen, um ein kartesisches Produkt zu vermeiden.
+- **`Dialog.Layout` wird hier bewusst nicht geladen.** Canvas-Positionen (#102) sind Anzeigedaten des
+  Designers; die Laufzeit hat für sie keine Verwendung. Nur `IDialogAdminStore.GetDialogGraphAsync`
+  nimmt sie mit – das ist die Quelle der Graph-Ansicht.
 - **Session getrackt.** Submit/Edit mutieren die geladene Session – daher **kein** `AsNoTracking`, sonst
   gingen die Änderungen bei `SaveChangesAsync` still verloren.
 - **Getrennte Loads über die Aggregatgrenze.** `DialogSession.DialogId` ist kein Fremdschlüssel; eine
@@ -203,9 +210,11 @@ Provider-Wahl `o.UseSqlite/…` seit #34 oder manuell per `AddDbContext`).
 ## Test-Strategie
 
 Akzeptanzkriterium: *„DB wird gegen jeden der drei Provider erzeugt."* Die Tests (`tests/Flirty.Tests`,
-Ordner `Persistence/`) wenden je Provider die `InitialCreate`-Migration via `Database.Migrate()` an
-und prüfen einen vollständigen Aggregat-Round-Trip (`ProviderMigrationAssertions`,
-Beispieldaten aus `TestDialogFactory`):
+Ordner `Persistence/`) wenden je Provider **alle** Migrationen via `Database.Migrate()` an und prüfen
+einen vollständigen Aggregat-Round-Trip (`ProviderMigrationAssertions`, Beispieldaten aus
+`TestDialogFactory`). Die Zusicherung listet die erwarteten Migrationsnamen einzeln auf und verlangt
+`GetPendingMigrations()` leer – ein vergessenes Provider-Set fällt damit auf, statt still grün zu
+bleiben:
 
 - **SQLite** – reale in-memory-DB über eine offen gehaltene `SqliteConnection` (keine externe
   Abhängigkeit, läuft überall).

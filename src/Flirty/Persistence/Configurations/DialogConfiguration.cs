@@ -7,7 +7,7 @@ namespace Flirty.Persistence.Configurations;
 /// <summary>
 /// EF-Core-Konfiguration für das Konfigurations-Aggregat-Root <see cref="Dialog"/>. Legt Schlüssel,
 /// den eindeutigen Index über <c>(Key, Version)</c> sowie die kaskadierenden Beziehungen zu den
-/// Kind-Entities (Fragen, Übergänge, Schleifen, Trigger) fest.
+/// Kind-Entities (Fragen, Übergänge, Schleifen, Trigger, Layout) fest.
 /// </summary>
 internal sealed class DialogConfiguration : IEntityTypeConfiguration<Dialog>
 {
@@ -43,6 +43,11 @@ internal sealed class DialogConfiguration : IEntityTypeConfiguration<Dialog>
         builder.HasMany(dialog => dialog.Triggers)
             .WithOne(trigger => trigger.Dialog)
             .HasForeignKey(trigger => trigger.DialogId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(dialog => dialog.Layout)
+            .WithOne(layout => layout.Dialog)
+            .HasForeignKey(layout => layout.DialogId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

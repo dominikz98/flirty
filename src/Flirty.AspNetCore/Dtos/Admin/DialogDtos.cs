@@ -44,7 +44,8 @@ public sealed record DialogResponse(
 
 /// <summary>
 /// Antwort mit einem Dialog samt seinem im Admin-CRUD verwalteten Graphen (Fragen inkl. Optionen,
-/// Übergänge, Schleifen-Marker und Trigger). Ergebnis von <c>GET {prefix}/dialogs/{id}</c>.
+/// Übergänge, Schleifen-Marker und Trigger) sowie den gespeicherten Canvas-Positionen. Ergebnis von
+/// <c>GET {prefix}/dialogs/{id}</c>.
 /// </summary>
 /// <param name="Id">Der Primärschlüssel des Dialogs.</param>
 /// <param name="Key">Der fachliche, stabile Schlüssel des Dialogs.</param>
@@ -59,6 +60,10 @@ public sealed record DialogResponse(
 /// <param name="Transitions">Die Übergänge des Dialogs, nach <c>Priority</c> sortiert.</param>
 /// <param name="Loops">Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert.</param>
 /// <param name="Triggers">Die Trigger-Definitionen des Dialogs, nach Zeitpunkt und Kanal sortiert.</param>
+/// <param name="Layout">
+/// Die gespeicherten Canvas-Positionen des Dialogs, nach Elementart und Element-Id sortiert. Reine
+/// Anzeigedaten des Designers; ohne Zeile ordnet dort das Auto-Layout an.
+/// </param>
 public sealed record DialogDetailResponse(
     Guid Id,
     string Key,
@@ -72,7 +77,8 @@ public sealed record DialogDetailResponse(
     IReadOnlyList<QuestionResponse> Questions,
     IReadOnlyList<TransitionResponse> Transitions,
     IReadOnlyList<LoopResponse> Loops,
-    IReadOnlyList<TriggerResponse> Triggers);
+    IReadOnlyList<TriggerResponse> Triggers,
+    IReadOnlyList<DialogLayoutResponse> Layout);
 
 /// <summary>
 /// Antwort auf <c>POST {prefix}/dialogs/{id}/abandon-sessions</c>: Anzahl der Sessions, die von

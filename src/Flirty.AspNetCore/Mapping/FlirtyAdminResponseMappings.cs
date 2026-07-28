@@ -36,7 +36,8 @@ internal static class FlirtyAdminResponseMappings
             [.. detail.Questions.Select(question => question.ToResponse())],
             [.. detail.Transitions.Select(transition => transition.ToResponse())],
             [.. detail.Loops.Select(loop => loop.ToResponse())],
-            [.. detail.Triggers.Select(trigger => trigger.ToResponse())]);
+            [.. detail.Triggers.Select(trigger => trigger.ToResponse())],
+            [.. detail.Layout.Select(layout => layout.ToResponse())]);
 
     public static AbandonSessionsResponse ToResponse(this AbandonSessionsResult result)
         => new(result.DialogId, result.AbandonedSessions);
@@ -78,4 +79,7 @@ internal static class FlirtyAdminResponseMappings
             trigger.Kind,
             trigger.Config,
             trigger.Expression);
+
+    public static DialogLayoutResponse ToResponse(this DialogLayoutDetail layout)
+        => new(layout.Id, layout.DialogId, layout.ElementKind, layout.ElementId, layout.X, layout.Y);
 }

@@ -1,4 +1,5 @@
 using Flirty.Designer.Models;
+using Flirty.Domain;
 using Flirty.Runtime.Admin;
 
 namespace Flirty.Designer.Services;
@@ -65,8 +66,44 @@ internal static class GraphLayout
         var layers = AssignLayers(detail, order);
         var shapes = ClassifyEdges(order, layers);
         var slots = Arrange(detail, order, layers, shapes, out var crossings);
+        var pinned = Pinned(detail, order);
 
-        return Render(order, layers, slots, shapes, crossings);
+        return Render(order, layers, slots, shapes, crossings, pinned);
+    }
+
+    /// <summary>
+    /// Liest die vom Autor gespeicherten Positionen (<c>DialogLayout</c>) aus dem Dialog.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sie greifen erst ganz am Ende, in <see cref="Render"/>: Schichtung, Kantenform, Baryzentrum und
+    /// Kanalvergabe bleiben am Auto-Layout hängen. Ein verschobener Knoten ändert damit <b>nur seine
+    /// Position</b> – nie die Zeichenform einer Kante und nie die Anordnung der übrigen Knoten. Sonst
+    /// könnte ein einziger Zug den ganzen Graphen umsortieren.
+    /// </para>
+    /// <para>
+    /// Die Determinismus-Zusage bleibt: Gleiche Eingabe – Graph <i>und</i> Layout-Zeilen – ergibt
+    /// dieselben Koordinaten.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<Guid, (double X, double Y)> Pinned(DialogDetail detail, GraphOrder order)
+    {
+        var pinned = new Dictionary<Guid, (double X, double Y)>();
+
+        foreach (var entry in detail.Layout)
+        {
+            // Nur Fragen sind heute Knoten; eine Zeile auf eine gelöschte Frage hat kein Ziel.
+            if (entry.ElementKind != LayoutElementKind.Question || !order.Ordinal.ContainsKey(entry.ElementId))
+            {
+                continue;
+            }
+
+            // Negative Werte lehnt der Command ab; ein von Hand geschriebener Datensatz käme sonst
+            // ausserhalb der Zeichenfläche zu liegen und wäre unerreichbar.
+            pinned[entry.ElementId] = (Math.Max(0, entry.X), Math.Max(0, entry.Y));
+        }
+
+        return pinned;
     }
 
     // ---- Schritt 0: Normalisierung ------------------------------------------------------------------
@@ -429,7 +466,8 @@ internal static class GraphLayout
         LayerAssignment layers,
         IReadOnlyList<List<Guid>> slots,
         IReadOnlyDictionary<Guid, GraphEdgeShape> shapes,
-        int crossings)
+        int crossings,
+        IReadOnlyDictionary<Guid, (double X, double Y)> pinned)
     {
         var widest = slots.Max(layer => layer.Count);
         var nodes = new List<GraphNodePosition>(order.Questions.Length);
@@ -449,16 +487,27 @@ internal static class GraphLayout
                     + (slot * GraphMetrics.PitchX);
                 var y = GraphMetrics.MarginY + (layerIndex * GraphMetrics.PitchY);
 
-                boxes[id] = (x, y);
-                nodes.Add(new GraphNodePosition(id, layerIndex, slot, x, y, layers.Reachable.Contains(id)));
+                // Die gespeicherte Position schlägt die berechnete – und zwar erst hier, damit sie das
+                // Kantenrouting unten mitnimmt, aber die Anordnung darüber nicht beeinflusst hat.
+                var isPinned = pinned.TryGetValue(id, out var saved);
+                boxes[id] = isPinned ? saved : (x, y);
+
+                nodes.Add(new GraphNodePosition(
+                    id, layerIndex, slot, boxes[id].X, boxes[id].Y, layers.Reachable.Contains(id), isPinned));
             }
         }
 
-        var contentWidth = GraphMetrics.MarginX + (widest * GraphMetrics.PitchX) - GraphMetrics.GapX;
+        // Die Zeichenfläche muss auch verschobene Knoten fassen: Der Kanal der Rücksprünge liegt rechts
+        // von allem, was gezeichnet wird – sonst liefe er quer durch einen weit gezogenen Knoten.
+        var contentWidth = Math.Max(
+            GraphMetrics.MarginX + (widest * GraphMetrics.PitchX) - GraphMetrics.GapX,
+            boxes.Values.Max(box => box.X) + GraphMetrics.NodeWidth);
+
         var lanes = AssignLanes(order, layers, shapes);
         var width = contentWidth + GraphMetrics.MarginX + (lanes.Count * GraphMetrics.GutterStep);
-        var height = GraphMetrics.MarginY
-            + (slots.Count * GraphMetrics.PitchY) - GraphMetrics.GapY + GraphMetrics.MarginY;
+        var height = Math.Max(
+            GraphMetrics.MarginY + (slots.Count * GraphMetrics.PitchY) - GraphMetrics.GapY,
+            boxes.Values.Max(box => box.Y) + GraphMetrics.NodeHeight) + GraphMetrics.MarginY;
 
         var fans = order.Edges
             .GroupBy(edge => (edge.FromQuestionId, edge.TargetQuestionId))

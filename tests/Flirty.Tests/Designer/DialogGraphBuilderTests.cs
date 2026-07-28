@@ -361,6 +361,39 @@ public sealed class DialogGraphBuilderTests
         Assert.Contains("0 Fragen", model.Summary, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Der Schleifen-Rahmen folgt einem verschobenen Knoten: Er entsteht als Bounding-Box über den
+    /// Positionen des Bodys, nicht über die Schichtung. Zöge er nicht mit, läge ein Knoten seiner
+    /// eigenen Schleife außerhalb ihres Rahmens.
+    /// </summary>
+    [Fact]
+    public void Build_zieht_den_Schleifen_Rahmen_ueber_die_gespeicherte_Position()
+    {
+        var detail = AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids));
+        var before = Assert.Single(DialogGraphBuilder.Build(detail).Loops);
+
+        var moved = detail with
+        {
+            Layout =
+            [
+                new DialogLayoutDetail(
+                    Guid.NewGuid(), detail.Dialog.Id, LayoutElementKind.Question,
+                    ids.MoreQuestionId, 1200, 900),
+            ],
+        };
+
+        var model = DialogGraphBuilder.Build(moved);
+        var frame = Assert.Single(model.Loops);
+
+        Assert.True(frame.Width > before.Width);
+        Assert.True(frame.X + frame.Width >= 1200 + GraphMetrics.NodeWidth);
+        Assert.True(frame.Y + frame.Height >= 900 + GraphMetrics.NodeHeight);
+
+        // Und der Knoten weiß von seiner eigenen Position – daran hängt die Markierung in der Karte.
+        Assert.True(model.Node(ids.MoreQuestionId)!.IsPinned);
+        Assert.Contains("eigene Position", model.Node(ids.MoreQuestionId)!.AriaLabel, StringComparison.Ordinal);
+    }
+
     private static TriggerDefinition Trigger(Guid dialogId, TriggerScope scope, Guid? questionId)
         => new()
         {

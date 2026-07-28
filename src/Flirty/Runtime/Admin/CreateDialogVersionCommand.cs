@@ -7,7 +7,8 @@ namespace Flirty.Runtime.Admin;
 /// <summary>
 /// Legt eine <b>neue Version</b> des Dialogs <see cref="SourceDialogId"/> an: eine vollständige Kopie
 /// des Konfigurationsgraphen (Fragen inklusive Antwortoptionen, Übergänge, Schleifen-Marker, Trigger)
-/// als <b>Entwurf</b> mit derselben <c>Key</c>-Kennung und der nächsten freien Versionsnummer.
+/// samt der gespeicherten Canvas-Positionen als <b>Entwurf</b> mit derselben <c>Key</c>-Kennung und der
+/// nächsten freien Versionsnummer.
 /// </summary>
 /// <remarks>
 /// Das ist der vorgesehene Weg, einen veröffentlichten Dialog weiterzuentwickeln: Die veröffentlichte
@@ -16,7 +17,9 @@ namespace Flirty.Runtime.Admin;
 /// <b>neue Guids</b>; alle Frage-Verweise (Einstiegsfrage, Übergänge, Schleifen-Marker, Trigger) werden
 /// dabei auf die Kopien umgeschrieben. Verweise auf Fragen, die nicht (mehr) zum Dialog gehören –
 /// die Admin-API prüft Frage-Verweise bewusst nicht –, werden unverändert übernommen; sie sind in der
-/// Quelle schon unwirksam und der Designer weist sie als verwaist aus.
+/// Quelle schon unwirksam und der Designer weist sie als verwaist aus. Einzige Ausnahme sind die
+/// <see cref="DialogLayout"/>-Zeilen: Eine Position ohne Element ist reine Anzeigedaten ohne Ziel und
+/// wird beim Klonen <b>verworfen</b> statt mitgeschleppt.
 /// <para>
 /// Veröffentlicht wird die Kopie <b>nicht</b> (<c>IsPublished = false</c>): Zwei veröffentlichte
 /// Versionen desselben Schlüssels wären für <c>StartDialogCommand</c> nicht eindeutig. Die Freigabe ist
@@ -144,10 +147,56 @@ internal sealed class CreateDialogVersionCommandHandler
             });
         }
 
+        foreach (var layout in source.Layout)
+        {
+            if (!TryMapLayoutElement(questionIdMap, layout, out var elementId))
+            {
+                continue;
+            }
+
+            copy.Layout.Add(new DialogLayout
+            {
+                Id = Guid.NewGuid(),
+                DialogId = copy.Id,
+                ElementKind = layout.ElementKind,
+                ElementId = elementId,
+                X = layout.X,
+                Y = layout.Y,
+            });
+        }
+
         _store.Add(copy);
         await _store.SaveChangesAsync(cancellationToken);
 
         return AdminProjection.ToDetail(copy);
+    }
+
+    /// <summary>
+    /// Übersetzt den Elementverweis einer Layout-Zeile auf die Kopie.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst <b>kind-bewusst</b> und mit Rückgabewert statt über <c>MapQuestion</c>: Erstens fällt ein
+    /// künftiger zweiter <see cref="LayoutElementKind"/> hier als nicht behandelter Zweig auf, statt
+    /// still auf eine Frage-Abbildung zu laufen. Zweitens wird eine nicht abbildbare Zeile
+    /// <b>verworfen</b> statt unverändert übernommen: Eine Position ohne zugehöriges Element ist reine
+    /// Anzeigedaten ohne Ziel und trüge sich sonst durch jede Folgeversion.
+    /// </remarks>
+    /// <param name="map">Die Abbildung alter auf neue Frage-Ids.</param>
+    /// <param name="layout">Die zu klonende Layout-Zeile.</param>
+    /// <param name="elementId">Der übersetzte Verweis, wenn die Abbildung gelingt.</param>
+    /// <returns><see langword="true"/>, wenn die Zeile geklont werden kann.</returns>
+    private static bool TryMapLayoutElement(
+        IReadOnlyDictionary<Guid, Guid> map, DialogLayout layout, out Guid elementId)
+    {
+        switch (layout.ElementKind)
+        {
+            case LayoutElementKind.Question:
+                return map.TryGetValue(layout.ElementId, out elementId);
+
+            default:
+                elementId = default;
+                return false;
+        }
     }
 
     /// <summary>Schreibt einen Frage-Verweis auf die Kopie um (unbekannte Verweise bleiben unverändert).</summary>

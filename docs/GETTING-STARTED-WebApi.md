@@ -160,7 +160,8 @@ abgebildet – die Host-App braucht dafür **keine** eigene Exception-Middleware
 
 Neben den Laufzeit-Endpunkten stellt das Paket optionale **Admin-CRUD-Endpunkte** bereit, um den
 kompletten Konfigurationsgraphen (Dialoge, Fragen, Optionen, Übergänge, Schleifen-Marker und Trigger)
-per HTTP zu pflegen – dieselbe Fläche, die auch der [Designer](./DESIGNER.md) bedient. Sie werden über eine
+sowie die Canvas-Positionen des Designers per HTTP zu pflegen – dieselbe Fläche, die auch der
+[Designer](./DESIGNER.md) bedient. Sie werden über eine
 **eigene, opt-in** Erweiterungsmethode registriert – so lässt sich die Admin-Fläche gezielt absichern,
 ohne die öffentlichen Laufzeit-Endpunkte einzuschränken:
 
@@ -194,6 +195,41 @@ und werden über `GET {prefix}/dialogs/{id}` (kompletter Graph) gelesen.
 | `PUT` \| `DELETE .../loops/{loopId}` | Schleifen-Marker ändern/löschen | `200 OK` \| `204 No Content` |
 | `POST /flirty/admin/dialogs/{dialogId}/triggers` | Trigger anlegen | `201 Created`, `TriggerResponse` |
 | `PUT` \| `DELETE .../triggers/{triggerId}` | Trigger ändern/löschen | `200 OK` \| `204 No Content` |
+| `PUT /flirty/admin/dialogs/{dialogId}/layout` | Canvas-Positionen setzen (**Merge**) | `200 OK`, `DialogLayoutResponse[]` |
+| `DELETE /flirty/admin/dialogs/{dialogId}/layout` | alle Canvas-Positionen verwerfen | `204 No Content` |
+
+### Canvas-Positionen setzen
+
+Die Positionen (`DialogLayout`, seit #102) sind **Anzeigedaten des Designers** – die Laufzeit liest sie
+nie. Sie existieren, damit die Anordnung auf dem Graph-Canvas die des Autors ist und nicht die des
+Auto-Layouts; ohne Zeile ordnet der Designer automatisch an.
+
+```http
+PUT /flirty/admin/dialogs/8f3e…/layout
+Content-Type: application/json
+
+{
+  "entries": [
+    { "elementKind": 0, "elementId": "3c1a…", "x": 520, "y": 240 }
+  ]
+}
+```
+
+`elementKind` ist ein numerischer Enum-Wert (`0` = `Question`; weitere Elementarten sind vorgesehen, aber
+nicht umgesetzt). `x`/`y` sind Canvas-Pixel und dürfen nicht negativ sein.
+
+Zwei Eigenschaften, die vom übrigen Admin-CRUD abweichen:
+
+- **`PUT` ist ein Merge, kein Ersatz.** Genannte Elemente werden angelegt bzw. aktualisiert, **nicht
+  genannte bleiben stehen**. Eine Zieh-Geste verschiebt ein Element und soll dafür nicht das ganze
+  Layout mitsenden müssen. Vollständig verworfen wird über `DELETE .../layout`. Die Antwort enthält
+  jeweils das **komplette** Layout des Dialogs, sodass ein Aufrufer seinen Stand ersetzen statt
+  zusammenführen kann.
+- **Beide Routen greifen auch an einer veröffentlichten Version** und liefern kein `409`. Wo jede
+  Graph-Änderung gesperrt ist, bleibt das Anordnen erlaubt – Koordinaten gehören nicht zum Graphen
+  ([ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)). `elementId` ist wie die übrigen Frage-Verweise
+  ein roher Verweis ohne Existenzprüfung; das Löschen einer Frage räumt ihre Position mit ab, und das
+  Ableiten einer Version klont die Positionen auf die neuen Frage-Ids um.
 
 ### Trigger anlegen
 
@@ -253,10 +289,14 @@ Zusätzlich zum obigen Mapping gelten für das Admin-CRUD:
 | Fehlendes Pflichtfeld (`[Required]`) | `ValidationException` | `400 Bad Request` |
 | Trigger: `AfterQuestion` ohne `questionId` – oder `questionId` bei einem anderen Zeitpunkt | `ValidationException` | `400 Bad Request` |
 | Trigger: kaputtes `config`-JSON bzw. `Kind = Webhook` ohne absolute `http`/`https`-URL | `ValidationException` | `400 Bad Request` |
+| Layout: leerer Batch, dasselbe Element mehrfach im Batch oder negative Koordinate | `ValidationException` | `400 Bad Request` |
 
-Die beiden Trigger-Zeilen sind **Querfeld-Regeln** (`Runtime/Admin/TriggerValidation.cs`, aufgerufen über
-`IValidatableObject`): Sie prüfen die **Anfrage**, nicht den Datenbankzustand, und laufen deshalb im
-Validierungs-Behavior schon vor dem Handler.
+Die drei Trigger- und Layout-Zeilen sind **Querfeld-Regeln** (`Runtime/Admin/TriggerValidation.cs` bzw.
+`SetDialogLayoutCommand.Validate`, aufgerufen über `IValidatableObject`): Sie prüfen die **Anfrage**,
+nicht den Datenbankzustand, und laufen deshalb im Validierungs-Behavior schon vor dem Handler.
+
+Die Layout-Routen erscheinen bewusst **nicht** in der `DialogPublishedException`-Zeile – sie sind die
+eine Ausnahme von der Publish-Sperre.
 
 > **Hinweise / bewusste Grenzen:** `POST /dialogs` erzeugt stets `Version = 1`; Folgeversionen entstehen
 > ausschließlich über `POST /dialogs/{id}/versions`. Am **Entwurf** wird In-Place editiert, eine
@@ -264,9 +304,10 @@ Validierungs-Behavior schon vor dem Handler.
 > [ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md)) – Name und Beschreibung
 > bleiben davon ausgenommen. Die Frage-Verweise von `Transition`
 > (`FromQuestionId`/`TargetQuestionId`), `LoopDefinition` (`EntryQuestionId`/`BreakingQuestionId`) und
-> `TriggerDefinition` (`QuestionId`) sind – dem FK-losen Domänenmodell entsprechend – rohe Verweise ohne
-> Existenzprüfung; das Löschen einer Frage bereinigt jedoch verweisende Übergänge, Schleifen-Marker
-> **und** Trigger und setzt eine darauf zeigende `StartQuestionId` zurück.
+> `TriggerDefinition` (`QuestionId`) sowie `DialogLayout` (`ElementId`) sind – dem FK-losen
+> Domänenmodell entsprechend – rohe Verweise ohne Existenzprüfung; das Löschen einer Frage bereinigt
+> jedoch verweisende Übergänge, Schleifen-Marker, Trigger **und** Layout-Zeilen und setzt eine darauf
+> zeigende `StartQuestionId` zurück.
 
 ### Eine produktive Version weiterentwickeln
 

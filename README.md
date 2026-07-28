@@ -177,7 +177,7 @@ Resume nach Reload, das Editieren einzelner Antworten sowie ausgelöste Trigger 
 - NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
 - CI-Pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
 - Roadmap / Backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
-- Entscheidungen (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – warum Mediator, warum ASP.NET-freier Core, warum eine gesandboxte Expression-Engine, warum Migrationen pro Provider, warum veröffentlichte Dialogversionen unveränderlich sind, warum der Designer-Canvas selbst gebaut wird
+- Entscheidungen (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – warum Mediator, warum ASP.NET-freier Core, warum eine gesandboxte Expression-Engine, warum Migrationen pro Provider, warum veröffentlichte Dialogversionen unveränderlich sind, warum der Designer-Canvas selbst gebaut wird, warum das Canvas-Layout in einer eigenen Tabelle liegt
 
 ## Build & Test
 

@@ -160,6 +160,7 @@ internal static class DialogGraphBuilder
                 entries.Contains(question.Id),
                 breakings.Contains(question.Id),
                 inLoop.Contains(question.Id),
+                position.IsPinned,
                 triggers,
                 nodeWarnings,
                 DescribeNode(
@@ -167,6 +168,7 @@ internal static class DialogGraphBuilder
                     isStart,
                     isTerminal,
                     !position.IsReachable,
+                    position.IsPinned,
                     outgoingCount.GetValueOrDefault(question.Id),
                     triggers.Length,
                     nodeWarnings.Count)));
@@ -190,6 +192,7 @@ internal static class DialogGraphBuilder
         bool isStart,
         bool isTerminal,
         bool isUnreachable,
+        bool isPinned,
         int outgoing,
         int triggers,
         int warnings)
@@ -223,6 +226,11 @@ internal static class DialogGraphBuilder
         if (triggers > 0)
         {
             parts.Add(Count(triggers, "Trigger", "Trigger"));
+        }
+
+        if (isPinned)
+        {
+            parts.Add("eigene Position");
         }
 
         if (warnings > 0)

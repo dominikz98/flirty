@@ -339,6 +339,13 @@ h1 .badge {
     cursor: grabbing;
 }
 
+/* Während ein Knoten gezogen wird, soll der Zeiger nirgends etwas anderes anbieten. */
+.graph-canvas.is-dragging,
+.graph-canvas.is-dragging .graph-node-card,
+.graph-canvas.is-dragging .graph-edge-hit {
+    cursor: grabbing;
+}
+
 /* Die Zusammenfassung vor dem Bild – für Screenreader die Alternative zum Graphen. */
 .visually-hidden {
     position: absolute;
@@ -368,7 +375,8 @@ h1 .badge {
     font: inherit;
     font-size: 0.8rem;
     text-align: left;
-    cursor: pointer;
+    /* Ziehbar UND anklickbar: grab zeigt die neue Hauptgeste (#102), der Klick wählt weiterhin aus. */
+    cursor: grab;
     overflow: hidden;
 }
 
@@ -415,6 +423,13 @@ h1 .badge {
    wenn ein Bereich nicht zusammenhängend liegt. */
 .graph-node.in-loop .graph-node-card {
     background-image: linear-gradient(to right, #f6efe4 0 4px, transparent 4px);
+}
+
+/* Eigene, gespeicherte Position (#102): Balken an der rechten Kante – die Schleifen-Zugehörigkeit
+   markiert die linke, beide sind also auch ohne Farbunterscheidung auseinanderzuhalten. Die
+   Textfassung steht im aria-label („eigene Position"). */
+.graph-node.is-pinned .graph-node-card {
+    box-shadow: inset -4px 0 0 0 #4a5b6d;
 }
 
 .graph-node-head {
@@ -541,6 +556,13 @@ button.chip {
 
 .graph-edge:hover .graph-edge-line {
     stroke-width: 3;
+}
+
+/* Kanten an einem gerade gezogenen Knoten: gedimmt statt live neu berechnet. Ihr Verlauf entsteht in
+   C# (GraphLayout.Route); ihn im Browser nachzubauen wäre eine zweite Quelle derselben Geometrie.
+   Nach dem Loslassen zeichnet C# den exakten Pfad. */
+.graph-edge.is-stale {
+    opacity: 0.25;
 }
 
 .graph-edge-label {

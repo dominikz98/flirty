@@ -40,6 +40,13 @@ public class DomainModelTests
     }
 
     [Fact]
+    public void LayoutElementKind_hat_erwartete_Werte()
+    {
+        Assert.Equal(0, (int)LayoutElementKind.Question);
+        Assert.Single(Enum.GetValues<LayoutElementKind>());
+    }
+
+    [Fact]
     public void SessionStatus_hat_erwartete_Werte()
     {
         Assert.Equal(0, (int)SessionStatus.InProgress);

@@ -195,6 +195,10 @@ statt den Anwender in die Fehlermeldung laufen zu lassen:
   „Laufende Sessions beenden" an (`AbandonDialogSessionsCommand`, Status `Abandoned`, Antworten bleiben).
   Ohne diesen Schritt lehnt die Engine das Löschen ab, weil die Sessions es überlebten und danach weder
   fortsetzbar noch lesbar wären.
+- **Ausnahme: die Canvas-Positionen.** `SetDialogLayoutCommand`/`ResetDialogLayoutCommand` laufen nicht
+  unter der Sperre – ein veröffentlichter Dialog lässt sich also übersichtlich anordnen, obwohl sein
+  Graph gesperrt ist. Das ist keine Lücke, sondern der Rand des Geltungsbereichs: Die Positionen liegen
+  in einer eigenen Tabelle, die nicht zum Graphen gehört ([ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)).
 
 > **Der Test-Runner ist davon nicht betroffen:** Er startet über `StartDialogVersionAsync` eine konkrete
 > Version – auch einen Entwurf. Genau dafür gibt es ihn (#43): eine neue Version durchspielen, *bevor*
@@ -555,21 +559,24 @@ Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
 
 Die Seite `/dialogs/{id}/graph` (`Components/Pages/DialogGraph.razor`) zeigt denselben Dialog als
 **Graphen** statt als Formularstapel – verlinkt aus der Dialogliste und aus dem Kopf des Dialog-Editors.
-Sie ist **lesend**: Geändert wird in den bestehenden Editoren, die eine Auswahl im Inspector öffnet.
-Stufe 1 von **EPIC 11** (#99); Technik-Entscheidung in
-[ADR 0006](./adr/0006-canvas-technik-im-designer.md).
+Am **Graphen** wird hier nichts geändert: Das übernehmen die bestehenden Editoren, die eine Auswahl im
+Inspector öffnet. Verschiebbar sind die Knoten aber (#102, siehe § Layout-Persistenz) – eine Position
+gehört nicht zum Graphen. Stufe 1 und 2 von **EPIC 11** (#99); Technik-Entscheidung in
+[ADR 0006](./adr/0006-canvas-technik-im-designer.md), Layout-Entscheidung in
+[ADR 0007](./adr/0007-layout-als-eigene-tabelle.md).
 
-Datenquelle ist der vorhandene `GetDialogQuery` über den `FlirtyAdminGateway` – **kein neuer Core-Code**.
+Datenquelle ist der vorhandene `GetDialogQuery` über den `FlirtyAdminGateway`; geschrieben wird nur über
+`SetDialogLayoutCommand`/`ResetDialogLayoutCommand`.
 
 | Baustein | Ort | Aufgabe |
 |---|---|---|
-| `GraphLayout` | `Services/` | Auto-Layout („Sugiyama-Light"), rein geometrisch. |
+| `GraphLayout` | `Services/` | Auto-Layout („Sugiyama-Light"), rein geometrisch – und der Einbau gespeicherter Positionen. |
 | `DialogGraphBuilder` | `Services/` | Fügt Graph, Warnungen, Schleifen und Trigger zum Zeichenmodell. |
 | `TransitionWarningAnalyzer` | `Services/` | Die Übergangs-Warnungen – **dieselbe** Quelle wie die Liste. |
 | `DialogGraphModel` | `Models/` | Knoten, Kanten, Rahmen, Marker, Auswahl. |
 | `GraphMetrics`, `SvgFormat` | `Models/` | Maße bzw. kulturfeste Zahlformatierung. |
 | `GraphNodeCard`, `GraphInspector` | `Components/` | Knoteninhalt bzw. Detailpanel. |
-| `DialogGraph.razor.js` | `Components/Pages/` | Verschieben und Zoomen – clientseitig. |
+| `DialogGraph.razor.js` | `Components/Pages/` | Ansicht verschieben/zoomen und Knoten ziehen – clientseitig. |
 
 ### Was der Graph zeigt – und warum genau das
 
@@ -645,9 +652,11 @@ Ankerpunkt, eigenes `aria-label`.
 
 Vier Zusagen aus ADR 0006 sind hier eingelöst – sie gelten für jede Erweiterung:
 
-- **Verschieben und Zoomen laufen im JS-Modul**, nicht in C#. Der Designer ist Blazor *Server*; jedes
-  Blazor-Ereignis ist ein SignalR-Roundtrip. Zwischen `pointerdown` und `pointerup` geht **keine**
-  Nachricht an den Server.
+- **Verschieben, Zoomen und das Ziehen eines Knotens laufen im JS-Modul**, nicht in C#. Der Designer ist
+  Blazor *Server*; jedes Blazor-Ereignis ist ein SignalR-Roundtrip. Zwischen `pointerdown` und
+  `pointerup` geht **keine** Nachricht an den Server – `invokeMethodAsync` steht in
+  `DialogGraph.razor.js` ausschließlich in `onPointerUp`. Wer dort einen Aufruf in `onPointerMove`
+  ergänzt, bricht ein Akzeptanzkriterium von #102.
 - **Das `transform` auf `.graph-viewport` gehört dem JS.** C# rendert es nie – sonst setzte der nächste
   Re-Render (etwa eine Auswahl) Verschiebung und Zoom zurück.
 - **Kanten werden vor den Knoten gezeichnet.** Der breite, unsichtbare Trefferpfad, der die dünne Linie
@@ -665,6 +674,51 @@ Zwei Punkte, die beim Erweitern zählen:
 - **Das Modell wird einmal nach dem Laden in ein Feld gerechnet.** Aus einer Markup-Methode heraus
   aufgerufen (wie `GraphWarnings()` im Dialog-Editor) liefe die ganze Anordnung bei jedem Render erneut,
   also bei jedem Klick.
+
+### Layout-Persistenz: Knoten verschieben (#102)
+
+Ein Auto-Layout ordnet an, aber es ist nicht die Anordnung des Autors. Knoten sind deshalb verschiebbar,
+und die Position liegt in der Tabelle **`DialogLayout`** am Dialog – nicht als zwei Spalten an
+`Question` und nicht in einer Datei neben `connection-profiles.json`. Begründung samt verworfener
+Alternativen: [ADR 0007](./adr/0007-layout-als-eigene-tabelle.md).
+
+Der Ablauf einer Zieh-Geste:
+
+1. `pointerdown` auf `.graph-node` merkt den Zug vor – **ohne** `preventDefault` und ohne
+   Pointer-Capture. Bis zur Schwelle von **4 px** bleibt die Geste ein Klick, sonst verschluckte jeder
+   leicht wackelige Klick die Auswahl.
+2. Ab der Schwelle schreibt das Modul das `transform` des Knotens direkt und dimmt die anliegenden
+   Kanten (`.graph-edge.is-stale`, gefunden über `data-from`/`data-to`). Die Pfade werden **nicht** im
+   Browser neu gerechnet: Ihre Geometrie entsteht in `GraphLayout.Route` und ist dort getestet – eine
+   zweite Quelle dafür wäre teurer als die Ungenauigkeit von einem Zug lang.
+3. `pointerup` verschluckt das unmittelbar folgende `click` (sonst wählte jeder Zug den Knoten
+   zusätzlich aus) und sendet **genau eine** Nachricht: `MoveNodeAsync(questionId, x, y)`.
+4. C# schreibt `SetDialogLayoutCommand`, übernimmt das zurückgegebene Layout in das **gepufferte**
+   `DialogDetail` und baut das Zeichenmodell daraus neu – kein zweiter `GetDialogQuery` je Geste. Jetzt
+   stimmen Kanten und Schleifenrahmen wieder exakt.
+
+Vier Dinge, die dabei zählen:
+
+- **Bildschirm → Nutzerkoordinaten über `viewport.getScreenCTM().inverse()`.** Die Matrix enthält auch
+  die Skalierung, die die `viewBox` gegenüber der CSS-Breite des SVG erzeugt. Wer nur durch den
+  Zoomfaktor teilt, unterschlägt sie – der Knoten liefe dann je nach Fensterbreite schneller oder
+  langsamer als der Zeiger.
+- **Gespeicherte Positionen greifen an genau einer Stelle:** am Ende von `GraphLayout.Render`, wo die
+  Knotenboxen entstehen. Schichtung, Kantenform, Baryzentrum und Kanalvergabe bleiben am Auto-Layout.
+  Ein Zug ändert damit nur die Position eines Knotens – nie die Zeichenform einer Kante und nie die
+  Anordnung der übrigen. Die Zeichenfläche wächst mit, sonst ragte ein weit gezogener Knoten aus der
+  `viewBox`.
+- **Der Commit rendert denselben Wert, den das JS geschrieben hat.** Das Modul rundet auf ganze Pixel und
+  `SvgFormat.N` formatiert ganze Zahlen ohne Nachkomma – deshalb springt der Knoten beim Re-Render nicht.
+- **Verschieben funktioniert auch bei veröffentlichtem Dialog.** Die Layout-Commands laufen bewusst nicht
+  unter `DialogEditGuard`; Koordinaten berühren die Session-Semantik nicht. Die Publish-Sperre der
+  Graph-Editoren (§ Versionierung) bleibt unverändert.
+
+„Layout zurücksetzen" in der Werkzeugleiste verwirft alle Zeilen des Dialogs
+(`ResetDialogLayoutCommand`) – danach greift wieder das Auto-Layout. Der Knopf erscheint nur, wenn
+überhaupt Positionen gespeichert sind, und fragt wie jede destruktive Aktion im Designer inline zurück.
+Ein Knoten mit eigener Position trägt einen Balken an der rechten Kante (`.is-pinned`; die
+Schleifen-Zugehörigkeit markiert die linke) und im `aria-label` den Zusatz „eigene Position".
 
 ### Inspector und Barrierefreiheit
 
@@ -774,11 +828,15 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   neu vergebene Guids (denselben Graphen zweimal bauen – der Test, der `CreateDialogVersionCommand`
   überlebt) und die globale Reihenfolge der Übergänge. Dazu Schichtung, aufgebrochene Rückwärtskanten,
   unerreichbare Komponenten, Überlappungsfreiheit, aufgefächerte Mehrfachkanten, Kreuzungsreduktion und
-  das Zahlformat unter `de-DE`.
+  das Zahlformat unter `de-DE`. Für #102 kommen die gespeicherten Positionen dazu: Sie überschreiben die
+  berechnete Position ohne die Schicht zu verändern, die Kanten folgen mit, die Zeichenfläche wächst um
+  einen weit gezogenen Knoten, eine Zeile ohne Frage wird übergangen – und ohne Zeile ist das Ergebnis
+  identisch zum reinen Auto-Layout (der Nachweis, dass „Layout zurücksetzen" wirklich zurücksetzt).
 - `Designer/DialogGraphBuilderTests` – das Zeichenmodell (#101): Marker für Einstieg, Abschluss und
   Unerreichbarkeit, Warnungen am verursachenden Element, Loop-Rahmen über dem `LoopAnalyzer`-Body,
   Trigger an Frage bzw. Scope-Marker, getrennt ausgewiesene verwaiste Übergänge und die
-  `aria-label`-Beschreibung jedes Knotens.
+  `aria-label`-Beschreibung jedes Knotens; dazu (#102) der Schleifen-Rahmen über einer verschobenen
+  Frage.
 - `Designer/DesignerTestHost` – kein Test, sondern der gemeinsame DI-Stack (Spiegel von `DesignerApp`)
   und die SQLite-Temp-Datenbank für die Gateway-Tests. Ändert sich `DesignerApp.ConfigureServices`, ist
   das die eine Stelle, die nachzuziehen ist.
@@ -813,8 +871,13 @@ Chat-UI der Web-Sample (#45/#47):
   Einstieg und Abschluss, rahmt die Schleife und hängt den Trigger-Chip an genau die Frage, nach der er
   feuert; die Auswahl öffnet den Inspector und führt in den bestehenden Frage-Editor. Die vollständige
   Canvas-Abdeckung folgt in Stufe 5 (#105).
+- `DesignerE2ETests.Graph_Knoten_verschieben_ueberlebt_den_Reload` – die Rauchprobe der
+  Layout-Persistenz (#102) am **veröffentlichten** Dialog: Knoten ziehen, Reload (der Server rendert die
+  Position aus der Datenbank), „Layout zurücksetzen" – danach liegt der Knoten wieder auf seiner
+  Auto-Layout-Position. Dass der Dialog veröffentlicht ist, belegt zugleich die Guard-Ausnahme aus
+  ADR 0007: Es erscheint keine Fehlermeldung.
 
-Drei Punkte, die beim Erweitern der Suite Zeit sparen:
+Vier Punkte, die beim Erweitern der Suite Zeit sparen:
 
 - **Der Host braucht `ApplicationName = "Flirty.Designer"` und `EnvironmentName = "Development"`.**
   Nur so findet der `StaticWebAssetsLoader` die `*.staticwebassets.runtime.json` (er lädt sie über
@@ -833,6 +896,13 @@ Drei Punkte, die beim Erweitern der Suite Zeit sparen:
   zugleich der Nachweis, dass der Circuit die Seite übernommen hat. Es ist das **erste**
   `data-`-Attribut im Designer; die übrige Suite adressiert über Rolle, Überschrift, Feld-`id` und
   CSS-Klasse.
+- **Ein Drag braucht `ScrollIntoViewIfNeededAsync` und `page.Mouse`, nicht `DragToAsync`.** Zwei Fallen
+  in einer: `DragToAsync` nutzt die HTML5-Drag-and-Drop-API, die auf einem SVG-Canvas mit
+  Pointer-Events gar nicht auslöst – und Maus-Koordinaten sind **fensterbezogen**, während der
+  Canvas-Host 70 vh hoch unter Kopfzeile, Hinweis und Werkzeugleiste steht. Ohne das Scrollen zielt die
+  Geste auf einen Knoten der unteren Schichten ins Leere, ganz ohne Fehlermeldung; der Test scheitert
+  dann an der Auswirkung, nicht an der Ursache. Gezogen wird über mehrere `Mouse.MoveAsync`-Schritte,
+  damit die 4-px-Schwelle des Moduls wie bei einer echten Geste überschritten wird.
 
 ```pwsh
 pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium   # einmalig
@@ -846,5 +916,5 @@ dotnet test tests/Flirty.E2E
 #43 Test-Runner ✅ → #46 Designer-E2E ✅.
 
 **EPIC 11 – Visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
-#101 Graph-Ansicht (lesend) ✅ → #102 Layout-Persistenz + Verschieben → #103 Editieren auf dem Canvas →
-#104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.
+#101 Graph-Ansicht (lesend) ✅ → #102 Layout-Persistenz + Verschieben ✅ (ADR 0007) →
+#103 Editieren auf dem Canvas → #104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.

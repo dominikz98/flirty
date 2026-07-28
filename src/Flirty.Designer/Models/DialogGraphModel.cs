@@ -37,6 +37,10 @@ public sealed record GraphTriggerChip(Guid TriggerId, string Label, string Title
 /// <param name="IsLoopEntry">Ob die Frage Einstiegsfrage einer Schleife ist.</param>
 /// <param name="IsLoopBreaking">Ob die Frage Breaking Question einer Schleife ist.</param>
 /// <param name="InLoop">Ob die Frage im Bereich einer Schleife liegt.</param>
+/// <param name="IsPinned">
+/// Ob der Knoten an einer vom Autor gespeicherten Position liegt (<c>DialogLayout</c>) statt an der vom
+/// Auto-Layout berechneten.
+/// </param>
 /// <param name="Triggers">Die Trigger mit <see cref="TriggerScope.AfterQuestion"/> auf diese Frage.</param>
 /// <param name="Warnings">Die Warnungen, die an dieser Frage hängen.</param>
 /// <param name="AriaLabel">Die vollständige Beschreibung für Screenreader.</param>
@@ -57,6 +61,7 @@ public sealed record GraphNode(
     bool IsLoopEntry,
     bool IsLoopBreaking,
     bool InLoop,
+    bool IsPinned,
     IReadOnlyList<GraphTriggerChip> Triggers,
     IReadOnlyList<GraphWarning> Warnings,
     string AriaLabel);
