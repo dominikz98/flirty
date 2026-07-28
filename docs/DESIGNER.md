@@ -8,7 +8,8 @@ Milestone „M3 – Designer"; die Playwright-E2E der UI kam mit #46 in M4 dazu)
 > **Stand:** EPIC 7 ist umgesetzt: **Connection-Profil-Verwaltung (Multi-DB, #37)**, **Dialog-CRUD
 > (#38)**, **Frage-Editor (#39)**, **Branching-Editor (#40)**, **Loop-Editor (#41)**,
 > **Trigger-Editor (#42)** und **Test-Runner (#43)**; die UI ist seit **#46** per Playwright-E2E
-> abgedeckt. Der Designer arbeitet über die Commands der Engine (via `ISender`), nicht direkt
+> abgedeckt. Aus **EPIC 11** (visueller Graph-Designer, #99) ist die **lesende Graph-Ansicht (#101)**
+> dazugekommen. Der Designer arbeitet über die Commands der Engine (via `ISender`), nicht direkt
 > am `FlirtyDbContext` vorbei.
 
 ## Starten
@@ -550,6 +551,146 @@ Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
   Core-`AnswerValidator` ausgerichtet; `DesignerExpressionContext` leitet seine Beispielwerte davon ab,
   damit Ausdrucks-Validierung und Testlauf nicht auseinanderlaufen.
 
+## Graph-Ansicht (#101)
+
+Die Seite `/dialogs/{id}/graph` (`Components/Pages/DialogGraph.razor`) zeigt denselben Dialog als
+**Graphen** statt als Formularstapel – verlinkt aus der Dialogliste und aus dem Kopf des Dialog-Editors.
+Sie ist **lesend**: Geändert wird in den bestehenden Editoren, die eine Auswahl im Inspector öffnet.
+Stufe 1 von **EPIC 11** (#99); Technik-Entscheidung in
+[ADR 0006](./adr/0006-canvas-technik-im-designer.md).
+
+Datenquelle ist der vorhandene `GetDialogQuery` über den `FlirtyAdminGateway` – **kein neuer Core-Code**.
+
+| Baustein | Ort | Aufgabe |
+|---|---|---|
+| `GraphLayout` | `Services/` | Auto-Layout („Sugiyama-Light"), rein geometrisch. |
+| `DialogGraphBuilder` | `Services/` | Fügt Graph, Warnungen, Schleifen und Trigger zum Zeichenmodell. |
+| `TransitionWarningAnalyzer` | `Services/` | Die Übergangs-Warnungen – **dieselbe** Quelle wie die Liste. |
+| `DialogGraphModel` | `Models/` | Knoten, Kanten, Rahmen, Marker, Auswahl. |
+| `GraphMetrics`, `SvgFormat` | `Models/` | Maße bzw. kulturfeste Zahlformatierung. |
+| `GraphNodeCard`, `GraphInspector` | `Components/` | Knoteninhalt bzw. Detailpanel. |
+| `DialogGraph.razor.js` | `Components/Pages/` | Verschieben und Zoomen – clientseitig. |
+
+### Was der Graph zeigt – und warum genau das
+
+Nicht alles, was nach „Baustein" klingt, ist im Domänenmodell ein Knoten. Wer Schleifen und Trigger als
+frei ziehbare Kacheln baut, erfindet ein zweites Modell neben der Domäne:
+
+| Konzept | Entity | Auf dem Canvas |
+|---|---|---|
+| Frage | `Question` | **Knoten** – der einzige echte |
+| Übergang | `Transition` | **Kante**, beschriftet mit Bedingung und Auswertungsposition |
+| Schleife | `LoopDefinition` | **Bereichsrahmen** um den *berechneten* Body – kein eigener Knoten |
+| Trigger | `TriggerDefinition` | **Chip** am Knoten bzw. an einem Scope-Marker |
+
+Zwei Eigenschaften machen die Darstellung erst ehrlich:
+
+- **Es gibt keine impliziten Kanten.** `TransitionResolver.ResolveTransitionTarget` liefert `null`, wenn
+  eine Frage keine ausgehenden Übergänge hat – das ist der **reguläre Abschluss**, kein „weiter mit der
+  nächsten Frage nach `Order`". Der Graph ist damit vollständig durch die `Transition`s beschrieben.
+  Deshalb trägt eine Frage ohne ausgehende Kante das Badge *Abschluss* und eine doppelte Unterkante:
+  Ohne Kennzeichnung liest sie sich wie eine fehlende Verbindung.
+- **Der Loop-Body ist abgeleitet, nicht gespeichert.** Der Rahmen ist die Bounding-Box über
+  `LoopAnalyzer`-Body – also vorhandene Logik, die den Core-internen `LoopResolver` spiegelt.
+
+Ergänzend markiert die Ansicht die **Einstiegsfrage** und jede Frage, zu der von dort **kein Pfad**
+führt. Fehlt die Einstiegsfrage ganz, ist Erreichbarkeit nicht bestimmbar – dann bleibt es bei *einer*
+Warnung am Dialog, statt jeden Knoten rot zu färben.
+
+### Warnungen hängen am verursachenden Element
+
+`GraphWarning` (`Models/`) ist der gemeinsame Typ beider Sichten: derselbe Befund, zusätzlich einem
+Element zugeordnet (`Question`, `Transition`, `Loop` oder `Dialog`). Die Regeln lagen bis #101 privat in
+`DialogEditor.razor` und sind unverändert in den `TransitionWarningAnalyzer` gewandert; `LoopAnalyzer`
+liefert seine Befunde ebenfalls verortet (`LoopInsight.TargetedWarnings`, mit `Warnings` als berechneter
+Textsicht).
+
+**Die Wortlaute sind Vertrag.** Der Dialog-Editor zeigt sie unverändert, die Publish-Rückfrage zählt sie,
+die E2E-Suite sucht darin. `TransitionWarningAnalyzerTests` nagelt alle vier Volltexte fest.
+
+Verortet wird nach Verursacher, nicht nach Fundort: „Kein Default-Übergang" und „Mehrere Defaults" sind
+Eigenschaften der **Gruppe** und hängen an der Frage; „Bedingung wird nicht ausgewertet" und „greift
+immer" hängen an **ihrem** Übergang. Beim verdeckten Schleifen-Ausstieg trägt der verdeckende Rücksprung
+die Warnung – er ist die Kante, die zu ändern ist.
+
+### Auto-Layout: deterministisch, sonst wertlos
+
+`GraphLayout.Compute` schichtet per Breitensuche ab der Einstiegsfrage, nimmt Rückwärtskanten aus dem
+azyklischen Satz und reduziert Kreuzungen per Baryzentrum. Gespeicherte Positionen gibt es hier noch
+nicht – die bringt Stufe 2 (#102).
+
+Derselbe Graph **muss** dieselben Koordinaten ergeben, sonst wackeln E2E-Selektoren. Drei Zusagen tragen
+das, und alle drei sind Testfälle in `GraphLayoutTests`:
+
+1. **Nur Listen nach außen**, nie eine Menge oder ein Wörterbuch – deren Iterationsreihenfolge ist nicht
+   zugesichert.
+2. **Sortierschlüssel enden mit einem eindeutigen Ordinal**, sind also eine Totalordnung und nicht auf
+   die Stabilität von `OrderBy` angewiesen. Das Ordinal kommt aus `(Order, Id)` und **nicht** aus der
+   Guid allein: `CreateDialogVersionCommand` vergibt beim Klonen jeder Frage eine neue Guid (ADR 0005),
+   ein Guid-basiertes Layout würfelte bei jeder neuen Dialogversion neu durch.
+3. **Koordinaten entstehen nur aus ganzzahligen Schicht- und Spaltenwerten**, nie aus einem
+   Baryzentrum. Gleitkomma-Mittelwerte bestimmen die *Reihenfolge*, nicht die Position – sonst hingen die
+   letzten Nachkommastellen an der Rechenreihenfolge und die Zusage gälte nur meistens.
+
+**Ohne Dummy-Knoten.** Ein vollständiger Sugiyama zieht Platzhalterketten durch übersprungene Schichten.
+Nötig wären sie hier nur für Rücksprünge – und die laufen ohnehin in einem Kanal rechts am Graphen
+vorbei, nicht zwischen den Knoten. Bei der Zielgröße von rund 30 Knoten sparen sie kein einziges Kreuz,
+kosten aber eine zweite Knotenart im Modell, im Rendering und in der Auswahl.
+
+Mehrere Übergänge zwischen denselben zwei Fragen bleiben über drei unabhängige Merkmale unterscheidbar:
+seitlicher Fächerversatz (trifft Ansatzpunkt *und* Kontrollpunkte), eigene Beschriftung am eigenen
+Ankerpunkt, eigenes `aria-label`.
+
+### Der Canvas selbst
+
+Vier Zusagen aus ADR 0006 sind hier eingelöst – sie gelten für jede Erweiterung:
+
+- **Verschieben und Zoomen laufen im JS-Modul**, nicht in C#. Der Designer ist Blazor *Server*; jedes
+  Blazor-Ereignis ist ein SignalR-Roundtrip. Zwischen `pointerdown` und `pointerup` geht **keine**
+  Nachricht an den Server.
+- **Das `transform` auf `.graph-viewport` gehört dem JS.** C# rendert es nie – sonst setzte der nächste
+  Re-Render (etwa eine Auswahl) Verschiebung und Zoom zurück.
+- **Kanten werden vor den Knoten gezeichnet.** Der breite, unsichtbare Trefferpfad, der die dünne Linie
+  greifbar macht, läge sonst über der Knotenmitte und verschluckte den Klick (im Spike nachgemessen).
+  Aus demselben Grund hat der Schleifen-Rahmen `fill="none"` und `pointer-events: stroke`: Er umschließt
+  alles und würde sonst jeden Klick darin abfangen.
+- **Der Canvas setzt `data-canvas-ready`**, sobald das Modul gebunden ist. Das ist das **erste**
+  `data-`-Attribut im Designer und bewusst eine Ausnahme – siehe § Tests.
+
+Zwei Punkte, die beim Erweitern zählen:
+
+- **Zahlen in SVG nur über `SvgFormat.N`.** Der Designer läuft unter `de-DE`; eine interpolierte
+  `double`-Koordinate schreibt `12,5`, und da das Komma in der Pfadsyntax ein *Trennzeichen* ist, wird
+  daraus stillschweigend eine falsche Zahlenfolge – ohne Ausnahme, nur mit falschem Bild.
+- **Das Modell wird einmal nach dem Laden in ein Feld gerechnet.** Aus einer Markup-Methode heraus
+  aufgerufen (wie `GraphWarnings()` im Dialog-Editor) liefe die ganze Anordnung bei jedem Render erneut,
+  also bei jedem Klick.
+
+### Inspector und Barrierefreiheit
+
+Der Inspector zeigt eine Lesesicht und springt per Schaltfläche in den bestehenden Editor. Er bettet die
+Editoren **nicht** ein: `QuestionEditor` & Co. sind `@page`-Komponenten mit eigenem `PageTitle`, eigener
+Überschrift und eigenem Rücklink – sie einzubetten hieße, sie umzubauen.
+
+Ein reiner Canvas wäre gegenüber den Formularen ein Rückschritt. Deshalb:
+
+- Knoten sind echte `<button>` in einem `<foreignObject>`. Damit kommen Fokusring, Enter/Leertaste und
+  Screenreader-Rolle von der Plattform statt aus Handarbeit. Blazor trägt das: Seine
+  Namensraum-Prüfung schließt `foreignObject` ausdrücklich aus, Kindelemente entstehen im HTML-Namensraum.
+- **Die Tab-Reihenfolge ist der Ablauf** – Knoten werden nach Schicht und Spalte gerendert. Das ist eine
+  Zusage an das Rendering, kein Zufall.
+- Kanten sind **nicht** fokussierbar (45 Tabstopps wären eine Wüste), aber vorlesbar und über die
+  Übergangslisten des Inspectors vollständig per Tastatur erreichbar.
+- Jeder Knoten trägt ein vollständiges `aria-label`; vor dem Canvas steht eine versteckte
+  Zusammenfassung („3 Fragen, 3 Übergänge, 1 Schleife, keine Warnungen").
+- Das `<svg>` hat `role="group"`, **nicht** `role="application"` – letzteres kapert die
+  Screenreader-Navigation.
+- Kontrast ≥ 4,5:1 auch für Striche (die WCAG verlangt dort nur 3:1; der Befund aus #95 sitzt tief), und
+  **nie Farbe allein**: Einstieg, Abschluss und Unerreichbarkeit tragen zusätzlich ein Badge und eine
+  eigene Konturform.
+
+Der Listen- und Formularpfad bleibt vollständig erhalten – der Canvas ist zusätzlich, nicht Ersatz.
+
 ## Konventionen
 
 - Blazor-Komponenten unter `Components/` (Seiten in `Components/Pages/`), Server-interaktiver Render-Mode
@@ -569,6 +710,15 @@ Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
   CSS-Isolation vergibt ihr Scope-Attribut nicht an Kind-Komponenten. Styles für gerenderte Komponenten
   (`<NavLink>` &c.) gehören deshalb global nach `wwwroot/app.css` – siehe den Kommentar in
   `NavMenu.razor.css`, wo genau das die Navigationslinks unlesbar gemacht hatte.
+- **Zahlen in SVG-Attributen ausschließlich über `SvgFormat.N`.** Die feste Anzeige-Kultur `de-DE` gilt
+  auch beim Rendern: Eine interpolierte `double`-Koordinate wird zu `12,5`, und weil das Komma in der
+  SVG-Pfadsyntax ein *Trennzeichen* ist, entsteht daraus eine falsche Zahlenfolge – ohne Ausnahme, ohne
+  Meldung, nur mit falschem Bild. Betrifft `d`, `transform`, `viewBox`, `x`/`y`, `width`/`height`.
+- **Was clientseitig läuft, bleibt clientseitig.** Zieh- und Zoomgesten gehören in ein collocated
+  `*.razor.js`-Modul (Muster: `ReconnectModal.razor.js`, `DialogGraph.razor.js`); zwischen `pointerdown`
+  und `pointerup` geht keine Nachricht an den Server (ADR 0006). Attribute, die dieses Modul setzt
+  (`transform` auf `.graph-viewport`), darf C# **nie** rendern – der nächste Re-Render setzte sie sonst
+  zurück.
 - Zeitstempel UTC.
 
 ## Tests
@@ -615,6 +765,20 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/DesignerTriggerLogTests` – das Trigger-Protokoll (#43): dass die Notifications trotz frischem
   Scope je Schritt im adoptierten Log des Circuits landen, Reihenfolge/Scope-Zuordnung, `Clear()` und
   dass Admin-Operationen nichts protokollieren.
+- `Designer/TransitionWarningAnalyzerTests` – die Übergangs-Warnungen (#101), die bis dahin privat im
+  `DialogEditor` lagen: jede Regel einzeln, die Verortung am Knoten bzw. an der Kante – und als
+  Kernprobe, dass alle vier **Wortlaute unverändert** sind. Listenansicht, Publish-Rückfrage und
+  E2E-Suite hängen daran.
+- `Designer/GraphLayoutTests` – das Auto-Layout (#101). Kern ist der **Determinismus**, geprüft gegen
+  die drei Quellen, aus denen er üblicherweise wegbricht: Hash-Iterationsreihenfolge (zweimal rechnen),
+  neu vergebene Guids (denselben Graphen zweimal bauen – der Test, der `CreateDialogVersionCommand`
+  überlebt) und die globale Reihenfolge der Übergänge. Dazu Schichtung, aufgebrochene Rückwärtskanten,
+  unerreichbare Komponenten, Überlappungsfreiheit, aufgefächerte Mehrfachkanten, Kreuzungsreduktion und
+  das Zahlformat unter `de-DE`.
+- `Designer/DialogGraphBuilderTests` – das Zeichenmodell (#101): Marker für Einstieg, Abschluss und
+  Unerreichbarkeit, Warnungen am verursachenden Element, Loop-Rahmen über dem `LoopAnalyzer`-Body,
+  Trigger an Frage bzw. Scope-Marker, getrennt ausgewiesene verwaiste Übergänge und die
+  `aria-label`-Beschreibung jedes Knotens.
 - `Designer/DesignerTestHost` – kein Test, sondern der gemeinsame DI-Stack (Spiegel von `DesignerApp`)
   und die SQLite-Temp-Datenbank für die Gateway-Tests. Ändert sich `DesignerApp.ConfigureServices`, ist
   das die eine Stelle, die nachzuziehen ist.
@@ -644,8 +808,13 @@ Chat-UI der Web-Sample (#45/#47):
 - `DesignerE2ETests.Testlauf_spielt_die_Schleife_mit_der_echten_Engine_durch` – der Test-Runner (#43)
   auf demselben (unveröffentlichten) Dialog: zwei Iterationen, Ausstieg, Abschluss; geprüft werden das
   `Iteration 2`-Badge des Verlaufs und die gesammelte Collection im Ausdruckskontext.
+- `DesignerE2ETests.Graph_Ansicht_zeigt_den_Ablauf_und_fuehrt_in_den_Frage_Editor` – die Rauchprobe der
+  Graph-Ansicht (#101): Der Canvas bindet sein JS-Modul, zeichnet drei Knoten und drei Kanten, markiert
+  Einstieg und Abschluss, rahmt die Schleife und hängt den Trigger-Chip an genau die Frage, nach der er
+  feuert; die Auswahl öffnet den Inspector und führt in den bestehenden Frage-Editor. Die vollständige
+  Canvas-Abdeckung folgt in Stufe 5 (#105).
 
-Zwei Punkte, die beim Erweitern der Suite Zeit sparen:
+Drei Punkte, die beim Erweitern der Suite Zeit sparen:
 
 - **Der Host braucht `ApplicationName = "Flirty.Designer"` und `EnvironmentName = "Development"`.**
   Nur so findet der `StaticWebAssetsLoader` die `*.staticwebassets.runtime.json` (er lädt sie über
@@ -657,13 +826,25 @@ Zwei Punkte, die beim Erweitern der Suite Zeit sparen:
   brauchbares JS-Signal dafür gibt es nicht – `window.Blazor.reconnect` ist gesetzt und die
   `<!--Blazor:…-->`-Boot-Marker sind weg, *bevor* Ereignisse ankommen (nachgemessen). Deshalb führt
   `InteractWhenReadyAsync` die erste – **idempotente** – Interaktion in einer Wiederholschleife aus.
+- **Der Canvas benutzt `InteractWhenReadyAsync` nicht, sondern wartet auf `data-canvas-ready`.** Das
+  Wiederholmuster setzt Idempotenz voraus, und die gilt auf einem Canvas nicht: Ein wiederholtes Ziehen
+  verschöbe doppelt, ein wiederholter Zoomschritt zoomte zweimal. Das Attribut setzt das JS-Modul,
+  sobald es gebunden ist – und weil `OnAfterRenderAsync` beim Prerendering gar nicht läuft, ist es
+  zugleich der Nachweis, dass der Circuit die Seite übernommen hat. Es ist das **erste**
+  `data-`-Attribut im Designer; die übrige Suite adressiert über Rolle, Überschrift, Feld-`id` und
+  CSS-Klasse.
 
 ```pwsh
 pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium   # einmalig
 dotnet test tests/Flirty.E2E
 ```
 
-## Roadmap (EPIC 7)
+## Roadmap (EPIC 7 / EPIC 11)
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅ → #46 Designer-E2E ✅.
+**EPIC 7 – Designer (abgeschlossen):** #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ →
+#39 Frage-Editor ✅ → #40 Branching-Editor ✅ → #41 Loop-Editor ✅ → #42 Trigger-Editor ✅ →
+#43 Test-Runner ✅ → #46 Designer-E2E ✅.
+
+**EPIC 11 – Visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
+#101 Graph-Ansicht (lesend) ✅ → #102 Layout-Persistenz + Verschieben → #103 Editieren auf dem Canvas →
+#104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.

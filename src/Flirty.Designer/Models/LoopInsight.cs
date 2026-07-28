@@ -22,7 +22,11 @@ namespace Flirty.Designer.Models;
 /// Die Übergänge der Breaking Question, deren Ziel <b>außerhalb</b> des Bereichs liegt (Ausstiege),
 /// in Auswertungsreihenfolge.
 /// </param>
-/// <param name="Warnings">Die gefundenen Warnungen (leer, wenn die Schleife stimmig konfiguriert ist).</param>
+/// <param name="TargetedWarnings">
+/// Die gefundenen Warnungen samt Ortsangabe (leer, wenn die Schleife stimmig konfiguriert ist). Seit
+/// #101 tragen sie einen Elementbezug, damit die Graph-Ansicht sie am Rahmen, am Knoten oder an der
+/// Kante zeigen kann; der Loop-Editor liest weiterhin nur <see cref="Warnings"/>.
+/// </param>
 internal sealed record LoopInsight(
     LoopDetail Loop,
     IReadOnlyList<QuestionDetail> Body,
@@ -30,4 +34,11 @@ internal sealed record LoopInsight(
     QuestionDetail? BreakingQuestion,
     IReadOnlyList<TransitionDetail> LoopBackTransitions,
     IReadOnlyList<TransitionDetail> ExitTransitions,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<GraphWarning> TargetedWarnings)
+{
+    /// <summary>
+    /// Die Warntexte in unveränderter Reihenfolge – die Sicht, die Loop- und Dialog-Editor seit #41
+    /// anzeigen.
+    /// </summary>
+    public IReadOnlyList<string> Warnings => [.. TargetedWarnings.Select(warning => warning.Text)];
+}

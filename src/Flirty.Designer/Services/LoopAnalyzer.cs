@@ -113,7 +113,12 @@ internal static class LoopAnalyzer
             Warnings(detail, loop, bodies, entry, breaking, outgoing, body, exits));
     }
 
-    private static IReadOnlyList<string> Warnings(
+    /// <summary>
+    /// Die Warnungen eines Markers – mit Ortsangabe, damit die Graph-Ansicht (#101) sie am Rahmen, am
+    /// Knoten oder an der Kante zeigen kann. Die <b>Texte und ihre Reihenfolge sind unverändert</b>: Der
+    /// Loop-Editor zeigt sie seit #41 so an, und Tests hängen an den Wortlauten.
+    /// </summary>
+    private static IReadOnlyList<GraphWarning> Warnings(
         DialogDetail detail,
         LoopDetail loop,
         IReadOnlyDictionary<Guid, HashSet<Guid>> bodies,
@@ -123,45 +128,58 @@ internal static class LoopAnalyzer
         IReadOnlySet<Guid> body,
         IReadOnlyList<TransitionDetail> exits)
     {
-        var warnings = new List<string>();
+        var warnings = new List<GraphWarning>();
 
         if (entry is null)
         {
-            warnings.Add(
+            warnings.Add(GraphWarning.ForLoop(
+                loop.Id,
                 "Die Einstiegsfrage gehört nicht (mehr) zu diesem Dialog – der Marker zeigt ins Leere und "
-                + "sammelt nichts. Bitte eine vorhandene Frage wählen oder die Schleife löschen.");
+                + "sammelt nichts. Bitte eine vorhandene Frage wählen oder die Schleife löschen."));
         }
 
         if (breaking is null)
         {
-            warnings.Add(
+            warnings.Add(GraphWarning.ForLoop(
+                loop.Id,
                 "Die Breaking Question gehört nicht (mehr) zu diesem Dialog – ohne sie gibt es keinen "
-                + "Ausstieg aus dem Zyklus. Bitte eine vorhandene Frage wählen oder die Schleife löschen.");
+                + "Ausstieg aus dem Zyklus. Bitte eine vorhandene Frage wählen oder die Schleife löschen."));
         }
 
         if (entry is not null && breaking is not null)
         {
             if (!outgoing.Any(transition => transition.TargetQuestionId == entry.Id))
             {
-                warnings.Add(
+                warnings.Add(GraphWarning.ForQuestion(
+                    breaking.Id,
                     $"Es gibt keinen Übergang von „{breaking.Key}“ zurück auf „{entry.Key}“ – ohne diesen "
                     + "Rücksprung entsteht gar kein Zyklus, und die Antworten werden nicht je Iteration "
-                    + "gesammelt.");
+                    + "gesammelt."));
             }
 
             if (exits.Count == 0)
             {
-                warnings.Add(
+                warnings.Add(GraphWarning.ForQuestion(
+                    breaking.Id,
                     $"Die Breaking Question „{breaking.Key}“ hat keinen Übergang aus dem Schleifenbereich "
-                    + "heraus – die Schleife lässt sich nie verlassen (Endlosschleife).");
+                    + "heraus – die Schleife lässt sich nie verlassen (Endlosschleife)."));
             }
-            else if (!ExitIsReachable(outgoing, body))
+            else
             {
-                warnings.Add(
-                    $"Der Ausstieg aus „{breaking.Key}“ wird nie geprüft: Zur Laufzeit greift immer ein "
-                    + "Rücksprung davor (der erste zutreffende Nicht-Default gewinnt, ein leerer Ausdruck "
-                    + "trifft immer zu; sonst der oberste Default). Ergebnis ist eine Endlosschleife – "
-                    + "dem Rücksprung eine Bedingung geben oder ihn hinter den Ausstieg sortieren.");
+                var (reachable, blocker) = InspectExit(outgoing, body);
+                if (!reachable)
+                {
+                    var text =
+                        $"Der Ausstieg aus „{breaking.Key}“ wird nie geprüft: Zur Laufzeit greift immer ein "
+                        + "Rücksprung davor (der erste zutreffende Nicht-Default gewinnt, ein leerer Ausdruck "
+                        + "trifft immer zu; sonst der oberste Default). Ergebnis ist eine Endlosschleife – "
+                        + "dem Rücksprung eine Bedingung geben oder ihn hinter den Ausstieg sortieren.";
+
+                    // Der Verdecker ist die Ursache – ohne ihn bleibt nur die Breaking Question als Ort.
+                    warnings.Add(blocker is null
+                        ? GraphWarning.ForQuestion(breaking.Id, text)
+                        : GraphWarning.ForTransition(blocker.Id, breaking.Id, text));
+                }
             }
         }
 
@@ -169,25 +187,28 @@ internal static class LoopAnalyzer
         {
             if (bodies[other.Id].Overlaps(bodies[loop.Id]))
             {
-                warnings.Add(
+                warnings.Add(GraphWarning.ForLoop(
+                    loop.Id,
                     $"Der Schleifenbereich überschneidet sich mit der Schleife „{other.CollectionKey}“. "
                     + "Verschachtelte oder überlappende Schleifen werden nicht unterstützt: Jede Session "
-                    + "gegen diesen Dialog bricht schon beim Start mit einem Fehler ab.");
+                    + "gegen diesen Dialog bricht schon beim Start mit einem Fehler ab."));
             }
         }
 
         if (!DesignerExpressionContext.IsBindable(loop.CollectionKey))
         {
-            warnings.Add(
+            warnings.Add(GraphWarning.ForLoop(
+                loop.Id,
                 $"Der Collection-Schlüssel „{loop.CollectionKey}“ ist im Ausdruck nicht referenzierbar: "
-                + DesignerExpressionContext.IdentifierNote(loop.CollectionKey));
+                + DesignerExpressionContext.IdentifierNote(loop.CollectionKey)));
         }
         else if (detail.Questions.Any(question => string.Equals(question.Key, loop.CollectionKey, StringComparison.Ordinal)))
         {
-            warnings.Add(
+            warnings.Add(GraphWarning.ForLoop(
+                loop.Id,
                 $"Der Collection-Schlüssel „{loop.CollectionKey}“ verdeckt die gleichnamige Frage im "
                 + "Ausdruckskontext – deren Antwort ist in Bedingungen dann nicht mehr erreichbar. Einen "
-                + "der beiden Schlüssel umbenennen.");
+                + "der beiden Schlüssel umbenennen."));
         }
 
         return warnings;
@@ -198,23 +219,32 @@ internal static class LoopAnalyzer
     /// greifen kann: Der erste bedingungslose Nicht-Default gewinnt immer; wird keiner erreicht, greift
     /// der oberste Default.
     /// </summary>
-    private static bool ExitIsReachable(IReadOnlyList<TransitionDetail> outgoing, IReadOnlySet<Guid> body)
+    /// <param name="outgoing">Die Übergänge der Breaking Question in Auswertungsreihenfolge.</param>
+    /// <param name="body">Der Schleifenbereich.</param>
+    /// <returns>
+    /// Ob der Ausstieg erreichbar ist und – falls nicht – welcher Rücksprung ihn verdeckt. Der
+    /// Verdecker trägt die Warnung, damit die Graph-Ansicht sie an <b>seiner</b> Kante zeigen kann.
+    /// </returns>
+    private static (bool Reachable, TransitionDetail? Blocker) InspectExit(
+        IReadOnlyList<TransitionDetail> outgoing, IReadOnlySet<Guid> body)
     {
         foreach (var transition in outgoing.Where(transition => !transition.IsDefault))
         {
             if (!body.Contains(transition.TargetQuestionId))
             {
-                return true;
+                return (true, null);
             }
 
             if (string.IsNullOrWhiteSpace(transition.Expression))
             {
-                return false;
+                return (false, transition);
             }
         }
 
         var fallback = outgoing.FirstOrDefault(transition => transition.IsDefault);
-        return fallback is not null && !body.Contains(fallback.TargetQuestionId);
+        return fallback is not null && !body.Contains(fallback.TargetQuestionId)
+            ? (true, null)
+            : (false, fallback);
     }
 
     private static QuestionDetail? Question(DialogDetail detail, Guid questionId)

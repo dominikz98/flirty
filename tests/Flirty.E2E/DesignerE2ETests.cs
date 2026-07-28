@@ -22,6 +22,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     private static readonly LocatorAssertionsToContainTextOptions SlowContains = new() { Timeout = 15_000 };
     private static readonly LocatorAssertionsToHaveTextOptions SlowText = new() { Timeout = 15_000 };
     private static readonly LocatorAssertionsToHaveCountOptions SlowCount = new() { Timeout = 15_000 };
+    private static readonly LocatorAssertionsToHaveValueOptions SlowValue = new() { Timeout = 15_000 };
 
     // Die Frage-Auswahlfelder listen die Fragen in Dialog-Reihenfolge; an Index 0 steht der Leereintrag
     // („— keine —" bzw. „— wählen —"). Die Indizes gelten also für den unten aufgebauten Graphen – dass
@@ -108,6 +109,82 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         var collection = Section(page, "Ausdruckskontext").Locator("tbody tr").Filter(new() { HasText = "position_liste" });
         await Assertions.Expect(collection).ToContainTextAsync("Backend", SlowContains);
         await Assertions.Expect(collection).ToContainTextAsync("Frontend", SlowContains);
+    }
+
+    /// <summary>
+    /// Rauchprobe der Graph-Ansicht (#101): Der Canvas bindet sein JS-Modul, zeichnet den Graphen und
+    /// führt über die Auswahl in den bestehenden Frage-Editor. Die vollständige Canvas-Abdeckung bleibt
+    /// Stufe 5 (#105) – hier geht es um den Nachweis, dass die Seite im Browser überhaupt lebt.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der Test wartet auf <c>data-canvas-ready</c> statt <c>InteractWhenReadyAsync</c> zu benutzen.
+    /// Das Wiederholmuster setzt <b>idempotente</b> Aktionen voraus – für einen Canvas gilt das nicht:
+    /// Ein wiederholtes Ziehen verschöbe doppelt, ein wiederholter Zoomschritt zoomte zweimal. Das
+    /// Attribut setzt das JS-Modul, sobald es gebunden ist; es ist damit ein echtes Signal statt einer
+    /// Vermutung (ADR 0006).
+    /// </para>
+    /// <para>
+    /// Es ist bewusst das <b>erste</b> <c>data-</c>-Attribut im Designer – die übrige Suite adressiert
+    /// über Rolle, Überschrift, Feld-<c>id</c> und CSS-Klasse.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Ansicht_zeigt_den_Ablauf_und_fuehrt_in_den_Frage_Editor()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDialogAsync(session);
+        await CreateQuestionTriggerAsync(page);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+
+        // Das Bereitschaftssignal des Canvas – erst danach ist eine Interaktion verlässlich.
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // Drei Fragen, drei Übergänge – derselbe Graph, den die Listenansicht zeigt.
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(3, SlowCount);
+
+        // Die Marker, die den Ablauf lesbar machen: Einstieg, Abschluss und der Schleifen-Rahmen.
+        await Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-terminal")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("position_liste", SlowContains);
+
+        // Der Trigger hängt als Chip an genau der Frage, nach der er feuert – nicht an allen.
+        var triggerNode = page.Locator(".graph-node").Filter(new() { HasText = "summary" });
+        await Assertions.Expect(triggerNode.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, SlowCount);
+
+        // Auswahl öffnet den Inspector …
+        await page.Locator(".graph-node").Filter(new() { HasText = "position" }).First
+            .GetByRole(AriaRole.Button).ClickAsync();
+        var inspector = page.Locator(".graph-inspector");
+        await Assertions.Expect(inspector).ToContainTextAsync("Einstiegsfrage", SlowContains);
+
+        // … und der Inspector führt in den bestehenden Editor, statt ihn nachzubauen.
+        await inspector.GetByRole(AriaRole.Button, new() { Name = "Frage bearbeiten →" }).ClickAsync();
+        await page.WaitForURLAsync(QuestionUrl);
+        await Assertions.Expect(page.Locator("#key")).ToHaveValueAsync("position", SlowValue);
+    }
+
+    /// <summary>
+    /// Legt einen Webhook-Trigger auf die Abschlussfrage an – die Vorbedingung dafür, dass die
+    /// Graph-Ansicht überhaupt einen Trigger-Chip zeigen kann.
+    /// </summary>
+    /// <param name="page">Die Seite, die auf dem Dialog-Editor steht.</param>
+    private static async Task CreateQuestionTriggerAsync(IPage page)
+    {
+        await Section(page, "Trigger").GetByRole(AriaRole.Button, new() { Name = "Neuer Trigger" }).ClickAsync();
+        await page.Locator("#triggerScope").SelectOptionAsync("AfterQuestion");
+
+        // Das Frage-Auswahlfeld erscheint erst, wenn der Zeitpunkt eine Frage verlangt.
+        await Assertions.Expect(page.Locator("#triggerQuestion")).ToBeVisibleAsync(QuickVisible);
+        await page.Locator("#triggerQuestion").SelectOptionAsync(new SelectOptionValue { Index = SummaryOption });
+        await page.Locator("#triggerUrl").FillAsync("https://hooks.test/fertig");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+
+        await Assertions.Expect(Section(page, "Trigger").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
     }
 
     /// <summary>

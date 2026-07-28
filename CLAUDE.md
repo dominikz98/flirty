@@ -26,7 +26,8 @@ src/
 ├─ Flirty.Designer            Blazor Web App (Server-interaktiv). EPIC 7 komplett: Connection-Profil-
 │                               Verwaltung (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
 │                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42),
-│                               Test-Runner (#43) und Playwright-E2E der UI (#46). Komposition in
+│                               Test-Runner (#43) und Playwright-E2E der UI (#46). Dazu aus EPIC 11
+│                               die lesende Graph-Ansicht (#101, SVG-Canvas). Komposition in
 │                               `DesignerApp.cs` (Program.cs ruft nur ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
@@ -418,3 +419,43 @@ einen Frame), wer Frames zählt, unterzählt; und Browser-Events kommen in .NET 
 `DispatchBrowserEvent`. Für die Tests folgt daraus: Der Canvas braucht ein **explizites**
 Bereitschaftssignal (`data-canvas-ready`) – `InteractWhenReadyAsync` setzt idempotente Aktionen voraus,
 ein wiederholter Drag verschiebt doppelt.
+
+**Graph-Ansicht (#101) fertig** – Stufe 1 von EPIC 11. Neue Seite `/dialogs/{id}/graph`
+(`DialogGraph.razor`, verlinkt aus Dialogliste und Dialog-Editor) zeigt den Dialog **lesend** als
+Graphen: Fragen als Knoten, alle Übergänge als beschriftete Kanten, Schleifen als Bereichsrahmen über dem
+`LoopAnalyzer`-Body, Trigger als Chips, Warnungen **am verursachenden Element**; Auswahl öffnet ein
+Inspector-Panel, das in die bestehenden Editoren springt (kein Neuschrieb – die vier Editoren sind
+`@page`-Komponenten mit eigenem `PageTitle`/`h1`/Rücklink). **Kein neuer Core-Code**: Datenquelle bleibt
+`GetDialogQuery`. Neu im Designer: `Services/GraphLayout.cs` (Sugiyama-Light),
+`Services/DialogGraphBuilder.cs`, `Services/TransitionWarningAnalyzer.cs`, `Models/GraphWarning.cs`,
+`DialogGraphModel.cs`, `GraphLayoutResult.cs`, `GraphMetrics.cs`, `SvgFormat.cs`, die Komponenten
+`GraphNodeCard`/`GraphInspector` und **das erste JSInterop des Designers** (`DialogGraph.razor.js` für
+Pan/Zoom). Vier Dinge, die den Ausschlag gegeben haben:
+
+- **Warnungen brauchten eine Ortsangabe.** `GraphWarnings()`/`GroupWarnings()` lagen privat in
+  `DialogEditor.razor` und lieferten Fließtext mit `"{Key}: "`-Präfix. Sie sind unverändert in den
+  `TransitionWarningAnalyzer` gewandert und liefern jetzt `GraphWarning` (Ziel + Text); `LoopAnalyzer`
+  ebenso (`LoopInsight.TargetedWarnings`, `Warnings` ist eine berechnete Textsicht). **Die Wortlaute
+  sind Vertrag** – Listenansicht, Publish-Rückfrage und E2E hängen daran, ein Test nagelt alle vier fest.
+  Verortet wird nach *Verursacher*: „Kein Default"/„Mehrere Defaults" sind Gruppeneigenschaften und
+  hängen an der Frage, „greift immer"/„wird nicht ausgewertet" an ihrer Kante.
+- **Das Ordinal des Layouts kommt aus `(Order, Id)`, nicht aus der Guid.**
+  `CreateDialogVersionCommand` vergibt beim Klonen jeder Frage eine neue Guid (ADR 0005) – ein
+  guid-basiertes Layout würfelte bei **jeder** neuen Dialogversion neu durch. Dazu: nur Listen nach
+  außen (Hash-Reihenfolge ist nicht zugesichert), Sortierschlüssel enden mit dem eindeutigen Ordinal
+  (Totalordnung statt geliehener `OrderBy`-Stabilität), und Koordinaten entstehen **nur** aus
+  ganzzahligen Schicht-/Spaltenwerten – ein Baryzentrum bestimmt die Reihenfolge, nie die Position.
+  Alle drei sind Testfälle.
+- **`<foreignObject>` trägt.** Nachgewiesen an der ausgelieferten `blazor.web.js`: Die
+  SVG-Namensraum-Prüfung lautet `namespaceURI === svg && tagName !== "foreignObject"`, Kindelemente
+  entstehen also im HTML-Namensraum. Damit sind Knoten echte `<button>` – Fokusring, Enter/Leertaste und
+  Screenreader-Rolle kommen von der Plattform statt aus Handarbeit.
+- **`SvgFormat.N` ist Pflicht für jede Zahl im SVG-Markup.** Der Designer läuft unter `de-DE`; eine
+  interpolierte Koordinate schreibt `12,5`, und da das Komma in der Pfadsyntax ein *Trennzeichen* ist,
+  wird daraus stillschweigend eine falsche Zahlenfolge – keine Ausnahme, keine Meldung, nur ein falsches
+  Bild. Ein Test unter `de-DE` sichert das ab.
+
+**Merksatz aus dem Bau:** Ein Test, der nur Struktur prüft, sieht kein schiefes Bild. Der
+Determinismus-Test hat einen echten Zeichenfehler aufgedeckt, den keine Assertion gesucht hatte – bei
+80 px Schichtabstand überkreuzten sich die Bézier-Kontrollpunkte (`C 160 206 160 146`), die Kante lief
+als S-Schlaufe. Der Biegeradius ist jetzt an die halbe Spannweite gekoppelt.

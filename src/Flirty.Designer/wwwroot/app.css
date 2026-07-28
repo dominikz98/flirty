@@ -290,6 +290,413 @@ h1 .badge {
     color: #e50000;
 }
 
+/* ------------------------------------------------------------------------------------------------
+   Graph-Ansicht (#101).
+
+   Bewusst hier und nicht in DialogGraph.razor.css: CSS-Isolation reicht ihr Scope-Attribut NICHT an
+   Kindkomponenten weiter, und die Knotenkarte ist eine eigene Komponente (GraphNodeCard). Genau
+   dieser Fehler hat in #95 die Navigationslinks auf Kontrast 1,7:1 gebracht.
+
+   Alle Farben sind gegen die Canvas-Fläche #fbfcfd auf mindestens 4,5:1 geprüft – auch die Striche,
+   für die die WCAG nur 3:1 verlangt. Und keine Aussage hängt allein an der Farbe: Einstieg, Abschluss
+   und Unerreichbarkeit tragen zusätzlich ein Schriftzeichen bzw. eine eigene Konturform.
+   ------------------------------------------------------------------------------------------------ */
+
+.graph-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0 0.5rem;
+}
+
+.graph-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.graph-canvas-host {
+    flex: 1 1 640px;
+    min-width: 320px;
+    height: 70vh;
+    min-height: 420px;
+    border: 1px solid #b9c2cc;
+    border-radius: 0.35rem;
+    background-color: #fbfcfd;
+    overflow: hidden;
+    position: relative;
+    touch-action: none;
+}
+
+.graph-canvas {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+.graph-canvas.is-panning {
+    cursor: grabbing;
+}
+
+/* Die Zusammenfassung vor dem Bild – für Screenreader die Alternative zum Graphen. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Knoten ---- */
+
+.graph-node-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: 100%;
+    height: 100%;
+    padding: 0.4rem 0.5rem;
+    border: 1.5px solid #4a5b6d;
+    border-radius: 0.35rem;
+    background-color: #fff;
+    color: #1d2b3a;
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.graph-node-card:hover {
+    background-color: #f2f5f9;
+}
+
+/* Sichtbarer Fokus – die Knoten sind echte Schaltflächen, der Ring kommt von der Plattform. */
+.graph-node-card:focus-visible {
+    outline: 3px solid #3b3f8f;
+    outline-offset: 2px;
+}
+
+.graph-node.is-selected .graph-node-card {
+    border-color: #3b3f8f;
+    border-width: 3px;
+    background-color: #eef0fa;
+}
+
+.graph-node.is-start .graph-node-card {
+    border-left-width: 6px;
+    border-left-color: #3b3f8f;
+}
+
+/* Abschluss: doppelte Unterkante zusätzlich zum Badge – nie Farbe allein. */
+.graph-node.is-terminal .graph-node-card {
+    border-bottom-width: 5px;
+    border-bottom-style: double;
+    border-bottom-color: #2f6b3a;
+}
+
+/* Unerreichbar: gestrichelte Kontur zusätzlich zum Badge. */
+.graph-node.is-unreachable .graph-node-card {
+    border-style: dashed;
+    background-color: #f6f6f8;
+    color: #43505f;
+}
+
+.graph-node.has-warning .graph-node-card {
+    border-color: #9c3131;
+}
+
+/* Zugehörigkeit zu einer Schleife wird auch am Knoten sichtbar – der Rahmen allein reicht nicht,
+   wenn ein Bereich nicht zusammenhängend liegt. */
+.graph-node.in-loop .graph-node-card {
+    background-image: linear-gradient(to right, #f6efe4 0 4px, transparent 4px);
+}
+
+.graph-node-head {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.graph-node-key {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.graph-node-text {
+    line-height: 1.2;
+    overflow: hidden;
+}
+
+.graph-node-meta {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: auto;
+    font-size: 0.7rem;
+    color: #43505f;
+}
+
+.graph-node-required {
+    font-weight: 600;
+    color: #7a3d0f;
+}
+
+.badge-terminal {
+    background-color: #2f6b3a;
+    color: #fff;
+}
+
+.badge-unreachable {
+    background-color: #43505f;
+    color: #fff;
+}
+
+.badge-warning {
+    background-color: #9c3131;
+    color: #fff;
+}
+
+/* ---- Trigger-Chips ---- */
+
+.graph-chips {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.chip {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    font: inherit;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip-webhook {
+    background-color: #e4ecf7;
+    border-color: #5a6c85;
+    color: #26364a;
+}
+
+.chip-inprocess {
+    background-color: #eae7f3;
+    border-color: #6a5f89;
+    color: #322a47;
+}
+
+button.chip {
+    cursor: pointer;
+}
+
+/* ---- Kanten ---- */
+
+.graph-edge-line {
+    fill: none;
+    stroke: #444c56;
+    stroke-width: 1.6;
+}
+
+.graph-edge.is-default .graph-edge-line {
+    stroke-dasharray: 7 4;
+}
+
+.graph-edge.is-backjump .graph-edge-line {
+    stroke: #8a5a1f;
+}
+
+.graph-edge.has-warning .graph-edge-line {
+    stroke: #9c3131;
+    stroke-width: 2.4;
+}
+
+.graph-arrow-head {
+    fill: #444c56;
+}
+
+.graph-arrow-head.is-warning {
+    fill: #9c3131;
+}
+
+/* Der breite, unsichtbare Trefferpfad macht die dünne Linie greifbar. Er liegt in derselben Ebene
+   wie die Linie und damit UNTER den Knoten – ADR 0006, Konsequenzen. */
+.graph-edge-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 14;
+    cursor: pointer;
+}
+
+.graph-edge:hover .graph-edge-line {
+    stroke-width: 3;
+}
+
+.graph-edge-label {
+    font-size: 11px;
+    fill: #26364a;
+    paint-order: stroke;
+    stroke: #fbfcfd;
+    stroke-width: 3.5;
+    stroke-linejoin: round;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ---- Schleifen-Rahmen ---- */
+
+/* fill="none" und pointer-events auf den Strich: Der Rahmen umschließt Knoten und Kanten und würde
+   sonst deren Klicks schlucken. */
+.graph-loop-frame {
+    fill: none;
+    stroke: #8a5a1f;
+    stroke-width: 1.6;
+    stroke-dasharray: 9 5;
+    pointer-events: stroke;
+}
+
+.graph-loop.is-selected .graph-loop-frame {
+    stroke-width: 3;
+    stroke-dasharray: none;
+}
+
+.graph-loop-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.05rem 0.45rem;
+    border: 1px solid #8a5a1f;
+    border-radius: 0.6rem;
+    background-color: #f6efe4;
+    color: #6b4415;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.graph-loop-label:focus-visible {
+    outline: 3px solid #3b3f8f;
+    outline-offset: 2px;
+}
+
+/* ---- Scope-Marker (Start/Abschluss) ---- */
+
+.graph-scope {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    color: #26364a;
+}
+
+.graph-scope-title {
+    font-weight: 600;
+}
+
+/* ---- Inspector ---- */
+
+.graph-inspector {
+    flex: 0 1 340px;
+    min-width: 280px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d7d7e0;
+    border-radius: 0.35rem;
+    background-color: #fafaff;
+}
+
+.graph-inspector h2 {
+    margin-top: 0;
+    font-size: 1.05rem;
+}
+
+.graph-inspector-section {
+    margin: 0.9rem 0 0.35rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #43505f;
+}
+
+.graph-inspector-key {
+    margin: 0 0 0.25rem;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.graph-inspector-text {
+    margin: 0 0 0.6rem;
+    font-size: 0.9rem;
+}
+
+.graph-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.6rem;
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+}
+
+.graph-facts dt {
+    font-weight: 600;
+    color: #43505f;
+}
+
+.graph-facts dd {
+    margin: 0;
+}
+
+.graph-inspector-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.graph-inspector-list:not(ol) {
+    list-style: none;
+    padding-left: 0;
+}
+
+.graph-edge-link {
+    display: flex;
+    gap: 0.4rem;
+    width: 100%;
+    text-align: left;
+}
+
+.graph-edge-link-condition {
+    color: #43505f;
+    font-size: 0.8rem;
+}
+
+.graph-legend {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+}
+
 .blazor-error-boundary {
     background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
     padding: 1rem 1rem 1rem 3.7rem;

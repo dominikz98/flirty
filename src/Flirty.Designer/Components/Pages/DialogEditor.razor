@@ -42,6 +42,7 @@ else
     <p class="intro">
         Version @_detail.Dialog.Version · angelegt @_detail.Dialog.CreatedAt.LocalDateTime.ToString("g")
         · zuletzt geändert @_detail.Dialog.UpdatedAt.LocalDateTime.ToString("g")
+        · <a href="@($"dialogs/{Id}/graph")">Graph ansehen</a>
     </p>
 
     @if (_detail.Dialog.IsPublished)
@@ -285,9 +286,9 @@ else
                 }
                 else
                 {
-                    @foreach (var warning in GroupWarnings(outgoing))
+                    @foreach (var warning in TransitionWarningAnalyzer.Analyze(outgoing))
                     {
-                        <div class="banner warn">@warning</div>
+                        <div class="banner warn">@warning.Text</div>
                     }
 
                     <table class="data-table">
@@ -964,26 +965,17 @@ else
             "Änderungen gespeichert.");
 
     /// <summary>
-    /// Sammelt die Übergangs-Warnungen des gesamten Graphen (dieselben Regeln wie je Ausgangsfrage in
-    /// <see cref="GroupWarnings"/>), jeweils mit dem Schlüssel der Ausgangsfrage davor.
+    /// Sammelt die Übergangs-Warnungen des gesamten Graphen, jeweils mit dem Schlüssel der
+    /// Ausgangsfrage davor. Die Regeln liegen im <see cref="TransitionWarningAnalyzer"/> – dieselbe
+    /// Quelle speist die Graph-Ansicht (#101), die die Befunde am betroffenen Element statt als Liste
+    /// zeigt.
     /// </summary>
     /// <returns>Die offenen Warnungen; leer, wenn der Graph stimmig ist.</returns>
     private IReadOnlyList<string> GraphWarnings()
-    {
-        if (_detail is null)
-        {
-            return [];
-        }
-
-        return
-        [
-            .. from question in _detail.Questions
-               let outgoing = Outgoing(question.Id)
-               where outgoing.Count > 0
-               from warning in GroupWarnings(outgoing)
-               select $"{question.Key}: {warning}"
-        ];
-    }
+        => _detail is null
+            ? []
+            : [.. TransitionWarningAnalyzer.Analyze(_detail)
+                .Select(warning => $"{QuestionLabel(warning.QuestionId!.Value)}: {warning.Text}")];
 
     /// <summary>
     /// Startet das Veröffentlichen. Bei offenen Graph-Warnungen wird erst rückgefragt – veröffentlicht
@@ -1184,11 +1176,7 @@ else
     /// <param name="questionId">Die Ausgangsfrage.</param>
     /// <returns>Die Übergänge nach <c>Priority</c> sortiert.</returns>
     private IReadOnlyList<TransitionDetail> Outgoing(Guid questionId)
-        => _detail is null
-            ? []
-            : [.. _detail.Transitions
-                .Where(transition => transition.FromQuestionId == questionId)
-                .OrderBy(transition => transition.Priority)];
+        => _detail is null ? [] : TransitionWarningAnalyzer.Outgoing(_detail, questionId);
 
     /// <summary>
     /// Übergänge, deren Ausgangsfrage nicht (mehr) zum Dialog gehört. Über den Designer entstehen sie
@@ -1220,49 +1208,6 @@ else
         var target = _detail.Questions.ToList().FindIndex(question => question.Id == transition.TargetQuestionId);
 
         return from >= 0 && target >= 0 && target <= from;
-    }
-
-    /// <summary>
-    /// Meldet Konfigurationen, die zur Laufzeit anders wirken als gedacht. Die Regeln spiegeln den
-    /// <c>TransitionResolver</c> der Engine: erster zutreffender <b>nicht</b>-Default gewinnt, sonst der
-    /// erste Default; trifft nichts, wirft die Runtime.
-    /// </summary>
-    /// <param name="outgoing">Die Übergänge einer Ausgangsfrage in Auswertungsreihenfolge.</param>
-    /// <returns>Die anzuzeigenden Warnungen (leer, wenn alles stimmig ist).</returns>
-    private static IReadOnlyList<string> GroupWarnings(IReadOnlyList<TransitionDetail> outgoing)
-    {
-        var warnings = new List<string>();
-        var defaults = outgoing.Where(transition => transition.IsDefault).ToList();
-        var unconditional = outgoing
-            .Select((transition, index) => (Transition: transition, Index: index))
-            .FirstOrDefault(entry =>
-                !entry.Transition.IsDefault && string.IsNullOrWhiteSpace(entry.Transition.Expression));
-
-        if (defaults.Count == 0 && unconditional.Transition is null)
-        {
-            warnings.Add(
-                "Kein Default-Übergang: Trifft zur Laufzeit keine Bedingung zu, bricht die Session mit "
-                + "einem Fehler ab.");
-        }
-
-        if (defaults.Count > 1)
-        {
-            warnings.Add("Mehrere Default-Übergänge – es greift nur der oberste.");
-        }
-
-        if (defaults.Any(transition => !string.IsNullOrWhiteSpace(transition.Expression)))
-        {
-            warnings.Add("Die Bedingung eines Default-Übergangs wird zur Laufzeit nicht ausgewertet.");
-        }
-
-        if (unconditional.Transition is not null && unconditional.Index < outgoing.Count - 1)
-        {
-            warnings.Add(
-                $"Der bedingungslose Übergang an Position {unconditional.Index + 1} greift immer – die "
-                + "nachfolgenden Übergänge werden nie geprüft.");
-        }
-
-        return warnings;
     }
 
     private void StartCreateTransition(Guid? fromQuestionId)

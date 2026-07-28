@@ -1,3 +1,4 @@
+using Flirty.Designer.Models;
 using Flirty.Designer.Services;
 using Flirty.Domain;
 using Flirty.Runtime;
@@ -217,6 +218,77 @@ public sealed class LoopAnalyzerTests
         Assert.Empty(insight.Body);
         Assert.Null(insight.EntryQuestion);
         Assert.Contains(insight.Warnings, warning => warning.Contains("Einstiegsfrage", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Seit #101 trägt jede Warnung eine Ortsangabe, damit die Graph-Ansicht sie am betroffenen Element
+    /// zeigen kann. Eine Warnung ohne Ziel wäre auf dem Canvas unsichtbar – deshalb muss jede eine haben,
+    /// und der Bezug muss auf ein Element <b>dieses</b> Dialogs zeigen.
+    /// </summary>
+    [Fact]
+    public void Analyze_verortet_jede_Warnung_an_einem_Element()
+    {
+        // Ein Marker ohne Rücksprung und ohne Ausstieg: erzeugt Warnungen an Loop und Breaking Question.
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
+        dialog.Transitions.Clear();
+        dialog.Loops.First().CollectionKey = "more";
+        var detail = AdminProjection.ToDetail(dialog);
+
+        var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
+
+        Assert.NotEmpty(insight.TargetedWarnings);
+        Assert.All(insight.TargetedWarnings, warning =>
+        {
+            Assert.NotEqual(GraphElementKind.Dialog, warning.Kind);
+            Assert.NotNull(warning.ElementId);
+        });
+        Assert.Contains(
+            insight.TargetedWarnings,
+            warning => warning.Kind == GraphElementKind.Question && warning.ElementId == ids.MoreQuestionId);
+        Assert.Contains(
+            insight.TargetedWarnings,
+            warning => warning.Kind == GraphElementKind.Loop && warning.ElementId == detail.Loops[0].Id);
+    }
+
+    /// <summary>
+    /// Der verdeckte Ausstieg hat einen konkreten Verursacher – den Rücksprung, der immer vorher greift.
+    /// Die Warnung hängt an <b>seiner</b> Kante, sonst kann der Canvas nicht zeigen, welche Verbindung
+    /// zu ändern ist.
+    /// </summary>
+    [Fact]
+    public void Analyze_verortet_den_verdeckten_Ausstieg_am_verdeckenden_Ruecksprung()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
+        var loopBack = dialog.Transitions.First(
+            transition => transition.TargetQuestionId == ids.PositionQuestionId);
+        loopBack.Expression = null;
+        var detail = AdminProjection.ToDetail(dialog);
+
+        var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
+
+        var warning = Assert.Single(
+            insight.TargetedWarnings,
+            candidate => candidate.Text.Contains("nie geprüft", StringComparison.Ordinal));
+        Assert.Equal(GraphElementKind.Transition, warning.Kind);
+        Assert.Equal(loopBack.Id, warning.ElementId);
+        Assert.Equal(ids.MoreQuestionId, warning.QuestionId);
+    }
+
+    /// <summary>
+    /// <c>Warnings</c> ist seit #101 eine berechnete Sicht auf <c>TargetedWarnings</c>. Loop- und
+    /// Dialog-Editor lesen ausschließlich diese Sicht – Wortlaut und Reihenfolge müssen deckungsgleich
+    /// bleiben.
+    /// </summary>
+    [Fact]
+    public void Analyze_liefert_Warnings_in_unveraenderter_Reihenfolge_und_Wortlaut()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
+        dialog.Transitions.Clear();
+        var detail = AdminProjection.ToDetail(dialog);
+
+        var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
+
+        Assert.Equal(insight.TargetedWarnings.Select(warning => warning.Text), insight.Warnings);
     }
 
     private static DialogSession NewSession(Dialog dialog)
