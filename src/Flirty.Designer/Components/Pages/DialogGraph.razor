@@ -1,0 +1,391 @@
+@* Bewusst NICHT "DialogGraphModel" o. Ä. genannt: der Komponententyp würde sonst den gleichnamigen
+   Sichttyp verdecken (wie bei DialogEditor/QuestionEditor). *@
+@page "/dialogs/{Id:guid}/graph"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using Flirty.Domain
+@using Flirty.Runtime.Admin
+@inject FlirtyAdminGateway Admin
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>@(_model?.Dialog.Name ?? "Graph") · Graph · Flirty Designer</PageTitle>
+
+<p class="back"><a href="@($"dialogs/{Id}")">← @(_model?.Dialog.Name ?? "Dialog")</a></p>
+
+@if (_model is null)
+{
+    <h1>Graph</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner err">@_error</div>
+    }
+    else
+    {
+        <p class="empty">Wird geladen …</p>
+    }
+}
+else
+{
+    <h1>
+        @_model.Dialog.Name
+        @if (_model.Dialog.IsPublished)
+        {
+            <span class="badge badge-published">Veröffentlicht</span>
+        }
+        else
+        {
+            <span class="badge badge-draft">Entwurf</span>
+        }
+    </h1>
+
+    <p class="intro">
+        Ablauf des Dialogs <span class="mono">@_model.Dialog.Key</span> in Version @_model.Dialog.Version.
+        Diese Ansicht ist <b>lesend</b> – geändert wird in den Editoren, die eine Auswahl hier öffnet.
+    </p>
+
+    @if (_model.Nodes.Count == 0)
+    {
+        <div class="editor">
+            <p class="empty">
+                Noch keine Fragen – der Graph ist leer.
+                <a href="@($"dialogs/{Id}")">Im Dialog-Editor anlegen.</a>
+            </p>
+        </div>
+    }
+    else
+    {
+        @foreach (var warning in _model.DialogWarnings)
+        {
+            <div class="banner warn">@warning.Text</div>
+        }
+
+        @if (_model.OrphanTransitions.Count > 0 || _model.OrphanTriggers.Count > 0)
+        {
+            <div class="banner warn">
+                @if (_model.OrphanTransitions.Count > 0)
+                {
+                    <p>
+                        @_model.OrphanTransitions.Count Übergang/Übergänge zeigen auf eine unbekannte Frage
+                        und lassen sich nicht zeichnen. Sie werden nie ausgewertet und sind im
+                        <a href="@($"dialogs/{Id}")">Dialog-Editor</a> zu löschen.
+                    </p>
+                }
+                @if (_model.OrphanTriggers.Count > 0)
+                {
+                    <p>
+                        @_model.OrphanTriggers.Count Trigger verweisen auf eine gelöschte Frage und feuern
+                        nie.
+                    </p>
+                }
+            </div>
+        }
+
+        <div class="graph-toolbar">
+            <button class="btn" @onclick="ZoomIn" aria-label="Vergrößern">＋</button>
+            <button class="btn" @onclick="ZoomOut" aria-label="Verkleinern">－</button>
+            <button class="btn" @onclick="ResetView">Ansicht zurücksetzen</button>
+            <span class="hint">Ziehen verschiebt die Ansicht, das Mausrad zoomt.</span>
+        </div>
+
+        <div class="graph-layout">
+            <div class="graph-canvas-host">
+                @* Die Zusammenfassung steht VOR dem Bild: Ein Screenreader soll nicht erst 30 Knoten
+                   durchlaufen müssen, um zu erfahren, worum es geht. *@
+                <p class="visually-hidden">@_model.Summary</p>
+
+                <svg @ref="_canvas"
+                     class="graph-canvas"
+                     role="group"
+                     aria-label="@_model.Summary"
+                     viewBox="0 @SvgFormat.N(_model.MinY) @SvgFormat.N(_model.Width) @SvgFormat.N(_model.Height)">
+                    <defs>
+                        <marker id="graph-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" class="graph-arrow-head" />
+                        </marker>
+                        <marker id="graph-arrow-warn" viewBox="0 0 10 10" refX="9" refY="5"
+                                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" class="graph-arrow-head is-warning" />
+                        </marker>
+                    </defs>
+
+                    @* Das transform dieser Gruppe gehört dem JS-Modul. C# rendert es NIE – sonst setzte
+                       der nächste Re-Render (etwa eine Auswahl) Verschiebung und Zoom zurück. *@
+                    <g class="graph-viewport">
+                        @* Reihenfolge ist eine Zusage aus ADR 0006: Rahmen, dann Kanten, dann Knoten.
+                           Läge eine Kante über einem Knoten, verschluckte ihr Trefferpfad den Klick auf
+                           die Knotenmitte – im Spike #100 nachgemessen. *@
+                        @foreach (var loop in _model.Loops.Where(frame => frame.Width > 0))
+                        {
+                            <g class="graph-loop @(IsSelected(GraphElementKind.Loop, loop.LoopId) ? "is-selected" : "")"
+                               @key="loop.LoopId">
+                                <rect class="graph-loop-frame"
+                                      x="@SvgFormat.N(loop.X)" y="@SvgFormat.N(loop.Y)"
+                                      width="@SvgFormat.N(loop.Width)" height="@SvgFormat.N(loop.Height)"
+                                      rx="14" />
+                                <foreignObject x="@SvgFormat.N(loop.X)" y="@SvgFormat.N(loop.Y - 26)"
+                                               width="@SvgFormat.N(Math.Max(loop.Width, 160))" height="26">
+                                    <button type="button" class="graph-loop-label"
+                                            aria-label="@LoopLabel(loop)"
+                                            @onclick="() => SelectLoop(loop.LoopId)">
+                                        ↻ @loop.CollectionKey
+                                        @if (loop.Warnings.Count > 0)
+                                        {
+                                            <span class="badge badge-warning">⚠ @loop.Warnings.Count</span>
+                                        }
+                                    </button>
+                                </foreignObject>
+                            </g>
+                        }
+
+                        @foreach (var edge in _model.Edges)
+                        {
+                            <g class="graph-edge @EdgeClasses(edge)" @key="edge.TransitionId">
+                                <path class="graph-edge-line" d="@edge.Path"
+                                      marker-end="@(edge.Warnings.Count > 0 ? "url(#graph-arrow-warn)" : "url(#graph-arrow)")" />
+                                @* Ein breiter, unsichtbarer Pfad macht die dünne Linie greifbar. Er liegt
+                                   in derselben Ebene wie die Linie – also unter den Knoten. *@
+                                <path class="graph-edge-hit" d="@edge.Path"
+                                      role="img" aria-label="@edge.AriaLabel" tabindex="-1"
+                                      @onclick="() => SelectTransition(edge.TransitionId)" />
+                                <text class="graph-edge-label" aria-hidden="true"
+                                      x="@SvgFormat.N(edge.LabelX)" y="@SvgFormat.N(edge.LabelY)">@edge.Label</text>
+                            </g>
+                        }
+
+                        @* Knoten zuletzt: Sie liegen über allem und sind damit sicher anklickbar. Die
+                           Reihenfolge (Schicht, Spalte) ist zugleich die Tab-Reihenfolge – Tabben läuft
+                           den Dialog von oben nach unten durch. *@
+                        @foreach (var node in _model.Nodes)
+                        {
+                            <GraphNodeCard @key="node.QuestionId"
+                                           Node="node"
+                                           Selected="IsSelected(GraphElementKind.Question, node.QuestionId)"
+                                           Select="SelectQuestion" />
+                        }
+
+                        @if (_model.StartMarker is { } start)
+                        {
+                            @ScopeMarker(start)
+                        }
+                        @if (_model.EndMarker is { } end)
+                        {
+                            @ScopeMarker(end)
+                        }
+                    </g>
+                </svg>
+            </div>
+
+            <GraphInspector Model="_model"
+                            Selection="_selection"
+                            OpenQuestion="OpenQuestion"
+                            OpenTransition="OpenTransition"
+                            OpenLoop="OpenLoop"
+                            OpenTrigger="OpenTrigger"
+                            SelectQuestion="SelectQuestion"
+                            SelectTransition="SelectTransition" />
+        </div>
+    }
+}
+
+@code {
+    /// <summary>Der Dialog, dessen Graph gezeigt wird.</summary>
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private DialogGraphModel? _model;
+    private GraphSelection? _selection;
+    private string? _error;
+    private Guid _loadedId;
+
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<DialogGraph>? _self;
+    private bool _canvasAttached;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedId == Id)
+        {
+            return;
+        }
+
+        _loadedId = Id;
+        _selection = null;
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Lädt den Dialog und rechnet das Zeichenmodell <b>einmal</b> in ein Feld. Aus dem Markup heraus
+    /// aufgerufen liefe die ganze Anordnung bei jedem Render erneut – also bei jedem Klick.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        _error = null;
+
+        var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(Id), token));
+        if (!result.Success)
+        {
+            _model = null;
+            _error = result.Error;
+            return;
+        }
+
+        _model = DialogGraphBuilder.Build(result.Value!);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Erst binden, wenn wirklich ein Canvas im DOM steht: Bei leerem Dialog oder Ladefehler gibt es
+        // kein <svg>, und ein Modul ohne Ziel bliebe wirkungslos hängen.
+        if (_canvasAttached || _model is null || _model.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        _canvasAttached = true;
+        _module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./Components/Pages/DialogGraph.razor.js");
+        _self = DotNetObjectReference.Create(this);
+
+        await _module.InvokeVoidAsync(
+            "attach",
+            _canvas,
+            _self,
+            new
+            {
+                minZoom = GraphMetrics.MinZoom,
+                maxZoom = GraphMetrics.MaxZoom,
+                zoomStep = GraphMetrics.ZoomStep,
+            });
+    }
+
+    // ---- Auswahl ------------------------------------------------------------------------------------
+
+    private bool IsSelected(GraphElementKind kind, Guid id)
+        => _selection is { } selection && selection.Kind == kind && selection.Id == id;
+
+    /// <summary>
+    /// Wählt eine Frage aus und zieht den Fokus auf ihren Knoten nach. Das Nachziehen ist der Grund,
+    /// warum die Methode asynchron ist: Wer im Inspector „Zur Zielfrage“ betätigt, soll danach auf dem
+    /// gemeinten Knoten stehen und nicht auf der Schaltfläche, die ihn dorthin gebracht hat.
+    /// </summary>
+    private async Task SelectQuestion(Guid questionId)
+    {
+        _selection = new GraphSelection(GraphElementKind.Question, questionId);
+
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("focusNode", _canvas, questionId);
+        }
+    }
+
+    private void SelectTransition(Guid transitionId)
+        => _selection = new GraphSelection(GraphElementKind.Transition, transitionId);
+
+    private void SelectLoop(Guid loopId)
+        => _selection = new GraphSelection(GraphElementKind.Loop, loopId);
+
+    // ---- Sprünge in die bestehenden Editoren --------------------------------------------------------
+
+    private void OpenQuestion(Guid questionId)
+        => Navigation.NavigateTo($"dialogs/{Id}/questions/{questionId}");
+
+    private void OpenTransition(Guid transitionId)
+        => Navigation.NavigateTo($"dialogs/{Id}/transitions/{transitionId}");
+
+    private void OpenLoop(Guid loopId)
+        => Navigation.NavigateTo($"dialogs/{Id}/loops/{loopId}");
+
+    private void OpenTrigger(Guid triggerId)
+        => Navigation.NavigateTo($"dialogs/{Id}/triggers/{triggerId}");
+
+    // ---- Werkzeugleiste -----------------------------------------------------------------------------
+
+    private async Task ZoomIn() => await Zoom(GraphMetrics.ZoomStep);
+
+    private async Task ZoomOut() => await Zoom(1 / GraphMetrics.ZoomStep);
+
+    private async Task Zoom(double factor)
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("zoomBy", _canvas, factor);
+        }
+    }
+
+    private async Task ResetView()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("resetViewport", _canvas);
+        }
+    }
+
+    private static string EdgeClasses(GraphEdge edge)
+    {
+        var classes = new List<string>(4) { $"shape-{edge.Shape.ToString().ToLowerInvariant()}" };
+
+        if (edge.IsDefault)
+        {
+            classes.Add("is-default");
+        }
+
+        if (edge.IsBackJump)
+        {
+            classes.Add("is-backjump");
+        }
+
+        if (edge.Warnings.Count > 0)
+        {
+            classes.Add("has-warning");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    private static string LoopLabel(GraphLoopFrame loop)
+    {
+        var label = $"Schleife {loop.CollectionKey}, Einstieg {loop.EntryKey}, Breaking Question {loop.BreakingKey}";
+
+        return loop.Warnings.Count == 0 ? label + "." : $"{label}, {loop.Warnings.Count} Warnung(en).";
+    }
+
+    private RenderFragment ScopeMarker(GraphScopeMarker marker) => @<g class="graph-scope-marker">
+        <foreignObject x="@SvgFormat.N(marker.X)" y="@SvgFormat.N(marker.Y)"
+                       width="@SvgFormat.N(Math.Max(GraphMetrics.NodeWidth, 260))" height="48">
+            <div class="graph-scope">
+                <span class="graph-scope-title">@marker.Title</span>
+                <span class="graph-chips">
+                    @foreach (var trigger in marker.Triggers)
+                    {
+                        <button type="button"
+                                class="chip @(trigger.Kind == TriggerKind.Webhook ? "chip-webhook" : "chip-inprocess")"
+                                title="@trigger.Title"
+                                @onclick="() => OpenTrigger(trigger.TriggerId)">@trigger.Label</button>
+                    }
+                </span>
+            </div>
+        </foreignObject>
+    </g>;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("detach", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit schon weg (Reload oder Schließen) – es gibt nichts mehr aufzuräumen.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}

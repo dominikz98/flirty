@@ -107,6 +107,7 @@ else
                     <td>@dialog.UpdatedAt.LocalDateTime.ToString("g")</td>
                     <td class="row-actions">
                         <button class="btn" @onclick="() => Open(dialog)">Öffnen</button>
+                        <button class="btn" @onclick="() => OpenGraph(dialog)">Graph</button>
                     </td>
                 </tr>
             }
@@ -172,4 +173,7 @@ else
     }
 
     private void Open(DialogSummary dialog) => Navigation.NavigateTo($"dialogs/{dialog.Id}");
+
+    /// <summary>Öffnet die lesende Graph-Ansicht (#101) – den Ablauf statt der Formularliste.</summary>
+    private void OpenGraph(DialogSummary dialog) => Navigation.NavigateTo($"dialogs/{dialog.Id}/graph");
 }

@@ -1,6 +1,6 @@
 ---
 name: flirty-designer
-description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – Dialog-/Frage-/Antwort-/Branching-/Loop-/Trigger-Konfiguration, Multi-DB-Connection-Profile. Verwenden bei "Designer", "Blazor-UI für Dialoge", "Dialog-Editor", "Branching-Editor", "Connection-Profil", "Designer-E2E", "EPIC 7", Issues #37–#43 und #46.
+description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – Dialog-/Frage-/Antwort-/Branching-/Loop-/Trigger-Konfiguration, Graph-Canvas, Multi-DB-Connection-Profile. Verwenden bei "Designer", "Blazor-UI für Dialoge", "Dialog-Editor", "Branching-Editor", "Graph-Ansicht", "Canvas", "Connection-Profil", "Designer-E2E", "EPIC 7", "EPIC 11", Issues #37–#43, #46 und #99–#105.
 ---
 
 # Blazor-Designer aufbauen / erweitern
@@ -8,9 +8,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 > **Status: EPIC 7 (Issues #37–#43) vollständig umgesetzt** – Connection-Profil-Verwaltung (#37),
 > Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
 > und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Die UI ist seit **#46** per
-> Playwright-E2E abgedeckt. Dieser Skill ist die **Leitplanke** für Erweiterungen: die
-> beabsichtigte Architektur und die Konventionen, an die man sich beim Implementieren halten soll.
-> Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7.
+> Playwright-E2E abgedeckt. Aus **EPIC 11** (visueller Graph-Designer, #99) sind der Technik-Spike
+> (#100 → ADR 0006) und die **lesende Graph-Ansicht (#101)** erledigt. Dieser Skill ist die
+> **Leitplanke** für Erweiterungen: die beabsichtigte Architektur und die Konventionen, an die man sich
+> beim Implementieren halten soll.
+> Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7/11,
+> `docs/adr/0006-canvas-technik-im-designer.md`.
 
 ## Ist-Zustand (verifiziert)
 
@@ -67,11 +70,20 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `Services/DesignerTriggerLog.cs` + `DesignerTriggerLogHandlers.cs`, `Models/AnswerInputModel.cs` +
   `Models/AnswerChoice.cs`, `Components/AnswerInput.razor` und die Seite
   `Components/Pages/DialogTestRunner.razor` (`/dialogs/{dialogId}/test`), verlinkt aus dem `DialogEditor`.
+- **Graph-Ansicht (#101):** die lesende Seite `Components/Pages/DialogGraph.razor`
+  (`/dialogs/{id}/graph`) samt collocated `DialogGraph.razor.js` (Pan/Zoom – das **erste JSInterop** im
+  Designer), die Komponenten `Components/GraphNodeCard.razor` und `Components/GraphInspector.razor`,
+  die Services `Services/GraphLayout.cs` (Sugiyama-Light), `Services/DialogGraphBuilder.cs` und
+  `Services/TransitionWarningAnalyzer.cs` (aus `DialogEditor.razor` herausgezogen) sowie die Modelle
+  `Models/GraphWarning.cs`, `DialogGraphModel.cs`, `GraphLayoutResult.cs`, `GraphMetrics.cs`,
+  `SvgFormat.cs`. **Kein Core-Code** – Datenquelle bleibt `GetDialogQuery`. Verlinkt aus `Dialogs.razor`
+  und dem Kopf des `DialogEditor`.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
-  `DesignerTriggerLogTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
+  `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphLayoutTests`,
+  `DialogGraphBuilderTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
   `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests` und
   `Runtime/StartDialogVersionCommandHandlerTests`. Dazu die Browser-Abdeckung in
   `tests/Flirty.E2E/` (`DesignerAppFixture`, `DesignerE2ETests`, gemeinsame Browser-Sitzung in
@@ -197,12 +209,49 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
    Parametertypen scheitern an CS0053. Deshalb sind `AnswerInputModel`/`AnswerChoice` als einzige
    Designer-Modelle `public` (der Designer ist `IsPackable=false`, es entsteht keine Paket-API).
 
-## Aufbaureihenfolge (EPIC 7 – abgeschlossen)
+7. **Der Canvas gehört dem Browser (ADR 0006, seit #101 umgesetzt).** Der Designer ist Blazor
+   **Server** – jedes Blazor-Ereignis ist ein SignalR-Roundtrip. Der Spike zu #100 hat gemessen, was
+   das für eine Zieh-Geste bedeutet: 40 px Rückstand hinter dem Zeiger und 68 Nachrichten, wenn die
+   Bewegung in C# läuft, gegenüber 0 px und 2 Nachrichten beim Eigenbau. Daraus folgen vier Regeln für
+   **jede** Canvas-Erweiterung:
 
-#37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ → #40 Branching-Editor ✅ →
-#41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅.
+   - **Zwischen `pointerdown` und `pointerup` geht keine Nachricht an den Server.** Bewegung läuft im
+     collocated `*.razor.js`-Modul; erst das Loslassen ruft einen Command.
+   - **Attribute, die das JS-Modul setzt, darf C# nie rendern.** Das `transform` auf
+     `.graph-viewport` gehört dem Modul – ein einziges gerendertes `transform`, und der nächste
+     Re-Render (etwa eine Auswahl) setzt Verschiebung und Zoom zurück.
+   - **Kanten werden vor den Knoten gezeichnet.** Ihr breiter, unsichtbarer Trefferpfad läge sonst über
+     der Knotenmitte und verschluckte den Klick. Aus demselben Grund hat der Schleifen-Rahmen
+     `fill="none"` und `pointer-events: stroke`. Und im `pointerdown`-Handler steht ein frühes `return`
+     auf bedienbaren Elementen – **ohne** `preventDefault()`, sonst verpufft Blazors `@onclick`.
+   - **Der Canvas setzt `data-canvas-ready`**, sobald das Modul gebunden ist. `InteractWhenReadyAsync`
+     trägt hier nicht (siehe Konventionen).
 
-Offen bleibt die Playwright-E2E-Abdeckung des Designers (#46, `tests/Flirty.E2E`).
+   **Zahlen in SVG-Attributen ausschließlich über `SvgFormat.N`.** Die feste Anzeige-Kultur `de-DE`
+   gilt auch beim Rendern: Eine interpolierte `double`-Koordinate wird zu `12,5`, und weil das Komma in
+   der Pfadsyntax ein *Trennzeichen* ist, entsteht eine falsche Zahlenfolge – ohne Ausnahme, ohne
+   Meldung, nur mit falschem Bild.
+
+   **Auto-Layout muss deterministisch sein**, sonst wackeln E2E-Selektoren: nur Listen nach außen (nie
+   Menge oder Wörterbuch), Sortierschlüssel enden mit einem eindeutigen Ordinal (Totalordnung statt
+   geliehener `OrderBy`-Stabilität), Koordinaten nur aus ganzzahligen Schicht-/Spaltenwerten. Das
+   Ordinal kommt aus `(Order, Id)` und **nicht** aus der Guid: `CreateDialogVersionCommand` vergibt beim
+   Klonen jeder Frage eine neue Guid, ein guid-basiertes Layout würfelte bei jeder neuen Dialogversion
+   neu durch.
+
+   Knoteninhalte sind **Razor-Komponenten in einem `<foreignObject>`** – Blazors Namensraum-Prüfung
+   schließt `foreignObject` aus, Kindelemente entstehen also im HTML-Namensraum. Damit sind Knoten echte
+   `<button>`: Fokusring, Enter/Leertaste und Screenreader-Rolle kommen von der Plattform.
+
+## Aufbaureihenfolge
+
+**EPIC 7 – abgeschlossen:** #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ →
+#40 Branching-Editor ✅ → #41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅ →
+#46 Designer-E2E ✅.
+
+**EPIC 11 – visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
+#101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`, eigener ADR) →
+#103 Editieren auf dem Canvas → #104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.
 
 ## Konventionen
 
@@ -226,6 +275,19 @@ Offen bleibt die Playwright-E2E-Abdeckung des Designers (#46, `tests/Flirty.E2E`
   `_framework/blazor.web.js` und nichts ist interaktiv), und nach **jedem** Seitenwechsel verpufft die
   erste Interaktion still, bis der Circuit die Seite übernommen hat – deshalb wird sie über
   `InteractWhenReadyAsync` wiederholt und muss idempotent sein.
+- **Auf dem Canvas trägt `InteractWhenReadyAsync` nicht** – Ziehen und Zoomen sind nicht idempotent
+  (ein wiederholter Drag verschöbe doppelt). Dort wird auf `svg[data-canvas-ready='true']` gewartet;
+  das Attribut setzt das JS-Modul beim Binden, und weil `OnAfterRenderAsync` beim Prerendering gar nicht
+  läuft, ist es zugleich der Nachweis, dass der Circuit die Seite übernommen hat. Es ist das **erste**
+  `data-`-Attribut im Designer und bewusst eine Ausnahme von der sonstigen Selektor-Praxis (Rolle,
+  Überschrift, Feld-`id`, CSS-Klasse).
+- **Warnungstexte sind Vertrag.** `TransitionWarningAnalyzer` und `LoopAnalyzer` liefern
+  `GraphWarning` (Ziel + Text). Der Text ist derselbe, den die Listenansicht seit jeher zeigt – die
+  Publish-Rückfrage zählt ihn und die E2E-Suite sucht darin. Wer umformuliert, ändert die Oberfläche
+  und muss es bewusst tun (`TransitionWarningAnalyzerTests` nagelt die Wortlaute fest). Eine **zweite**
+  Warnungslogik neben diesen beiden gibt es nicht: Graph- und Listenansicht schöpfen aus derselben
+  Quelle, verortet wird nach Verursacher (Gruppeneigenschaft → Frage, Eigenschaft eines Übergangs →
+  seine Kante).
 
 ## Definition of Done
 

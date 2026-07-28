@@ -131,6 +131,7 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 | **M2 – Web & Trigger** | EPIC 4 Rest (`#32`, `#33`; `#31` schon in M1) ∥ EPIC 6 WebAPI (`#35`, `#36`) → Web-Sample `#45` | Trigger- und WebAPI-Strang parallel |
 | **M3 – Designer** | EPIC 7 Blazor-Designer (`#37`–`#43`) | baut auf stabiler Core-API + Evaluator auf |
 | **M4 – Qualität & Release** | E2E-Tests `#46`/`#47`, Coverage `#48`, NuGet-Publish `#49`, Docs `#50`–`#52` | Test-, Publish- und Doku-Strang parallel |
+| **M5 – Visueller Graph-Designer** | EPIC 11 Canvas (`#100`–`#105`) | weitgehend sequenziell, `#104` unabhängig von `#103` |
 
 > **Stand M3: abgeschlossen** – `#37`–`#43` sind umgesetzt (siehe [DESIGNER.md](./DESIGNER.md)).
 >
@@ -145,3 +146,12 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 > Innerhalb von M3: `#37` (Connection-Profile) und `#38` (Dialog-CRUD-UI) zuerst, danach sind
 > `#39` Frage-Editor, `#40` Branching-Editor, `#41` Loop-Visualisierung und `#42` Trigger-Editor
 > weitgehend parallel; `#43` Test-Runner zum Schluss als Integrations-/Abnahme-Feature.
+
+> **Stand M5: in Arbeit** – `#100` (Spike Canvas-Technik, Ergebnis
+> [ADR 0006](./adr/0006-canvas-technik-im-designer.md)) und `#101` (lesende Graph-Ansicht, siehe
+> [DESIGNER.md § Graph-Ansicht](./DESIGNER.md#graph-ansicht-101)) sind umgesetzt.
+>
+> Innerhalb von M5 ist die Kette weitgehend **sequenziell**: `#100` entscheidet die Technik, `#101`
+> baut Layout und Zeichenmodell, `#102` bringt die Layout-Persistenz (Schema-Änderung, eigener ADR) und
+> `#103` das Editieren darauf. Nur `#104` (Testlauf im Graphen) hängt allein an `#101` und ist damit
+> unabhängig von `#103`; `#105` (E2E) schließt ab.

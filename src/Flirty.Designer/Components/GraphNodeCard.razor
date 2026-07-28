@@ -1,0 +1,133 @@
+@*
+    Der Inhalt eines Knotens auf dem Graph-Canvas (#101).
+
+    Bewusst HTML in einem <foreignObject> statt SVG-<text>: Damit ist die Karte eine echte
+    Schaltfläche, und Fokusring, Enter/Leertaste sowie die Screenreader-Rolle kommen von der
+    Plattform statt aus Handarbeit. Blazor unterstützt das – seine Namensraum-Prüfung schließt
+    foreignObject ausdrücklich aus, Kindelemente entstehen also im HTML-Namensraum.
+
+    Die Klassen liegen global in wwwroot/app.css, nicht in einer isolierten CSS-Datei: CSS-Isolation
+    reicht ihr Scope-Attribut nicht an Kindkomponenten weiter (Kontrast-Befund aus #95).
+*@
+@using Flirty.Domain
+
+<g class="graph-node @StateClasses"
+   data-node-id="@Node.QuestionId"
+   transform="translate(@SvgFormat.N(Node.X) @SvgFormat.N(Node.Y))">
+    <foreignObject width="@SvgFormat.N(GraphMetrics.NodeWidth)" height="@SvgFormat.N(GraphMetrics.NodeHeight)">
+        <button type="button"
+                class="graph-node-card"
+                aria-label="@Node.AriaLabel"
+                aria-pressed="@(Selected ? "true" : "false")"
+                title="@Node.FullText"
+                @onclick="OnSelect">
+            <span class="graph-node-head">
+                <span class="graph-node-key">@Node.Key</span>
+
+                @if (Node.IsStart)
+                {
+                    <span class="badge badge-start">Einstieg</span>
+                }
+                @if (Node.IsTerminal)
+                {
+                    <span class="badge badge-terminal">Abschluss</span>
+                }
+                @if (Node.IsUnreachable)
+                {
+                    <span class="badge badge-unreachable">Unerreichbar</span>
+                }
+                @if (Node.IsLoopBreaking)
+                {
+                    <span class="badge badge-loop">Breaking</span>
+                }
+                @if (Node.Warnings.Count > 0)
+                {
+                    <span class="badge badge-warning" title="@string.Join(" ", Node.Warnings.Select(w => w.Text))">
+                        ⚠ @Node.Warnings.Count
+                    </span>
+                }
+            </span>
+
+            <span class="graph-node-text">@Node.Text</span>
+
+            <span class="graph-node-meta">
+                <span>@Node.TypeLabel</span>
+                @if (Node.IsRequired)
+                {
+                    <span class="graph-node-required">Pflicht</span>
+                }
+                @if (Node.UsesOptions)
+                {
+                    <span>@Node.OptionCount Option(en)</span>
+                }
+            </span>
+
+            @if (Node.Triggers.Count > 0)
+            {
+                <span class="graph-chips">
+                    @foreach (var trigger in Node.Triggers)
+                    {
+                        <span class="chip @(trigger.Kind == TriggerKind.Webhook ? "chip-webhook" : "chip-inprocess")"
+                              title="@trigger.Title">@trigger.Label</span>
+                    }
+                </span>
+            }
+        </button>
+    </foreignObject>
+</g>
+
+@code {
+    /// <summary>Der darzustellende Knoten.</summary>
+    [Parameter, EditorRequired]
+    public required GraphNode Node { get; set; }
+
+    /// <summary>Ob dieser Knoten gerade im Inspector geöffnet ist.</summary>
+    [Parameter]
+    public bool Selected { get; set; }
+
+    /// <summary>Wird ausgelöst, wenn der Knoten gewählt wird.</summary>
+    [Parameter]
+    public EventCallback<Guid> Select { get; set; }
+
+    private string StateClasses
+    {
+        get
+        {
+            var classes = new List<string>(5);
+
+            if (Selected)
+            {
+                classes.Add("is-selected");
+            }
+
+            if (Node.IsStart)
+            {
+                classes.Add("is-start");
+            }
+
+            if (Node.IsTerminal)
+            {
+                classes.Add("is-terminal");
+            }
+
+            if (Node.IsUnreachable)
+            {
+                classes.Add("is-unreachable");
+            }
+
+            if (Node.InLoop)
+            {
+                classes.Add("in-loop");
+            }
+
+            if (Node.Warnings.Count > 0)
+            {
+                classes.Add("has-warning");
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private Task OnSelect() => Select.InvokeAsync(Node.QuestionId);
+}

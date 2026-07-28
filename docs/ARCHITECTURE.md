@@ -30,6 +30,7 @@ fremde Apps erfolgt über **DI-Extension-Methods** und optional bereitgestellte
 | Designer, Multi-DB | Blazor Web App, Connection-Profile + `IDbContextFactory` |
 | Designer CRUD | Dialoge / Fragen / Antworten / Branching / Loops / Trigger |
 | Entwürfe durchspielen | Test-Runner im Designer + `StartDialogVersionCommand` (ohne Veröffentlichung) |
+| Ablauf sehen | Lesende Graph-Ansicht im Designer (SVG-Canvas, Auto-Layout, Inspector) |
 
 ## 3. Grundsatzentscheidungen
 
@@ -57,7 +58,8 @@ Flirty.sln
 │  ├─ Flirty.AspNetCore   OPTIONAL: WebAPI-Endpunkt-Mapping (MapFlirtyEndpoints),
 │  │                        dünne Schicht über die Mediator-Commands
 │  ├─ Flirty.Designer     Blazor Web App (Server-interaktiv): Dialog-/Frage-/Antwort-/
-│  │                        Branching-/Loop-/Trigger-Konfiguration, Test-Runner, Multi-DB
+│  │                        Branching-/Loop-/Trigger-Konfiguration, Test-Runner, Multi-DB,
+│  │                        lesende Graph-Ansicht (SVG-Canvas)
 │  ├─ Flirty.Migrations.Sqlite       \
 │  ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider (IsPackable=false,
 │  ├─ Flirty.Migrations.SqlServer    /    DLLs werden ins Flirty-Paket gebündelt)

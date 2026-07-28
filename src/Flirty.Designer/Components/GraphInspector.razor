@@ -1,0 +1,267 @@
+@*
+    Das Inspector-Panel der Graph-Ansicht (#101): zeigt das gewählte Element und springt in den
+    bestehenden Editor.
+
+    Bewusst eine Lesesicht mit Sprung und KEIN eingebetteter Editor: QuestionEditor, TransitionEditor,
+    LoopEditor und TriggerEditor sind @page-Komponenten mit eigenem PageTitle, eigener Überschrift und
+    eigenem Zurück-Link. Sie hier einzubetten hieße, sie umzubauen – und genau das schließt das Issue
+    aus („kein Neuschrieb dieser Editoren“).
+
+    Das Panel ist zugleich der Tastaturpfad zu den Kanten: Die zeichnerischen Kanten sind nicht
+    fokussierbar (45 Tabstopps wären eine Wüste), über die Übergangslisten hier ist aber jede erreichbar.
+*@
+
+<aside class="graph-inspector" aria-label="Details zum gewählten Element">
+    @if (Selection is null)
+    {
+        <h2>Inspector</h2>
+        <p class="hint">
+            Einen Knoten oder eine Kante wählen – hier erscheinen dann die Details und der Sprung in den
+            passenden Editor.
+        </p>
+
+        <h3 class="graph-inspector-section">Legende</h3>
+        <ul class="graph-legend">
+            <li><span class="badge badge-start">Einstieg</span> Startfrage des Dialogs</li>
+            <li><span class="badge badge-terminal">Abschluss</span> kein ausgehender Übergang – der Dialog endet hier</li>
+            <li><span class="badge badge-unreachable">Unerreichbar</span> kein Pfad von der Einstiegsfrage</li>
+            <li><span class="badge badge-loop">Breaking</span> Breaking Question einer Schleife</li>
+            <li><span class="badge badge-default">Default</span> greift, wenn keine Bedingung zutrifft</li>
+        </ul>
+    }
+    else if (SelectedNode is { } node)
+    {
+        <h2>Frage</h2>
+        <p class="graph-inspector-key mono">@node.Key</p>
+        <p class="graph-inspector-text">@node.FullText</p>
+
+        <dl class="graph-facts">
+            <dt>Typ</dt>
+            <dd>@node.TypeLabel</dd>
+            <dt>Pflicht</dt>
+            <dd>@(node.IsRequired ? "ja" : "nein")</dd>
+            @if (node.UsesOptions)
+            {
+                <dt>Antwortoptionen</dt>
+                <dd>@node.OptionCount</dd>
+            }
+            <dt>Rolle</dt>
+            <dd>@NodeRole(node)</dd>
+        </dl>
+
+        @foreach (var warning in node.Warnings)
+        {
+            <div class="banner warn">@warning.Text</div>
+        }
+
+        @if (node.Triggers.Count > 0)
+        {
+            <h3 class="graph-inspector-section">Trigger</h3>
+            <ul class="graph-inspector-list">
+                @foreach (var trigger in node.Triggers)
+                {
+                    <li>
+                        <button class="btn" @onclick="() => OpenTrigger.InvokeAsync(trigger.TriggerId)">
+                            @trigger.Label
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        var outgoing = Model.Edges.Where(edge => edge.FromQuestionId == node.QuestionId).ToList();
+        var incoming = Model.Edges.Where(edge => edge.TargetQuestionId == node.QuestionId).ToList();
+
+        <h3 class="graph-inspector-section">Ausgehende Übergänge</h3>
+        @if (outgoing.Count == 0)
+        {
+            <p class="hint">Keine – der Dialog endet nach dieser Frage.</p>
+        }
+        else
+        {
+            <ol class="graph-inspector-list">
+                @foreach (var edge in outgoing.OrderBy(edge => edge.Position))
+                {
+                    <li>@EdgeButton(edge, Label(Model.Node(edge.TargetQuestionId)))</li>
+                }
+            </ol>
+        }
+
+        @if (incoming.Count > 0)
+        {
+            <h3 class="graph-inspector-section">Eingehende Übergänge</h3>
+            <ul class="graph-inspector-list">
+                @foreach (var edge in incoming)
+                {
+                    <li>@EdgeButton(edge, Label(Model.Node(edge.FromQuestionId)))</li>
+                }
+            </ul>
+        }
+
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="() => OpenQuestion.InvokeAsync(node.QuestionId)">
+                Frage bearbeiten →
+            </button>
+        </div>
+    }
+    else if (SelectedEdge is { } edge)
+    {
+        <h2>Übergang</h2>
+        <p class="graph-inspector-key mono">
+            @Label(Model.Node(edge.FromQuestionId)) → @Label(Model.Node(edge.TargetQuestionId))
+        </p>
+
+        <dl class="graph-facts">
+            <dt>Auswertung</dt>
+            <dd>Position @edge.Position</dd>
+            <dt>Bedingung</dt>
+            <dd class="mono">@(edge.IsDefault && edge.Label == "Default" ? "— Default —" : edge.Label)</dd>
+            <dt>Art</dt>
+            <dd>@EdgeRole(edge)</dd>
+        </dl>
+
+        @foreach (var warning in edge.Warnings)
+        {
+            <div class="banner warn">@warning.Text</div>
+        }
+
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="() => OpenTransition.InvokeAsync(edge.TransitionId)">
+                Übergang bearbeiten →
+            </button>
+            <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(edge.FromQuestionId)">
+                Zur Ausgangsfrage
+            </button>
+            <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(edge.TargetQuestionId)">
+                Zur Zielfrage
+            </button>
+        </div>
+    }
+    else if (SelectedLoop is { } loop)
+    {
+        <h2>Schleife</h2>
+        <p class="graph-inspector-key mono">@loop.CollectionKey</p>
+
+        <dl class="graph-facts">
+            <dt>Einstieg</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.EntryKey) ? "— fehlt —" : loop.EntryKey)</dd>
+            <dt>Breaking Question</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.BreakingKey) ? "— fehlt —" : loop.BreakingKey)</dd>
+        </dl>
+
+        @foreach (var warning in loop.Warnings)
+        {
+            <div class="banner warn">@warning.Text</div>
+        }
+
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="() => OpenLoop.InvokeAsync(loop.LoopId)">
+                Schleife bearbeiten →
+            </button>
+        </div>
+    }
+</aside>
+
+@code {
+    /// <summary>Der gesamte Graph – der Inspector liest daraus die Nachbarschaft des gewählten Elements.</summary>
+    [Parameter, EditorRequired]
+    public required DialogGraphModel Model { get; set; }
+
+    /// <summary>Das gewählte Element oder <see langword="null"/>.</summary>
+    [Parameter]
+    public GraphSelection? Selection { get; set; }
+
+    /// <summary>Springt in den Frage-Editor.</summary>
+    [Parameter]
+    public EventCallback<Guid> OpenQuestion { get; set; }
+
+    /// <summary>Springt in den Übergangs-Editor.</summary>
+    [Parameter]
+    public EventCallback<Guid> OpenTransition { get; set; }
+
+    /// <summary>Springt in den Loop-Editor.</summary>
+    [Parameter]
+    public EventCallback<Guid> OpenLoop { get; set; }
+
+    /// <summary>Springt in den Trigger-Editor.</summary>
+    [Parameter]
+    public EventCallback<Guid> OpenTrigger { get; set; }
+
+    /// <summary>Wählt eine andere Frage auf dem Canvas aus.</summary>
+    [Parameter]
+    public EventCallback<Guid> SelectQuestion { get; set; }
+
+    /// <summary>Wählt eine Kante auf dem Canvas aus.</summary>
+    [Parameter]
+    public EventCallback<Guid> SelectTransition { get; set; }
+
+    private GraphNode? SelectedNode
+        => Selection is { Kind: GraphElementKind.Question } selection ? Model.Node(selection.Id) : null;
+
+    private GraphEdge? SelectedEdge
+        => Selection is { Kind: GraphElementKind.Transition } selection ? Model.Edge(selection.Id) : null;
+
+    private GraphLoopFrame? SelectedLoop
+        => Selection is { Kind: GraphElementKind.Loop } selection
+            ? Model.Loops.FirstOrDefault(loop => loop.LoopId == selection.Id)
+            : null;
+
+    private static string Label(GraphNode? node) => node?.Key ?? "unbekannt";
+
+    private static string NodeRole(GraphNode node)
+    {
+        var roles = new List<string>(4);
+
+        if (node.IsStart)
+        {
+            roles.Add("Einstiegsfrage");
+        }
+
+        if (node.IsTerminal)
+        {
+            roles.Add("Abschluss (kein ausgehender Übergang)");
+        }
+
+        if (node.IsLoopEntry)
+        {
+            roles.Add("Schleifen-Einstieg");
+        }
+
+        if (node.IsLoopBreaking)
+        {
+            roles.Add("Breaking Question");
+        }
+
+        if (node.IsUnreachable)
+        {
+            roles.Add("nicht erreichbar");
+        }
+
+        return roles.Count == 0 ? "Frage im Ablauf" : string.Join(", ", roles);
+    }
+
+    private static string EdgeRole(GraphEdge edge)
+    {
+        var roles = new List<string>(2);
+
+        if (edge.IsDefault)
+        {
+            roles.Add("Default-Übergang");
+        }
+
+        if (edge.IsBackJump)
+        {
+            roles.Add("Rücksprung (Zyklus)");
+        }
+
+        return roles.Count == 0 ? "bedingter Übergang" : string.Join(", ", roles);
+    }
+
+    private RenderFragment EdgeButton(GraphEdge edge, string other) => @<button
+        class="btn graph-edge-link"
+        title="@edge.AriaLabel"
+        @onclick="() => SelectTransition.InvokeAsync(edge.TransitionId)">
+        <span class="mono">@other</span>
+        <span class="graph-edge-link-condition">@edge.Label</span>
+    </button>;
+}

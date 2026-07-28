@@ -23,6 +23,7 @@ Reihenfolge = grobe MVP-Priorisierung. Architektur-Referenz: [ARCHITECTURE.md](.
 - **M2 – Web & Trigger**: EPIC 4, 6, Web-Sample aus 8
 - **M3 – Designer**: EPIC 7
 - **M4 – Qualität & Release**: EPIC 9, 10
+- **M5 – Visueller Graph-Designer**: EPIC 11
 
 > **Definition of Done (alle Issues):** Code + XML-Docs (Build bricht bei fehlender public-API-Doku, CS1591=Error) + Tests grün + relevanter `docs/`-Guide aktualisiert.
 
@@ -257,3 +258,47 @@ Branching + Loop durchspielen, Reload→Resume, vorherige Antwort editieren.
 ### Root-README (Quickstart)
 `type:docs`
 Console + Web Quickstart, Snippets aus den Samples.
+
+---
+
+## EPIC 11 – Visueller Graph-Designer (Canvas) `type:epic` `area:designer` `area:core`
+
+Der Designer konfiguriert einen **Graphen**, zeigt ihn aber als Stapel Formulare – der Ablauf eines
+Dialogs ist daraus nicht ablesbar. Ziel ist eine Canvas-Ansicht mit den bestehenden Editoren als
+Inspector. Die Formular- und Listenpfade bleiben **vollständig erhalten**; der Canvas ist zusätzlich,
+nicht Ersatz. Geschnitten in sechs für sich lieferbare Stufen (#99).
+
+### Spike: Canvas-Technik
+`type:spike` `area:designer`
+Eigenbau-SVG gegen `Z.Blazor.Diagrams` an derselben Messlatte (30 Knoten / 45 Kanten, gedrosselter
+Circuit, Lizenz, Build unter `TreatWarningsAsErrors`). Ergebnis ist ein ADR, kein Code.
+
+### Graph-Ansicht des Dialogs (lesend)
+`type:feature` `area:designer`
+`/dialogs/{id}/graph`: Fragen als Knoten, alle Übergänge als beschriftete Kanten, Einstiegs-,
+Abschluss- und unerreichbare Fragen markiert, Schleifen als Bereich über dem `LoopAnalyzer`-Body,
+Trigger als Chips, Warnungen am betroffenen Element. Deterministisches Auto-Layout, Pan/Zoom,
+Inspector-Panel. Kein neuer Core-Code.
+
+### Layout-Persistenz + Knoten verschieben
+`type:feature` `area:core` `area:designer`
+Tabelle `DialogLayout` samt Migration für alle drei Provider, `SetDialogLayoutCommand` /
+`ResetDialogLayoutCommand` (**ohne** `DialogEditGuard` – Koordinaten berühren die Session-Semantik
+nicht), `Layout` in `DialogDetail` + Admin-Endpunkte, Klon-Zweig in `CreateDialogVersionCommand`,
+Aufräum-Zweig in `DeleteQuestionCommand`. Eigener ADR.
+
+### Editieren auf dem Canvas
+`type:feature` `area:designer`
+Fragetyp aus einer Palette ziehen, von Port zu Knoten verbinden, löschen (bestätigt), Default
+umschalten, Priorität per Reihenfolge, Schleife aus einem Zyklus erzeugen, Trigger per Kontextmenü.
+Veröffentlichter Dialog ⇒ Lesemodus (Verschieben bleibt erlaubt, ADR 0005).
+
+### Testlauf im Graphen
+`type:feature` `area:designer`
+Der Test-Runner (#43) hebt den durchlaufenen Pfad hervor, zeigt die Iterationszahl am Loop-Rahmen und
+lässt Trigger aus `DesignerTriggerLog` am auslösenden Knoten aufblitzen.
+
+### Playwright-E2E des Canvas
+`type:test` `area:designer`
+Anlege-Flow, Testlauf und Lesemodus im Browser – analog #46. Der Canvas wartet auf `data-canvas-ready`
+statt auf das Wiederholmuster `InteractWhenReadyAsync` (Gesten sind nicht idempotent).
