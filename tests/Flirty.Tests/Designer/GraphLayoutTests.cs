@@ -243,6 +243,27 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
+    /// Die Zeichenfläche unterschreitet die Mindestmaße nie – auch nicht bei einem leeren oder winzigen
+    /// Graphen.
+    /// </summary>
+    /// <remarks>
+    /// Seit #103 ist der Canvas eine <b>Ablagefläche</b>: Der erste Baustein wird aus der Palette darauf
+    /// gezogen. Vor der Untergrenze war die Fläche eines leeren Dialogs 80 × 80 px – kein Ziel, auf das
+    /// man zeigen kann, und genau dort beginnt jeder neue Dialog.
+    /// </remarks>
+    [Fact]
+    public void Compute_haelt_die_Mindestflaeche_ein()
+    {
+        var leer = GraphLayout.Compute(Branching() with { Questions = [], Transitions = [] });
+        var klein = GraphLayout.Compute(Branching());
+
+        Assert.Equal(GraphMetrics.MinCanvasWidth, leer.Width);
+        Assert.Equal(GraphMetrics.MinCanvasHeight, leer.Height);
+        Assert.True(klein.Width >= GraphMetrics.MinCanvasWidth);
+        Assert.True(klein.Height >= GraphMetrics.MinCanvasHeight);
+    }
+
+    /// <summary>
     /// Übergänge auf gelöschte Fragen sind nicht zeichenbar – sie haben keinen Knoten, an dem sie
     /// ansetzen könnten, und fallen deshalb aus dem Layout heraus (nicht aus der Anzeige: der Builder
     /// weist sie getrennt aus).

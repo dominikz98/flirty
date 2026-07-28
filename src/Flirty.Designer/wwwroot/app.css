@@ -290,6 +290,41 @@ h1 .badge {
     color: #e50000;
 }
 
+/* ---- Ausdrucks-Editor (ExpressionField, #40/#42, global seit #103) ----
+
+   Bis #103 lagen diese beiden Regeln scoped in TransitionEditor.razor.css. Seit der Ausdrucks-Editor
+   eine eigene Komponente ist, muss ihr Aussehen global gelten – CSS-Isolation reicht ihr Scope-Attribut
+   nicht an Kindkomponenten weiter (derselbe Befund wie bei GraphNodeCard und den NavLinks in #95). Der
+   TriggerEditor benutzt die Klassen ohnehin seit #42, hatte aber keine eigene .razor.css: Dort war der
+   Live-Status also unstyled. Der Umzug behebt das mit. */
+
+/* Live-Status des Compile-Checks. */
+.expr-status {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+}
+
+.expr-status.ok {
+    color: #1c7c34;
+}
+
+.expr-status.err {
+    color: #b32121;
+}
+
+/* Ausdruck + „^"-Zeile unter der gemeldeten Fehlerposition. */
+.expr-caret {
+    margin: 0.25rem 0 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.35rem;
+    background-color: #fdf0f0;
+    border: 1px solid #e0a5a5;
+    color: #b32121;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+}
+
 /* ------------------------------------------------------------------------------------------------
    Graph-Ansicht (#101).
 
@@ -314,6 +349,60 @@ h1 .badge {
     align-items: flex-start;
     gap: 1rem;
     flex-wrap: wrap;
+}
+
+/* ---- Palette der Fragetypen (#103) ---- */
+
+.graph-palette {
+    flex: 0 0 12rem;
+    min-width: 10rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #d6dbe1;
+    border-radius: 0.35rem;
+    background-color: #fafaff;
+}
+
+.graph-palette h2 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+}
+
+.graph-palette-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.graph-palette-item {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #4a5b6d;
+    border-radius: 0.3rem;
+    background-color: #fff;
+    color: #1d2b3a;
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    /* grab statt pointer: Die Hauptgeste ist das Ziehen auf die Fläche, der Klick der Zweitweg. */
+    cursor: grab;
+}
+
+.graph-palette-item:hover:not(:disabled) {
+    border-color: #3b4b5c;
+    background-color: #eef2f7;
+}
+
+.graph-palette-item:focus-visible {
+    outline: 2px solid #3d5afe;
+    outline-offset: 1px;
+}
+
+.graph-palette-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .graph-canvas-host {
@@ -344,6 +433,25 @@ h1 .badge {
 .graph-canvas.is-dragging .graph-node-card,
 .graph-canvas.is-dragging .graph-edge-hit {
     cursor: grabbing;
+}
+
+/* Während einer laufenden Geste (Server antwortet noch) nimmt der Canvas keine neue an. Gesperrt wird
+   über dieses von C# gerenderte Attribut und pointer-events – NICHT über disabled an Port und Karte:
+   Blazor rendert ein Attribut sonst mitten in einem Zug neu, und die Pointer-Capture geht verloren. */
+.graph-canvas[data-busy="true"] {
+    cursor: progress;
+}
+
+.graph-canvas[data-busy="true"] .graph-node-card,
+.graph-canvas[data-busy="true"] .graph-port {
+    pointer-events: none;
+}
+
+/* Während einer Verbindungsgeste bzw. eines Palette-Zugs zeigt der Zeiger nur noch diese eine Absicht. */
+.graph-canvas.is-linking,
+.graph-canvas.is-linking .graph-node-card,
+.graph-canvas.is-spawning {
+    cursor: crosshair;
 }
 
 /* Die Zusammenfassung vor dem Bild – für Screenreader die Alternative zum Graphen. */
@@ -430,6 +538,75 @@ h1 .badge {
    Textfassung steht im aria-label („eigene Position"). */
 .graph-node.is-pinned .graph-node-card {
     box-shadow: inset -4px 0 0 0 #4a5b6d;
+}
+
+/* ---- Ausgangs-Port und Verbindungsgeste (#103) ---- */
+
+/* Sitzt an der Unterkante-Mitte – dem Punkt, an dem GraphLayout.Route eine Vorwärtskante ansetzt. */
+.graph-port {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 1.5px solid #2f3f50;
+    border-radius: 50%;
+    background-color: #fff;
+    color: #1d2b3a;
+    font: inherit;
+    font-size: 0.7rem;
+    line-height: 1;
+    cursor: crosshair;
+}
+
+.graph-port:hover,
+.graph-port.is-active {
+    background-color: #3d5afe;
+    border-color: #24379c;
+    color: #fff;
+}
+
+.graph-port:focus-visible {
+    outline: 2px solid #3d5afe;
+    outline-offset: 1px;
+}
+
+/* Die Quelle einer laufenden Verbindung bleibt erkennbar, auch wenn der Zeiger längst weg ist. */
+.graph-node.is-link-source .graph-node-card {
+    border-color: #24379c;
+    box-shadow: 0 0 0 2px #c5cdfb;
+}
+
+/* Der Knoten unter dem Zeiger während einer Verbindungsgeste. Zusätzlich zur Farbe eine dickere
+   Kontur – keine Aussage darf allein an der Farbe hängen (Befund #95). */
+.graph-node.is-link-target .graph-node-card {
+    border-width: 3px;
+    border-color: #0f7b3d;
+    background-color: #f2fbf5;
+}
+
+/* Gummiband und Vorschau der laufenden Geste. C# rendert die Elemente, das JS-Modul ihre Geometrie.
+
+   pointer-events: none ist tragend, nicht kosmetisch: Der Ziel-Hit-Test läuft über
+   document.elementFromPoint, und ohne diese Regel träfe er das Gummiband statt des Knotens – jede
+   Verbindung ginge dann ins Leere. */
+.graph-rubber {
+    fill: none;
+    stroke: #24379c;
+    stroke-width: 2;
+    stroke-dasharray: 6 4;
+    pointer-events: none;
+}
+
+.graph-ghost {
+    fill: #eef2f7;
+    fill-opacity: 0.85;
+    stroke: #4a5b6d;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    rx: 6;
+    pointer-events: none;
 }
 
 .graph-node-head {
@@ -530,6 +707,14 @@ button.chip {
 
 .graph-edge.is-backjump .graph-edge-line {
     stroke: #8a5a1f;
+}
+
+/* Rücksprung ohne Schleifen-Marker (#103): Der Vorschlag „als Schleife markieren" hängt an dieser
+   Kante, also muss sie auffindbar sein. Die kurze Strichelung unterscheidet sie von der langen des
+   Default-Übergangs – die Aussage hängt damit nicht allein an der Farbe (Befund #95). */
+.graph-edge.is-unmarked .graph-edge-line {
+    stroke-dasharray: 3 3;
+    stroke-width: 2.4;
 }
 
 .graph-edge.has-warning .graph-edge-line {

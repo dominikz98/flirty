@@ -1099,7 +1099,7 @@ else
         }
 
         var model = _newQuestion;
-        var order = _detail.Questions.Count == 0 ? 0 : _detail.Questions.Max(question => question.Order) + 1;
+        var order = GraphEditing.NextOrder(_detail);
 
         var created = await RunAsync<QuestionDetail>(
             (sender, token) => sender.Send(
@@ -1195,20 +1195,11 @@ else
 
     /// <summary>
     /// Gibt an, ob der Übergang auf eine frühere (oder dieselbe) Frage zeigt – damit entsteht ein Zyklus,
-    /// also eine Schleife. Der Marker dazu wird im Abschnitt „Schleifen" gepflegt.
+    /// also eine Schleife. Der Marker dazu wird im Abschnitt „Schleifen" gepflegt. Die Regel liegt im
+    /// <see cref="LoopAnalyzer"/>, damit Liste und Graph-Kante dasselbe behaupten.
     /// </summary>
     private bool IsBackJump(TransitionDetail transition)
-    {
-        if (_detail is null)
-        {
-            return false;
-        }
-
-        var from = _detail.Questions.ToList().FindIndex(question => question.Id == transition.FromQuestionId);
-        var target = _detail.Questions.ToList().FindIndex(question => question.Id == transition.TargetQuestionId);
-
-        return from >= 0 && target >= 0 && target <= from;
-    }
+        => _detail is not null && LoopAnalyzer.IsBackJump(_detail, transition);
 
     private void StartCreateTransition(Guid? fromQuestionId)
         => _newTransition = new TransitionFormModel { FromQuestionId = fromQuestionId };
@@ -1230,8 +1221,7 @@ else
         var model = _newTransition;
         var from = model.FromQuestionId!.Value;
         var target = model.TargetQuestionId!.Value;
-        var siblings = Outgoing(from);
-        var priority = siblings.Count == 0 ? 0 : siblings.Max(transition => transition.Priority) + 1;
+        var priority = GraphEditing.NextPriority(_detail, from);
 
         var created = await RunAsync<TransitionDetail>(
             (sender, token) => sender.Send(
@@ -1255,19 +1245,7 @@ else
     /// <param name="to">Die Zielposition.</param>
     private async Task MoveTransitionAsync(Guid fromQuestionId, int from, int to)
     {
-        var ordered = Outgoing(fromQuestionId).ToList();
-        if (to < 0 || to >= ordered.Count)
-        {
-            return;
-        }
-
-        (ordered[from], ordered[to]) = (ordered[to], ordered[from]);
-
-        var changed = ordered
-            .Select((transition, index) => (Transition: transition, Index: index))
-            .Where(entry => entry.Transition.Priority != entry.Index)
-            .ToList();
-
+        var changed = GraphEditing.Reorder(Outgoing(fromQuestionId), from, to);
         if (changed.Count == 0)
         {
             return;
@@ -1276,12 +1254,12 @@ else
         await RunAsync<Unit>(
             async (sender, token) =>
             {
-                foreach (var (transition, index) in changed)
+                foreach (var (transition, priority) in changed)
                 {
                     _ = await sender.Send(
                         new UpdateTransitionCommand(
                             Id, transition.Id, transition.FromQuestionId, transition.TargetQuestionId,
-                            transition.Expression, index, transition.IsDefault),
+                            transition.Expression, priority, transition.IsDefault),
                         token);
                 }
 
@@ -1304,18 +1282,12 @@ else
     // ---- Schleifen / Loops (#41) ------------------------------------------------------------------
 
     /// <summary>
-    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Ohne Marker sammelt die
-    /// Laufzeit die Antworten des Zyklus nicht, sondern überschreibt sie – deshalb werden sie
-    /// ausgewiesen statt still hingenommen.
+    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Die Regel liegt im
+    /// <see cref="LoopAnalyzer"/>, weil der Canvas (#103) denselben Vorschlag am Zyklus anbietet.
     /// </summary>
     /// <returns>Die unmarkierten Rücksprünge in Dialog-Reihenfolge.</returns>
     private IReadOnlyList<TransitionDetail> UnmarkedBackJumps()
-        => _detail is null
-            ? []
-            : [.. _detail.Transitions
-                .Where(transition => IsBackJump(transition)
-                    && !_detail.Loops.Any(loop => loop.EntryQuestionId == transition.TargetQuestionId
-                                               && loop.BreakingQuestionId == transition.FromQuestionId))];
+        => _detail is null ? [] : LoopAnalyzer.UnmarkedBackJumps(_detail);
 
     private void OpenLoop(LoopDetail loop)
         => Navigation.NavigateTo($"dialogs/{Id}/loops/{loop.Id}");

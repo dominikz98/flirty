@@ -9,11 +9,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 > Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
 > und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Die UI ist seit **#46** per
 > Playwright-E2E abgedeckt. Aus **EPIC 11** (visueller Graph-Designer, #99) sind der Technik-Spike
-> (#100 → ADR 0006) und die **lesende Graph-Ansicht (#101)** erledigt. Dieser Skill ist die
+> (#100 → ADR 0006), die **Graph-Ansicht (#101)**, die **Layout-Persistenz (#102 → ADR 0007)** und das
+> **Editieren auf dem Canvas (#103 → ADR 0008)** erledigt. Dieser Skill ist die
 > **Leitplanke** für Erweiterungen: die beabsichtigte Architektur und die Konventionen, an die man sich
 > beim Implementieren halten soll.
 > Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7/11,
-> `docs/adr/0006-canvas-technik-im-designer.md`.
+> `docs/adr/0006-canvas-technik-im-designer.md`, `docs/adr/0008-gesten-auf-dem-canvas.md`.
 
 ## Ist-Zustand (verifiziert)
 
@@ -91,12 +92,23 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `DeleteQuestionCommand` räumt verweisende ab. Im Designer: gespeicherte Positionen in
   `GraphLayout.Render`, `IsPinned` an `GraphNodePosition`/`GraphNode`, Knoten-Drag im JS-Modul plus
   `[JSInvokable] MoveNodeAsync` und „Layout zurücksetzen" in `DialogGraph.razor`.
+- **Editieren auf dem Canvas (#103):** **kein Core-Code, keine Schema-Änderung** – die Gesten rufen die
+  vorhandenen Admin-Commands (ADR 0008). Neu im Designer: `Components/GraphPalette.razor`,
+  `Components/ExpressionField.razor` (der aus `TransitionEditor`/`TriggerEditor` herausgezogene
+  Ausdrucks-Editor, von beiden jetzt benutzt), `Components/GraphQuestionPanel.razor` und
+  `GraphTransitionPanel.razor` (Editier-Zweige des Inspectors), `Services/GraphEditing.cs` (`NextOrder`,
+  `NextPriority`, `Reorder`), `Models/GraphEdits.cs` (public Nutzlasten der Panels),
+  `QuestionFormModel.SuggestKey`, `LoopAnalyzer.IsBackJump`/`UnmarkedBackJumps` (aus dem `DialogEditor`
+  gezogen, der sie jetzt aufruft), `GraphMetrics.PortSize`/`MinCanvasWidth`/`MinCanvasHeight`,
+  `GraphElementKind.Trigger`, Ausgangs-Port in `GraphNodeCard`, vier `[JSInvokable]` in `DialogGraph.razor`
+  (`CreateQuestionAtAsync`, `ConnectAsync`, `ConnectToNewQuestionAsync`, `MoveNodeAsync`) und im JS-Modul
+  `send()`, `beginLink`/`endLink`, die Palette-Geste.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
   `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphLayoutTests`,
-  `DialogGraphBuilderTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
+  `DialogGraphBuilderTests`, `GraphEditingTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
   `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests`,
   `Runtime/StartDialogVersionCommandHandlerTests` und `Runtime/DialogLayoutTests`. Dazu die Browser-Abdeckung in
   `tests/Flirty.E2E/` (`DesignerAppFixture`, `DesignerE2ETests`, gemeinsame Browser-Sitzung in
@@ -283,6 +295,51 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
      `DeleteQuestionCommand`. Beide sind heute je durch einen Test in `Runtime/DialogLayoutTests`
      gesichert – für den neuen Kind kommen zwei dazu.
 
+9. **Canvas-Gesten schreiben – und sind nicht idempotent (ADR 0008, seit #103).** Muster für jede weitere
+   Geste:
+
+   - **Ein Gateway-Aufruf je Geste**, darin alle nötigen Commands in der Reihenfolge ihrer Abhängigkeit
+     (die Layout-Zeile braucht die Guid der neuen Frage). Ein DI-Scope, ein Fehlerpfad – aber **keine**
+     Transaktion: Jeder Handler speichert selbst. Scheitert ein Folge-Command, wird das gemeldet und
+     **nicht** kompensiert (eine gerade angelegte Frage wegen eines Layout-Schluckaufs zu löschen wäre der
+     teurere Fehler).
+   - **Nach einer Graph-Mutation neu laden** (`RunGestureAsync` → `LoadAsync`), nicht lokal fortschreiben.
+     `Rebuild` bleibt dem Layout-Pfad, dessen Command den vollständigen Stand zurückgibt. Grund sind die
+     graphweit gerechneten Warnungen und die Mit-Aufräumung von `DeleteQuestionCommand`. Danach
+     **`ReconcileSelection()`** – eine Auswahl auf ein gelöschtes Element rendert sonst einen leeren
+     Inspector-Zweig.
+   - **Zwei Riegel, beide nötig.** Clientseitig `send()` im Modul; **das Versprechen von
+     `invokeMethodAsync` ist die Quittung**, ein zweiter Rückkanal wäre eine Stelle zum Vergessen.
+     Serverseitig Frühausstieg auf `_busy` in **jeder** `[JSInvokable]` – ein Interop-Aufruf sieht kein
+     gerendertes `disabled`. Ein direkter `invokeMethodAsync`-Aufruf neben `send()` unterläuft den Riegel.
+   - **`data-editable` und `data-busy` gehören C#, das JS liest sie** – bei jeder Geste frisch, nicht als
+     `attach`-Option. Gesperrt wird über `pointer-events`, **nie** über `disabled` an Port oder
+     Palette-Eintrag: Blazor rendert das Attribut sonst mitten im Zug neu und die Pointer-Capture reißt.
+   - **Geometrie einer laufenden Geste in von C# gerenderte Platzhalter** (`.graph-rubber`,
+     `.graph-ghost`) – das Modul setzt nur `d` bzw. `x`/`y`/`width`/`height`. Kein `createElement` in
+     einem Blazor-Container. Beide brauchen `pointer-events: none`, weil der Ziel-Hit-Test über
+     `document.elementFromPoint` läuft (nach `setPointerCapture` ist `event.target` das Capture-Element).
+   - **`swallowNextClick` gehört an das Element, dessen `click` folgt** – beim Palette-Zug ist das der
+     Palette-Eintrag, nicht der Canvas. Sonst legt jeder Zug zusätzlich die Klick-Aktion aus.
+   - **Neue interaktive Elemente im Knoten brauchen ihren Zweig im `pointerdown`** – **vor** der
+     `.graph-node`-Prüfung, sonst verschluckt der Verschiebe-Zug ihre Geste; und wie überall ohne
+     `preventDefault`, damit Blazors `@onclick` (der zeigerlose Weg) trägt.
+   - **Entscheidungsregeln gehören in einen Service, nicht in den `@code`-Block.**
+     `tests/Flirty.Tests/Designer` rendert keine Komponenten (kein bUnit) – was im Razor liegt, ist nicht
+     prüfbar. Vorbilder: `GraphEditing`, `LoopAnalyzer`, `QuestionFormModel.SuggestKey`.
+   - **`[Parameter]`-Typen müssen `public` sein.** Die Formularmodelle bleiben `internal` und privater
+     Zustand des Panels; nach außen gehen die Records aus `Models/GraphEdits.cs`. Zuständigkeit:
+     **Panel = Formular, Seite = Commands.**
+   - **Ein Inspector-Panel arbeitet ohne `EditForm`:** rohe Felder mit `@oninput`, Pflichtprüfung im
+     Speichern-Handler, `@key` an der Element-Id. Zwei gemessene Gründe: `onchange` liefert den Wert erst
+     beim Verlassen des Felds und verliert ihn, weil das Panel nach jeder Geste neu aufgebaut wird; und
+     der Submit einer `EditForm` kam in einem Panel innerhalb wechselnder `@if`-Zweige nicht an.
+   - **In der E2E beweist ein DOM-Wert nichts.** Verpufft die erste Interaktion auf einem frisch
+     gerenderten Feld, steht der getippte Wert trotzdem im DOM, bis der nächste Render ihn überschreibt –
+     ein `ToHaveValueAsync` in diesem Fenster meldet Erfolg, und gespeichert wird der alte Wert. Geprüft
+     wird eine **serverseitig erzeugte** Wirkung, und die wiederholte Einheit umfasst Füllen *und*
+     Speichern. Umgekehrt darf eine Geste, die ihren Auslöser sperrt, nicht allein wiederholt werden.
+
 ## Aufbaureihenfolge
 
 **EPIC 7 – abgeschlossen:** #37 Connection-Profile ✅ → #38 Dialog-CRUD-UI ✅ → #39 Frage-Editor ✅ →
@@ -291,7 +348,8 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 **EPIC 11 – visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
 #101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`) ✅ (ADR 0007) →
-#103 Editieren auf dem Canvas → #104 Testlauf im Graphen → #105 Playwright-E2E des Canvas.
+#103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen →
+#105 Playwright-E2E des Canvas.
 
 ## Konventionen
 

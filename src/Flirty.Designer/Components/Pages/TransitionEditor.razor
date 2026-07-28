@@ -130,135 +130,13 @@ else
                 </div>
             }
 
-            <div class="field">
-                <label for="expression">Ausdruck</label>
-                @* Bewusst ein rohes <textarea> mit @oninput statt <InputTextArea>: Nur so wird bei
-                   JEDER Eingabe validiert (das Formular-Binding feuert erst beim Verlassen des Felds). *@
-                <textarea id="expression" class="input mono" rows="3"
-                          value="@_form.Expression" @oninput="OnExpressionInput"></textarea>
-                <span class="hint">
-                    Boolescher Ausdruck, z. B. <code>role == "dev" &amp;&amp; alter &gt; 18</code>.
-                    Leer bedeutet „bedingungslos zutreffend".
-                </span>
-            </div>
-
-            @if (_validation is not null)
-            {
-                @if (_validation.IsValid)
-                {
-                    <p class="expr-status ok">
-                        ✓ @(string.IsNullOrWhiteSpace(_form.Expression)
-                            ? "Ohne Bedingung – der Übergang greift immer."
-                            : "Ausdruck ist gültig.")
-                    </p>
-                }
-                else
-                {
-                    @* Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist
-                       englisch – deshalb der deutsche Rahmen davor. *@
-                    <p class="expr-status err">✗ Der Ausdruck ist ungültig: @_validation.Error</p>
-
-                    @if (Caret() is { } caret)
-                    {
-                        <pre class="expr-caret">@_form.Expression
-@caret</pre>
-                    }
-                }
-            }
-
-            <h3>Baustein einfügen</h3>
-
-            @if (BuilderVariables.Count == 0)
-            {
-                <p class="hint">
-                    Es gibt noch keine referenzierbaren Fragen in diesem Dialog – erst Fragen anlegen,
-                    dann lassen sich Bedingungen darauf bauen.
-                </p>
-            }
-            else
-            {
-                <div class="field-row">
-                    <div class="field">
-                        <label for="builderVariable">Variable</label>
-                        <select id="builderVariable" class="input"
-                                @bind="_builderVariable" @bind:after="OnBuilderVariableChanged">
-                            @foreach (var variable in BuilderVariables)
-                            {
-                                <option value="@variable.Name">@variable.Name (@variable.TypeLabel)</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="builderOperator">Operator</label>
-                        <select id="builderOperator" class="input" @bind="_builderOperator">
-                            @foreach (var candidate in BuilderOperators)
-                            {
-                                <option value="@candidate">@candidate</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="builderValue">Wert</label>
-                        @if (SelectedVariable?.Kind == ExpressionValueKind.Boolean)
-                        {
-                            <select id="builderValue" class="input" @bind="_builderValue">
-                                <option value="true">true (ja)</option>
-                                <option value="false">false (nein)</option>
-                            </select>
-                        }
-                        else
-                        {
-                            <input id="builderValue" class="input" @bind="_builderValue" @bind:event="oninput" />
-                        }
-                    </div>
-
-                    <div class="field">
-                        <label for="builderConjunction">Verknüpfung</label>
-                        <select id="builderConjunction" class="input" @bind="_builderConjunction"
-                                disabled="@string.IsNullOrWhiteSpace(_form.Expression)">
-                            <option value="&amp;&amp;">und (&amp;&amp;)</option>
-                            <option value="||">oder (||)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button type="button" class="btn" @onclick="InsertCondition">Einfügen</button>
-                    <span class="hint">Vorschau: <code class="mono">@Preview()</code></span>
-                </div>
-            }
-
-            <h3>Verfügbare Bezeichner</h3>
-
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Bezeichner</th>
-                        <th>Typ</th>
-                        <th>Beispiel</th>
-                        <th>Hinweis</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var variable in _variables)
-                    {
-                        <tr>
-                            <td class="mono">@variable.Name</td>
-                            <td>@variable.TypeLabel</td>
-                            <td class="mono">@(variable.IsUsable ? variable.Example : "—")</td>
-                            <td>
-                                @if (!variable.IsUsable)
-                                {
-                                    <span class="badge badge-draft">nicht nutzbar</span>
-                                }
-                                @variable.Note
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            @* Eingabefeld, Live-Status, Fehlerstelle, Baustein-Einfüger und Bezeichner-Referenz liegen
+               seit #103 in ExpressionField – wortgleich, aber an einer Stelle statt an drei (hier, im
+               TriggerEditor und neu im Graph-Inspector). Die id des Felds bleibt „expression". *@
+            <ExpressionField Detail="_detail"
+                             @bind-Value="_form.Expression"
+                             EmptyHint="bedingungslos zutreffend"
+                             EmptyMeaning="der Übergang greift immer" />
         </div>
 
         <div class="actions">
@@ -310,27 +188,19 @@ else
     private IReadOnlyList<TransitionDetail> _group = [];
     private int _position;
     private TransitionFormModel _form = new();
+
+    /// <summary>
+    /// Der Musterkontext für die <b>blockierende</b> Prüfung in <see cref="SaveAsync"/>. Die
+    /// Live-Anzeige während der Eingabe leistet <c>ExpressionField</c> mit einem eigenen Kontext; die
+    /// Entscheidung, ob gespeichert wird, bleibt bewusst hier – sonst müsste diese Seite den
+    /// Innenzustand der Komponente kennen.
+    /// </summary>
     private ExpressionContext? _context;
-    private IReadOnlyList<ExpressionVariable> _variables = [];
-    private ExpressionValidationResult? _validation;
-    private string? _builderVariable;
-    private string _builderOperator = "==";
-    private string _builderValue = string.Empty;
-    private string _builderConjunction = "&&";
     private string? _error;
     private string? _message;
     private bool _busy;
     private bool _confirmDelete;
     private (Guid Dialog, Guid Transition) _loaded;
-
-    private IReadOnlyList<ExpressionVariable> BuilderVariables =>
-        [.. _variables.Where(variable => variable.IsUsable && variable.Kind != ExpressionValueKind.Context)];
-
-    private ExpressionVariable? SelectedVariable =>
-        BuilderVariables.FirstOrDefault(variable => variable.Name == _builderVariable);
-
-    private IReadOnlyList<string> BuilderOperators =>
-        SelectedVariable is { } variable ? DesignerExpressionContext.OperatorsFor(variable.Kind) : [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -373,9 +243,6 @@ else
         if (_detail is not null)
         {
             _context = DesignerExpressionContext.Build(_detail);
-            _variables = DesignerExpressionContext.Describe(_detail);
-            _builderVariable = BuilderVariables.FirstOrDefault()?.Name;
-            OnBuilderVariableChanged();
         }
 
         if (resetForm)
@@ -389,75 +256,7 @@ else
         if (_transition is not null)
         {
             _form = TransitionFormModel.From(_transition);
-            ValidateExpression();
         }
-    }
-
-    private void OnExpressionInput(ChangeEventArgs args)
-    {
-        _form.Expression = args.Value?.ToString();
-        ValidateExpression();
-    }
-
-    /// <summary>
-    /// Prüft den Ausdruck gegen den Musterkontext des Dialogs – bei jeder Eingabe. Der Compile-Check ist
-    /// eine synchrone In-Memory-Operation (DynamicExpresso <c>Parse</c>), daher ohne Entprellung tragbar.
-    /// </summary>
-    private void ValidateExpression()
-    {
-        _validation = _context is null
-            ? null
-            : DesignerExpressionContext.Validate(Evaluator, _form.NormalizedExpression(), _context);
-    }
-
-    private void OnBuilderVariableChanged()
-    {
-        // Nach einem Variablenwechsel passt der bisherige Operator womöglich nicht mehr (z. B. „>" auf
-        // einer Liste) -> auf den ersten passenden zurücksetzen.
-        if (!BuilderOperators.Contains(_builderOperator))
-        {
-            _builderOperator = BuilderOperators.FirstOrDefault() ?? "==";
-        }
-
-        if (SelectedVariable?.Kind == ExpressionValueKind.Boolean
-            && _builderValue is not ("true" or "false"))
-        {
-            _builderValue = "true";
-        }
-    }
-
-    private string Preview()
-        => SelectedVariable is { } variable
-            ? DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue)
-            : string.Empty;
-
-    private void InsertCondition()
-    {
-        if (SelectedVariable is not { } variable)
-        {
-            return;
-        }
-
-        _form.Expression = DesignerExpressionContext.Append(
-            _form.Expression,
-            DesignerExpressionContext.BuildCondition(variable, _builderOperator, _builderValue),
-            _builderConjunction);
-
-        ValidateExpression();
-    }
-
-    /// <summary>Baut die Caret-Zeile, die unter der gemeldeten Fehlerposition ein „^" setzt.</summary>
-    private string? Caret()
-    {
-        if (_validation?.ErrorPosition is not { } position
-            || string.IsNullOrEmpty(_form.Expression)
-            || position < 0
-            || position > _form.Expression.Length)
-        {
-            return null;
-        }
-
-        return new string(' ', position) + "^";
     }
 
     private string QuestionLabel(Guid questionId)
@@ -477,11 +276,11 @@ else
         }
 
         var expression = _form.NormalizedExpression();
-        _validation = DesignerExpressionContext.Validate(Evaluator, expression, _context);
+        var validation = DesignerExpressionContext.Validate(Evaluator, expression, _context);
 
-        if (!_validation.IsValid)
+        if (!validation.IsValid)
         {
-            _error = $"Die Bedingung ist ungültig: {_validation.Error}";
+            _error = $"Die Bedingung ist ungültig: {validation.Error}";
             _message = null;
             return;
         }

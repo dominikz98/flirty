@@ -1,0 +1,267 @@
+@*
+    Der Übergangs-Zweig des Graph-Inspectors (#103).
+
+    Hier steht auch der Schleifen-Vorschlag: Ein Rücksprung ohne passenden Marker wird AM ZYKLUS
+    angeboten – bei der Kante, die ihn verursacht – statt in einer Liste am Seitenende (#41 bot ihn dort
+    an). Die Vorbelegung ist dieselbe: Ziel des Rücksprungs = Einstieg, Ausgangsfrage = Breaking
+    Question, Schlüssel aus LoopFormModel.SuggestCollectionKey.
+
+    Der Wechsel der Ausgangsfrage bleibt dem TransitionEditor vorbehalten: Er vergibt dabei die
+    Priorität in der neuen Gruppe neu, und diese Regel soll nicht an zwei Stellen stehen.
+*@
+@using Flirty.Runtime.Admin
+
+<h2>Übergang</h2>
+<p class="graph-inspector-key mono">
+    @KeyOf(Edge.FromQuestionId) → @KeyOf(Edge.TargetQuestionId)
+</p>
+
+@foreach (var warning in Edge.Warnings)
+{
+    <div class="banner warn">@warning.Text</div>
+}
+
+<dl class="graph-facts">
+    <dt>Auswertung</dt>
+    <dd>Position @Edge.Position</dd>
+    <dt>Art</dt>
+    <dd>@Role</dd>
+</dl>
+
+@* Rohe Felder statt EditForm – dieselbe Begründung wie im GraphQuestionPanel: Das Panel wird nach jeder
+   Geste neu aufgebaut, und der Submit einer EditForm kam darin nicht an. *@
+<div class="field">
+    <label for="inspectorTarget">Zielfrage</label>
+    <select id="inspectorTarget" class="input" disabled="@Locked" @onchange="OnTargetChanged">
+        <option value="">— wählen —</option>
+        @foreach (var question in Detail.Questions)
+        {
+            <option value="@question.Id" selected="@(question.Id == _form.TargetQuestionId)">
+                @question.Key — @question.Text
+            </option>
+        }
+    </select>
+</div>
+
+<div class="field check">
+    <input id="inspectorDefault" type="checkbox" disabled="@Locked"
+           checked="@_form.IsDefault" @onchange="OnDefaultChanged" />
+    <label for="inspectorDefault">Default-Übergang</label>
+</div>
+    <span class="hint">
+        Der Default greift, wenn <em>kein</em> bedingter Übergang zutrifft. Seine eigene Bedingung wird
+        dabei <strong>nicht</strong> ausgewertet.
+    </span>
+
+    @if (_form.IsDefault && !string.IsNullOrWhiteSpace(_form.Expression))
+    {
+        <div class="banner warn">
+            Dieser Übergang ist als Default markiert – seine Bedingung wird zur Laufzeit nicht
+            ausgewertet. Entweder den Default-Haken entfernen oder die Bedingung leeren.
+        </div>
+    }
+
+    <h3 class="graph-inspector-section">Bedingung</h3>
+
+    @* Der Baustein-Einfüger und die Bezeichner-Tabelle bleiben im Panel aus: Die Spalte ist schmal, und
+       der Übergangs-Editor ist einen Sprung entfernt. Die Live-Validierung – der eigentliche Wert – ist
+       dieselbe wie dort, weil es dieselbe Komponente ist. *@
+    <ExpressionField Detail="Detail"
+                     @bind-Value="_form.Expression"
+                     Disabled="@Locked"
+                     ShowBuilder="false"
+                     FieldId="inspectorExpression"
+                     EmptyHint="bedingungslos zutreffend"
+                     EmptyMeaning="der Übergang greift immer" />
+
+@if (_formError is not null)
+{
+    <div class="banner err">@_formError</div>
+}
+
+<div class="actions">
+    <button class="btn btn-primary" disabled="@Locked" @onclick="SaveAsync">Speichern</button>
+    <button class="btn" disabled="@Locked" @onclick="ResetForm">Zurücksetzen</button>
+</div>
+
+@if (IsUnmarkedBackJump && Editable)
+{
+    <h3 class="graph-inspector-section">Schleife</h3>
+    <div class="banner warn">
+        Rücksprung ohne Schleifen-Marker: Die Antworten dieses Zyklus werden zur Laufzeit
+        <strong>überschrieben</strong> statt je Iteration gesammelt.
+    </div>
+
+    <div class="field">
+        <label for="inspectorCollectionKey">Collection-Schlüssel</label>
+        <input id="inspectorCollectionKey" class="input mono" @bind="_collectionKey" disabled="@Busy" />
+        <span class="hint">
+            Unter diesem Bezeichner liegen die je Iteration gesammelten Antworten im Ausdruckskontext.
+        </span>
+    </div>
+
+    <div class="actions">
+        <button class="btn" disabled="@(Busy || string.IsNullOrWhiteSpace(_collectionKey))"
+                @onclick="CreateLoopAsync">Als Schleife markieren</button>
+    </div>
+}
+
+<div class="actions">
+    <button class="btn btn-primary" @onclick="() => OpenTransition.InvokeAsync(Edge.TransitionId)">
+        Übergang bearbeiten →
+    </button>
+    <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(Edge.FromQuestionId)">
+        Zur Ausgangsfrage
+    </button>
+    <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(Edge.TargetQuestionId)">
+        Zur Zielfrage
+    </button>
+</div>
+
+@if (Editable)
+{
+    <h3 class="graph-inspector-section">Übergang löschen</h3>
+
+    @if (_confirmDelete)
+    {
+        <span class="confirm">Übergang löschen? Die beteiligten Fragen bleiben bestehen.</span>
+        <div class="actions">
+            <button class="btn btn-danger" disabled="@Busy" @onclick="DeleteAsync">Ja, löschen</button>
+            <button class="btn" @onclick="() => _confirmDelete = false">Abbrechen</button>
+        </div>
+    }
+    else
+    {
+        <div class="actions">
+            <button class="btn btn-danger" disabled="@Busy"
+                    @onclick="() => _confirmDelete = true">Löschen</button>
+        </div>
+    }
+}
+
+@code {
+    /// <summary>Der Dialog samt Graph.</summary>
+    [Parameter, EditorRequired]
+    public required DialogDetail Detail { get; set; }
+
+    /// <summary>Die gewählte Kante.</summary>
+    [Parameter, EditorRequired]
+    public required GraphEdge Edge { get; set; }
+
+    /// <summary>Ob dieser Rücksprung noch keinen passenden Schleifen-Marker hat.</summary>
+    [Parameter]
+    public bool IsUnmarkedBackJump { get; set; }
+
+    /// <summary>Ob der Graph bearbeitbar ist (unveröffentlichte Version).</summary>
+    [Parameter]
+    public bool Editable { get; set; }
+
+    /// <summary>Ob gerade eine Geste läuft.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Meldet geänderte Felder des Übergangs.</summary>
+    [Parameter]
+    public EventCallback<TransitionEdit> Save { get; set; }
+
+    /// <summary>Meldet den bestätigten Löschwunsch.</summary>
+    [Parameter]
+    public EventCallback<Guid> Delete { get; set; }
+
+    /// <summary>Meldet einen aus diesem Rücksprung abgeleiteten Schleifen-Marker.</summary>
+    [Parameter]
+    public EventCallback<LoopDraft> CreateLoop { get; set; }
+
+    /// <summary>Wählt eine Frage auf dem Canvas aus.</summary>
+    [Parameter]
+    public EventCallback<Guid> SelectQuestion { get; set; }
+
+    /// <summary>Springt in den Übergangs-Editor.</summary>
+    [Parameter]
+    public EventCallback<Guid> OpenTransition { get; set; }
+
+    private TransitionFormModel _form = new();
+    private string _collectionKey = string.Empty;
+    private string? _formError;
+    private bool _confirmDelete;
+    private Guid _shownFor;
+
+    private bool Locked => !Editable || Busy;
+
+    private string Role
+    {
+        get
+        {
+            var roles = new List<string>(2);
+
+            if (Edge.IsDefault)
+            {
+                roles.Add("Default-Übergang");
+            }
+
+            if (Edge.IsBackJump)
+            {
+                roles.Add("Rücksprung (Zyklus)");
+            }
+
+            return roles.Count == 0 ? "bedingter Übergang" : string.Join(", ", roles);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_shownFor != Edge.TransitionId)
+        {
+            _shownFor = Edge.TransitionId;
+            _confirmDelete = false;
+            ResetForm();
+
+            var entry = Detail.Questions.FirstOrDefault(
+                question => question.Id == Edge.TargetQuestionId);
+
+            _collectionKey = entry is null
+                ? string.Empty
+                : LoopFormModel.SuggestCollectionKey(entry.Key, Detail);
+        }
+    }
+
+    private void ResetForm()
+    {
+        var transition = Detail.Transitions.FirstOrDefault(
+            candidate => candidate.Id == Edge.TransitionId);
+
+        _form = transition is null ? new TransitionFormModel() : TransitionFormModel.From(transition);
+        _formError = null;
+    }
+
+    private void OnTargetChanged(ChangeEventArgs args)
+        => _form.TargetQuestionId = Guid.TryParse(args.Value?.ToString(), out var target) ? target : null;
+
+    private void OnDefaultChanged(ChangeEventArgs args) => _form.IsDefault = args.Value is true;
+
+    private async Task SaveAsync()
+    {
+        if (_form.TargetQuestionId is not { } target)
+        {
+            _formError = "Bitte eine Zielfrage wählen.";
+            return;
+        }
+
+        _formError = null;
+        await Save.InvokeAsync(new TransitionEdit(
+            Edge.TransitionId, target, _form.NormalizedExpression(), _form.IsDefault));
+    }
+
+    private async Task CreateLoopAsync()
+        => await CreateLoop.InvokeAsync(
+            new LoopDraft(_collectionKey.Trim(), Edge.TargetQuestionId, Edge.FromQuestionId));
+
+    private async Task DeleteAsync()
+    {
+        _confirmDelete = false;
+        await Delete.InvokeAsync(Edge.TransitionId);
+    }
+
+    private string KeyOf(Guid questionId)
+        => Detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unbekannt";
+}

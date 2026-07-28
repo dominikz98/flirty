@@ -61,6 +61,30 @@ public static class GraphMetrics
     /// </summary>
     public const double LoopFramePaddingStep = 10;
 
+    /// <summary>
+    /// Kantenlänge des Ausgangs-Ports am Knoten in px (#103).
+    /// </summary>
+    /// <remarks>
+    /// Der Port sitzt an der <b>Unterkante-Mitte</b> – genau dort, wo <c>GraphLayout.Route</c> eine
+    /// Vorwärtskante ansetzt. Die Affordanz behauptet damit denselben Ansatzpunkt, den die erzeugte
+    /// Kante später hat; ein Port an einer anderen Stelle wäre eine sichtbare Lüge über die Geometrie.
+    /// </remarks>
+    public const double PortSize = 26;
+
+    /// <summary>
+    /// Kleinste Breite der Zeichenfläche in px – unabhängig davon, wie wenig darauf liegt.
+    /// </summary>
+    /// <remarks>
+    /// Seit #103 ist der Canvas eine <b>Ablagefläche</b>: Ein Fragetyp wird aus der Palette darauf
+    /// gezogen. Ohne Untergrenze wäre die Fläche eines leeren Dialogs
+    /// <c>MarginX * 2</c> × <c>MarginY * 2</c> = 80 × 80 px – zu klein, um darauf zu zielen, und genau
+    /// im leeren Dialog beginnt man.
+    /// </remarks>
+    public const double MinCanvasWidth = 960;
+
+    /// <summary>Kleinste Höhe der Zeichenfläche in px. Begründung wie bei <see cref="MinCanvasWidth"/>.</summary>
+    public const double MinCanvasHeight = 540;
+
     /// <summary>Kleinster Zoomfaktor des Canvas.</summary>
     public const double MinZoom = 0.25;
 

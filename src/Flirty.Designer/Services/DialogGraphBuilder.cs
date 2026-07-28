@@ -291,25 +291,12 @@ internal static class DialogGraphBuilder
                 condition,
                 positions[transition.Id],
                 transition.IsDefault,
-                IsBackJump(order, transition),
+                LoopAnalyzer.IsBackJump(order, transition),
                 edgeWarnings,
                 DescribeEdge(transition, questions[transition.FromQuestionId], target, positions[transition.Id])));
         }
 
         return edges;
-    }
-
-    /// <summary>
-    /// Zeigt der Übergang auf eine frühere Frage <b>der Listenreihenfolge</b>? Dieselbe Aussage, die der
-    /// <c>DialogEditor</c> als Badge „Rücksprung“ zeigt – bewusst über <c>Order</c> und nicht über die
-    /// Schichtung des Layouts, damit Liste und Graph dasselbe behaupten.
-    /// </summary>
-    private static bool IsBackJump(List<Guid> order, TransitionDetail transition)
-    {
-        var from = order.IndexOf(transition.FromQuestionId);
-        var target = order.IndexOf(transition.TargetQuestionId);
-
-        return from >= 0 && target >= 0 && target <= from;
     }
 
     private static string DescribeEdge(

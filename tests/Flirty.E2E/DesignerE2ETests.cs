@@ -156,9 +156,11 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(triggerNode.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
         await Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, SlowCount);
 
-        // Auswahl öffnet den Inspector …
+        // Auswahl öffnet den Inspector. Adressiert wird die Karte über ihre Klasse, nicht über die Rolle:
+        // Seit #103 trägt ein Knoten einen zweiten Button (den Ausgangs-Port), und GetByRole(Button) wäre
+        // damit eine Strict-Mode-Verletzung.
         await page.Locator(".graph-node").Filter(new() { HasText = "position" }).First
-            .GetByRole(AriaRole.Button).ClickAsync();
+            .Locator(".graph-node-card").ClickAsync();
         var inspector = page.Locator(".graph-inspector");
         await Assertions.Expect(inspector).ToContainTextAsync("Einstiegsfrage", SlowContains);
 
@@ -232,6 +234,190 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         Assert.Equal(before, await TransformOfAsync(node));
     }
 
+    /// <summary>
+    /// Rauchprobe des Editierens auf dem Canvas (#103): Ein Baustein wird aus der Palette auf die Fläche
+    /// gezogen, ein zweiter per Klick angefügt, beide werden am Ausgangs-Port verbunden – und alles
+    /// erscheint unmittelbar auch in der Listenansicht.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der Test beginnt auf einem <b>leeren</b> Dialog. Das ist Absicht: Bis #103 ersetzte ein Hinweis
+    /// den Canvas, solange es keine Fragen gab – auf eine nicht vorhandene Fläche lässt sich nichts
+    /// ziehen. Der leere Fall ist damit der eigentliche Beweis.
+    /// </para>
+    /// <para>
+    /// Die letzte Prüfung ist die wichtigste: Die Fragen stehen in der Fragenliste des Dialog-Editors.
+    /// Der Canvas ruft dieselben Admin-Commands wie die Formulare – es gibt keine zweite Wahrheit.
+    /// </para>
+    /// <para>
+    /// Die vollständige Gesten-Abdeckung (Ziehen ins Leere, Umsortieren, Löschen samt Kaskade, Trigger,
+    /// Schleife) bleibt Stufe 5 (#105); jede dieser Regeln ist auf Command-Ebene in
+    /// <c>tests/Flirty.Tests/Designer</c> belegt.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Palette_und_Port_legen_Fragen_und_Uebergang_an()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeEmptyDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // Der leere Dialog zeigt trotzdem eine Zeichenfläche – sonst gäbe es kein Ziel für den Zug.
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-palette-item").First).ToBeEnabledAsync();
+
+        // 1) Ziehen: Der Baustein landet an der Loslass-Stelle, also mit eigener Position (is-pinned).
+        await DragToCanvasAsync(page, page.Locator(".graph-palette-item").First, 260, 140);
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        // 2) Klick: der zeigerlose Weg. Ohne Position – die vergibt das Auto-Layout.
+        await page.Locator(".graph-palette-item").Nth(1).ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
+
+        // 3) Verbinden: vom Ausgangs-Port des einen Knotens auf den anderen ziehen.
+        var quelle = page.Locator(".graph-node").First;
+        var ziel = page.Locator(".graph-node").Nth(1);
+        await DragToTargetAsync(page, quelle.Locator(".graph-port"), ziel.Locator(".graph-node-card"));
+
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        // Der Reload beweist, dass alles geschrieben wurde – nicht nur im DOM steht.
+        await page.ReloadAsync();
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
+
+        // Keine zweite Wahrheit: Dieselben Fragen stehen in der Liste des Dialog-Editors.
+        await page.Locator(".back a").ClickAsync();
+        await page.WaitForURLAsync(DialogUrl);
+        await Assertions.Expect(Section(page, "Fragen").Locator("tbody tr")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(Section(page, "Übergänge (Branching)").Locator("tbody tr"))
+            .ToHaveCountAsync(1, SlowCount);
+    }
+
+    /// <summary>
+    /// Der Inspector ist seit #103 ein Editor: Kopffelder speichern, verbinden, Default umschalten,
+    /// löschen. Der Test prüft die <b>Verdrahtung</b> dieser Pfade – jeder von ihnen ist ein eigener
+    /// <c>EventCallback</c> von Panel über Inspector zur Seite, und ein falsch verbundener fiele durch
+    /// jeden Unit-Test.
+    /// </summary>
+    /// <remarks>
+    /// Der Schluss ist zugleich der Nachweis für „die Mit-Aufräumung wird sichtbar nachgezogen": Mit der
+    /// gelöschten Frage verschwindet die Kante, die an ihr hing – gemeldet als Zählung, nicht behauptet.
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeEmptyDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // Zwei Fragen über den zeigerlosen Weg – hier geht es um den Inspector, nicht um die Geste.
+        await page.Locator(".graph-palette-item").First.ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
+        await page.Locator(".graph-palette-item").First.ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
+
+        var inspector = page.Locator(".graph-inspector");
+
+        // 1) Kopffelder speichern: Der Knoten trägt danach den neuen Schlüssel.
+        await SelectNodeAsync(page, page.Locator(".graph-node").First);
+
+        // Adressiert wird über den Schlüssel, nicht über die DOM-Reihenfolge: Die Anordnung entsteht aus
+        // Schicht und Spalte und ist keine Zusage an den Test.
+        var start = page.Locator(".graph-node").Filter(new() { HasText = "start" });
+
+        // Füllen UND speichern in einer wiederholbaren Einheit, und geprüft wird das Ergebnis am
+        // Graphen – nicht der Feldinhalt.
+        //
+        // Der Grund ist eine Falle, die diesen Test zweimal rot gemacht hat: Ein Blick auf den DOM-Wert
+        // beweist NICHT, dass Blazor die Eingabe gesehen hat. Verpufft die erste Interaktion auf einem
+        // frisch gerenderten Feld (Blazor Server verdrahtet es erst mit dem nächsten Circuit-Update),
+        // steht der getippte Wert trotzdem im DOM – bis der nächste Render ihn mit dem gebundenen Wert
+        // überschreibt. Wer in diesem Fenster prüft, sieht Erfolg und speichert den alten Wert.
+        // Belastbar ist nur eine Wirkung, die der Server erzeugt hat: der Knoten mit dem neuen Schlüssel.
+        // Beides ist idempotent – denselben Wert erneut zu speichern ändert nichts.
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await page.Locator("#inspectorKey").FillAsync("start");
+                await page.Locator("#inspectorText").FillAsync("Wie heißt du?");
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+            },
+            () => Assertions.Expect(start).ToHaveCountAsync(1, QuickCount));
+
+        // 2) Verbinden über die Auswahlliste – das Tastaturäquivalent zum Ziehen am Port.
+        await SelectNodeAsync(page, start);
+        await page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 });
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, QuickCount));
+
+        // 3) Default umschalten: Die Kante wechselt ihre Kennzeichnung, und damit verschwindet die
+        //    Warnung „Kein Default-Übergang" aus dem Graphen.
+        await SelectNodeAsync(page, start);
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Default" }).First.ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-edge.is-default")).ToHaveCountAsync(1, QuickCount));
+
+        // 4) Löschen mit sichtbarer Kaskade: Die Frage geht, ihre Kante geht mit.
+        await SelectNodeAsync(page, start);
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Löschen" }).ClickAsync(),
+            () => Assertions.Expect(inspector).ToContainTextAsync("Ja, löschen", QuickContains));
+        await inspector.GetByRole(AriaRole.Button, new() { Name = "Ja, löschen" }).ClickAsync();
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.ok")).ToContainTextAsync("mit entfernt", SlowContains);
+
+        // Der Inspector fällt sichtbar auf die Legende zurück – die Auswahl zeigte sonst ins Leere.
+        await Assertions.Expect(inspector).ToContainTextAsync("Legende", SlowContains);
+    }
+
+    /// <summary>
+    /// Bei veröffentlichtem Dialog sind die Graph-Gesten <b>deaktiviert</b> statt in einen Konflikt zu
+    /// laufen: Es gibt keinen Ausgangs-Port, die Palette ist gesperrt, und der Hinweis bietet die neue
+    /// Version an. Verschieben funktioniert weiter (ADR 0007) – und erzeugt keine Fehlermeldung.
+    /// </summary>
+    [SkippableFact]
+    public async Task Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Veröffentlichen" }).ClickAsync();
+        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", SlowText);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // Das Attribut ist C#-Zustand: Das JS-Modul liest es bei jeder Geste, statt ihn beim Binden zu
+        // kopieren.
+        await Assertions.Expect(page.Locator("svg[data-editable='false']")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-port")).ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-palette-item").First).ToBeDisabledAsync();
+        await Assertions.Expect(
+            page.GetByRole(AriaRole.Button, new() { Name = "Neue Version anlegen" })).ToBeVisibleAsync();
+
+        // Verschieben bleibt erlaubt – und läuft nicht in einen Konflikt.
+        await DragByAsync(page, page.Locator(".graph-node").Filter(new() { HasText = "summary" }), 150, 90);
+
+        await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+    }
+
     /// <summary>Liest das <c>transform</c> eines Knotens – die im DOM sichtbare Position.</summary>
     private static async Task<string?> TransformOfAsync(ILocator node)
         => await node.GetAttributeAsync("transform");
@@ -266,6 +452,103 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         }
 
         await page.Mouse.UpAsync();
+    }
+
+    /// <summary>
+    /// Zieht ein Element auf eine Stelle der Zeichenfläche – die Palette-Geste (#103).
+    /// </summary>
+    /// <remarks>
+    /// Wie <see cref="DragByAsync"/> über <c>Mouse</c>: Die Palette-Einträge sind zwar HTML außerhalb des
+    /// SVG, ihre Geste läuft aber im selben Pointer-Events-Modell wie der Canvas – <c>DragToAsync</c>
+    /// (HTML5-Drag-and-Drop) löst dort nichts aus.
+    /// </remarks>
+    /// <param name="page">Die Seite.</param>
+    /// <param name="source">Der Palette-Eintrag.</param>
+    /// <param name="offsetX">Der waagerechte Abstand vom linken Rand der Zeichenfläche in px.</param>
+    /// <param name="offsetY">Der senkrechte Abstand von deren oberem Rand in px.</param>
+    private static async Task DragToCanvasAsync(IPage page, ILocator source, int offsetX, int offsetY)
+    {
+        var canvas = page.Locator(".graph-canvas");
+        await canvas.ScrollIntoViewIfNeededAsync();
+
+        var from = await source.BoundingBoxAsync();
+        var target = await canvas.BoundingBoxAsync();
+        Assert.NotNull(from);
+        Assert.NotNull(target);
+
+        await DragBetweenAsync(
+            page,
+            from.X + (from.Width / 2),
+            from.Y + (from.Height / 2),
+            target.X + offsetX,
+            target.Y + offsetY);
+    }
+
+    /// <summary>Zieht von einem Element auf die Mitte eines anderen – die Verbindungsgeste (#103).</summary>
+    /// <param name="page">Die Seite.</param>
+    /// <param name="source">Der Ausgangs-Port.</param>
+    /// <param name="target">Das Ziel (die Knotenkarte).</param>
+    private static async Task DragToTargetAsync(IPage page, ILocator source, ILocator target)
+    {
+        await source.ScrollIntoViewIfNeededAsync();
+
+        var from = await source.BoundingBoxAsync();
+        var to = await target.BoundingBoxAsync();
+        Assert.NotNull(from);
+        Assert.NotNull(to);
+
+        await DragBetweenAsync(
+            page,
+            from.X + (from.Width / 2),
+            from.Y + (from.Height / 2),
+            to.X + (to.Width / 2),
+            to.Y + (to.Height / 2));
+    }
+
+    /// <summary>
+    /// Der gemeinsame Zug zwischen zwei Fensterkoordinaten. Mehrere Schritte, damit der erste die
+    /// 4-px-Schwelle des Moduls überschreitet und die Geste wie eine echte aussieht.
+    /// </summary>
+    private static async Task DragBetweenAsync(
+        IPage page, float startX, float startY, float endX, float endY)
+    {
+        const int steps = 6;
+
+        await page.Mouse.MoveAsync(startX, startY);
+        await page.Mouse.DownAsync();
+
+        for (var step = 1; step <= steps; step++)
+        {
+            await page.Mouse.MoveAsync(
+                startX + ((endX - startX) * step / steps),
+                startY + ((endY - startY) * step / steps));
+        }
+
+        await page.Mouse.UpAsync();
+    }
+
+    /// <summary>
+    /// Legt einen Dialog <b>ohne</b> Fragen an – die Ausgangslage für die Canvas-Gesten, die ihre Fragen
+    /// selbst anlegen.
+    /// </summary>
+    /// <param name="session">Die Browser-Sitzung des Tests.</param>
+    /// <returns>Die Seite, die auf dem leeren Dialog-Editor steht.</returns>
+    private async Task<IPage> ArrangeEmptyDialogAsync(PlaywrightSession session)
+    {
+        var page = await session.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/dialogs");
+
+        await InteractWhenReadyAsync(
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Neuer Dialog" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator("#key")).ToBeVisibleAsync(QuickVisible));
+
+        await page.Locator("#key").FillAsync($"e2e-{Guid.NewGuid():N}"[..12]);
+        await page.Locator("#name").FillAsync("E2E-Canvas-Dialog");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+
+        await page.WaitForURLAsync(DialogUrl);
+
+        return page;
     }
 
     /// <summary>
@@ -536,4 +819,22 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
     /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToContainTextOptions QuickContains = new() { Timeout = 2_000 };
+
+    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    private static readonly LocatorAssertionsToHaveValueOptions QuickValue = new() { Timeout = 2_000 };
+
+    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    private static readonly LocatorAssertionsToHaveCountOptions QuickCount = new() { Timeout = 2_000 };
+
+    /// <summary>
+    /// Wählt einen Knoten aus und wartet, bis das Inspector-Panel dazu steht.
+    /// </summary>
+    /// <remarks>
+    /// Wiederholt, weil die Auswahl ein frisch gerendertes Panel erzeugt und die erste Interaktion darauf
+    /// verpuffen kann. Eine Auswahl ist idempotent – zweimal denselben Knoten zu wählen ändert nichts.
+    /// </remarks>
+    private static async Task SelectNodeAsync(IPage page, ILocator node)
+        => await InteractWhenReadyAsync(
+            () => node.Locator(".graph-node-card").ClickAsync(),
+            () => Assertions.Expect(page.Locator("#inspectorKey")).ToBeVisibleAsync(QuickVisible));
 }

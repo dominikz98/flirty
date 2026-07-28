@@ -1,33 +1,11 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches.
+
+   .expr-status und .expr-caret standen bis #103 hier und sind nach wwwroot/app.css gewandert: Der
+   Ausdrucks-Editor ist jetzt die Komponente ExpressionField, und CSS-Isolation reicht ihr
+   Scope-Attribut nicht an Kindkomponenten weiter. Nebenbefund derselben Verschiebung: Der TriggerEditor
+   benutzt beide Klassen seit #42, hat aber keine eigene .razor.css – dort waren sie also wirkungslos. */
 
 h3 {
     margin: 0.75rem 0 0.5rem;
     font-size: 1rem;
-}
-
-/* Live-Status des Compile-Checks (#40). */
-.expr-status {
-    margin: 0.35rem 0 0;
-    font-size: 0.9rem;
-}
-
-    .expr-status.ok {
-        color: #1c7c34;
-    }
-
-    .expr-status.err {
-        color: #b32121;
-    }
-
-/* Ausdruck + „^"-Zeile unter der gemeldeten Fehlerposition. */
-.expr-caret {
-    margin: 0.25rem 0 0;
-    padding: 0.4rem 0.6rem;
-    border-radius: 0.35rem;
-    background-color: #fdf0f0;
-    border: 1px solid #e0a5a5;
-    color: #b32121;
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 0.85rem;
-    overflow-x: auto;
 }

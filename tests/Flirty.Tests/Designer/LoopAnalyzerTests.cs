@@ -1,4 +1,4 @@
-using Flirty.Designer.Models;
+﻿using Flirty.Designer.Models;
 using Flirty.Designer.Services;
 using Flirty.Domain;
 using Flirty.Runtime;
@@ -289,6 +289,83 @@ public sealed class LoopAnalyzerTests
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
         Assert.Equal(insight.TargetedWarnings.Select(warning => warning.Text), insight.Warnings);
+    }
+
+    // ---- Rücksprung-Erkennung (aus dem DialogEditor gezogen, #103) ----------------------------------
+
+    /// <summary>
+    /// Ein Rücksprung zeigt auf eine frühere Frage <b>der Listenreihenfolge</b> – bewusst nicht auf eine
+    /// höhere Schicht des Layouts, damit Listenansicht und Graph-Kante dasselbe behaupten.
+    /// </summary>
+    [Fact]
+    public void IsBackJump_erkennt_nur_Rueckwaertskanten()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
+        var detail = AdminProjection.ToDetail(dialog);
+
+        var rueckwaerts = detail.Transitions.Single(
+            transition => transition.FromQuestionId == ids.MoreQuestionId
+                && transition.TargetQuestionId == ids.PositionQuestionId);
+        var vorwaerts = detail.Transitions.Single(
+            transition => transition.FromQuestionId == ids.PositionQuestionId
+                && transition.TargetQuestionId == ids.MoreQuestionId);
+
+        Assert.True(LoopAnalyzer.IsBackJump(detail, rueckwaerts));
+        Assert.False(LoopAnalyzer.IsBackJump(detail, vorwaerts));
+    }
+
+    /// <summary>Ein Verweis auf sich selbst ist ein Zyklus – <c>target &lt;= from</c> schließt ihn ein.</summary>
+    [Fact]
+    public void IsBackJump_zaehlt_den_Selbstbezug()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
+        var detail = AdminProjection.ToDetail(dialog);
+        var selbst = new TransitionDetail(
+            Guid.NewGuid(), dialog.Id, ids.MoreQuestionId, ids.MoreQuestionId, null, 9, false);
+
+        Assert.True(LoopAnalyzer.IsBackJump(detail, selbst));
+    }
+
+    /// <summary>
+    /// Der passende Marker macht einen Rücksprung „markiert". Genau diese Liste speist die Vorschläge –
+    /// in der Listenansicht (#41) wie am Zyklus auf dem Canvas (#103).
+    /// </summary>
+    [Fact]
+    public void UnmarkedBackJumps_schliesst_markierte_Ruecksprünge_aus()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
+
+        Assert.Empty(LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog)));
+
+        // Ohne Marker bleibt derselbe Zyklus übrig – die Antworten würden zur Laufzeit überschrieben
+        // statt gesammelt, und genau darauf weist der Vorschlag hin.
+        dialog.Loops.Clear();
+        var ohneMarker = LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog));
+
+        var rueckwaerts = Assert.Single(ohneMarker);
+        Assert.True(LoopAnalyzer.IsBackJump(AdminProjection.ToDetail(dialog), rueckwaerts));
+    }
+
+    /// <summary>
+    /// Ein Marker auf einem <b>anderen</b> Frage-Paar zählt nicht: Er beschreibt einen anderen Zyklus.
+    /// </summary>
+    [Fact]
+    public void UnmarkedBackJumps_prueft_das_Frage_Paar_nicht_nur_die_Existenz_eines_Markers()
+    {
+        var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
+        var loop = dialog.Loops.Single();
+        loop.BreakingQuestionId = ids.SummaryQuestionId;
+
+        Assert.Single(LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog)));
+    }
+
+    /// <summary>Vorwärtskanten erscheinen nie unter den Vorschlägen.</summary>
+    [Fact]
+    public void UnmarkedBackJumps_enthaelt_keine_Vorwaertskanten()
+    {
+        var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
+
+        Assert.Empty(LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog)));
     }
 
     private static DialogSession NewSession(Dialog dialog)

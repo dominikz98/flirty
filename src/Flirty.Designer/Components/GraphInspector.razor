@@ -1,15 +1,19 @@
 @*
-    Das Inspector-Panel der Graph-Ansicht (#101): zeigt das gewählte Element und springt in den
-    bestehenden Editor.
+    Das Inspector-Panel der Graph-Ansicht: zeigt das gewählte Element – und bearbeitet es seit #103.
 
-    Bewusst eine Lesesicht mit Sprung und KEIN eingebetteter Editor: QuestionEditor, TransitionEditor,
-    LoopEditor und TriggerEditor sind @page-Komponenten mit eigenem PageTitle, eigener Überschrift und
-    eigenem Zurück-Link. Sie hier einzubetten hieße, sie umzubauen – und genau das schließt das Issue
-    aus („kein Neuschrieb dieser Editoren“).
+    #101 hatte hier bewusst eine reine Lesesicht mit Sprung in die vier @page-Editoren, weil deren
+    Einbetten ihren Umbau bedeutet hätte. #103 dreht das zur Hälfte um: Eingebettet werden NICHT die
+    @page-Editoren, sondern eigene Panels, die dieselben Admin-Commands rufen. Die Grenze verläuft
+    entlang der Datenform – skalare Felder hier, eigene Unterstruktur (Antwortoptionen,
+    Validierungsregeln, Roh-JSON) im Vollteditor. „… bearbeiten →" führt weiterhin dorthin.
 
-    Das Panel ist zugleich der Tastaturpfad zu den Kanten: Die zeichnerischen Kanten sind nicht
-    fokussierbar (45 Tabstopps wären eine Wüste), über die Übergangslisten hier ist aber jede erreichbar.
+    Das Panel ist zugleich der Tastaturpfad zu allem, was auf der Fläche eine Zeiger-Geste ist: Kanten
+    sind nicht fokussierbar (45 Tabstopps wären eine Wüste), Verbinden geht hier über eine Auswahlliste,
+    und die Auswertungsreihenfolge wird ohnehin nur hier gepflegt – eine Position darf keine Semantik
+    tragen.
 *@
+@using Flirty.Domain
+@using Flirty.Runtime.Admin
 
 <aside class="graph-inspector" aria-label="Details zum gewählten Element">
     @if (Selection is null)
@@ -28,114 +32,135 @@
             <li><span class="badge badge-loop">Breaking</span> Breaking Question einer Schleife</li>
             <li><span class="badge badge-default">Default</span> greift, wenn keine Bedingung zutrifft</li>
         </ul>
-    }
-    else if (SelectedNode is { } node)
-    {
-        <h2>Frage</h2>
-        <p class="graph-inspector-key mono">@node.Key</p>
-        <p class="graph-inspector-text">@node.FullText</p>
 
-        <dl class="graph-facts">
-            <dt>Typ</dt>
-            <dd>@node.TypeLabel</dd>
-            <dt>Pflicht</dt>
-            <dd>@(node.IsRequired ? "ja" : "nein")</dd>
-            @if (node.UsesOptions)
-            {
-                <dt>Antwortoptionen</dt>
-                <dd>@node.OptionCount</dd>
-            }
-            <dt>Rolle</dt>
-            <dd>@NodeRole(node)</dd>
-        </dl>
+        @* Die Trigger ohne Frage-Bezug haben auf der Fläche keinen dauerhaften Ort: Die Scope-Marker
+           entstehen erst, WENN sie Trigger tragen (#101 – „der Canvas bleibt frei von Leerformen").
+           Deshalb stehen sie hier, im Zweig ohne Auswahl, und nicht an einem Marker, den es noch nicht
+           gibt. Ist einer da, führt sein Chip in den Trigger-Editor. *@
+        <h3 class="graph-inspector-section">Trigger am Dialog</h3>
 
-        @foreach (var warning in node.Warnings)
+        @if (DialogTriggers.Count == 0)
         {
-            <div class="banner warn">@warning.Text</div>
+            <p class="hint">Keine – beim Start, nach jeder Antwort und am Ende wird nichts ausgelöst.</p>
         }
-
-        @if (node.Triggers.Count > 0)
+        else
         {
-            <h3 class="graph-inspector-section">Trigger</h3>
             <ul class="graph-inspector-list">
-                @foreach (var trigger in node.Triggers)
+                @foreach (var trigger in DialogTriggers)
                 {
+                    var current = trigger;
                     <li>
-                        <button class="btn" @onclick="() => OpenTrigger.InvokeAsync(trigger.TriggerId)">
-                            @trigger.Label
+                        <button class="btn" @onclick="() => OpenTrigger.InvokeAsync(current.Id)">
+                            @TriggerLabels.Describe(current.Scope) · @TriggerLabels.Describe(current.Kind)
                         </button>
                     </li>
                 }
             </ul>
         }
 
-        var outgoing = Model.Edges.Where(edge => edge.FromQuestionId == node.QuestionId).ToList();
-        var incoming = Model.Edges.Where(edge => edge.TargetQuestionId == node.QuestionId).ToList();
+        @if (Editable)
+        {
+            @if (_newTrigger is null)
+            {
+                <div class="actions">
+                    <button class="btn" @onclick="() => _newTrigger = new TriggerFormModel()">
+                        Dialog-Trigger anlegen
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="field">
+                    <label for="dialogTriggerScope">Zeitpunkt</label>
+                    <select id="dialogTriggerScope" class="input" @bind="_newTrigger.Scope">
+                        @foreach (var scope in DialogScopes)
+                        {
+                            <option value="@scope">@TriggerLabels.Describe(scope)</option>
+                        }
+                    </select>
+                </div>
 
-        <h3 class="graph-inspector-section">Ausgehende Übergänge</h3>
-        @if (outgoing.Count == 0)
-        {
-            <p class="hint">Keine – der Dialog endet nach dieser Frage.</p>
-        }
-        else
-        {
-            <ol class="graph-inspector-list">
-                @foreach (var edge in outgoing.OrderBy(edge => edge.Position))
+                <div class="field">
+                    <label for="dialogTriggerKind">Kanal</label>
+                    <select id="dialogTriggerKind" class="input" @bind="_newTrigger.Kind">
+                        @foreach (var kind in Enum.GetValues<TriggerKind>())
+                        {
+                            <option value="@kind">@TriggerLabels.Describe(kind)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (_newTrigger.Kind == TriggerKind.Webhook)
                 {
-                    <li>@EdgeButton(edge, Label(Model.Node(edge.TargetQuestionId)))</li>
+                    <div class="field">
+                        <label for="dialogTriggerUrl">Ziel-URL</label>
+                        <input id="dialogTriggerUrl" class="input mono" @bind="_newTrigger.Url" />
+                        <span class="hint">Absolute URL – die Engine lehnt alles andere ab.</span>
+                    </div>
                 }
-            </ol>
-        }
-
-        @if (incoming.Count > 0)
-        {
-            <h3 class="graph-inspector-section">Eingehende Übergänge</h3>
-            <ul class="graph-inspector-list">
-                @foreach (var edge in incoming)
+                else
                 {
-                    <li>@EdgeButton(edge, Label(Model.Node(edge.FromQuestionId)))</li>
+                    <p class="hint">
+                        In-Process stellt <b>nichts</b> zu: Die Host-Anwendung hängt dafür einen eigenen
+                        <span class="mono">INotificationHandler</span> ein.
+                    </p>
                 }
-            </ul>
-        }
 
-        <div class="actions">
-            <button class="btn btn-primary" @onclick="() => OpenQuestion.InvokeAsync(node.QuestionId)">
-                Frage bearbeiten →
-            </button>
-        </div>
+                <div class="field">
+                    <label for="dialogTriggerName">Ereignisname (optional)</label>
+                    <input id="dialogTriggerName" class="input" @bind="_newTrigger.Name" />
+                </div>
+
+                @if (_triggerError is not null)
+                {
+                    <div class="banner err">@_triggerError</div>
+                }
+
+                <div class="actions">
+                    <button class="btn btn-primary" disabled="@Busy"
+                            @onclick="CreateDialogTriggerAsync">Anlegen</button>
+                    <button class="btn"
+                            @onclick="() => { _newTrigger = null; _triggerError = null; }">Abbrechen</button>
+                </div>
+            }
+        }
+    }
+    else if (SelectedNode is { } node)
+    {
+        @* Das @key bindet die Panel-Instanz an das bearbeitete Element. Ohne es verwirft Blazor sie beim
+           nächsten Diff und der begonnene Formular-Entwurf ist weg – sichtbar daran, dass ein getippter
+           Schlüssel nach dem Reload wieder auf dem gespeicherten Wert stand. Mit ihm überlebt der
+           Entwurf jeden Re-Render derselben Frage und wird beim Wechsel bewusst verworfen. *@
+        <GraphQuestionPanel @key="node.QuestionId"
+                            Detail="Detail"
+                            Node="node"
+                            Outgoing="Outgoing(node.QuestionId)"
+                            Incoming="Incoming(node.QuestionId)"
+                            Editable="Editable"
+                            Busy="Busy"
+                            Save="SaveQuestion"
+                            Move="MoveTransition"
+                            ToggleDefault="ToggleDefault"
+                            Connect="Connect"
+                            AddTrigger="AddTrigger"
+                            Delete="DeleteQuestion"
+                            SelectTransition="SelectTransition"
+                            OpenQuestion="OpenQuestion"
+                            OpenTrigger="OpenTrigger" />
     }
     else if (SelectedEdge is { } edge)
     {
-        <h2>Übergang</h2>
-        <p class="graph-inspector-key mono">
-            @Label(Model.Node(edge.FromQuestionId)) → @Label(Model.Node(edge.TargetQuestionId))
-        </p>
-
-        <dl class="graph-facts">
-            <dt>Auswertung</dt>
-            <dd>Position @edge.Position</dd>
-            <dt>Bedingung</dt>
-            <dd class="mono">@(edge.IsDefault && edge.Label == "Default" ? "— Default —" : edge.Label)</dd>
-            <dt>Art</dt>
-            <dd>@EdgeRole(edge)</dd>
-        </dl>
-
-        @foreach (var warning in edge.Warnings)
-        {
-            <div class="banner warn">@warning.Text</div>
-        }
-
-        <div class="actions">
-            <button class="btn btn-primary" @onclick="() => OpenTransition.InvokeAsync(edge.TransitionId)">
-                Übergang bearbeiten →
-            </button>
-            <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(edge.FromQuestionId)">
-                Zur Ausgangsfrage
-            </button>
-            <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(edge.TargetQuestionId)">
-                Zur Zielfrage
-            </button>
-        </div>
+        <GraphTransitionPanel @key="edge.TransitionId"
+                              Detail="Detail"
+                              Edge="edge"
+                              IsUnmarkedBackJump="@UnmarkedBackJumps.Contains(edge.TransitionId)"
+                              Editable="Editable"
+                              Busy="Busy"
+                              Save="SaveTransition"
+                              Delete="DeleteTransition"
+                              CreateLoop="CreateLoop"
+                              SelectQuestion="SelectQuestion"
+                              OpenTransition="OpenTransition" />
     }
     else if (SelectedLoop is { } loop)
     {
@@ -159,6 +184,31 @@
                 Schleife bearbeiten →
             </button>
         </div>
+
+        @if (Editable)
+        {
+            <h3 class="graph-inspector-section">Marker löschen</h3>
+
+            @if (_confirmDeleteLoop)
+            {
+                <span class="confirm">
+                    Schleifen-Marker löschen? Der Zyklus selbst bleibt bestehen – seine Antworten werden
+                    danach überschrieben statt gesammelt.
+                </span>
+                <div class="actions">
+                    <button class="btn btn-danger" disabled="@Busy"
+                            @onclick="() => DeleteLoopAsync(loop.LoopId)">Ja, löschen</button>
+                    <button class="btn" @onclick="() => _confirmDeleteLoop = false">Abbrechen</button>
+                </div>
+            }
+            else
+            {
+                <div class="actions">
+                    <button class="btn btn-danger" disabled="@Busy"
+                            @onclick="() => _confirmDeleteLoop = true">Löschen</button>
+                </div>
+            }
+        }
     }
 </aside>
 
@@ -167,9 +217,25 @@
     [Parameter, EditorRequired]
     public required DialogGraphModel Model { get; set; }
 
+    /// <summary>Der Dialog samt Graph – Datenquelle der eingebetteten Formulare.</summary>
+    [Parameter, EditorRequired]
+    public required DialogDetail Detail { get; set; }
+
     /// <summary>Das gewählte Element oder <see langword="null"/>.</summary>
     [Parameter]
     public GraphSelection? Selection { get; set; }
+
+    /// <summary>Ob der Graph bearbeitbar ist (unveröffentlichte Version).</summary>
+    [Parameter]
+    public bool Editable { get; set; }
+
+    /// <summary>Ob gerade eine Geste läuft.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Die Rücksprünge ohne passenden Schleifen-Marker – von der Seite einmal gerechnet.</summary>
+    [Parameter]
+    public IReadOnlyList<Guid> UnmarkedBackJumps { get; set; } = [];
 
     /// <summary>Springt in den Frage-Editor.</summary>
     [Parameter]
@@ -195,6 +261,58 @@
     [Parameter]
     public EventCallback<Guid> SelectTransition { get; set; }
 
+    /// <summary>Meldet geänderte Kopffelder einer Frage.</summary>
+    [Parameter]
+    public EventCallback<QuestionEdit> SaveQuestion { get; set; }
+
+    /// <summary>Meldet den bestätigten Löschwunsch einer Frage.</summary>
+    [Parameter]
+    public EventCallback<Guid> DeleteQuestion { get; set; }
+
+    /// <summary>Meldet eine Umsortierung der Auswertungsreihenfolge.</summary>
+    [Parameter]
+    public EventCallback<TransitionMove> MoveTransition { get; set; }
+
+    /// <summary>Meldet das Umschalten der Default-Kennzeichnung.</summary>
+    [Parameter]
+    public EventCallback<Guid> ToggleDefault { get; set; }
+
+    /// <summary>Meldet einen neuen Übergang von der gewählten Frage zum gewählten Ziel.</summary>
+    [Parameter]
+    public EventCallback<Guid> Connect { get; set; }
+
+    /// <summary>Meldet geänderte Felder eines Übergangs.</summary>
+    [Parameter]
+    public EventCallback<TransitionEdit> SaveTransition { get; set; }
+
+    /// <summary>Meldet den bestätigten Löschwunsch eines Übergangs.</summary>
+    [Parameter]
+    public EventCallback<Guid> DeleteTransition { get; set; }
+
+    /// <summary>Meldet einen aus einem Rücksprung abgeleiteten Schleifen-Marker.</summary>
+    [Parameter]
+    public EventCallback<LoopDraft> CreateLoop { get; set; }
+
+    /// <summary>Meldet den bestätigten Löschwunsch eines Schleifen-Markers.</summary>
+    [Parameter]
+    public EventCallback<Guid> DeleteLoop { get; set; }
+
+    /// <summary>Meldet einen neuen Trigger nach einer Frage.</summary>
+    [Parameter]
+    public EventCallback<TriggerDraft> AddTrigger { get; set; }
+
+    /// <summary>Meldet einen neuen Trigger ohne Frage-Bezug.</summary>
+    [Parameter]
+    public EventCallback<TriggerDraft> AddDialogTrigger { get; set; }
+
+    /// <summary>Die Zeitpunkte ohne Frage-Bezug – <c>AfterQuestion</c> entsteht am Knoten.</summary>
+    private static readonly TriggerScope[] DialogScopes =
+        [.. Enum.GetValues<TriggerScope>().Where(scope => !TriggerLabels.RequiresQuestion(scope))];
+
+    private TriggerFormModel? _newTrigger;
+    private string? _triggerError;
+    private bool _confirmDeleteLoop;
+
     private GraphNode? SelectedNode
         => Selection is { Kind: GraphElementKind.Question } selection ? Model.Node(selection.Id) : null;
 
@@ -206,62 +324,40 @@
             ? Model.Loops.FirstOrDefault(loop => loop.LoopId == selection.Id)
             : null;
 
-    private static string Label(GraphNode? node) => node?.Key ?? "unbekannt";
+    private IReadOnlyList<TriggerDetail> DialogTriggers
+        => [.. Detail.Triggers.Where(trigger => !TriggerLabels.RequiresQuestion(trigger.Scope))];
 
-    private static string NodeRole(GraphNode node)
+    private IReadOnlyList<GraphEdge> Outgoing(Guid questionId)
+        => [.. Model.Edges
+            .Where(edge => edge.FromQuestionId == questionId)
+            .OrderBy(edge => edge.Position)];
+
+    private IReadOnlyList<GraphEdge> Incoming(Guid questionId)
+        => [.. Model.Edges.Where(edge => edge.TargetQuestionId == questionId)];
+
+    private async Task CreateDialogTriggerAsync()
     {
-        var roles = new List<string>(4);
-
-        if (node.IsStart)
+        if (_newTrigger is null)
         {
-            roles.Add("Einstiegsfrage");
+            return;
         }
 
-        if (node.IsTerminal)
+        if (!_newTrigger.TryBuildConfig(out var config, out var configError))
         {
-            roles.Add("Abschluss (kein ausgehender Übergang)");
+            _triggerError = configError;
+            return;
         }
 
-        if (node.IsLoopEntry)
-        {
-            roles.Add("Schleifen-Einstieg");
-        }
+        var draft = new TriggerDraft(_newTrigger.Scope, null, _newTrigger.Kind, config);
 
-        if (node.IsLoopBreaking)
-        {
-            roles.Add("Breaking Question");
-        }
-
-        if (node.IsUnreachable)
-        {
-            roles.Add("nicht erreichbar");
-        }
-
-        return roles.Count == 0 ? "Frage im Ablauf" : string.Join(", ", roles);
+        _newTrigger = null;
+        _triggerError = null;
+        await AddDialogTrigger.InvokeAsync(draft);
     }
 
-    private static string EdgeRole(GraphEdge edge)
+    private async Task DeleteLoopAsync(Guid loopId)
     {
-        var roles = new List<string>(2);
-
-        if (edge.IsDefault)
-        {
-            roles.Add("Default-Übergang");
-        }
-
-        if (edge.IsBackJump)
-        {
-            roles.Add("Rücksprung (Zyklus)");
-        }
-
-        return roles.Count == 0 ? "bedingter Übergang" : string.Join(", ", roles);
+        _confirmDeleteLoop = false;
+        await DeleteLoop.InvokeAsync(loopId);
     }
-
-    private RenderFragment EdgeButton(GraphEdge edge, string other) => @<button
-        class="btn graph-edge-link"
-        title="@edge.AriaLabel"
-        @onclick="() => SelectTransition.InvokeAsync(edge.TransitionId)">
-        <span class="mono">@other</span>
-        <span class="graph-edge-link-condition">@edge.Label</span>
-    </button>;
 }
