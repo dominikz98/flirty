@@ -70,6 +70,12 @@
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
   </ItemGroup>
 
+  <!-- SPIKE #100 (Wegwerf, wird NICHT gemergt): Kandidat B der Canvas-Evaluation. MIT, deklariert
+       net10.0. Nur im Designer referenziert (IsPackable=false) – belastet also kein NuGet-Paket. -->
+  <ItemGroup>
+    <PackageVersion Include="Z.Blazor.Diagrams" Version="3.0.4.1" />
+  </ItemGroup>
+
   <!-- SourceLink: bettet GitHub-Quellverweise für Debugging ein (Packaging-Issue #15).
        Verdrahtung repo-weit in Directory.Build.props (PrivateAssets=all). -->
   <ItemGroup>

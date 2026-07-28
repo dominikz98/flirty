@@ -1,0 +1,121 @@
+@page "/spike/canvas-b"
+@rendermode InteractiveServer
+
+@using Blazor.Diagrams
+@using Blazor.Diagrams.Components
+@using Blazor.Diagrams.Core.Geometry
+@using Blazor.Diagrams.Core.Models
+@using Blazor.Diagrams.Core.PathGenerators
+@using Blazor.Diagrams.Core.Routers
+@using Blazor.Diagrams.Models
+
+@*
+    SPIKE #100 – Kandidat B: Z.Blazor.Diagrams 3.0.4.1.
+
+    Wegwerf-Code. Wird NICHT gemergt; er existiert nur, um die Messlatte aus dem Issue zu erfüllen
+    ("kein Bauchgefühl"). Bewusst identisch zu CanvasA.razor gehalten – gleicher Graph (SpikeGraph),
+    gleiche Knotengröße, gleiche RTT-Sonde, gleiche Kanten-Geometrie.
+*@
+
+<PageTitle>Spike B – Blazor.Diagrams</PageTitle>
+
+<h1>Spike B – Blazor.Diagrams</h1>
+<p>
+    @SpikeGraph.Nodes.Count Knoten, @SpikeGraph.Edges.Count Kanten.
+    Ziehen läuft über <code>@@onpointermove</code> als C#-Handler, also über den Circuit.
+</p>
+
+<p>
+    <button id="rtt-probe" @onclick="() => _rttToken++">RTT-Sonde</button>
+    <span id="rtt-token">@_rttToken</span>
+    <span id="drag-commits">@_dragCommits</span>
+    <span id="diag">down=@_down node-down=@_nodeDown move=@_move sel=@_selectedAtDown</span>
+</p>
+
+<div class="spike-canvas-host">
+    <CascadingValue Value="_diagram" IsFixed="true">
+        <DiagramCanvas></DiagramCanvas>
+    </CascadingValue>
+</div>
+
+@code {
+    private readonly BlazorDiagram _diagram = CreateDiagram();
+    private int _rttToken;
+    private int _dragCommits;
+
+    protected override void OnInitialized()
+    {
+        // Eigenes Widget statt des mitgelieferten SvgNodeWidget (fest verdrahtetes blaues 50x50-Rechteck,
+        // das die gesetzte Size ignoriert) – sonst wären die Knoten beider Prototypen unvergleichbar.
+        _diagram.RegisterComponent<SvgNodeModel, SpikeNodeWidget>();
+
+        var nodes = new SvgNodeModel[SpikeGraph.Nodes.Count];
+        foreach (var spikeNode in SpikeGraph.Nodes)
+        {
+            // Der Index steckt in der Id: der Messlauf sucht den Zielknoten über [data-node-id].
+            var node = new SvgNodeModel(spikeNode.Key, new Point(spikeNode.X, spikeNode.Y))
+            {
+                Title = spikeNode.Label,
+                Size = new Size(SpikeGraph.NodeWidth, SpikeGraph.NodeHeight),
+                // Größe ist bekannt -> ZBD muss sie nicht per ResizeObserver messen. Spart 30 Interop-
+                // Aufrufe beim Laden und verhindert, dass die gesetzte Size wieder überschrieben wird.
+                // Bewusst großzügig zugunsten von Kandidat B.
+                ControlledSize = true,
+            };
+
+            nodes[spikeNode.Index] = node;
+            _diagram.Nodes.Add(node);
+        }
+
+        foreach (var edge in SpikeGraph.Edges)
+        {
+            // Ohne Ports: sonst rendert ZBD je Knoten zusätzliche Port-Elemente und der DOM-Umfang
+            // wäre nicht mehr mit Prototyp A vergleichbar.
+            _diagram.Links.Add(new LinkModel(nodes[edge.From], nodes[edge.To]));
+        }
+
+        // Ein Commit je abgeschlossener Zieh-Geste – das Gegenstück zu OnDragEnd in Prototyp A.
+        // Damit ist in beiden Prototypen dieselbe Menge Arbeit "nach dem Loslassen" zu tun.
+        _diagram.PointerUp += (_, _) => { _dragCommits++; StateHasChanged(); };
+
+        _diagram.PointerDown += (model, _) =>
+        {
+            _down++;
+            if (model is Blazor.Diagrams.Core.Models.Base.MovableModel)
+            {
+                _nodeDown++;
+            }
+
+            _selectedAtDown = _diagram.GetSelectedModels().Count();
+        };
+        _diagram.PointerMove += (_, _) => _move++;
+    }
+
+    private int _down;
+    private int _nodeDown;
+    private int _move;
+    private int _selectedAtDown;
+
+    private static BlazorDiagram CreateDiagram()
+    {
+        var diagram = new BlazorDiagram(new()
+        {
+            AllowMultiSelection = false,
+            // Panning/Zoom aus: in Prototyp A gibt es sie (noch) nicht, gemessen wird nur das Ziehen.
+            AllowPanning = false,
+            Zoom = { Enabled = false },
+            // Virtualisierung aus: sie würde einen Teil der 30 Knoten gar nicht rendern und den
+            // Vergleich verfälschen.
+            Virtualization = { Enabled = false },
+            Links =
+            {
+                // Gerade Linie statt der Voreinstellung (Smooth/Bezier): Prototyp A zeichnet ebenfalls
+                // gerade Kanten, sonst verglichen wir nebenbei zwei Pfadgeneratoren.
+                DefaultRouter = new NormalRouter(),
+                DefaultPathGenerator = new StraightPathGenerator(),
+            },
+        });
+
+        return diagram;
+    }
+}

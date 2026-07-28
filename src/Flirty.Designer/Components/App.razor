@@ -8,6 +8,9 @@
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Flirty.Designer.styles.css"]" />
+    @* SPIKE #100 (Wegwerf, wird NICHT gemergt) – Assets beider Canvas-Prototypen. *@
+    <link rel="stylesheet" href="@Assets["_content/Z.Blazor.Diagrams/style.min.css"]" />
+    <link rel="stylesheet" href="@Assets["spike.css"]" />
     <ImportMap />
     <HeadOutlet />
 </head>
@@ -15,6 +18,10 @@
 <body>
     <Routes />
     <ReconnectModal />
+    @* SPIKE #100: muss window.ZBlazorDiagrams setzen, BEVOR der erste NodeRenderer.OnAfterRenderAsync
+       läuft – also vor blazor.web.js. Enhanced Navigation führt Skripte einer nachgeladenen Seite
+       nicht aus, deshalb hier und nicht in der Spike-Seite. *@
+    <script src="@Assets["_content/Z.Blazor.Diagrams/script.min.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

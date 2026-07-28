@@ -1,0 +1,21 @@
+@using Blazor.Diagrams.Core.Models
+
+@*
+    SPIKE #100 (Wegwerf) – das Knoten-Widget für Kandidat B.
+
+    Der mitgelieferte SvgNodeWidget rendert ein fest verdrahtetes blaues 50x50-Rechteck und ignoriert
+    die gesetzte Size. Damit wäre der Vergleich mit Prototyp A wertlos: andere Knotengröße, ein
+    Element weniger, andere Trefferflächen. Dieses Widget erzeugt exakt denselben Elementbaum wie
+    Prototyp A – <rect> + <text> in derselben Größe.
+*@
+
+<rect width="@Fmt(SpikeGraph.NodeWidth)" height="@Fmt(SpikeGraph.NodeHeight)" rx="4" />
+<text x="@Fmt(SpikeGraph.NodeWidth / 2)" y="@Fmt(SpikeGraph.NodeHeight / 2)">@Node.Title</text>
+
+@code {
+    [Parameter]
+    public NodeModel Node { get; set; } = null!;
+
+    private static string Fmt(double value)
+        => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

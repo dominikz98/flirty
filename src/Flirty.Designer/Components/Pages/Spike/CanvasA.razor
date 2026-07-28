@@ -1,0 +1,122 @@
+@page "/spike/canvas-a"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    SPIKE #100 – Kandidat A: Eigenbau-SVG + collocated JS-Modul.
+
+    Wegwerf-Code. Wird NICHT gemergt. Bewusst so nah wie möglich an CanvasB.razor gehalten: derselbe
+    Graph (SpikeGraph), dieselbe Knotengröße, dieselbe RTT-Sonde, gerade Kanten von Mittelpunkt zu
+    Mittelpunkt, derselbe Elementbaum je Knoten (<g> + <rect> + <text>).
+
+    Der Unterschied, der gemessen werden soll, ist genau einer: Woher kommt die neue Koordinate?
+    Hier aus dem Browser (CSS-Transform im JS-Modul), erst das Loslassen ruft einmal in C#.
+*@
+
+<PageTitle>Spike A – Eigenbau-SVG</PageTitle>
+
+<h1>Spike A – Eigenbau-SVG</h1>
+<p>
+    @SpikeGraph.Nodes.Count Knoten, @SpikeGraph.Edges.Count Kanten.
+    Ziehen läuft clientseitig; erst <code>pointerup</code> ruft einmal in C#.
+</p>
+
+<p>
+    <button id="rtt-probe" @onclick="() => _rttToken++">RTT-Sonde</button>
+    <span id="rtt-token">@_rttToken</span>
+    <span id="drag-commits">@_dragCommits</span>
+</p>
+
+<div class="spike-canvas-host">
+    <svg @ref="_canvas" id="spike-canvas-a" width="100%" height="100%">
+        @* Kanten zuerst: sie liegen hinter den Knoten – dieselbe Schichtung wie bei ZBD. *@
+        @foreach (var edge in SpikeGraph.Edges)
+        {
+            var from = Center(_positions[edge.From]);
+            var to = Center(_positions[edge.To]);
+            <path class="spike-edge"
+                  data-edge-id="@edge.Id"
+                  data-from="@edge.From"
+                  data-to="@edge.To"
+                  d="@Path(from, to)" />
+        }
+
+        @foreach (var node in SpikeGraph.Nodes)
+        {
+            var position = _positions[node.Index];
+            <g class="spike-node"
+               data-node-id="@node.Key"
+               data-index="@node.Index"
+               transform="translate(@Fmt(position.X) @Fmt(position.Y))">
+                <rect width="@Fmt(SpikeGraph.NodeWidth)" height="@Fmt(SpikeGraph.NodeHeight)" rx="4" />
+                <text x="@Fmt(SpikeGraph.NodeWidth / 2)" y="@Fmt(SpikeGraph.NodeHeight / 2)">@node.Label</text>
+            </g>
+        }
+    </svg>
+</div>
+
+@code {
+    private readonly (double X, double Y)[] _positions =
+        [.. SpikeGraph.Nodes.Select(n => (n.X, n.Y))];
+
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<CanvasA>? _self;
+    private int _rttToken;
+    private int _dragCommits;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./Components/Pages/Spike/CanvasA.razor.js");
+        _self = DotNetObjectReference.Create(this);
+        await _module.InvokeVoidAsync(
+            "attach", _canvas, _self, SpikeGraph.NodeWidth, SpikeGraph.NodeHeight);
+    }
+
+    /// <summary>
+    /// Der einzige Rückkanal einer Zieh-Geste: genau ein Aufruf beim Loslassen. Das Gegenstück ist
+    /// der <c>PointerUp</c>-Handler in Prototyp B – beide Seiten leisten danach dieselbe Arbeit
+    /// (Zustand fortschreiben, neu rendern).
+    /// </summary>
+    [JSInvokable]
+    public void OnDragEnd(int index, double x, double y)
+    {
+        _positions[index] = (x, y);
+        _dragCommits++;
+        StateHasChanged();
+    }
+
+    private static (double X, double Y) Center((double X, double Y) position)
+        => (position.X + (SpikeGraph.NodeWidth / 2), position.Y + (SpikeGraph.NodeHeight / 2));
+
+    private static string Path((double X, double Y) from, (double X, double Y) to)
+        => $"M {Fmt(from.X)} {Fmt(from.Y)} L {Fmt(to.X)} {Fmt(to.Y)}";
+
+    private static string Fmt(double value)
+        => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("detach", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit schon weg (Reload/Schließen) – nichts mehr aufzuräumen.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}
