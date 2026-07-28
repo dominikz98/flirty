@@ -18,12 +18,16 @@ wurde, hier.
 | [0003](./0003-aspnet-freier-core.md) | ASP.NET-freier Core, Web als opt-in-Paket | Akzeptiert | #13 |
 | [0004](./0004-gesandboxte-expression-engine.md) | Gesandboxte Expression-Engine hinter einer Abstraktion | Akzeptiert | #22/#23 |
 | [0005](./0005-unveraenderliche-veroeffentlichte-dialogversion.md) | Veröffentlichte Dialogversionen sind unveränderlich | Akzeptiert | #95 |
+| [0006](./0006-canvas-technik-im-designer.md) | Canvas-Technik im Designer: Eigenbau-SVG statt Diagramm-Bibliothek | Akzeptiert | #100 |
 
 Die ADRs stützen sich gegenseitig: 0002 erzwingt, dass alle Handler im Core liegen – was 0003
 (dünne, austauschbare Web-Schicht) technisch absichert. 0004 hängt an der Designer-Fähigkeit,
 Ausdrücke ohne Deployment zu ändern; 0001 daran, dass ein Paket alle drei Provider mitbringt. 0005
 ist der Nachzügler: Es macht eine Zusage einlösbar, die das Domänenmodell seit #17 nur *vorbereitet*
 hatte – und ist damit das Beispiel dafür, dass ein Guide beschreiben kann, was der Code nicht hält.
+0006 ist die Kehrseite von 0003: Weil dort der *Core* von ASP.NET freigehalten wird, darf der Designer
+umgekehrt browsernah sein – ein collocated JS-Modul im Designer verletzt keine Zusage des Pakets. Und
+es ist der einzige ADR, der auf **gemessenen** Zahlen steht statt auf einer Abwägung.
 
 ## Format
 
