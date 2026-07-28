@@ -191,7 +191,9 @@ Doku ist **Definition-of-Done jedes Issues**:
   [0001 Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md),
   [0002 Mediator](./adr/0002-mediator-als-in-process-bus.md),
   [0003 ASP.NET-freier Core](./adr/0003-aspnet-freier-core.md),
-  [0004 Expression-Engine](./adr/0004-gesandboxte-expression-engine.md). Abgrenzung: Guides
+  [0004 Expression-Engine](./adr/0004-gesandboxte-expression-engine.md),
+  [0005 Unveränderliche Dialogversion](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md),
+  [0006 Canvas-Technik im Designer](./adr/0006-canvas-technik-im-designer.md). Abgrenzung: Guides
   beschreiben, **wie** etwas funktioniert, und wachsen mit dem Code; ADRs beschreiben, **warum** es so
   ist, und werden nicht fortgeschrieben (Nachtrag oder Ablösung statt Umschreiben).
 - Root-`README.md` mit Quickstart (Console + Web); Codebeispiele aus den kompilierbaren Samples (kein

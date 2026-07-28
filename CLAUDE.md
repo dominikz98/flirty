@@ -186,7 +186,7 @@ Wer Code ändert, zieht die betroffene Doku im **selben** PR mit. Konkret:
 | Getting Started (Web-Sample / Chat-UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / Roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0005 |
+| Entscheidungen (ADRs) | `docs/adr/README.md` (Index + Format), ADRs 0001–0006 |
 
 ## Stand & offene Baustellen
 
@@ -395,3 +395,26 @@ DynamicExpresso-Meldung „Aktivieren Sie Spiegelung mittels `Interpreter.Enable
 Dialog-Autor durch (jetzt eigene Meldung, erkannt am Typ `ReflectionNotAllowedException`, nicht am
 lokalisierten Text); und der Loop-Vorschlag pluralisierte englisch (`belag` → `belags`, jetzt
 `belag_liste`).
+
+**Canvas-Spike (#100) fertig** – Stufe 0 von **EPIC 11** (visueller Graph-Designer, #99). Ergebnis ist
+kein Code, sondern ADR `docs/adr/0006-canvas-technik-im-designer.md`: Der Canvas wird **selbst gebaut**
+(SVG in Razor + collocated `*.razor.js`), `Z.Blazor.Diagrams` fällt raus. Gemessen wurde mit zwei
+Wegwerf-Prototypen über demselben Graphen (30 Knoten / 45 Kanten) gegen einen gedrosselten Circuit
+(2 × 75 ms); der Code liegt auf dem **nie gemergten** Branch `spike/dz/100`. Zahlen je Zieh-Geste:
+Eigenbau **0 px Rückstand, 2↑/2↓ Nachrichten, 688 B**; Blazor.Diagrams **40 px (≈ 64 ms), 68↑/68↓,
+50 309 B** – also 34-mal so viele Nachrichten. Ursache ist nicht Lizenz oder Zielframework (MIT, natives
+`net10.0`, keine Advisory, baut mit **0 Warnungen** unter `TreatWarningsAsErrors`), sondern der
+Drag-Pfad: `DiagramCanvas.razor` verdrahtet `@onpointermove` als C#-Handler, und das mitgelieferte
+`script.js` enthält nur `ResizeObserver`/`MutationObserver`/`getBoundingClientRect` – einen
+clientseitigen Drag-Pfad gibt es dort nicht. **Merksatz:** Die Demo einer Bibliothek beweist nichts über
+die eigene Interaktivitätsvariante – die von ZBD läuft auf **WebAssembly**, also ohne Netzwerk zwischen
+Zeiger und Modell. Drei Dinge, die beim Messen selbst gelernt wurden und für EPIC 11 gelten:
+CDP-`Network.emulateNetworkConditions` **drosselt die Latenz von WebSocket-Frames nicht** (Chromium
+wendet dort nur Durchsatz an) – künstliche Latenz braucht einen eigenen TCP-Proxy, und der muss Lese-
+und Schreibseite **entkoppeln**, sonst ist er ein Rate-Limiter statt eines Latenzmodells; ein
+WebSocket-Frame ist **nicht** eine SignalR-Nachricht (`blazorpack` packt mehrere mit Varint-Präfix in
+einen Frame), wer Frames zählt, unterzählt; und Browser-Events kommen in .NET 10 als
+`BeginInvokeDotNetFromJS` (`DispatchEventAsync` über eine `DotNetObjectReference`) an, **nicht** als
+`DispatchBrowserEvent`. Für die Tests folgt daraus: Der Canvas braucht ein **explizites**
+Bereitschaftssignal (`data-canvas-ready`) – `InteractWhenReadyAsync` setzt idempotente Aktionen voraus,
+ein wiederholter Drag verschiebt doppelt.
