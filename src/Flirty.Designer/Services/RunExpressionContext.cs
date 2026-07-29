@@ -18,7 +18,15 @@ namespace Flirty.Designer.Services;
 /// Der nullbasierte Iterationsindex der aktuell offenen Frage oder <see langword="null"/>, wenn sie
 /// außerhalb einer Schleife liegt bzw. keine Frage offen ist.
 /// </param>
-internal sealed record RunExpressionSnapshot(
+/// <remarks>
+/// <see langword="public"/> – seit #104 ist der Typ <c>[Parameter]</c> des <c>GraphRunInspector</c>, der
+/// die Bindungen am gewählten Knoten zeigt. Razor erzeugt Komponenten <see langword="public"/>, ein
+/// <see langword="internal"/> Typ an einem Parameter wäre CS0053 und unter
+/// <c>TreatWarningsAsErrors</c> ein Buildfehler (dieselbe Begründung wie bei
+/// <see cref="Flirty.Designer.Models.AnswerInputModel"/>). Gebaut wird er weiterhin ausschließlich vom
+/// <see cref="RunExpressionContext"/>.
+/// </remarks>
+public sealed record RunExpressionSnapshot(
     IReadOnlyDictionary<string, string?> Answers,
     IReadOnlyDictionary<string, IReadOnlyList<string?>> Collections,
     int? IterationIndex);

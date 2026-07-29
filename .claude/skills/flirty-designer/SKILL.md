@@ -9,8 +9,9 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 > Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
 > und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Die UI ist seit **#46** per
 > Playwright-E2E abgedeckt. Aus **EPIC 11** (visueller Graph-Designer, #99) sind der Technik-Spike
-> (#100 → ADR 0006), die **Graph-Ansicht (#101)**, die **Layout-Persistenz (#102 → ADR 0007)** und das
-> **Editieren auf dem Canvas (#103 → ADR 0008)** erledigt. Dieser Skill ist die
+> (#100 → ADR 0006), die **Graph-Ansicht (#101)**, die **Layout-Persistenz (#102 → ADR 0007)**, das
+> **Editieren auf dem Canvas (#103 → ADR 0008)** und der **Testlauf im Graphen (#104)** erledigt; offen
+> ist nur noch die Canvas-E2E (#105). Dieser Skill ist die
 > **Leitplanke** für Erweiterungen: die beabsichtigte Architektur und die Konventionen, an die man sich
 > beim Implementieren halten soll.
 > Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7/11,
@@ -103,12 +104,24 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `GraphElementKind.Trigger`, Ausgangs-Port in `GraphNodeCard`, vier `[JSInvokable]` in `DialogGraph.razor`
   (`CreateQuestionAtAsync`, `ConnectAsync`, `ConnectToNewQuestionAsync`, `MoveNodeAsync`) und im JS-Modul
   `send()`, `beginLink`/`endLink`, die Palette-Geste.
+- **Testlauf im Graphen (#104):** ebenfalls **kein Core-Code und keine Schema-Änderung**. Der Test-Runner
+  (`/dialogs/{id}/test`) bekommt eine zweite Ansicht desselben Laufs (Umschalter „Verlauf"/„Graph",
+  Deep-Link `?view=graph`); Start/Submit/Edit bleiben in `DialogTestRunner.razor`, die Karte „Aktuelle
+  Frage" steht außerhalb des Umschalters und gilt für beide. Neu im Designer:
+  `Services/GraphRunAnalyzer.cs` (leitet den Pfad aus der **Antwortfolge** ab – die Engine protokolliert
+  keine `TransitionId`; parallele Übergänge sind deshalb *mehrdeutig*), `Models/GraphRunModel.cs`
+  (`GraphRunOverlay`, `GraphRunVisit`, `GraphRunAnswer`, `GraphRunEdgeUse`, `GraphRunLoopState`,
+  `GraphRunTrigger`), `Components/GraphRunCanvas.razor` (bindet das **vorhandene** `DialogGraph.razor.js`
+  und meldet Züge als `NodeMove`), `Components/GraphRunInspector.razor` (Antworten je Iteration,
+  Bindungen, Ereignisse am gewählten Knoten), Laufzustand als `[Parameter]` an `GraphNodeCard`,
+  `NodeMove` in `Models/GraphEdits.cs` und `RunExpressionSnapshot` jetzt `public` (CS0053).
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
   `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphLayoutTests`,
-  `DialogGraphBuilderTests`, `GraphEditingTests`; gemeinsamer DI-Stack in `DesignerTestHost`) plus im Core
+  `DialogGraphBuilderTests`, `GraphEditingTests`, `GraphRunAnalyzerTests`; gemeinsamer DI-Stack in
+  `DesignerTestHost`) plus im Core
   `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests`,
   `Runtime/StartDialogVersionCommandHandlerTests` und `Runtime/DialogLayoutTests`. Dazu die Browser-Abdeckung in
   `tests/Flirty.E2E/` (`DesignerAppFixture`, `DesignerE2ETests`, gemeinsame Browser-Sitzung in
@@ -348,7 +361,7 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 
 **EPIC 11 – visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
 #101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`) ✅ (ADR 0007) →
-#103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen →
+#103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen ✅ →
 #105 Playwright-E2E des Canvas.
 
 ## Konventionen
@@ -392,6 +405,11 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   Warnungslogik neben diesen beiden gibt es nicht: Graph- und Listenansicht schöpfen aus derselben
   Quelle, verortet wird nach Verursacher (Gruppeneigenschaft → Frage, Eigenschaft eines Übergangs →
   seine Kante).
+- **Der gelaufene Pfad ist abgeleitet, nicht gespeichert** (#104). Die Engine hält keine `TransitionId` an
+  der Antwort fest; `GraphRunAnalyzer` liest den Weg aus der Antwortfolge. Parallele Übergänge zwischen
+  denselben zwei Fragen bleiben damit **prinzipiell** mehrdeutig – das wird ausgewiesen, nicht geraten. Der
+  Domäne dafür eine Spalte zu geben, wäre Schema-Änderung und Laufzeit-Schreiblast für einen reinen
+  Anzeigebelang; wer es doch braucht, begründet es in einem ADR.
 
 ## Definition of Done
 

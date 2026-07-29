@@ -147,11 +147,14 @@ Braucht Domain (`#17`) + Repository (`#21`) + Mediator (`#14`) + Evaluator (`#24
 > `#39` Frage-Editor, `#40` Branching-Editor, `#41` Loop-Visualisierung und `#42` Trigger-Editor
 > weitgehend parallel; `#43` Test-Runner zum Schluss als Integrations-/Abnahme-Feature.
 
-> **Stand M5: in Arbeit** – `#100` (Spike Canvas-Technik, Ergebnis
+> **Stand M5: in Arbeit** – umgesetzt sind `#100` (Spike Canvas-Technik, Ergebnis
 > [ADR 0006](./adr/0006-canvas-technik-im-designer.md)), `#101` (lesende Graph-Ansicht, siehe
-> [DESIGNER.md § Graph-Ansicht](./DESIGNER.md#graph-ansicht-101)) und `#102` (Layout-Persistenz +
-> Knoten verschieben, Ergebnis [ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)) sind umgesetzt –
-> damit ist die einzige Schema-Änderung von M5 erledigt.
+> [DESIGNER.md § Graph-Ansicht](./DESIGNER.md#graph-ansicht-101)), `#102` (Layout-Persistenz +
+> Knoten verschieben, Ergebnis [ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)) – damit ist die
+> einzige Schema-Änderung von M5 erledigt –, `#103` (Editieren auf dem Canvas, Ergebnis
+> [ADR 0008](./adr/0008-gesten-auf-dem-canvas.md)) und `#104` (Testlauf im Graphen, siehe
+> [DESIGNER.md § Testlauf im Graphen](./DESIGNER.md#testlauf-im-graphen-104)). Offen bleibt `#105`
+> (Playwright-E2E des Canvas).
 >
 > Innerhalb von M5 ist die Kette weitgehend **sequenziell**: `#100` entscheidet die Technik, `#101`
 > baut Layout und Zeichenmodell, `#102` bringt die Layout-Persistenz (Schema-Änderung, eigener ADR) und

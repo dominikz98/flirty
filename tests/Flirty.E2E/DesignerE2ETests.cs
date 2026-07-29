@@ -418,6 +418,123 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
     }
 
+    /// <summary>
+    /// Der Testlauf im Graphen (#104): Derselbe Lauf wie im listenbasierten Runner, aber als Pfad auf dem
+    /// Canvas – besuchte Knoten, die offene Frage, gegriffene Kanten, die Iterationszahl am
+    /// Schleifenrahmen und die publizierten Trigger am auslösenden Knoten.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der Test steht im Browser, obwohl die Ableitung des Pfads in
+    /// <c>tests/Flirty.Tests/Designer/GraphRunAnalyzerTests</c> vollständig gegen die echte Engine geprüft
+    /// ist: Was hier dazukommt, ist die <b>Verdrahtung</b> – Umschalter, Canvas im Runner, Antwort-Eingabe
+    /// in beiden Ansichten und der Editier-Pfad über das Inspector-Panel. Genau diese Art Verbindung ist
+    /// in #103 zweimal gerissen, ohne dass ein Unit-Test es hätte sehen können.
+    /// </para>
+    /// <para>
+    /// Gespielt wird der <b>unveröffentlichte</b> Dialog – der Runner startet über
+    /// <c>StartDialogVersionCommand</c>, ein Entwurf ist also ohne Veröffentlichen testbar.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Button, new() { Name = "Durchspielen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/test$"));
+
+        // Umschalten ist idempotent – zweimal „Graph" zu wählen ändert nichts.
+        await InteractWhenReadyAsync(
+            () => page.Locator(".run-views")
+                .GetByRole(AriaRole.Button, new() { Name = "Graph", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-canvas")).ToHaveCountAsync(1, QuickCount));
+
+        // Das explizite Bereitschaftssignal des Moduls statt einer Wiederholung: Canvas-Gesten sind nicht
+        // idempotent (ADR 0006).
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // Vor dem Start liegt der Graph da, aber ohne Pfad.
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(0, SlowCount);
+
+        await InteractWhenReadyAsync(
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Lauf starten", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Welche Position?", QuickContains));
+
+        // Noch keine Antwort: Die Einstiegsfrage ist offen, aber nicht besucht.
+        await Assertions.Expect(page.Locator(".graph-node.is-current")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(0, SlowCount);
+
+        // Erste Iteration. Die Karte des besuchten Knotens zeigt die Antwort, die Kante ist gegriffen.
+        await AnswerTextAsync(page, "Backend");
+        await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-visited .graph-node-answer"))
+            .ToContainTextAsync("Backend", SlowContains);
+
+        // Rücksprung: Damit ist eine zweite Kante gegriffen – die Schleife wurde wirklich durchlaufen.
+        await ChooseAsync(page, "Ja");
+        await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(2, SlowCount);
+
+        // Zweite Iteration, dann Ausstieg über „Nein".
+        await AnswerTextAsync(page, "Frontend");
+        await Assertions.Expect(page.Locator(".graph-loop-iterations")).ToContainTextAsync("2 Iterationen", SlowContains);
+
+        await ChooseAsync(page, "Nein");
+        await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-current").Filter(new() { HasText = "summary" }))
+            .ToHaveCountAsync(1, SlowCount);
+
+        // Die publizierten Trigger hängen am auslösenden Knoten – Quelle bleibt der DesignerTriggerLog.
+        await Assertions.Expect(page.Locator(".graph-node .chip-fired").First).ToBeVisibleAsync();
+
+        // Der Inspector zeigt die Bindungen und die Antworten je Iteration am gewählten Knoten.
+        var positionNode = page.Locator(".graph-node").Filter(new() { HasText = "Welche Position?" });
+        var inspector = page.Locator(".graph-inspector");
+
+        await InteractWhenReadyAsync(
+            () => positionNode.Locator(".graph-node-card").ClickAsync(),
+            () => Assertions.Expect(page.Locator("#runInspectorKey")).ToBeVisibleAsync(QuickVisible));
+
+        await Assertions.Expect(inspector).ToContainTextAsync("Iteration 2", SlowContains);
+        await Assertions.Expect(inspector).ToContainTextAsync("\"Frontend\"", SlowContains);
+        // Die Bindung der umschließenden Schleife steht am Knoten – das ist der Gewinn gegenüber der
+        // globalen Tafel der Listenansicht.
+        await Assertions.Expect(inspector).ToContainTextAsync("position_liste", SlowContains);
+
+        // Ein Edit rechnet den Pfad neu: Die nachgelagerten Antworten fallen weg, der Pfad schrumpft auf
+        // den einen besuchten Knoten. Wiederholt wird die ganze Einheit (öffnen, füllen, speichern) –
+        // derselbe Wert erneut gespeichert führt zum selben Zustand.
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Bearbeiten" }).First.ClickAsync();
+                await inspector.Locator(".answer-input input.input").FillAsync("Middleware");
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+            },
+            () => Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, QuickCount));
+
+        await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-visited .graph-node-answer"))
+            .ToContainTextAsync("Middleware", SlowContains);
+
+        // Und die Listenansicht zeigt denselben Lauf – derselbe Zustand, nur andere Darstellung.
+        await page.Locator(".run-views").GetByRole(AriaRole.Button, new() { Name = "Verlauf" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".transcript")).ToContainTextAsync("Middleware", SlowContains);
+        await Assertions.Expect(page.Locator(".transcript li")).ToHaveCountAsync(1, SlowCount);
+
+        // Zurück auf „Graph": Der Canvas wird neu gebunden. Das prüft zugleich, dass das Lösen der
+        // Bindung beim Wegschalten den Circuit nicht reißt – ein Fehler in `DisposeAsync` fiele hier auf,
+        // weil danach nichts mehr interaktiv wäre.
+        await page.Locator(".run-views").GetByRole(AriaRole.Button, new() { Name = "Graph", Exact = true })
+            .ClickAsync();
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, SlowCount);
+    }
+
     /// <summary>Liest das <c>transform</c> eines Knotens – die im DOM sichtbare Position.</summary>
     private static async Task<string?> TransformOfAsync(ILocator node)
         => await node.GetAttributeAsync("transform");

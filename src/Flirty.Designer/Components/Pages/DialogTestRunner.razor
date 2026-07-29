@@ -61,6 +61,15 @@ else
         <div class="banner ok">@_message</div>
     }
 
+    @* Zwei Darstellungen DESSELBEN Laufs – kein zweiter Runner. Start, Antwort und Editieren laufen in
+       beiden über dieselben Engine-Aufrufe; der Umschalter wechselt nur, was daraus gezeigt wird. *@
+    <div class="run-views" role="group" aria-label="Darstellung des Laufs">
+        <button class="btn @(_graphView ? "" : "is-active")" aria-pressed="@(_graphView ? "false" : "true")"
+                @onclick="() => SetView(false)">Verlauf</button>
+        <button class="btn @(_graphView ? "is-active" : "")" aria-pressed="@(_graphView ? "true" : "false")"
+                @onclick="() => SetView(true)">Graph</button>
+    </div>
+
     @if (_state is null)
     {
         <div class="editor">
@@ -88,68 +97,73 @@ else
     }
     else
     {
-        <div class="editor">
-            <h2>Verlauf</h2>
+        @* Die Verlaufsliste gehört der Listenansicht; die Karte „Aktuelle Frage" darunter steht in
+           BEIDEN – sie ist die Bedienung des Laufs, nicht seine Darstellung. *@
+        @if (!_graphView)
+        {
+            <div class="editor">
+                <h2>Verlauf</h2>
 
-            @if (_state.Answers.Count == 0)
-            {
-                <p class="empty">Noch keine Antwort erfasst.</p>
-            }
-            else
-            {
-                <ol class="transcript">
-                    @foreach (var answer in _state.Answers.OrderBy(entry => entry.Sequence))
-                    {
-                        // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
-                        // Schleifenzustand nach dem letzten Durchlauf.
-                        var entry = answer;
-                        var question = QuestionOf(entry.QuestionId);
+                @if (_state.Answers.Count == 0)
+                {
+                    <p class="empty">Noch keine Antwort erfasst.</p>
+                }
+                else
+                {
+                    <ol class="transcript">
+                        @foreach (var answer in _state.Answers.OrderBy(entry => entry.Sequence))
+                        {
+                            // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
+                            // Schleifenzustand nach dem letzten Durchlauf.
+                            var entry = answer;
+                            var question = QuestionOf(entry.QuestionId);
 
-                        <li class="@(entry.LoopInstanceId is null ? "step" : "step step-loop")">
-                            <div class="step-head">
-                                <span class="mono">@entry.QuestionKey</span>
-                                @if (entry.IterationIndex is { } iteration)
+                            <li class="@(entry.LoopInstanceId is null ? "step" : "step step-loop")">
+                                <div class="step-head">
+                                    <span class="mono">@entry.QuestionKey</span>
+                                    @if (entry.IterationIndex is { } iteration)
+                                    {
+                                        <span class="badge badge-loop" title="Antwort innerhalb einer Schleife">
+                                            Iteration @(iteration + 1)
+                                        </span>
+                                    }
+                                    <span class="step-time">@entry.AnsweredAt.LocalDateTime.ToString("T")</span>
+                                </div>
+
+                                <div class="step-text">@(question?.Text ?? "Frage gehört nicht mehr zum Dialog")</div>
+                                <div class="step-value">@AnswerValueCodec.Describe(question, entry.Value)</div>
+
+                                @if (question is null)
                                 {
-                                    <span class="badge badge-loop" title="Antwort innerhalb einer Schleife">
-                                        Iteration @(iteration + 1)
+                                    <span class="hint">Ohne Frage im Graphen lässt sich diese Antwort nicht editieren.</span>
+                                }
+                                else if (_editing is { } editing && editing.Answer.Sequence == entry.Sequence)
+                                {
+                                    <AnswerInput Type="question.Type"
+                                                 Options="AnswerChoice.From(question.Options)"
+                                                 Input="editing.Input"
+                                                 OnSubmit="SaveEditAsync"
+                                                 SubmitLabel="Speichern"
+                                                 Disabled="_busy" />
+                                    <div class="actions">
+                                        <button class="btn" disabled="@_busy" @onclick="() => _editing = null">Abbrechen</button>
+                                    </div>
+                                    <span class="hint">
+                                        Beim Speichern werden alle nachgelagerten Antworten verworfen und der Pfad
+                                        ab hier neu berechnet.
                                     </span>
                                 }
-                                <span class="step-time">@entry.AnsweredAt.LocalDateTime.ToString("T")</span>
-                            </div>
-
-                            <div class="step-text">@(question?.Text ?? "Frage gehört nicht mehr zum Dialog")</div>
-                            <div class="step-value">@AnswerValueCodec.Describe(question, entry.Value)</div>
-
-                            @if (question is null)
-                            {
-                                <span class="hint">Ohne Frage im Graphen lässt sich diese Antwort nicht editieren.</span>
-                            }
-                            else if (_editing is { } editing && editing.Answer.Sequence == entry.Sequence)
-                            {
-                                <AnswerInput Type="question.Type"
-                                             Options="AnswerChoice.From(question.Options)"
-                                             Input="editing.Input"
-                                             OnSubmit="SaveEditAsync"
-                                             SubmitLabel="Speichern"
-                                             Disabled="_busy" />
-                                <div class="actions">
-                                    <button class="btn" disabled="@_busy" @onclick="() => _editing = null">Abbrechen</button>
-                                </div>
-                                <span class="hint">
-                                    Beim Speichern werden alle nachgelagerten Antworten verworfen und der Pfad
-                                    ab hier neu berechnet.
-                                </span>
-                            }
-                            else
-                            {
-                                <button class="btn" disabled="@_busy"
-                                        @onclick="() => StartEdit(entry, question)">Bearbeiten</button>
-                            }
-                        </li>
-                    }
-                </ol>
-            }
-        </div>
+                                else
+                                {
+                                    <button class="btn" disabled="@_busy"
+                                            @onclick="() => StartEdit(entry, question)">Bearbeiten</button>
+                                }
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+        }
 
         <div class="editor">
             @if (_state.CurrentQuestion is { } current)
@@ -192,119 +206,162 @@ else
             </div>
         </div>
 
-        <div class="editor">
-            <h2>Ausdruckskontext</h2>
+        @* Ausdruckskontext und Trigger-Protokoll sind die globalen Tafeln der Listenansicht. In der
+           Graph-Ansicht stehen dieselben Angaben am gewählten Knoten (#104) – dort, wo sie entstehen. *@
+        @if (!_graphView)
+        {
+            <div class="editor">
+                <h2>Ausdruckskontext</h2>
 
-            <p class="hint">
-                Womit die Übergangs- und Trigger-Bedingungen gerade rechnen – dieselben Bindungen, die die
-                Engine im Ausdruck sieht. Die Werte sind roher JSON-Text.
-            </p>
+                <p class="hint">
+                    Womit die Übergangs- und Trigger-Bedingungen gerade rechnen – dieselben Bindungen, die die
+                    Engine im Ausdruck sieht. Die Werte sind roher JSON-Text.
+                </p>
 
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Bezeichner</th>
-                        <th>Art</th>
-                        <th>Wert</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var question in _detail.Questions)
-                    {
-                        <tr>
-                            <td class="mono">@question.Key</td>
-                            <td>Antwort</td>
-                            <td class="mono">
-                                @(_snapshot is not null && _snapshot.Answers.TryGetValue(question.Key, out var bound)
-                                    ? bound
-                                    : "— noch nicht beantwortet —")
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var loop in _detail.Loops)
-                    {
-                        var entries = _snapshot?.Collections.GetValueOrDefault(loop.CollectionKey) ?? [];
-
-                        <tr>
-                            <td class="mono">@loop.CollectionKey</td>
-                            <td>Schleife (@entries.Count)</td>
-                            <td class="mono">@(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))</td>
-                        </tr>
-                    }
-                    <tr>
-                        <td class="mono">iterationIndex</td>
-                        <td>Kontext</td>
-                        <td class="mono" title="Iterationsindex der zuletzt gegebenen Antwort auf die offene Frage">
-                            @(_snapshot?.IterationIndex?.ToString() ?? "— außerhalb einer Schleife —")
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="editor">
-            <h2>Trigger</h2>
-
-            <p class="hint">
-                Oben, was die Engine in diesem Lauf publiziert hat; darunter, was am Dialog konfiguriert
-                ist. <strong>In-Process</strong>-Einträge stellt die Engine bewusst nicht selbst zu –
-                dafür hängt die Host-App ihren eigenen <code>INotificationHandler&lt;T&gt;</code> ein.
-            </p>
-
-            @if (TriggerLog.Entries.Count == 0)
-            {
-                <p class="empty">Noch nichts publiziert.</p>
-            }
-            else
-            {
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Zeit</th>
-                            <th>Zeitpunkt</th>
-                            <th>Frage</th>
-                            <th>Was</th>
+                            <th>Bezeichner</th>
+                            <th>Art</th>
+                            <th>Wert</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var logEntry in TriggerLog.Entries)
+                        @foreach (var question in _detail.Questions)
                         {
                             <tr>
-                                <td>@logEntry.OccurredAt.LocalDateTime.ToString("T")</td>
-                                <td>@TriggerLabels.Describe(logEntry.Scope)</td>
+                                <td class="mono">@question.Key</td>
+                                <td>Antwort</td>
                                 <td class="mono">
-                                    @(logEntry.QuestionId is { } questionId ? QuestionLabel(questionId) : "—")
+                                    @(_snapshot is not null && _snapshot.Answers.TryGetValue(question.Key, out var bound)
+                                        ? bound
+                                        : "— noch nicht beantwortet —")
                                 </td>
-                                <td>@logEntry.Detail</td>
                             </tr>
                         }
+                        @foreach (var loop in _detail.Loops)
+                        {
+                            var entries = _snapshot?.Collections.GetValueOrDefault(loop.CollectionKey) ?? [];
+
+                            <tr>
+                                <td class="mono">@loop.CollectionKey</td>
+                                <td>Schleife (@entries.Count)</td>
+                                <td class="mono">@(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))</td>
+                            </tr>
+                        }
+                        <tr>
+                            <td class="mono">iterationIndex</td>
+                            <td>Kontext</td>
+                            <td class="mono" title="Iterationsindex der zuletzt gegebenen Antwort auf die offene Frage">
+                                @(_snapshot?.IterationIndex?.ToString() ?? "— außerhalb einer Schleife —")
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
-            }
+            </div>
 
-            @if (_detail.Triggers.Count == 0)
-            {
-                <p class="hint">Am Dialog ist kein Trigger konfiguriert.</p>
-            }
-            else
-            {
-                <ul class="configured-triggers">
-                    @foreach (var trigger in _detail.Triggers)
-                    {
-                        <li>
-                            @TriggerLabels.Describe(trigger.Scope) · @TriggerLabels.Describe(trigger.Kind)
-                            @if (trigger.QuestionId is { } questionId)
+            <div class="editor">
+                <h2>Trigger</h2>
+
+                <p class="hint">
+                    Oben, was die Engine in diesem Lauf publiziert hat; darunter, was am Dialog konfiguriert
+                    ist. <strong>In-Process</strong>-Einträge stellt die Engine bewusst nicht selbst zu –
+                    dafür hängt die Host-App ihren eigenen <code>INotificationHandler&lt;T&gt;</code> ein.
+                </p>
+
+                @if (TriggerLog.Entries.Count == 0)
+                {
+                    <p class="empty">Noch nichts publiziert.</p>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Zeit</th>
+                                <th>Zeitpunkt</th>
+                                <th>Frage</th>
+                                <th>Was</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var logEntry in TriggerLog.Entries)
                             {
-                                <span class="mono">nach @QuestionLabel(questionId)</span>
+                                <tr>
+                                    <td>@logEntry.OccurredAt.LocalDateTime.ToString("T")</td>
+                                    <td>@TriggerLabels.Describe(logEntry.Scope)</td>
+                                    <td class="mono">
+                                        @(logEntry.QuestionId is { } questionId ? QuestionLabel(questionId) : "—")
+                                    </td>
+                                    <td>@logEntry.Detail</td>
+                                </tr>
                             }
-                            @if (!string.IsNullOrWhiteSpace(trigger.Expression))
-                            {
-                                <span class="mono">wenn @trigger.Expression</span>
-                            }
-                        </li>
-                    }
-                </ul>
-            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (_detail.Triggers.Count == 0)
+                {
+                    <p class="hint">Am Dialog ist kein Trigger konfiguriert.</p>
+                }
+                else
+                {
+                    <ul class="configured-triggers">
+                        @foreach (var trigger in _detail.Triggers)
+                        {
+                            <li>
+                                @TriggerLabels.Describe(trigger.Scope) · @TriggerLabels.Describe(trigger.Kind)
+                                @if (trigger.QuestionId is { } questionId)
+                                {
+                                    <span class="mono">nach @QuestionLabel(questionId)</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(trigger.Expression))
+                                {
+                                    <span class="mono">wenn @trigger.Expression</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    }
+
+    @if (_graphView && _graph is not null)
+    {
+        <div class="graph-toolbar">
+            <button class="btn" @onclick="() => ZoomAsync(GraphMetrics.ZoomStep)" aria-label="Vergrößern">＋</button>
+            <button class="btn" @onclick="() => ZoomAsync(1 / GraphMetrics.ZoomStep)" aria-label="Verkleinern">－</button>
+            <button class="btn" @onclick="ResetViewAsync">Ansicht zurücksetzen</button>
+
+            <span class="hint">
+                Der Graph ist hier nicht bearbeitbar – ein Lauf arbeitet auf genau diesem Graphen.
+                Verschieben und Zoomen gehen; zum Ändern in den
+                <a href="@($"dialogs/{DialogId}/graph")">Graph-Editor</a>.
+            </span>
+        </div>
+
+        <div class="graph-layout">
+            <GraphRunCanvas @ref="_canvas"
+                            Model="_graph"
+                            Run="Overlay"
+                            Selection="_selection"
+                            Busy="_busy"
+                            Select="OnSelect"
+                            Move="MoveNodeAsync" />
+
+            <GraphRunInspector Model="_graph"
+                               Detail="_detail"
+                               Run="Overlay"
+                               Snapshot="_snapshot"
+                               Selection="_selection"
+                               Busy="_busy"
+                               EditingSequence="_editing?.Answer.Sequence"
+                               EditInput="_editing?.Input"
+                               Select="OnSelect"
+                               StartEdit="StartEditAt"
+                               SaveEdit="SaveEditAsync"
+                               CancelEdit="() => _editing = null" />
         </div>
     }
 }
@@ -313,6 +370,14 @@ else
     /// <summary>Der Primärschlüssel des durchzuspielenden Dialogs (aus der Route).</summary>
     [Parameter]
     public Guid DialogId { get; set; }
+
+    /// <summary>
+    /// Die anfängliche Darstellung: <c>graph</c> öffnet die Graph-Ansicht (#104), alles andere die
+    /// Verlaufsliste. Nur ein <b>Anfangswert</b> – der Umschalter danach schreibt die Adresse nicht um,
+    /// weil ein Reload den Lauf ohnehin beendet.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
 
     /// <summary>
     /// Präfix des je Lauf vergebenen Anwenderschlüssels. Macht die im Testlauf entstandenen Sessions in
@@ -331,6 +396,23 @@ else
     private string? _message;
     private bool _busy;
     private Guid _loadedId;
+
+    // ---- Graph-Ansicht (#104) ------------------------------------------------------------------------
+
+    private bool _graphView;
+    private DialogGraphModel? _graph;
+    private GraphRunOverlay? _run;
+    private GraphSelection? _selection;
+    private GraphRunCanvas? _canvas;
+
+    /// <summary>
+    /// Der Stand des Trigger-Protokolls <b>vor</b> dem laufenden Schritt. Alles ab diesem Index ist neu
+    /// und blitzt am auslösenden Knoten einmal auf.
+    /// </summary>
+    private int _freshFrom;
+
+    /// <summary>Der Laufzustand – vor dem ersten Lauf der leere.</summary>
+    private GraphRunOverlay Overlay => _run ?? GraphRunAnalyzer.NotStarted();
 
     /// <summary>Der gerade editierte Verlaufseintrag samt seinem vorbelegten Eingabezustand.</summary>
     /// <param name="Answer">Die zu überschreibende Antwort.</param>
@@ -354,10 +436,19 @@ else
         _input = null;
         _editing = null;
         _message = null;
+        _run = null;
+        _selection = null;
+
+        // Nur beim Laden des Dialogs: Danach gehört die Ansicht dem Umschalter, nicht der Adresse.
+        _graphView = string.Equals(View, "graph", StringComparison.OrdinalIgnoreCase);
 
         var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
         _detail = result.Value;
         _error = result.Error;
+
+        // Das Zeichenmodell entsteht EINMAL je geladenem Dialog. Aus dem Markup heraus gerechnet liefe
+        // die ganze Anordnung bei jedem Render erneut – also bei jedem Schritt des Laufs (#101).
+        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
     }
 
     /// <summary>
@@ -370,7 +461,11 @@ else
         _busy = true;
         _message = null;
         _editing = null;
+        _selection = null;
         TriggerLog.Clear();
+
+        // Frisches Protokoll: Alles, was dieser Start publiziert, ist neu.
+        _freshFrom = 0;
 
         try
         {
@@ -457,6 +552,10 @@ else
         _busy = true;
         _message = null;
 
+        // Der Stand VOR dem Schritt: Was danach dazukommt, ist das Ergebnis genau dieses Schritts und
+        // blitzt in der Graph-Ansicht am auslösenden Knoten auf.
+        _freshFrom = TriggerLog.Entries.Count;
+
         try
         {
             var result = await Runtime.ExecuteAsync(step);
@@ -497,6 +596,120 @@ else
         _state = result.Value!;
         _snapshot = _detail is null ? null : RunExpressionContext.Build(_detail, _state);
         _input = _state.CurrentQuestion is { } current ? AnswerInputModel.For(current) : null;
+
+        // Der Laufzustand entsteht nach JEDEM Schritt neu – auch nach einem Edit, der nachgelagerte
+        // Antworten verwirft: Der Pfad ist aus der Antwortfolge abgeleitet und schrumpft damit von
+        // selbst mit (#104).
+        _run = _detail is null
+            ? null
+            : GraphRunAnalyzer.Build(_detail, _state, TriggerLog.Entries, _freshFrom);
+    }
+
+    // ---- Graph-Ansicht (#104) ------------------------------------------------------------------------
+
+    /// <summary>
+    /// Wechselt die Darstellung. Der Lauf selbst bleibt unberührt – auch eine begonnene Bearbeitung, die
+    /// in beiden Ansichten dieselbe ist.
+    /// </summary>
+    /// <param name="graph"><see langword="true"/> für die Graph-Ansicht.</param>
+    private void SetView(bool graph) => _graphView = graph;
+
+    /// <summary>Wählt ein Element auf dem Canvas aus.</summary>
+    /// <remarks>
+    /// Eine neue Auswahl beendet eine begonnene Bearbeitung: Das Formular hängt am gewählten Knoten, und
+    /// ein unsichtbar weiterlaufender Entwurf schriebe beim Speichern in eine Antwort, die niemand mehr
+    /// vor sich hat.
+    /// </remarks>
+    /// <param name="selection">Das gewählte Element.</param>
+    private void OnSelect(GraphSelection selection)
+    {
+        _selection = selection;
+        _editing = null;
+    }
+
+    /// <summary>
+    /// Öffnet den Editier-Modus für die Antwort mit dieser Position – der Weg aus dem Inspector, der
+    /// seine Antworten je Iteration listet.
+    /// </summary>
+    /// <param name="sequence">Die <c>Sequence</c> der zu überschreibenden Antwort.</param>
+    private void StartEditAt(int sequence)
+    {
+        if (_state?.Answers.FirstOrDefault(answer => answer.Sequence == sequence) is not { } target
+            || QuestionOf(target.QuestionId) is not { } question)
+        {
+            return;
+        }
+
+        StartEdit(target, question);
+    }
+
+    private async Task ZoomAsync(double factor)
+    {
+        if (_canvas is not null)
+        {
+            await _canvas.ZoomAsync(factor);
+        }
+    }
+
+    private async Task ResetViewAsync()
+    {
+        if (_canvas is not null)
+        {
+            await _canvas.ResetViewAsync();
+        }
+    }
+
+    /// <summary>
+    /// Übernimmt die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Verschieben ist auch hier erlaubt – eine Position gehört nicht zum Graphen, der Command läuft ohne
+    /// <c>DialogEditGuard</c> (ADR 0007), und wer einen Lauf verfolgt, will den Graphen erst recht
+    /// ordnen können. Es ist der einzige schreibende Weg dieser Ansicht.
+    /// </para>
+    /// <para>
+    /// Bei Erfolg wird das zurückgegebene Layout in das <b>gepufferte</b> <c>DialogDetail</c> übernommen
+    /// und das Zeichenmodell daraus neu gebaut; bei einem Fehlschlag entsteht es aus dem unveränderten
+    /// Stand, und der Knoten springt sichtbar zurück. Ihn stehen zu lassen behauptete eine Position, die
+    /// es in der Datenbank nicht gibt.
+    /// </para>
+    /// </remarks>
+    /// <param name="move">Die verschobene Frage und ihre neue Position.</param>
+    private async Task MoveNodeAsync(NodeMove move)
+    {
+        if (_busy || _detail is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            var result = await Admin.ExecuteAsync((sender, token) => sender.Send(
+                new SetDialogLayoutCommand(
+                    DialogId,
+                    [new DialogLayoutEntry(LayoutElementKind.Question, move.QuestionId, move.X, move.Y)]),
+                token));
+
+            if (result.Success)
+            {
+                _detail = _detail with { Layout = result.Value! };
+            }
+            else
+            {
+                _error = result.Error;
+            }
+
+            _graph = DialogGraphBuilder.Build(_detail);
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
     }
 
     private QuestionDetail? QuestionOf(Guid questionId)
