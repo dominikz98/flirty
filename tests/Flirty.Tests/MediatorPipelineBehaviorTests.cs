@@ -30,7 +30,7 @@ public class MediatorPipelineBehaviorTests
         Assert.Equal("ping", response.Message);
 
         // Der Beginn wird protokolliert -> das Behavior lief VOR dem Handler.
-        Assert.Contains(spy.Entries, entry => entry.Message.Contains("Mediator verarbeitet PingCommand"));
+        Assert.Contains(spy.Entries, entry => entry.Message.Contains("Mediator processes PingCommand"));
         // Der Abschluss (mit Dauer) wird protokolliert -> next() kehrte zurück, der Command lief
         // vollständig DURCH das Behavior.
         Assert.Contains(spy.Entries, entry => entry.Message.Contains("PingCommand") && entry.Message.Contains("ms"));

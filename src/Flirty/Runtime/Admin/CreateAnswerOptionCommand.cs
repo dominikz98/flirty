@@ -6,15 +6,15 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Legt eine neue Antwortoption in der Frage <see cref="QuestionId"/> (Dialog <see cref="DialogId"/>)
-/// an. Der fachliche Schlüssel muss innerhalb der Frage eindeutig sein.
+/// Creates a new answer option in the question <see cref="QuestionId"/> (dialog <see cref="DialogId"/>).
+/// The business key must be unique within the question.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem die Frage gehört.</param>
-/// <param name="QuestionId">Die Id der Frage, zu der die Option gehört.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Option.</param>
-/// <param name="Label">Der angezeigte Beschriftungstext der Option.</param>
-/// <param name="Value">Der bei Auswahl gespeicherte Wert der Option.</param>
-/// <param name="Order">Der Reihenfolge-Index der Option innerhalb der Frage.</param>
+/// <param name="DialogId">The id of the dialog the question belongs to.</param>
+/// <param name="QuestionId">The id of the question the option belongs to.</param>
+/// <param name="Key">The business, stable key of the option.</param>
+/// <param name="Label">The displayed label text of the option.</param>
+/// <param name="Value">The value of the option stored on selection.</param>
+/// <param name="Order">The order index of the option within the question.</param>
 public sealed record CreateAnswerOptionCommand(
     Guid DialogId,
     Guid QuestionId,
@@ -23,15 +23,15 @@ public sealed record CreateAnswerOptionCommand(
     [property: Required] string Value,
     int Order) : ICommand<AnswerOptionDetail>;
 
-/// <summary>Handler für <see cref="CreateAnswerOptionCommand"/>.</summary>
+/// <summary>Handler for <see cref="CreateAnswerOptionCommand"/>.</summary>
 internal sealed class CreateAnswerOptionCommandHandler
     : ICommandHandler<CreateAnswerOptionCommand, AnswerOptionDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public CreateAnswerOptionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -40,16 +40,16 @@ internal sealed class CreateAnswerOptionCommandHandler
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Keine Frage mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No question with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="InvalidOperationException">In der Frage existiert bereits eine Option mit diesem Schlüssel.</exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="InvalidOperationException">An option with this key already exists in the question.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<AnswerOptionDetail> Handle(
         CreateAnswerOptionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);
@@ -61,7 +61,7 @@ internal sealed class CreateAnswerOptionCommandHandler
         if (question.Options.Any(option => option.Key == command.Key))
         {
             throw new InvalidOperationException(
-                $"In der Frage '{command.QuestionId}' existiert bereits eine Option mit dem Schlüssel '{command.Key}'.");
+                $"An option with the key '{command.Key}' already exists in the question '{command.QuestionId}'.");
         }
 
         var option = new AnswerOption

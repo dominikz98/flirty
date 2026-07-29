@@ -1,96 +1,96 @@
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Die Maße des Graph-Canvas (#101) – eine Quelle für das Layout in C#, das Markup in
-/// <c>DialogGraph.razor</c> und die Grenzwerte, die an das JS-Modul gereicht werden.
+/// The dimensions of the graph canvas (#101) – one source for the layout in C#, the markup in
+/// <c>DialogGraph.razor</c> and the limit values passed to the JS module.
 /// </summary>
 /// <remarks>
-/// Die Abstände sind bewusst <b>ganzzahlig und gerade</b>: Die Koordinaten entstehen ausschließlich als
-/// ganzzahlige Vielfache aus Schicht und Spalte, nie aus einem Mittelwert. Andernfalls hingen die
-/// letzten Nachkommastellen an der Gleitkomma-Reihenfolge, und die Zusage „gleicher Graph ⇒ gleiche
-/// Koordinaten" (Akzeptanzkriterium) wäre nur noch meistens wahr.
+/// The spacings are deliberately <b>integer and even</b>: the coordinates arise exclusively as
+/// integer multiples of layer and column, never from an average. Otherwise the
+/// last decimal places would hang on the floating-point order, and the promise "same graph ⇒ same
+/// coordinates" (acceptance criterion) would only be mostly true.
 /// </remarks>
 public static class GraphMetrics
 {
-    /// <summary>Breite einer Knotenkarte in px.</summary>
+    /// <summary>Width of a node card in px.</summary>
     public const double NodeWidth = 240;
 
     /// <summary>
-    /// Höhe einer Knotenkarte in px. Bemessen für den vollen Inhalt – Badge-Zeile, zwei Zeilen
-    /// Fragetext, Metazeile <b>und</b> eine Reihe Trigger-Chips. Die Karte schneidet Überlauf ab; wäre
-    /// sie knapper, verschwänden die Chips unsichtbar.
+    /// Height of a node card in px. Sized for the full content – badge row, two lines of
+    /// question text, meta line <b>and</b> a row of trigger chips. The card clips overflow; were
+    /// it tighter, the chips would disappear invisibly.
     /// </summary>
     public const double NodeHeight = 112;
 
-    /// <summary>Waagerechter Abstand zwischen zwei Knoten derselben Schicht in px.</summary>
+    /// <summary>Horizontal spacing between two nodes of the same layer in px.</summary>
     public const double GapX = 60;
 
-    /// <summary>Senkrechter Abstand zwischen zwei Schichten in px.</summary>
+    /// <summary>Vertical spacing between two layers in px.</summary>
     public const double GapY = 80;
 
-    /// <summary>Rand links und rechts des Graphen in px.</summary>
+    /// <summary>Margin left and right of the graph in px.</summary>
     public const double MarginX = 40;
 
-    /// <summary>Rand oben und unten in px.</summary>
+    /// <summary>Margin top and bottom in px.</summary>
     public const double MarginY = 40;
 
-    /// <summary>Waagerechter Rasterabstand: Knotenbreite plus Lücke.</summary>
+    /// <summary>Horizontal grid pitch: node width plus gap.</summary>
     public const double PitchX = NodeWidth + GapX;
 
-    /// <summary>Senkrechter Rasterabstand: Knotenhöhe plus Lücke.</summary>
+    /// <summary>Vertical grid pitch: node height plus gap.</summary>
     public const double PitchY = NodeHeight + GapY;
 
     /// <summary>
-    /// Seitlicher Versatz je zusätzlicher Kante zwischen demselben Knotenpaar in px. Ohne ihn lägen
-    /// mehrere Übergänge deckungsgleich übereinander und wären nicht unterscheidbar.
+    /// Lateral offset per additional edge between the same node pair in px. Without it several
+    /// transitions would lie congruently on top of each other and would not be distinguishable.
     /// </summary>
     public const double FanStep = 18;
 
-    /// <summary>Auslenkung der Bézier-Kontrollpunkte einer Vorwärtskante in px.</summary>
+    /// <summary>Deflection of the Bézier control points of a forward edge in px.</summary>
     public const double EdgeBend = 70;
 
-    /// <summary>Abstand zweier Rücksprung-Kanäle rechts des Graphen in px.</summary>
+    /// <summary>Spacing of two back-jump channels to the right of the graph in px.</summary>
     public const double GutterStep = 34;
 
-    /// <summary>Innenabstand eines Schleifen-Rahmens zu den Knoten seines Bereichs in px.</summary>
+    /// <summary>Inner spacing of a loop frame to the nodes of its range in px.</summary>
     public const double LoopFramePadding = 20;
 
     /// <summary>
-    /// Zusätzlicher Innenabstand je weiterem Schleifen-Rahmen in px – damit sich zwei Rahmen nicht
-    /// exakt decken.
+    /// Additional inner spacing per further loop frame in px – so that two frames do not
+    /// exactly coincide.
     /// </summary>
     public const double LoopFramePaddingStep = 10;
 
     /// <summary>
-    /// Kantenlänge des Ausgangs-Ports am Knoten in px (#103).
+    /// Edge length of the source port at the node in px (#103).
     /// </summary>
     /// <remarks>
-    /// Der Port sitzt an der <b>Unterkante-Mitte</b> – genau dort, wo <c>GraphLayout.Route</c> eine
-    /// Vorwärtskante ansetzt. Die Affordanz behauptet damit denselben Ansatzpunkt, den die erzeugte
-    /// Kante später hat; ein Port an einer anderen Stelle wäre eine sichtbare Lüge über die Geometrie.
+    /// The port sits at the <b>bottom-edge center</b> – exactly where <c>GraphLayout.Route</c> attaches a
+    /// forward edge. The affordance thereby asserts the same attachment point that the generated
+    /// edge later has; a port at another place would be a visible lie about the geometry.
     /// </remarks>
     public const double PortSize = 26;
 
     /// <summary>
-    /// Kleinste Breite der Zeichenfläche in px – unabhängig davon, wie wenig darauf liegt.
+    /// Smallest width of the canvas in px – regardless of how little lies on it.
     /// </summary>
     /// <remarks>
-    /// Seit #103 ist der Canvas eine <b>Ablagefläche</b>: Ein Fragetyp wird aus der Palette darauf
-    /// gezogen. Ohne Untergrenze wäre die Fläche eines leeren Dialogs
-    /// <c>MarginX * 2</c> × <c>MarginY * 2</c> = 80 × 80 px – zu klein, um darauf zu zielen, und genau
-    /// im leeren Dialog beginnt man.
+    /// Since #103 the canvas is a <b>drop surface</b>: a question type is dragged onto it from the
+    /// palette. Without a lower bound the surface of an empty dialog would be
+    /// <c>MarginX * 2</c> × <c>MarginY * 2</c> = 80 × 80 px – too small to aim at, and exactly
+    /// in the empty dialog is where one begins.
     /// </remarks>
     public const double MinCanvasWidth = 960;
 
-    /// <summary>Kleinste Höhe der Zeichenfläche in px. Begründung wie bei <see cref="MinCanvasWidth"/>.</summary>
+    /// <summary>Smallest height of the canvas in px. Rationale as with <see cref="MinCanvasWidth"/>.</summary>
     public const double MinCanvasHeight = 540;
 
-    /// <summary>Kleinster Zoomfaktor des Canvas.</summary>
+    /// <summary>Smallest zoom factor of the canvas.</summary>
     public const double MinZoom = 0.25;
 
-    /// <summary>Größter Zoomfaktor des Canvas.</summary>
+    /// <summary>Largest zoom factor of the canvas.</summary>
     public const double MaxZoom = 2.5;
 
-    /// <summary>Zoomschritt je Rasterung des Mausrads bzw. Klick auf die Werkzeugleiste.</summary>
+    /// <summary>Zoom step per detent of the mouse wheel or click on the toolbar.</summary>
     public const double ZoomStep = 1.15;
 }

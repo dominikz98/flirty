@@ -725,6 +725,21 @@ text – flipping the rule first is what makes the rest a one-way street. **Stag
 the 17 `docs/` guides and the 9 ADRs are English; the 8 ADR files were renamed via `git mv` (numbers
 unchanged) and every referrer (this file, the skills, `docs/adr/README.md` and the guides) now points at
 the new English slugs (`docs/adr/0001-migrations-per-provider.md` … `0008-gestures-on-the-canvas.md`).
-**Open:** stage 3 (#115: XML docs, comments and engine messages in the two
-packages), stage 4 (#116: designer and sample UIs, incl. `DisplayCulture` and the English `ReconnectModal`
-handed off from #118) and stage 5 (#117: the 553 test names, last so the renames do not collide).
+**Stage 3 (#115) done** – the two NuGet packages (`Flirty`, `Flirty.AspNetCore`) are English throughout:
+all XML docs, comments and German string literals, and both `.csproj` `<Description>`s (what nuget.org
+shows under the package title, effective from the next published version, not retroactively). The
+umlaut gate `grep -rlE '[äöüßÄÖÜ]' src/Flirty src/Flirty.AspNetCore --include='*.cs' --include='*.csproj'`
+now returns nothing. **The engine's validation messages are English from now on** – `AnswerValidator`
+produces them and `Flirty.AspNetCore` returns them as the `400` body, so a host that pipes them straight
+into its UI sees the language flip; the *contract* (`AnswerValidationResult` shape, status codes) is
+unchanged. Delicate points: five test assertions tracked a German package message and moved in the same
+commit (`DialogVersioningTests` "multiple versions"/"1 session(s)"/"published",
+`MapFlirtyAdminEndpointsTests` "new version"/"1 session(s)") – the DeleteDialog wording is now
+`{n} session(s)` (lowercase); and the `ReflectionNotAllowedException` message (#97) was translated while
+detection stays **by exception type**, never by matching localized text, and the message deliberately
+never names `EnableReflection`. Also swept in this stage: comments/XML docs (not UI string literals) in
+Migrations, the Designer service/model layer and the Samples – their UI strings stay German for stage 4,
+so those projects are deliberately not umlaut-free yet. `docs/VALIDATION.md` describes behavior and quotes
+no message text, so it needed no change. **Open:** stage 4 (#116: designer and sample UIs, incl.
+`DisplayCulture` and the English `ReconnectModal` handed off from #118) and stage 5 (#117: the 553 test
+names, last so the renames do not collide).

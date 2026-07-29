@@ -3,15 +3,15 @@ using Flirty.Domain;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Deutsche Anzeigetexte für <see cref="TriggerScope"/> und <see cref="TriggerKind"/>. Zentral, damit
-/// Trigger-Liste (<c>DialogEditor</c>) und Trigger-Editor (<c>TriggerEditor</c>) dieselben
-/// Bezeichnungen verwenden (Muster: <see cref="QuestionTypeLabels"/>).
+/// German display texts for <see cref="TriggerScope"/> and <see cref="TriggerKind"/>. Central, so that
+/// the trigger list (<c>DialogEditor</c>) and trigger editor (<c>TriggerEditor</c>) use the same
+/// designations (pattern: <see cref="QuestionTypeLabels"/>).
 /// </summary>
 internal static class TriggerLabels
 {
-    /// <summary>Liefert den Anzeigetext des Auslöse-Zeitpunkts.</summary>
-    /// <param name="scope">Der Zeitpunkt im Dialogablauf.</param>
-    /// <returns>Der deutsche Anzeigetext (inklusive des technischen Namens zur Wiedererkennung).</returns>
+    /// <summary>Returns the display text of the triggering point in time.</summary>
+    /// <param name="scope">The point in time in the dialog flow.</param>
+    /// <returns>The German display text (including the technical name for recognition).</returns>
     public static string Describe(TriggerScope scope) => scope switch
     {
         TriggerScope.OnDialogStarted => "Beim Dialogstart (OnDialogStarted)",
@@ -21,9 +21,9 @@ internal static class TriggerLabels
         _ => scope.ToString(),
     };
 
-    /// <summary>Liefert den Anzeigetext des Kanals.</summary>
-    /// <param name="kind">Der Kanal, über den benachrichtigt wird.</param>
-    /// <returns>Der deutsche Anzeigetext (inklusive des technischen Namens zur Wiedererkennung).</returns>
+    /// <summary>Returns the display text of the channel.</summary>
+    /// <param name="kind">The channel over which notification is sent.</param>
+    /// <returns>The German display text (including the technical name for recognition).</returns>
     public static string Describe(TriggerKind kind) => kind switch
     {
         TriggerKind.Webhook => "Webhook (HTTP POST)",
@@ -32,20 +32,20 @@ internal static class TriggerLabels
     };
 
     /// <summary>
-    /// Gibt an, ob der Zeitpunkt einen Frage-Verweis braucht. Nur
-    /// <see cref="TriggerScope.AfterQuestion"/> bezieht sich auf eine einzelne Frage – die Admin-Commands
-    /// weisen abweichende Kombinationen zurück.
+    /// Indicates whether the point in time needs a question reference. Only
+    /// <see cref="TriggerScope.AfterQuestion"/> refers to a single question – the admin commands
+    /// reject deviating combinations.
     /// </summary>
-    /// <param name="scope">Der Zeitpunkt im Dialogablauf.</param>
-    /// <returns><see langword="true"/> bei <see cref="TriggerScope.AfterQuestion"/>.</returns>
+    /// <param name="scope">The point in time in the dialog flow.</param>
+    /// <returns><see langword="true"/> for <see cref="TriggerScope.AfterQuestion"/>.</returns>
     public static bool RequiresQuestion(TriggerScope scope) => scope == TriggerScope.AfterQuestion;
 
     /// <summary>
-    /// Gibt an, ob zum Zeitpunkt der Auswertung bereits Antworten im Ausdruckskontext gebunden sind.
-    /// Beim Dialogstart ist das <b>nicht</b> der Fall: eine Bedingung auf einen Fragen-Schlüssel
-    /// scheitert dort zur Laufzeit (der Trigger feuert dann nicht, der Fehler wird nur protokolliert).
+    /// Indicates whether answers are already bound in the expression context at the point in time of evaluation.
+    /// At the dialog start this is <b>not</b> the case: a condition on a question key
+    /// fails there at runtime (the trigger then does not fire, the error is only logged).
     /// </summary>
-    /// <param name="scope">Der Zeitpunkt im Dialogablauf.</param>
-    /// <returns><see langword="false"/> bei <see cref="TriggerScope.OnDialogStarted"/>.</returns>
+    /// <param name="scope">The point in time in the dialog flow.</param>
+    /// <returns><see langword="false"/> for <see cref="TriggerScope.OnDialogStarted"/>.</returns>
     public static bool HasAnswers(TriggerScope scope) => scope != TriggerScope.OnDialogStarted;
 }

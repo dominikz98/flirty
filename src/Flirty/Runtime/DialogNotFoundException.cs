@@ -1,46 +1,45 @@
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Wird geworfen, wenn zu einem fachlichen Dialog-Schlüssel kein <b>veröffentlichter</b> Dialog
-/// existiert – etwa beim Start eines Dialogs über <see cref="StartDialogCommand"/> bzw.
-/// <see cref="IFlirtyEngine.StartDialogAsync"/>.
+/// Thrown when no <b>published</b> dialog exists for a business dialog key – for example when starting
+/// a dialog via <see cref="StartDialogCommand"/> or <see cref="IFlirtyEngine.StartDialogAsync"/>.
 /// </summary>
 public sealed class DialogNotFoundException : Exception
 {
-    /// <summary>Erstellt die Ausnahme ohne weitere Angaben.</summary>
+    /// <summary>Creates the exception without further details.</summary>
     public DialogNotFoundException()
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit der angegebenen Meldung.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
+    /// <summary>Creates the exception with the given message.</summary>
+    /// <param name="message">The error message describing the cause.</param>
     public DialogNotFoundException(string message)
         : base(message)
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit Meldung und auslösender Ausnahme.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
-    /// <param name="innerException">Die Ausnahme, die diese Ausnahme ausgelöst hat.</param>
+    /// <summary>Creates the exception with a message and a triggering exception.</summary>
+    /// <param name="message">The error message describing the cause.</param>
+    /// <param name="innerException">The exception that caused this exception.</param>
     public DialogNotFoundException(string message, Exception innerException)
         : base(message, innerException)
     {
     }
 
     /// <summary>
-    /// Der fachliche Dialog-Schlüssel, für den kein veröffentlichter Dialog gefunden wurde,
-    /// oder <see langword="null"/>, wenn er nicht bekannt ist.
+    /// The business dialog key for which no published dialog was found,
+    /// or <see langword="null"/> if it is not known.
     /// </summary>
     public string? DialogKey { get; init; }
 
     /// <summary>
-    /// Erstellt eine <see cref="DialogNotFoundException"/> für den angegebenen
-    /// <paramref name="dialogKey"/> samt aussagekräftiger Meldung.
+    /// Creates a <see cref="DialogNotFoundException"/> for the given
+    /// <paramref name="dialogKey"/> along with a meaningful message.
     /// </summary>
-    /// <param name="dialogKey">Der fachliche Dialog-Schlüssel, der nicht aufgelöst werden konnte.</param>
-    /// <returns>Die vorbereitete Ausnahme mit gesetztem <see cref="DialogKey"/>.</returns>
+    /// <param name="dialogKey">The business dialog key that could not be resolved.</param>
+    /// <returns>The prepared exception with <see cref="DialogKey"/> set.</returns>
     public static DialogNotFoundException ForKey(string dialogKey)
-        => new($"Kein veröffentlichter Dialog mit dem Schlüssel '{dialogKey}' gefunden.")
+        => new($"No published dialog with the key '{dialogKey}' found.")
         {
             DialogKey = dialogKey,
         };

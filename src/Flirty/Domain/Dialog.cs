@@ -1,59 +1,59 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Ein konfigurierbarer Dialog (Chatbot-Konversation) und zugleich das Aggregat-Root der
-/// Konfigurationsebene: er bündelt seine Fragen, Übergänge, Schleifen, Trigger und das Canvas-Layout.
+/// A configurable dialog (chatbot conversation) and at the same time the aggregate root of the
+/// configuration layer: it bundles its questions, transitions, loops, triggers and the canvas layout.
 /// </summary>
 public sealed class Dialog
 {
-    /// <summary>Eindeutiger Primärschlüssel des Dialogs.</summary>
+    /// <summary>Unique primary key of the dialog.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fachlicher, stabiler Schlüssel des Dialogs (z. B. für Start per <c>dialogKey</c>).</summary>
+    /// <summary>Business, stable key of the dialog (e.g. for starting via <c>dialogKey</c>).</summary>
     public required string Key { get; set; }
 
-    /// <summary>Anzeigename des Dialogs.</summary>
+    /// <summary>Display name of the dialog.</summary>
     public required string Name { get; set; }
 
-    /// <summary>Optionale Beschreibung des Dialogs.</summary>
+    /// <summary>Optional description of the dialog.</summary>
     public string? Description { get; set; }
 
     /// <summary>
-    /// Versionsnummer des Dialogs. Laufende Sessions pinnen diese Version, damit das
-    /// Editieren eines publizierten Dialogs bestehende Sessions nicht bricht.
+    /// Version number of the dialog. Running sessions pin this version so that editing a published
+    /// dialog does not break existing sessions.
     /// </summary>
     public int Version { get; set; }
 
-    /// <summary>Gibt an, ob der Dialog veröffentlicht (produktiv nutzbar) ist.</summary>
+    /// <summary>Indicates whether the dialog is published (usable in production).</summary>
     public bool IsPublished { get; set; }
 
     /// <summary>
-    /// Verweis auf die Einstiegsfrage (<see cref="Question.Id"/>) oder <see langword="null"/>,
-    /// solange noch keine Startfrage festgelegt ist.
+    /// Reference to the entry question (<see cref="Question.Id"/>) or <see langword="null"/>
+    /// while no start question has been set yet.
     /// </summary>
     public Guid? StartQuestionId { get; set; }
 
-    /// <summary>Zeitpunkt der Erstellung des Dialogs.</summary>
+    /// <summary>Timestamp of the dialog's creation.</summary>
     public DateTimeOffset CreatedAt { get; set; }
 
-    /// <summary>Zeitpunkt der letzten Änderung des Dialogs.</summary>
+    /// <summary>Timestamp of the dialog's last modification.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
 
-    /// <summary>Die Fragen dieses Dialogs.</summary>
+    /// <summary>The questions of this dialog.</summary>
     public ICollection<Question> Questions { get; set; } = [];
 
-    /// <summary>Die bedingten Übergänge (Branching) dieses Dialogs.</summary>
+    /// <summary>The conditional transitions (branching) of this dialog.</summary>
     public ICollection<Transition> Transitions { get; set; } = [];
 
-    /// <summary>Die Schleifen-Definitionen (Loop-Marker) dieses Dialogs.</summary>
+    /// <summary>The loop definitions (loop markers) of this dialog.</summary>
     public ICollection<LoopDefinition> Loops { get; set; } = [];
 
-    /// <summary>Die Trigger-Definitionen (Rückkanäle) dieses Dialogs.</summary>
+    /// <summary>The trigger definitions (back channels) of this dialog.</summary>
     public ICollection<TriggerDefinition> Triggers { get; set; } = [];
 
     /// <summary>
-    /// Die gespeicherten Canvas-Positionen dieses Dialogs – reine Anzeigedaten des Designers, von der
-    /// Laufzeit nie gelesen.
+    /// The stored canvas positions of this dialog - pure display data of the designer, never read by the
+    /// runtime.
     /// </summary>
     public ICollection<DialogLayout> Layout { get; set; } = [];
 }

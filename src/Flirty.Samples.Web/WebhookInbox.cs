@@ -1,26 +1,26 @@
 namespace Flirty.Samples.Web;
 
 /// <summary>
-/// Ein empfangener Webhook: der Trigger-Name aus dem Header <c>X-Flirty-Event</c> und der rohe JSON-Body.
+/// A received webhook: the trigger name from the header <c>X-Flirty-Event</c> and the raw JSON body.
 /// </summary>
-/// <param name="Event">Der ausgelöste Trigger-Scope (z. B. <c>OnDialogCompleted</c>).</param>
-/// <param name="Payload">Der rohe JSON-Body der zugestellten Notification.</param>
-/// <param name="ReceivedAt">Zeitpunkt des Eingangs.</param>
+/// <param name="Event">The triggered trigger scope (e.g. <c>OnDialogCompleted</c>).</param>
+/// <param name="Payload">The raw JSON body of the delivered notification.</param>
+/// <param name="ReceivedAt">Point in time of arrival.</param>
 public sealed record WebhookReceipt(string Event, string Payload, DateTimeOffset ReceivedAt);
 
 /// <summary>
-/// Thread-sichere In-Memory-Senke für die vom Inbound-Empfänger (<c>POST /demo/webhooks/flirty</c>)
-/// entgegengenommenen Outbound-Webhooks der Engine. Wird als Singleton registriert und vom Endpunkt
-/// <c>GET /demo/webhooks</c> gelesen, damit die Chat-UI den Outbound→Inbound-Rundlauf sichtbar macht.
+/// Thread-safe in-memory sink for the engine's outbound webhooks taken in by the inbound receiver
+/// (<c>POST /demo/webhooks/flirty</c>). Registered as a singleton and read by the endpoint
+/// <c>GET /demo/webhooks</c>, so that the chat UI makes the outbound→inbound round trip visible.
 /// </summary>
 public sealed class WebhookInbox
 {
     private readonly object _gate = new();
     private readonly List<WebhookReceipt> _receipts = [];
 
-    /// <summary>Zeichnet einen eingegangenen Webhook auf.</summary>
-    /// <param name="eventName">Der Wert des <c>X-Flirty-Event</c>-Headers.</param>
-    /// <param name="payload">Der rohe JSON-Body der Zustellung.</param>
+    /// <summary>Records an incoming webhook.</summary>
+    /// <param name="eventName">The value of the <c>X-Flirty-Event</c> header.</param>
+    /// <param name="payload">The raw JSON body of the delivery.</param>
     public void Add(string eventName, string payload)
     {
         var receipt = new WebhookReceipt(eventName ?? string.Empty, payload ?? string.Empty, DateTimeOffset.UtcNow);
@@ -30,8 +30,8 @@ public sealed class WebhookInbox
         }
     }
 
-    /// <summary>Liefert eine Momentaufnahme aller bisher empfangenen Webhooks (neueste zuletzt).</summary>
-    /// <returns>Eine unveränderliche Kopie der Einträge.</returns>
+    /// <summary>Returns a snapshot of all webhooks received so far (newest last).</summary>
+    /// <returns>An immutable copy of the entries.</returns>
     public IReadOnlyList<WebhookReceipt> Snapshot()
     {
         lock (_gate)

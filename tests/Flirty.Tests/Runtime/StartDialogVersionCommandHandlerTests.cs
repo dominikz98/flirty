@@ -203,7 +203,7 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
             async () => await CreateHandler(act)
                 .Handle(new StartDialogVersionCommand(Guid.NewGuid(), "designer-test-1"), default));
 
-        Assert.Contains("Dialog", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("dialog", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Ohne Einstiegsfrage gibt es nichts zu starten – das meldet der Handler.</summary>
@@ -223,7 +223,7 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
             async () => await CreateHandler(act)
                 .Handle(new StartDialogVersionCommand(headless.Id, "designer-test-1"), default));
 
-        Assert.Contains("Einstiegsfrage", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("entry question", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>

@@ -1,32 +1,32 @@
 namespace Flirty.AspNetCore.Dtos.Admin;
 
 /// <summary>
-/// Anfrage-Körper zum Anlegen eines Schleifen-Markers
-/// (<c>POST {prefix}/dialogs/{dialogId}/loops</c>). Der Zyklus selbst entsteht über die Übergänge –
-/// der Marker legt nur die Metadaten-Ebene darüber.
+/// Request body for creating a loop marker
+/// (<c>POST {prefix}/dialogs/{dialogId}/loops</c>). The cycle itself arises from the transitions –
+/// the marker only adds the metadata layer on top.
 /// </summary>
-/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
-/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife (Ziel des Loop-Back-Übergangs).</param>
-/// <param name="BreakingQuestionId">Verweis auf die Breaking Question (deren Exit-Übergang den Zyklus verlässt).</param>
+/// <param name="CollectionKey">Key under which the answers collected per iteration live in the expression context.</param>
+/// <param name="EntryQuestionId">Reference to the entry question of the loop (target of the loop-back transition).</param>
+/// <param name="BreakingQuestionId">Reference to the breaking question (whose exit transition leaves the cycle).</param>
 public sealed record CreateLoopRequest(string CollectionKey, Guid EntryQuestionId, Guid BreakingQuestionId);
 
 /// <summary>
-/// Anfrage-Körper zum Ändern eines Schleifen-Markers
+/// Request body for changing a loop marker
 /// (<c>PUT {prefix}/dialogs/{dialogId}/loops/{loopId}</c>).
 /// </summary>
-/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
-/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife.</param>
-/// <param name="BreakingQuestionId">Verweis auf die Breaking Question.</param>
+/// <param name="CollectionKey">Key under which the answers collected per iteration live in the expression context.</param>
+/// <param name="EntryQuestionId">Reference to the entry question of the loop.</param>
+/// <param name="BreakingQuestionId">Reference to the breaking question.</param>
 public sealed record UpdateLoopRequest(string CollectionKey, Guid EntryQuestionId, Guid BreakingQuestionId);
 
 /// <summary>
-/// Antwort mit einem Schleifen-Marker.
+/// Response with a loop marker.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Schleifen-Definition.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
-/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife.</param>
-/// <param name="BreakingQuestionId">Verweis auf die Breaking Question.</param>
+/// <param name="Id">The primary key of the loop definition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="CollectionKey">Key under which the answers collected per iteration live in the expression context.</param>
+/// <param name="EntryQuestionId">Reference to the entry question of the loop.</param>
+/// <param name="BreakingQuestionId">Reference to the breaking question.</param>
 public sealed record LoopResponse(
     Guid Id,
     Guid DialogId,

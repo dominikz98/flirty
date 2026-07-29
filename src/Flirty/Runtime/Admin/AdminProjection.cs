@@ -3,14 +3,14 @@ using Flirty.Domain;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Bildet die EF-Core-Entities des Konfigurations-Aggregats auf die navigationsfreien
-/// Admin-Projektions-Records ab, damit die getrackten Entities die Handler nicht verlassen.
+/// Maps the EF Core entities of the configuration aggregate to the navigation-free
+/// admin projection records so that the tracked entities do not leave the handlers.
 /// </summary>
 internal static class AdminProjection
 {
-    /// <summary>Projiziert die Metadaten eines <see cref="Dialog"/> auf eine <see cref="DialogSummary"/>.</summary>
-    /// <param name="dialog">Der zu projizierende Dialog.</param>
-    /// <returns>Die navigationsfreie Metadaten-Sicht.</returns>
+    /// <summary>Projects the metadata of a <see cref="Dialog"/> to a <see cref="DialogSummary"/>.</summary>
+    /// <param name="dialog">The dialog to project.</param>
+    /// <returns>The navigation-free metadata view.</returns>
     public static DialogSummary ToSummary(Dialog dialog)
         => new(
             dialog.Id,
@@ -24,15 +24,15 @@ internal static class AdminProjection
             dialog.UpdatedAt);
 
     /// <summary>
-    /// Projiziert einen <see cref="Dialog"/> samt geladenem Graphen (Fragen inkl. Optionen,
-    /// Übergänge, Schleifen-Marker, Trigger und Canvas-Layout) auf ein <see cref="DialogDetail"/>.
-    /// Fragen und Optionen werden nach <c>Order</c>, Übergänge nach <c>Priority</c>, Schleifen nach
-    /// <c>CollectionKey</c>, Trigger nach <c>Scope</c>/<c>Kind</c>/<c>Config</c> und Layout-Zeilen nach
-    /// <c>ElementKind</c>/<c>ElementId</c> sortiert (Trigger und Layout haben keine eigene Reihenfolge –
-    /// die Sortierung dient nur einer stabilen Anzeige).
+    /// Projects a <see cref="Dialog"/> along with its loaded graph (questions incl. options,
+    /// transitions, loop markers, triggers and canvas layout) to a <see cref="DialogDetail"/>.
+    /// Questions and options are sorted by <c>Order</c>, transitions by <c>Priority</c>, loops by
+    /// <c>CollectionKey</c>, triggers by <c>Scope</c>/<c>Kind</c>/<c>Config</c> and layout rows by
+    /// <c>ElementKind</c>/<c>ElementId</c> (triggers and layout have no order of their own –
+    /// the sorting serves only a stable display).
     /// </summary>
-    /// <param name="dialog">Der Dialog mit geladenen Navigationen.</param>
-    /// <returns>Die navigationsfreie Detail-Sicht des Dialog-Graphen.</returns>
+    /// <param name="dialog">The dialog with loaded navigations.</param>
+    /// <returns>The navigation-free detail view of the dialog graph.</returns>
     public static DialogDetail ToDetail(Dialog dialog)
         => new(
             ToSummary(dialog),
@@ -46,9 +46,9 @@ internal static class AdminProjection
                 .Select(ToDetail)],
             ToDetail(dialog.Layout));
 
-    /// <summary>Projiziert eine <see cref="Question"/> (inkl. Optionen) auf ein <see cref="QuestionDetail"/>.</summary>
-    /// <param name="question">Die zu projizierende Frage mit geladenen Optionen.</param>
-    /// <returns>Die navigationsfreie Frage-Sicht.</returns>
+    /// <summary>Projects a <see cref="Question"/> (incl. options) to a <see cref="QuestionDetail"/>.</summary>
+    /// <param name="question">The question to project with its loaded options.</param>
+    /// <returns>The navigation-free question view.</returns>
     public static QuestionDetail ToDetail(Question question)
         => new(
             question.Id,
@@ -61,15 +61,15 @@ internal static class AdminProjection
             question.ValidationRules,
             [.. question.Options.OrderBy(option => option.Order).Select(ToDetail)]);
 
-    /// <summary>Projiziert eine <see cref="AnswerOption"/> auf ein <see cref="AnswerOptionDetail"/>.</summary>
-    /// <param name="option">Die zu projizierende Antwortoption.</param>
-    /// <returns>Die navigationsfreie Options-Sicht.</returns>
+    /// <summary>Projects an <see cref="AnswerOption"/> to an <see cref="AnswerOptionDetail"/>.</summary>
+    /// <param name="option">The answer option to project.</param>
+    /// <returns>The navigation-free option view.</returns>
     public static AnswerOptionDetail ToDetail(AnswerOption option)
         => new(option.Id, option.QuestionId, option.Key, option.Label, option.Value, option.Order);
 
-    /// <summary>Projiziert einen <see cref="Transition"/> auf ein <see cref="TransitionDetail"/>.</summary>
-    /// <param name="transition">Der zu projizierende Übergang.</param>
-    /// <returns>Die navigationsfreie Übergangs-Sicht.</returns>
+    /// <summary>Projects a <see cref="Transition"/> to a <see cref="TransitionDetail"/>.</summary>
+    /// <param name="transition">The transition to project.</param>
+    /// <returns>The navigation-free transition view.</returns>
     public static TransitionDetail ToDetail(Transition transition)
         => new(
             transition.Id,
@@ -80,15 +80,15 @@ internal static class AdminProjection
             transition.Priority,
             transition.IsDefault);
 
-    /// <summary>Projiziert eine <see cref="LoopDefinition"/> auf ein <see cref="LoopDetail"/>.</summary>
-    /// <param name="loop">Der zu projizierende Schleifen-Marker.</param>
-    /// <returns>Die navigationsfreie Schleifen-Sicht.</returns>
+    /// <summary>Projects a <see cref="LoopDefinition"/> to a <see cref="LoopDetail"/>.</summary>
+    /// <param name="loop">The loop marker to project.</param>
+    /// <returns>The navigation-free loop view.</returns>
     public static LoopDetail ToDetail(LoopDefinition loop)
         => new(loop.Id, loop.DialogId, loop.CollectionKey, loop.EntryQuestionId, loop.BreakingQuestionId);
 
-    /// <summary>Projiziert eine <see cref="TriggerDefinition"/> auf ein <see cref="TriggerDetail"/>.</summary>
-    /// <param name="trigger">Die zu projizierende Trigger-Definition.</param>
-    /// <returns>Die navigationsfreie Trigger-Sicht.</returns>
+    /// <summary>Projects a <see cref="TriggerDefinition"/> to a <see cref="TriggerDetail"/>.</summary>
+    /// <param name="trigger">The trigger definition to project.</param>
+    /// <returns>The navigation-free trigger view.</returns>
     public static TriggerDetail ToDetail(TriggerDefinition trigger)
         => new(
             trigger.Id,
@@ -99,18 +99,18 @@ internal static class AdminProjection
             trigger.Config,
             trigger.Expression);
 
-    /// <summary>Projiziert eine <see cref="DialogLayout"/>-Zeile auf ein <see cref="DialogLayoutDetail"/>.</summary>
-    /// <param name="layout">Die zu projizierende Layout-Zeile.</param>
-    /// <returns>Die navigationsfreie Layout-Sicht.</returns>
+    /// <summary>Projects a <see cref="DialogLayout"/> row to a <see cref="DialogLayoutDetail"/>.</summary>
+    /// <param name="layout">The layout row to project.</param>
+    /// <returns>The navigation-free layout view.</returns>
     public static DialogLayoutDetail ToDetail(DialogLayout layout)
         => new(layout.Id, layout.DialogId, layout.ElementKind, layout.ElementId, layout.X, layout.Y);
 
     /// <summary>
-    /// Sortiert Layout-Zeilen in eine stabile Anzeigereihenfolge und projiziert sie. Die Entity kennt
-    /// keine eigene Reihenfolge – die Sortierung dient nur einer wiederholbaren Ausgabe.
+    /// Sorts layout rows into a stable display order and projects them. The entity has
+    /// no order of its own – the sorting serves only a repeatable output.
     /// </summary>
-    /// <param name="layout">Die zu projizierenden Layout-Zeilen.</param>
-    /// <returns>Die sortierte, navigationsfreie Layout-Sicht.</returns>
+    /// <param name="layout">The layout rows to project.</param>
+    /// <returns>The sorted, navigation-free layout view.</returns>
     public static IReadOnlyList<DialogLayoutDetail> ToDetail(IEnumerable<DialogLayout> layout)
         => [.. layout
             .OrderBy(entry => entry.ElementKind)

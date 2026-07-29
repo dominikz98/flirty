@@ -1,34 +1,34 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Marker-/Metadaten-Ebene über dem Branching, die einen Zyklus als Schleife kennzeichnet.
-/// Zur Laufzeit werden die Antworten des Schleifenbereichs je Iteration unter
-/// <see cref="CollectionKey"/> gesammelt (statt überschrieben); im Designer wird der Zyklus
-/// als Loop-Block mit markierter Breaking Question visualisiert.
+/// A marker/metadata layer on top of the branching that marks a cycle as a loop.
+/// At runtime the answers of the loop range are collected per iteration under
+/// <see cref="CollectionKey"/> (instead of overwritten); in the designer the cycle is
+/// visualized as a loop block with a marked breaking question.
 /// </summary>
 public sealed class LoopDefinition
 {
-    /// <summary>Eindeutiger Primärschlüssel der Schleifen-Definition.</summary>
+    /// <summary>Unique primary key of the loop definition.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf den zugehörigen <see cref="Dialog"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Dialog"/>.</summary>
     public Guid DialogId { get; set; }
 
     /// <summary>
-    /// Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext
-    /// verfügbar sind (z. B. <c>positions</c> für <c>positions.Count &gt; 0</c>).
+    /// Key under which the answers collected per iteration are available in the expression context
+    /// (e.g. <c>positions</c> for <c>positions.Count &gt; 0</c>).
     /// </summary>
     public required string CollectionKey { get; set; }
 
-    /// <summary>Verweis auf die Einstiegsfrage der Schleife (<see cref="Question.Id"/>).</summary>
+    /// <summary>Reference to the entry question of the loop (<see cref="Question.Id"/>).</summary>
     public Guid EntryQuestionId { get; set; }
 
     /// <summary>
-    /// Verweis auf die Breaking Question (<see cref="Question.Id"/>) – die Frage, deren
-    /// Exit-Übergang den Zyklus verlässt.
+    /// Reference to the breaking question (<see cref="Question.Id"/>) - the question whose
+    /// exit transition leaves the cycle.
     /// </summary>
     public Guid BreakingQuestionId { get; set; }
 
-    /// <summary>Der Dialog, zu dem diese Schleifen-Definition gehört.</summary>
+    /// <summary>The dialog this loop definition belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 }

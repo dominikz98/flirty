@@ -6,13 +6,13 @@ using Flirty.Domain;
 namespace Flirty.Validation;
 
 /// <summary>
-/// Default-Implementierung von <see cref="IAnswerValidator"/>: prüft den rohen JSON-Antwortwert je
-/// <see cref="QuestionType"/> und wendet die typ-skopierten <see cref="ValidationRules"/> an. Die
-/// Werte werden – wie im <c>DynamicExpressoExpressionEvaluator</c> (#23) – tolerant gelesen: gültiges
-/// JSON wird typisiert interpretiert, ansonsten gilt der rohe Text als Zeichenkette.
+/// Default implementation of <see cref="IAnswerValidator"/>: validates the raw JSON answer value per
+/// <see cref="QuestionType"/> and applies the type-scoped <see cref="ValidationRules"/>. The values are
+/// read tolerantly – as in the <c>DynamicExpressoExpressionEvaluator</c> (#23): valid JSON is
+/// interpreted in a typed way, otherwise the raw text counts as a string.
 /// </summary>
 /// <remarks>
-/// Die Klasse ist zustandslos und daher als Singleton nutzbar (DI-Verdrahtung in <c>AddFlirty()</c>).
+/// The class is stateless and therefore usable as a singleton (DI wiring in <c>AddFlirty()</c>).
 /// </remarks>
 public sealed class AnswerValidator : IAnswerValidator
 {
@@ -42,11 +42,11 @@ public sealed class AnswerValidator : IAnswerValidator
             QuestionType.SingleChoice => ValidateSingleChoice(question, value),
             QuestionType.MultiChoice => ValidateMultiChoice(question, value),
             _ => throw new InvalidOperationException(
-                $"Unbekannter Fragetyp '{question.Type}' der Frage '{question.Id}'."),
+                $"Unknown question type '{question.Type}' of question '{question.Id}'."),
         };
     }
 
-    // ---- Typprüfungen -------------------------------------------------------------------------
+    // ---- Type checks --------------------------------------------------------------------------
 
     private static AnswerValidationResult ValidateFreeText(string value, ValidationRules? rules)
         => ApplyStringRules(TryReadJsonString(value, out var text) ? text : value, rules);
@@ -55,18 +55,18 @@ public sealed class AnswerValidator : IAnswerValidator
     {
         if (!TryReadNumber(value, out var number))
         {
-            return AnswerValidationResult.Invalid($"Der Wert '{Describe(value)}' ist keine gültige Zahl.");
+            return AnswerValidationResult.Invalid($"The value '{Describe(value)}' is not a valid number.");
         }
 
         var errors = new List<string>();
         if (rules?.Min is decimal min && number < min)
         {
-            errors.Add($"Der Wert {number} unterschreitet das Minimum {min}.");
+            errors.Add($"The value {number} is below the minimum {min}.");
         }
 
         if (rules?.Max is decimal max && number > max)
         {
-            errors.Add($"Der Wert {number} überschreitet das Maximum {max}.");
+            errors.Add($"The value {number} exceeds the maximum {max}.");
         }
 
         return errors.Count == 0 ? AnswerValidationResult.Valid : AnswerValidationResult.Invalid([.. errors]);
@@ -76,7 +76,7 @@ public sealed class AnswerValidator : IAnswerValidator
         => IsBoolean(value)
             ? AnswerValidationResult.Valid
             : AnswerValidationResult.Invalid(
-                $"Der Wert '{Describe(value)}' ist kein gültiger Wahrheitswert (true/false erwartet).");
+                $"The value '{Describe(value)}' is not a valid boolean (true/false expected).");
 
     private static AnswerValidationResult ValidateDate(string value)
     {
@@ -87,7 +87,7 @@ public sealed class AnswerValidator : IAnswerValidator
         return isDate
             ? AnswerValidationResult.Valid
             : AnswerValidationResult.Invalid(
-                $"Der Wert '{Describe(value)}' ist kein gültiges Datum (ISO-8601 erwartet).");
+                $"The value '{Describe(value)}' is not a valid date (ISO-8601 expected).");
     }
 
     private static AnswerValidationResult ValidateSingleChoice(Question question, string value)
@@ -96,7 +96,7 @@ public sealed class AnswerValidator : IAnswerValidator
         return AllowedValues(question).Contains(selected)
             ? AnswerValidationResult.Valid
             : AnswerValidationResult.Invalid(
-                $"Die Auswahl '{Describe(selected)}' ist keine gültige Option der Frage '{question.Key}'.");
+                $"The selection '{Describe(selected)}' is not a valid option of question '{question.Key}'.");
     }
 
     private static AnswerValidationResult ValidateMultiChoice(Question question, string value)
@@ -104,8 +104,8 @@ public sealed class AnswerValidator : IAnswerValidator
         if (!TryReadStringArray(value, out var selections))
         {
             return AnswerValidationResult.Invalid(
-                $"Der Wert '{Describe(value)}' ist keine gültige Mehrfachauswahl "
-                + "(erwartet wird ein JSON-Array von Zeichenketten).");
+                $"The value '{Describe(value)}' is not a valid multi-selection "
+                + "(a JSON array of strings is expected).");
         }
 
         var allowed = AllowedValues(question);
@@ -114,11 +114,11 @@ public sealed class AnswerValidator : IAnswerValidator
         return unknown.Count == 0
             ? AnswerValidationResult.Valid
             : AnswerValidationResult.Invalid(
-                $"Die Auswahl(en) {string.Join(", ", unknown.Select(u => $"'{Describe(u)}'"))} "
-                + $"sind keine gültigen Optionen der Frage '{question.Key}'.");
+                $"The selection(s) {string.Join(", ", unknown.Select(u => $"'{Describe(u)}'"))} "
+                + $"are not valid options of question '{question.Key}'.");
     }
 
-    // ---- Regeln -------------------------------------------------------------------------------
+    // ---- Rules --------------------------------------------------------------------------------
 
     private static AnswerValidationResult ApplyStringRules(string text, ValidationRules? rules)
     {
@@ -130,17 +130,17 @@ public sealed class AnswerValidator : IAnswerValidator
         var errors = new List<string>();
         if (rules.MinLength is int minLength && text.Length < minLength)
         {
-            errors.Add($"Der Wert ist mit {text.Length} Zeichen kürzer als die Mindestlänge {minLength}.");
+            errors.Add($"The value is {text.Length} characters long, shorter than the minimum length {minLength}.");
         }
 
         if (rules.MaxLength is int maxLength && text.Length > maxLength)
         {
-            errors.Add($"Der Wert überschreitet mit {text.Length} Zeichen die Maximallänge {maxLength}.");
+            errors.Add($"The value is {text.Length} characters long, exceeding the maximum length {maxLength}.");
         }
 
         if (!string.IsNullOrEmpty(rules.Pattern) && !MatchesPattern(text, rules.Pattern))
         {
-            errors.Add($"Der Wert entspricht nicht dem Muster '{rules.Pattern}'.");
+            errors.Add($"The value does not match the pattern '{rules.Pattern}'.");
         }
 
         return errors.Count == 0 ? AnswerValidationResult.Valid : AnswerValidationResult.Invalid([.. errors]);
@@ -155,21 +155,21 @@ public sealed class AnswerValidator : IAnswerValidator
         catch (RegexParseException ex)
         {
             throw new InvalidOperationException(
-                $"Das Validierungs-Muster '{pattern}' ist kein gültiger regulärer Ausdruck.", ex);
+                $"The validation pattern '{pattern}' is not a valid regular expression.", ex);
         }
         catch (RegexMatchTimeoutException)
         {
-            // Pathologische Eingabe (Backtracking-Explosion) gilt als Nicht-Treffer -> ungültig.
+            // Pathological input (backtracking explosion) counts as a non-match -> invalid.
             return false;
         }
     }
 
-    // ---- Parsing-Helfer -----------------------------------------------------------------------
+    // ---- Parsing helpers ----------------------------------------------------------------------
 
     /// <summary>
-    /// Liest die konfigurierten Regeln der Frage. Ist <see cref="Question.ValidationRules"/> leer, gibt
-    /// es keine Regeln (<see langword="null"/>); ist der Text kein gültiges JSON, ist die Frage
-    /// fehlkonfiguriert.
+    /// Reads the configured rules of the question. If <see cref="Question.ValidationRules"/> is empty,
+    /// there are no rules (<see langword="null"/>); if the text is not valid JSON, the question is
+    /// misconfigured.
     /// </summary>
     private static ValidationRules? ParseRules(Question question)
     {
@@ -185,7 +185,7 @@ public sealed class AnswerValidator : IAnswerValidator
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
-                $"Die ValidationRules der Frage '{question.Id}' sind kein gültiges JSON.", ex);
+                $"The ValidationRules of question '{question.Id}' are not valid JSON.", ex);
         }
     }
 
@@ -193,9 +193,8 @@ public sealed class AnswerValidator : IAnswerValidator
         => question.Options.Select(option => option.Value).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
-    /// Liest den Wert als JSON-Zeichenkette. Ist der Wurzelknoten eine JSON-Zeichenkette, wird deren
-    /// Inhalt geliefert; andernfalls (Nicht-Zeichenketten-JSON oder ungültiges JSON) schlägt der
-    /// Versuch fehl und der Aufrufer verwendet den rohen Text.
+    /// Reads the value as a JSON string. If the root node is a JSON string, its content is returned;
+    /// otherwise (non-string JSON or invalid JSON) the attempt fails and the caller uses the raw text.
     /// </summary>
     private static bool TryReadJsonString(string value, out string result)
     {
@@ -288,7 +287,7 @@ public sealed class AnswerValidator : IAnswerValidator
         }
     }
 
-    /// <summary>Kürzt lange Werte für Fehlermeldungen, damit diese lesbar bleiben.</summary>
+    /// <summary>Truncates long values for error messages so they stay readable.</summary>
     private static string Describe(string value)
         => value.Length <= 64 ? value : string.Concat(value.AsSpan(0, 61), "...");
 }

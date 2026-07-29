@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="AnswerOption"/>. Legt Schlüssel und den eindeutigen Index
-/// über <c>(QuestionId, Key)</c> fest. Die Beziehung zur <see cref="Question"/> wird in
-/// <see cref="QuestionConfiguration"/> konfiguriert.
+/// EF Core configuration for <see cref="AnswerOption"/>. Sets the key and the unique index
+/// over <c>(QuestionId, Key)</c>. The relationship to the <see cref="Question"/> is configured in
+/// <see cref="QuestionConfiguration"/>.
 /// </summary>
 internal sealed class AnswerOptionConfiguration : IEntityTypeConfiguration<AnswerOption>
 {
@@ -18,7 +18,7 @@ internal sealed class AnswerOptionConfiguration : IEntityTypeConfiguration<Answe
         builder.Property(option => option.Key)
             .HasMaxLength(PersistenceConstants.KeyMaxLength);
 
-        // Optionsschlüssel je Frage eindeutig.
+        // Option key unique per question.
         builder.HasIndex(option => new { option.QuestionId, option.Key })
             .IsUnique();
     }

@@ -3,27 +3,27 @@ using Flirty.Designer.Models;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Persistente Verwaltung der Connection-Profile des Designers (CRUD + Merken des zuletzt aktivierten
-/// Profils). Die Ablage ist bewusst außerhalb der Flirty-Datenbank, weil die Profile ja erst die
-/// Verbindung zu dieser Datenbank herstellen (Henne/Ei).
+/// Persistent management of the designer's connection profiles (CRUD + remembering the last activated
+/// profile). The storage is deliberately outside the Flirty database, because the profiles are what first
+/// establish the connection to that database (chicken/egg).
 /// </summary>
 internal interface IConnectionProfileStore
 {
-    /// <summary>Liefert alle gespeicherten Profile (Kopien) in Einfügereihenfolge.</summary>
+    /// <summary>Returns all stored profiles (copies) in insertion order.</summary>
     IReadOnlyList<ConnectionProfile> GetAll();
 
-    /// <summary>Liefert das Profil mit der angegebenen <paramref name="id"/> (Kopie) oder <c>null</c>.</summary>
+    /// <summary>Returns the profile with the given <paramref name="id"/> (copy) or <c>null</c>.</summary>
     ConnectionProfile? Get(string id);
 
-    /// <summary>Legt das Profil an oder aktualisiert es (Abgleich über <see cref="ConnectionProfile.Id"/>).</summary>
+    /// <summary>Creates or updates the profile (matched via <see cref="ConnectionProfile.Id"/>).</summary>
     void Save(ConnectionProfile profile);
 
-    /// <summary>Entfernt das Profil mit der angegebenen <paramref name="id"/>, falls vorhanden.</summary>
+    /// <summary>Removes the profile with the given <paramref name="id"/>, if present.</summary>
     void Delete(string id);
 
-    /// <summary>Kennung des zuletzt aktivierten Standardprofils oder <c>null</c>.</summary>
+    /// <summary>Identifier of the last activated default profile or <c>null</c>.</summary>
     string? DefaultProfileId { get; }
 
-    /// <summary>Merkt sich das angegebene Profil als Standard (oder löscht die Markierung bei <c>null</c>).</summary>
+    /// <summary>Remembers the given profile as the default (or clears the marking on <c>null</c>).</summary>
     void SetDefault(string? id);
 }

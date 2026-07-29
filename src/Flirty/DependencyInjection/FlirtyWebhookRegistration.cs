@@ -3,35 +3,35 @@ using Flirty.Domain;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Beschreibt einen über <see cref="FlirtyOptions.AddWebhook(TriggerScope, string, string)"/> (bzw. den
-/// altbekannten <see cref="FlirtyOptions.AddWebhook(string, string)"/>) registrierten Outbound-Webhook:
-/// welches Ereignis (<paramref name="EventName"/> bzw. <paramref name="Scope"/>) an welche Ziel-URL
-/// (<paramref name="Url"/>) – optional gefiltert durch einen Bedingungsausdruck
-/// (<paramref name="Expression"/>) – ausgeliefert werden soll.
+/// Describes an outbound webhook registered via <see cref="FlirtyOptions.AddWebhook(TriggerScope, string, string)"/> (or the
+/// long-standing <see cref="FlirtyOptions.AddWebhook(string, string)"/>):
+/// which event (<paramref name="EventName"/> or <paramref name="Scope"/>) is to be delivered to which target URL
+/// (<paramref name="Url"/>) – optionally filtered by a condition expression
+/// (<paramref name="Expression"/>).
 /// </summary>
 /// <remarks>
-/// Ursprung als Stub in Issue #34 (nur <paramref name="EventName"/> + <paramref name="Url"/>). Seit Issue
-/// #33 konsumiert der eingebaute <c>WebhookNotificationHandler</c> genau diese Registrierungen und liefert
-/// sie über <c>IHttpClientFactory</c> mit Standard-Resilience (Retry/Timeout) aus. Ausgeliefert werden
-/// ausschließlich Registrierungen mit gesetztem <paramref name="Scope"/> (über den
-/// <see cref="TriggerScope"/>-Overload von <c>AddWebhook</c>); der zustandslose String-Overload
-/// (<paramref name="Scope"/> = <see langword="null"/>) bleibt aus Kompatibilität bestehen, wird vom
-/// Handler aber nicht zugestellt.
+/// Originally a stub in issue #34 (only <paramref name="EventName"/> + <paramref name="Url"/>). Since issue
+/// #33 the built-in <c>WebhookNotificationHandler</c> consumes exactly these registrations and delivers
+/// them via <c>IHttpClientFactory</c> with standard resilience (retry/timeout). Only
+/// registrations with a set <paramref name="Scope"/> are delivered (via the
+/// <see cref="TriggerScope"/> overload of <c>AddWebhook</c>); the stateless string overload
+/// (<paramref name="Scope"/> = <see langword="null"/>) remains for compatibility, but is not delivered by the
+/// handler.
 /// </remarks>
 /// <param name="EventName">
-/// Der fachliche Ereignisname des Webhooks. Für den <see cref="TriggerScope"/>-Overload entspricht er dem
-/// Namen des <paramref name="Scope"/> (z. B. <c>OnDialogCompleted</c>); für den String-Overload ein frei
-/// gewählter Bezeichner (z. B. <c>order-created</c>).
+/// The domain event name of the webhook. For the <see cref="TriggerScope"/> overload it corresponds to the
+/// name of the <paramref name="Scope"/> (e.g. <c>OnDialogCompleted</c>); for the string overload a freely
+/// chosen identifier (e.g. <c>order-created</c>).
 /// </param>
-/// <param name="Url">Die Ziel-URL, an die der Webhook per HTTP POST ausgeliefert wird.</param>
+/// <param name="Url">The target URL to which the webhook is delivered via HTTP POST.</param>
 /// <param name="Scope">
-/// Der Auslöse-Zeitpunkt im Dialogablauf (siehe <see cref="TriggerScope"/>), auf den der eingebaute Handler
-/// matcht. <see langword="null"/> bei Registrierungen aus dem reinen String-Overload – diese werden nicht
-/// ausgeliefert.
+/// The trigger point in the dialog flow (see <see cref="TriggerScope"/>) that the built-in handler
+/// matches on. <see langword="null"/> for registrations from the plain string overload – these are not
+/// delivered.
 /// </param>
 /// <param name="Expression">
-/// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IExpressionEvaluator"/> ausgewertet
-/// wird und über das Auslösen entscheidet. <see langword="null"/>/leer ⇒ bedingungslos auslösend.
+/// Optional condition expression that is evaluated via <see cref="Flirty.Expressions.IExpressionEvaluator"/>
+/// and decides about firing. <see langword="null"/>/empty ⇒ unconditionally firing.
 /// </param>
 public sealed record FlirtyWebhookRegistration(
     string EventName,

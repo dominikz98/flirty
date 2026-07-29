@@ -6,25 +6,25 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Legt eine neue Trigger-Definition (<see cref="TriggerDefinition"/>) im Dialog <see cref="DialogId"/>
-/// an. Der Trigger beschreibt einen Rückkanal in die Host-Anwendung: <see cref="Scope"/> legt den
-/// Zeitpunkt fest, <see cref="Kind"/> den Kanal und <see cref="Config"/> dessen Konfiguration (Schema:
+/// Creates a new trigger definition (<see cref="TriggerDefinition"/>) in the dialog <see cref="DialogId"/>.
+/// The trigger describes a back channel into the host application: <see cref="Scope"/> sets the
+/// point in time, <see cref="Kind"/> the channel and <see cref="Config"/> its configuration (schema:
 /// <see cref="TriggerConfig"/>).
 /// </summary>
 /// <remarks>
-/// <see cref="QuestionId"/> ist – dem FK-losen Domänenmodell entsprechend – ein roher Frage-Verweis;
-/// seine Gültigkeit liegt in der Verantwortung des Aufrufers. Geprüft wird nur, ob er zum
-/// <see cref="Scope"/> passt (siehe <see cref="Validate"/>).
+/// <see cref="QuestionId"/> is – in line with the FK-free domain model – a raw question reference;
+/// its validity is the responsibility of the caller. Only whether it matches the
+/// <see cref="Scope"/> is checked (see <see cref="Validate"/>).
 /// </remarks>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Trigger gehört.</param>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
+/// <param name="DialogId">The id of the dialog the trigger belongs to.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
 /// <param name="QuestionId">
-/// Die Frage, auf die bei <see cref="TriggerScope.AfterQuestion"/> gehört wird; bei allen anderen
-/// Zeitpunkten <see langword="null"/>.
+/// The question that is listened to for <see cref="TriggerScope.AfterQuestion"/>; for all other
+/// points in time <see langword="null"/>.
 /// </param>
-/// <param name="Kind">Der Kanal, über den die Host-Anwendung benachrichtigt wird.</param>
-/// <param name="Config">Die kanal-spezifische Konfiguration als JSON (z. B. <c>{"url":"https://…"}</c>).</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+/// <param name="Kind">The channel over which the host application is notified.</param>
+/// <param name="Config">The channel-specific configuration as JSON (e.g. <c>{"url":"https://…"}</c>).</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
 public sealed record CreateTriggerCommand(
     Guid DialogId,
     TriggerScope Scope,
@@ -38,14 +38,14 @@ public sealed record CreateTriggerCommand(
         => TriggerValidation.Validate(Scope, QuestionId, Kind, Config);
 }
 
-/// <summary>Handler für <see cref="CreateTriggerCommand"/>.</summary>
+/// <summary>Handler for <see cref="CreateTriggerCommand"/>.</summary>
 internal sealed class CreateTriggerCommandHandler : ICommandHandler<CreateTriggerCommand, TriggerDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public CreateTriggerCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -53,8 +53,8 @@ internal sealed class CreateTriggerCommandHandler : ICommandHandler<CreateTrigge
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<TriggerDetail> Handle(CreateTriggerCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -62,7 +62,7 @@ internal sealed class CreateTriggerCommandHandler : ICommandHandler<CreateTrigge
         var dialog = await _store.GetDialogAsync(command.DialogId, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.DialogId);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         DialogEditGuard.EnsureEditable(dialog);
 
         var trigger = new TriggerDefinition

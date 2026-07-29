@@ -1,13 +1,13 @@
 namespace Flirty.AspNetCore.Dtos;
 
 /// <summary>
-/// Antwort-Körper von <c>POST /flirty/sessions</c>: die (neu angelegte oder wiederaufgenommene) Session
-/// samt der aktuell zu beantwortenden Frage. Gemappt aus <see cref="Flirty.Runtime.StartDialogResult"/>.
+/// Response body of <c>POST /flirty/sessions</c>: the (newly created or resumed) session
+/// together with the question currently to be answered. Mapped from <see cref="Flirty.Runtime.StartDialogResult"/>.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der laufenden Session.</param>
+/// <param name="SessionId">The primary key of the running session.</param>
 /// <param name="IsResumed">
-/// <see langword="true"/>, wenn eine bereits laufende Session fortgesetzt wurde; <see langword="false"/>
-/// bei einem Neu-Start.
+/// <see langword="true"/> if a session that was already running was resumed; <see langword="false"/>
+/// for a fresh start.
 /// </param>
-/// <param name="CurrentQuestion">Die aktuell offene Frage, die dem Anwender zu präsentieren ist.</param>
+/// <param name="CurrentQuestion">The currently open question to present to the user.</param>
 public sealed record StartSessionResponse(Guid SessionId, bool IsResumed, QuestionDto CurrentQuestion);

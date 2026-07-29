@@ -1,42 +1,42 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Eine im Rahmen einer <see cref="DialogSession"/> gegebene Antwort auf eine Frage. Über
-/// <see cref="LoopInstanceId"/> und <see cref="IterationIndex"/> können innerhalb einer Schleife
-/// mehrere Antworten pro Frage existieren (ein Eintrag je Iteration).
+/// An answer to a question given within a <see cref="DialogSession"/>. Via
+/// <see cref="LoopInstanceId"/> and <see cref="IterationIndex"/> multiple answers per question can
+/// exist within a loop (one entry per iteration).
 /// </summary>
 public sealed class SessionAnswer
 {
-    /// <summary>Eindeutiger Primärschlüssel der Antwort.</summary>
+    /// <summary>Unique primary key of the answer.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf die zugehörige <see cref="DialogSession"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="DialogSession"/>.</summary>
     public Guid SessionId { get; set; }
 
-    /// <summary>Verweis auf die beantwortete Frage (<see cref="Question.Id"/>).</summary>
+    /// <summary>Reference to the answered question (<see cref="Question.Id"/>).</summary>
     public Guid QuestionId { get; set; }
 
-    /// <summary>Der abgegebene Antwortwert als JSON (Format abhängig vom Fragetyp).</summary>
+    /// <summary>The submitted answer value as JSON (format depends on the question type).</summary>
     public required string Value { get; set; }
 
-    /// <summary>Zeitpunkt, zu dem die Antwort gegeben wurde.</summary>
+    /// <summary>Timestamp at which the answer was given.</summary>
     public DateTimeOffset AnsweredAt { get; set; }
 
-    /// <summary>Fortlaufende Reihenfolge der Antwort innerhalb der Session.</summary>
+    /// <summary>Running order of the answer within the session.</summary>
     public int Sequence { get; set; }
 
     /// <summary>
-    /// Kennung der Schleifen-Iterationsinstanz oder <see langword="null"/> außerhalb einer Schleife.
-    /// Gruppiert die zu einer Iteration gehörenden Antworten.
+    /// Identifier of the loop iteration instance or <see langword="null"/> outside a loop.
+    /// Groups the answers belonging to one iteration.
     /// </summary>
     public Guid? LoopInstanceId { get; set; }
 
     /// <summary>
-    /// Nullbasierter Iterationsindex innerhalb der Schleife oder <see langword="null"/> außerhalb
-    /// einer Schleife.
+    /// Zero-based iteration index within the loop or <see langword="null"/> outside
+    /// a loop.
     /// </summary>
     public int? IterationIndex { get; set; }
 
-    /// <summary>Die Session, zu der diese Antwort gehört.</summary>
+    /// <summary>The session this answer belongs to.</summary>
     public DialogSession Session { get; set; } = null!;
 }

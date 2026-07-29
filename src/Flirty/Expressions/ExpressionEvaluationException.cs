@@ -1,27 +1,27 @@
 namespace Flirty.Expressions;
 
 /// <summary>
-/// Wird geworfen, wenn ein <see cref="IExpressionEvaluator"/> einen Bedingungsausdruck nicht
-/// erfolgreich zu einem booleschen Ergebnis auswerten kann – etwa bei Syntaxfehlern, unbekannten
-/// Bezeichnern, nicht auf der Member-Whitelist stehenden Typen/Membern oder einem nicht-booleschen
-/// Ergebnis. Kapselt die engine-spezifische Ursache (z. B. DynamicExpresso) in
-/// <see cref="System.Exception.InnerException"/>, damit die austauschbare Engine-Implementierung
-/// nicht nach außen durchschlägt.
+/// Thrown when an <see cref="IExpressionEvaluator"/> cannot successfully evaluate a condition
+/// expression to a boolean result – for example on syntax errors, unknown
+/// identifiers, types/members not on the member whitelist, or a non-boolean
+/// result. Wraps the engine-specific cause (e.g. DynamicExpresso) in
+/// <see cref="System.Exception.InnerException"/>, so that the interchangeable engine implementation
+/// does not leak outward.
 /// </summary>
 public sealed class ExpressionEvaluationException : Exception
 {
     /// <summary>
-    /// Erstellt eine neue <see cref="ExpressionEvaluationException"/>.
+    /// Creates a new <see cref="ExpressionEvaluationException"/>.
     /// </summary>
-    /// <param name="expression">Der Bedingungsausdruck, dessen Auswertung fehlgeschlagen ist.</param>
-    /// <param name="message">Die Fehlerbeschreibung.</param>
-    /// <param name="innerException">Die zugrunde liegende Ursache (z. B. die Engine-Exception) oder <see langword="null"/>.</param>
+    /// <param name="expression">The condition expression whose evaluation failed.</param>
+    /// <param name="message">The error description.</param>
+    /// <param name="innerException">The underlying cause (e.g. the engine exception) or <see langword="null"/>.</param>
     public ExpressionEvaluationException(string expression, string message, Exception? innerException = null)
         : base(message, innerException)
     {
         Expression = expression;
     }
 
-    /// <summary>Der Bedingungsausdruck, dessen Auswertung fehlgeschlagen ist.</summary>
+    /// <summary>The condition expression whose evaluation failed.</summary>
     public string Expression { get; }
 }

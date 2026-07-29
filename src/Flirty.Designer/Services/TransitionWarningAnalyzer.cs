@@ -4,32 +4,32 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Meldet Übergangs-Konfigurationen, die zur Laufzeit anders wirken als gedacht – die Regeln spiegeln
-/// den <c>TransitionResolver</c> der Engine: Es gewinnt der erste zutreffende <b>nicht</b>-Default in
-/// <c>Priority</c>-Reihenfolge (ein leerer Ausdruck trifft immer zu), sonst der erste Default; trifft
-/// nichts, wirft die Runtime.
+/// Reports transition configurations that take effect differently at runtime than intended – the rules mirror
+/// the <c>TransitionResolver</c> of the engine: the first matching <b>non</b>-default in
+/// <c>Priority</c> order wins (an empty expression always matches), otherwise the first default; if
+/// nothing matches, the runtime throws.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Die Regeln standen bis #101 privat in <c>Components/Pages/DialogEditor.razor</c>. Sie sind
-/// hierher gewandert, weil die Graph-Ansicht dieselben Befunde braucht – dort aber
-/// <b>am betroffenen Knoten bzw. an der betroffenen Kante</b> statt als Fließtextliste. Wortlaut und
-/// Reihenfolge sind unverändert übernommen; die Texte sind Vertrag gegenüber Tests und E2E-Suite.
-/// Dieselbe Bauform wie <see cref="LoopAnalyzer"/>: statische Klasse, <see cref="DialogDetail"/> rein,
-/// verortete Warnungen raus, keine DI.
+/// The rules stood privately, up to #101, in <c>Components/Pages/DialogEditor.razor</c>. They have moved
+/// here, because the graph view needs the same findings – there, however,
+/// <b>at the affected node or at the affected edge</b> instead of as a running-text list. Wording and
+/// order are taken over unchanged; the texts are a contract towards tests and the E2E suite.
+/// The same build form as <see cref="LoopAnalyzer"/>: static class, <see cref="DialogDetail"/> in,
+/// located warnings out, no DI.
 /// </para>
 /// <para>
-/// Was hier <b>nicht</b> steht: die Schleifen-Befunde (die liefert <see cref="LoopAnalyzer"/>) und die
-/// Erreichbarkeit im Graphen (die kennt erst der <c>DialogGraphBuilder</c>, weil sie von der
-/// Einstiegsfrage abhängt).
+/// What is <b>not</b> here: the loop findings (those are delivered by <see cref="LoopAnalyzer"/>) and the
+/// reachability in the graph (that is first known by the <c>DialogGraphBuilder</c>, because it depends on the
+/// entry question).
 /// </para>
 /// </remarks>
 internal static class TransitionWarningAnalyzer
 {
-    /// <summary>Die ausgehenden Übergänge einer Frage in Auswertungsreihenfolge.</summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <param name="questionId">Die Ausgangsfrage.</param>
-    /// <returns>Die Übergänge nach <c>Priority</c> sortiert.</returns>
+    /// <summary>The outgoing transitions of a question in evaluation order.</summary>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <param name="questionId">The source question.</param>
+    /// <returns>The transitions sorted by <c>Priority</c>.</returns>
     public static IReadOnlyList<TransitionDetail> Outgoing(DialogDetail detail, Guid questionId)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -43,10 +43,10 @@ internal static class TransitionWarningAnalyzer
     }
 
     /// <summary>
-    /// Prüft die Übergänge <b>einer</b> Ausgangsfrage.
+    /// Checks the transitions of <b>one</b> source question.
     /// </summary>
-    /// <param name="outgoing">Die Übergänge einer Ausgangsfrage in Auswertungsreihenfolge.</param>
-    /// <returns>Die anzuzeigenden Warnungen (leer, wenn alles stimmig ist).</returns>
+    /// <param name="outgoing">The transitions of a source question in evaluation order.</param>
+    /// <returns>The warnings to display (empty if everything is coherent).</returns>
     public static IReadOnlyList<GraphWarning> Analyze(IReadOnlyList<TransitionDetail> outgoing)
     {
         ArgumentNullException.ThrowIfNull(outgoing);
@@ -56,8 +56,8 @@ internal static class TransitionWarningAnalyzer
             return [];
         }
 
-        // Die Ausgangsfrage ist für alle Übergänge dieselbe – sie trägt die Warnungen, die keinem
-        // einzelnen Übergang anzulasten sind.
+        // The source question is the same for all transitions – it carries the warnings that cannot be
+        // blamed on a single transition.
         var from = outgoing[0].FromQuestionId;
 
         var warnings = new List<GraphWarning>();
@@ -105,16 +105,16 @@ internal static class TransitionWarningAnalyzer
     }
 
     /// <summary>
-    /// Prüft die Übergänge des gesamten Graphen – Fragen in Dialog-Reihenfolge, Fragen ohne ausgehende
-    /// Übergänge übersprungen (die enden regulär und sind kein Befund).
+    /// Checks the transitions of the whole graph – questions in dialog order, questions without outgoing
+    /// transitions skipped (they end regularly and are no finding).
     /// </summary>
     /// <remarks>
-    /// Übergänge mit unbekannter Ausgangsfrage bleiben hier außen vor: Sie werden nie ausgewertet und
-    /// haben keinen Knoten, an dem eine Warnung hängen könnte. Der <c>DialogEditor</c> weist sie
-    /// getrennt aus (<c>Orphans()</c>), die Graph-Ansicht ebenso.
+    /// Transitions with an unknown source question are left out here: they are never evaluated and
+    /// have no node on which a warning could hang. The <c>DialogEditor</c> reports them
+    /// separately (<c>Orphans()</c>), the graph view likewise.
     /// </remarks>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <returns>Die offenen Warnungen; leer, wenn der Graph stimmig ist.</returns>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <returns>The open warnings; empty if the graph is coherent.</returns>
     public static IReadOnlyList<GraphWarning> Analyze(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);

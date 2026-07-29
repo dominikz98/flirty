@@ -4,17 +4,17 @@ using Mediator;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Spielt einen Dialog vollständig über die Facade <see cref="IFlirtyEngine"/> durch: startet den
-/// Dialog, präsentiert jede Frage, reicht die von der <see cref="IAnswerSource"/> gelieferte Antwort
-/// ein und folgt dem Branching bis zum Abschluss. Beim Abschluss publiziert die Engine selbst die
-/// <see cref="DialogCompletedNotification"/>, sodass registrierte eigene
-/// <see cref="INotificationHandler{TNotification}"/> automatisch benachrichtigt werden.
+/// Plays a dialog through completely via the facade <see cref="IFlirtyEngine"/>: starts the dialog,
+/// presents each question, submits the answer supplied by the <see cref="IAnswerSource"/> and follows the
+/// branching until completion. On completion the engine itself publishes the
+/// <see cref="DialogCompletedNotification"/>, so that registered custom
+/// <see cref="INotificationHandler{TNotification}"/>s are notified automatically.
 /// </summary>
 /// <remarks>
-/// Die Ein-/Ausgabe ist bewusst über <see cref="IAnswerSource"/> und einen <see cref="TextWriter"/>
-/// abstrahiert, damit derselbe Ablauf interaktiv (Konsole) wie auch deterministisch (Test) läuft. Das
-/// engine-getriebene Publizieren der Trigger-Notifications (seit EPIC 4) macht ein manuelles Auflösen und
-/// Aufrufen der Handler im Runner überflüssig – der Host registriert seinen Handler nur noch per DI.
+/// Input/output is deliberately abstracted via <see cref="IAnswerSource"/> and a <see cref="TextWriter"/>,
+/// so that the same flow runs both interactively (console) and deterministically (test). The
+/// engine-driven publishing of the trigger notifications (since EPIC 4) makes manually resolving and
+/// calling the handlers in the runner unnecessary – the host only registers its handler via DI.
 /// </remarks>
 public sealed class ConsoleDialogRunner
 {
@@ -23,11 +23,11 @@ public sealed class ConsoleDialogRunner
     private readonly TextWriter _output;
 
     /// <summary>
-    /// Initialisiert den Runner mit der Engine-Facade, der Antwortquelle und dem Ausgabe-Writer.
+    /// Initializes the runner with the engine facade, the answer source and the output writer.
     /// </summary>
-    /// <param name="engine">Die Dialog-Facade der Flirty-Engine.</param>
-    /// <param name="answers">Die Quelle der Antworten (interaktiv oder skriptgesteuert).</param>
-    /// <param name="output">Der Writer für die Frage-/Ablauf-Ausgabe.</param>
+    /// <param name="engine">The dialog facade of the Flirty engine.</param>
+    /// <param name="answers">The source of the answers (interactive or scripted).</param>
+    /// <param name="output">The writer for the question/flow output.</param>
     public ConsoleDialogRunner(
         IFlirtyEngine engine,
         IAnswerSource answers,
@@ -43,12 +43,12 @@ public sealed class ConsoleDialogRunner
     }
 
     /// <summary>
-    /// Startet den Dialog mit dem angegebenen Schlüssel und spielt ihn bis zum Abschluss durch.
+    /// Starts the dialog with the given key and plays it through until completion.
     /// </summary>
-    /// <param name="dialogKey">Der fachliche Schlüssel des zu startenden Dialogs.</param>
-    /// <param name="externalUserKey">Der fachliche Anwenderschlüssel der Host-App.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
-    /// <returns>Das Ergebnis des Durchlaufs (Session, Abschluss-Flag und gestellte Fragen in Reihenfolge).</returns>
+    /// <param name="dialogKey">The business key of the dialog to start.</param>
+    /// <param name="externalUserKey">The host app's business user key.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The result of the run (session, completion flag and asked questions in order).</returns>
     public async Task<DialogRunResult> RunAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default)
     {
@@ -75,8 +75,9 @@ public sealed class ConsoleDialogRunner
             current = result.NextQuestion;
         }
 
-        // Abschluss: Die Engine hat beim letzten SubmitAnswer die DialogCompletedNotification bereits
-        // publiziert und damit die registrierten eigenen Handler ausgelöst – der Runner muss nichts tun.
+        // Completion: on the last SubmitAnswer the engine has already published the
+        // DialogCompletedNotification and thereby triggered the registered custom handlers – the runner
+        // need do nothing.
         return new DialogRunResult(sessionId, completed, askedQuestionKeys);
     }
 
@@ -91,11 +92,11 @@ public sealed class ConsoleDialogRunner
 }
 
 /// <summary>
-/// Ergebnis eines <see cref="ConsoleDialogRunner.RunAsync"/>-Durchlaufs.
+/// Result of a <see cref="ConsoleDialogRunner.RunAsync"/> run.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der durchlaufenen Session.</param>
-/// <param name="Completed"><see langword="true"/>, wenn der Dialog abgeschlossen wurde.</param>
-/// <param name="AskedQuestionKeys">Die Schlüssel der gestellten Fragen in Reihenfolge des Ablaufs.</param>
+/// <param name="SessionId">The primary key of the session that was run.</param>
+/// <param name="Completed"><see langword="true"/> if the dialog was completed.</param>
+/// <param name="AskedQuestionKeys">The keys of the asked questions in the order of the flow.</param>
 public sealed record DialogRunResult(
     Guid SessionId,
     bool Completed,

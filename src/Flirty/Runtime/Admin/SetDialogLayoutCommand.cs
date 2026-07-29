@@ -6,32 +6,32 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Setzt die Canvas-Positionen der in <see cref="Entries"/> genannten Elemente des Dialogs
-/// <see cref="DialogId"/> – ein <b>Batch-Upsert</b>: Vorhandene Zeilen werden aktualisiert, fehlende
-/// angelegt, <b>nicht genannte bleiben unangetastet</b>. Zum vollständigen Verwerfen dient
+/// Sets the canvas positions of the elements named in <see cref="Entries"/> of the dialog
+/// <see cref="DialogId"/> – a <b>batch upsert</b>: existing rows are updated, missing ones
+/// are created, <b>ones not named stay untouched</b>. For a full discard use
 /// <see cref="ResetDialogLayoutCommand"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Dieser Command läuft bewusst nicht unter <c>DialogEditGuard</c></b> – anders als die 16
-/// Graph-Commands. Koordinaten berühren die Session-Semantik nicht: Sessions pinnen
-/// <c>DialogId</c>/<c>DialogVersion</c> und folgen Guids, nicht Pixeln. Liefe das Layout über den Guard,
-/// ließe sich ein <i>veröffentlichter</i> Dialog nicht einmal übersichtlich anordnen, und jedes
-/// Verschieben quittierte mit 409. Weil <see cref="DialogLayout"/> eine eigene Tabelle ist, ist das
-/// keine Umgehung der Publish-Sperre (ADR 0005), sondern deren Grenze – begründet in ADR 0007.
+/// <b>This command deliberately does not run under <c>DialogEditGuard</c></b> – unlike the 16
+/// graph commands. Coordinates do not touch the session semantics: sessions pin
+/// <c>DialogId</c>/<c>DialogVersion</c> and follow Guids, not pixels. If the layout ran through the guard,
+/// a <i>published</i> dialog could not even be arranged clearly, and every move would answer with 409.
+/// Because <see cref="DialogLayout"/> is its own table, this is
+/// no bypass of the publish lock (ADR 0005) but its edge – reasoned in ADR 0007.
 /// </para>
 /// <para>
-/// <see cref="DialogLayoutEntry.ElementId"/> bleibt <b>ungeprüft</b>: dieselbe Konvention wie bei den
-/// FK-losen Frage-Verweisen einer <see cref="LoopDefinition"/>. Verwaiste Zeilen räumt
-/// <c>DeleteQuestionCommand</c> ab.
+/// <see cref="DialogLayoutEntry.ElementId"/> stays <b>unchecked</b>: the same convention as with the
+/// FK-free question references of a <see cref="LoopDefinition"/>. Orphaned rows are cleaned up by
+/// <c>DeleteQuestionCommand</c>.
 /// </para>
 /// <para>
-/// Der Batch existiert für den Fall, dass eine Geste mehrere Elemente verschiebt: Eine Zieh-Geste im
-/// Designer darf genau <b>eine</b> Nachricht erzeugen, nicht eine je Element.
+/// The batch exists for the case that a gesture moves several elements: a drag gesture in the
+/// designer must produce exactly <b>one</b> message, not one per element.
 /// </para>
 /// </remarks>
-/// <param name="DialogId">Die Id des Dialogs, dessen Layout gesetzt wird.</param>
-/// <param name="Entries">Die zu setzenden Positionen; mindestens eine, je Element höchstens eine.</param>
+/// <param name="DialogId">The id of the dialog whose layout is set.</param>
+/// <param name="Entries">The positions to set; at least one, at most one per element.</param>
 public sealed record SetDialogLayoutCommand(
     Guid DialogId,
     IReadOnlyList<DialogLayoutEntry> Entries)
@@ -43,38 +43,38 @@ public sealed record SetDialogLayoutCommand(
         if (Entries is null || Entries.Count == 0)
         {
             yield return new ValidationResult(
-                "Es wurde keine Position übergeben – ein Layout-Batch braucht mindestens einen Eintrag.",
+                "No position was passed – a layout batch needs at least one entry.",
                 [nameof(Entries)]);
             yield break;
         }
 
-        // Ein doppeltes Element im selben Batch ist keine Absicht, sondern ein Fehler des Aufrufers:
-        // Welche der beiden Positionen gewinnen soll, ist nicht bestimmbar.
+        // A duplicate element in the same batch is not intent but a mistake of the caller:
+        // which of the two positions should win is not determinable.
         if (Entries.Select(entry => (entry.ElementKind, entry.ElementId)).Distinct().Count() != Entries.Count)
         {
             yield return new ValidationResult(
-                "Ein Element kommt im Batch mehrfach vor – je Element ist höchstens eine Position zulässig.",
+                "An element occurs multiple times in the batch – at most one position per element is allowed.",
                 [nameof(Entries)]);
         }
 
         if (Entries.Any(entry => entry.X < 0 || entry.Y < 0))
         {
             yield return new ValidationResult(
-                "Canvas-Koordinaten dürfen nicht negativ sein – der Ursprung liegt oben links.",
+                "Canvas coordinates must not be negative – the origin is at the top left.",
                 [nameof(Entries)]);
         }
     }
 }
 
-/// <summary>Handler für <see cref="SetDialogLayoutCommand"/>.</summary>
+/// <summary>Handler for <see cref="SetDialogLayoutCommand"/>.</summary>
 internal sealed class SetDialogLayoutCommandHandler
     : ICommandHandler<SetDialogLayoutCommand, IReadOnlyList<DialogLayoutDetail>>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public SetDialogLayoutCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -82,14 +82,14 @@ internal sealed class SetDialogLayoutCommandHandler
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     public async ValueTask<IReadOnlyList<DialogLayoutDetail>> Handle(
         SetDialogLayoutCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Der Dialog muss existieren – aber er darf veröffentlicht sein. Hier steht bewusst KEIN
-        // DialogEditGuard; die Begründung steht am Command und in ADR 0007.
+        // The dialog must exist – but it may be published. There is deliberately NO
+        // DialogEditGuard here; the reasoning stands at the command and in ADR 0007.
         _ = await _store.GetDialogAsync(command.DialogId, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.DialogId);
 
@@ -121,8 +121,8 @@ internal sealed class SetDialogLayoutCommandHandler
 
         await _store.SaveChangesAsync(cancellationToken);
 
-        // Das vollständige Layout zurückgeben, nicht nur die gesetzten Zeilen: Der Aufrufer kann seinen
-        // Stand damit ersetzen, statt ihn selbst zusammenzuführen.
+        // Return the full layout, not only the set rows: the caller can replace its
+        // state with it instead of merging it itself.
         return AdminProjection.ToDetail(byElement.Values);
     }
 }

@@ -4,18 +4,18 @@ using Flirty.Expressions;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Kapselt die gesamte Loop-Laufzeitlogik einer gepinnten Dialogversion (Issue #29): die Ermittlung
-/// des Schleifen-Bereichs (Body) je <see cref="LoopDefinition"/>, die Zuordnung von
-/// <see cref="SessionAnswer.LoopInstanceId"/>/<see cref="SessionAnswer.IterationIndex"/> beim
-/// Persistieren einer Antwort sowie den Aufbau der je Iteration gesammelten Collections und des
-/// aktuellen Iterationsindex für den <see cref="ExpressionContext"/>.
+/// Encapsulates the entire loop runtime logic of a pinned dialog version (issue #29): the computation
+/// of the loop range (body) per <see cref="LoopDefinition"/>, the assignment of
+/// <see cref="SessionAnswer.LoopInstanceId"/>/<see cref="SessionAnswer.IterationIndex"/> when
+/// persisting an answer, as well as the build-up of the collections gathered per iteration and the
+/// current iteration index for the <see cref="ExpressionContext"/>.
 /// </summary>
 /// <remarks>
-/// Loops entstehen ausschließlich über das vorhandene Branching (eine <see cref="Transition"/> zeigt auf
-/// eine frühere Frage = Zyklus); die <see cref="LoopDefinition"/> ist nur die Marker-Ebene darüber. Es gibt
-/// bewusst keinen separaten Runtime-Sonderpfad (vgl. <c>docs/ARCHITECTURE.md</c> §10/§11.5). Der Body wird
-/// einmalig im Konstruktor aus dem Übergangs-Graphen vorberechnet; die restlichen Operationen leiten ihren
-/// Zustand aus den vorhandenen <see cref="SessionAnswer"/>-Zeilen ab (kein zusätzliches Session-Feld).
+/// Loops arise exclusively via the existing branching (a <see cref="Transition"/> points to
+/// an earlier question = cycle); the <see cref="LoopDefinition"/> is only the marker layer on top. There is
+/// deliberately no separate runtime special path (cf. <c>docs/ARCHITECTURE.md</c> §10/§11.5). The body is
+/// precomputed once in the constructor from the transition graph; the remaining operations derive their
+/// state from the existing <see cref="SessionAnswer"/> rows (no additional session field).
 /// </remarks>
 internal sealed class LoopResolver
 {
@@ -23,14 +23,13 @@ internal sealed class LoopResolver
     private readonly Dictionary<Guid, LoopDefinition> _loopByQuestion;
 
     /// <summary>
-    /// Erstellt den Resolver für die angegebene gepinnte Dialogversion und berechnet den Body jeder
-    /// Schleife aus deren Übergängen vor.
+    /// Creates the resolver for the given pinned dialog version and precomputes the body of each
+    /// loop from its transitions.
     /// </summary>
-    /// <param name="dialog">Die gepinnte Dialogversion samt <see cref="Dialog.Loops"/> und <see cref="Dialog.Transitions"/>.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="dialog"/> ist <see langword="null"/>.</exception>
+    /// <param name="dialog">The pinned dialog version along with <see cref="Dialog.Loops"/> and <see cref="Dialog.Transitions"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="dialog"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Zwei Schleifen-Bereiche überlappen sich (verschachtelte/überlappende Loops werden im MVP nicht
-    /// unterstützt).
+    /// Two loop ranges overlap (nested/overlapping loops are not supported in the MVP).
     /// </exception>
     public LoopResolver(Dialog dialog)
     {
@@ -46,25 +45,25 @@ internal sealed class LoopResolver
                 if (!_loopByQuestion.TryAdd(questionId, scope.Loop))
                 {
                     throw new InvalidOperationException(
-                        $"Die Frage '{questionId}' im Dialog '{dialog.Key}' gehört zu mehreren "
-                        + "Schleifen-Bereichen; verschachtelte oder überlappende Loops werden nicht unterstützt.");
+                        $"The question '{questionId}' in dialog '{dialog.Key}' belongs to multiple "
+                        + "loop ranges; nested or overlapping loops are not supported.");
                 }
             }
         }
     }
 
     /// <summary>
-    /// Bestimmt die Loop-Zuordnung für eine <b>neu zu persistierende</b> Antwort auf
-    /// <paramref name="questionId"/>. Muss vor dem Anhängen der neuen Antwort aufgerufen werden (rechnet
-    /// auf dem Vor-Zustand der bereits gespeicherten Antworten).
+    /// Determines the loop assignment for an answer to <paramref name="questionId"/> that is
+    /// <b>about to be persisted</b>. Must be called before appending the new answer (computes
+    /// on the prior state of the already stored answers).
     /// </summary>
-    /// <param name="session">Die getrackte Session inkl. ihrer bisherigen Antworten.</param>
-    /// <param name="questionId">Die Id der Frage, deren Antwort gleich persistiert wird.</param>
+    /// <param name="session">The tracked session including its answers so far.</param>
+    /// <param name="questionId">The id of the question whose answer is about to be persisted.</param>
     /// <returns>
-    /// Die zu setzende <see cref="LoopAssignment"/>. Außerhalb jeder Schleife sind beide Werte
-    /// <see langword="null"/> (unverändertes Nicht-Loop-Verhalten).
+    /// The <see cref="LoopAssignment"/> to set. Outside any loop both values are
+    /// <see langword="null"/> (unchanged non-loop behavior).
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="session"/> ist <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
     public LoopAssignment ResolveAssignment(DialogSession session, Guid questionId)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -80,7 +79,7 @@ internal sealed class LoopResolver
             .OrderBy(answer => answer.Sequence)
             .ToList();
 
-        // Erster Eintritt in die Schleife: frische Instanz, Iteration 0.
+        // First entry into the loop: fresh instance, iteration 0.
         if (priorBodyAnswers.Count == 0)
         {
             return new LoopAssignment(Guid.NewGuid(), 0);
@@ -90,8 +89,8 @@ internal sealed class LoopResolver
         var instanceAnswers = priorBodyAnswers.Where(answer => answer.LoopInstanceId == instanceId).ToList();
         var maxIteration = instanceAnswers.Max(answer => answer.IterationIndex ?? 0);
 
-        // Loop-Back: Wird die Einstiegsfrage in der laufenden Iteration erneut beantwortet, beginnt die
-        // nächste Iteration. Alle übrigen (Folge-)Fragen bleiben in der aktuellen Iteration.
+        // Loop-back: if the entry question is answered again in the running iteration, the
+        // next iteration begins. All other (follow-up) questions stay in the current iteration.
         var startsNextIteration = questionId == loop.EntryQuestionId
             && instanceAnswers.Any(answer =>
                 answer.QuestionId == loop.EntryQuestionId && answer.IterationIndex == maxIteration);
@@ -100,16 +99,16 @@ internal sealed class LoopResolver
     }
 
     /// <summary>
-    /// Baut die je Iteration gesammelten Loop-Collections für den <see cref="ExpressionContext"/>: je
-    /// <see cref="LoopDefinition.CollectionKey"/> die <see cref="SessionAnswer.Value"/> der Einstiegsfrage
-    /// je Iteration der jüngsten Loop-Instanz, geordnet nach <see cref="SessionAnswer.IterationIndex"/>.
-    /// Jeder <see cref="LoopDefinition.CollectionKey"/> wird stets gebunden (leere Liste, solange die
-    /// Schleife noch nicht betreten wurde), damit Ausdrücke wie <c>positions.Count &gt; 0</c> auch vor der
-    /// ersten Iteration auswertbar sind.
+    /// Builds the loop collections gathered per iteration for the <see cref="ExpressionContext"/>: per
+    /// <see cref="LoopDefinition.CollectionKey"/> the <see cref="SessionAnswer.Value"/> of the entry question
+    /// per iteration of the most recent loop instance, ordered by <see cref="SessionAnswer.IterationIndex"/>.
+    /// Each <see cref="LoopDefinition.CollectionKey"/> is always bound (empty list as long as the
+    /// loop has not yet been entered), so that expressions like <c>positions.Count &gt; 0</c> are evaluable
+    /// even before the first iteration.
     /// </summary>
-    /// <param name="session">Die Session inkl. ihrer bisherigen Antworten.</param>
-    /// <returns>Die Collections, indiziert nach <see cref="LoopDefinition.CollectionKey"/>.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="session"/> ist <see langword="null"/>.</exception>
+    /// <param name="session">The session including its answers so far.</param>
+    /// <returns>The collections, indexed by <see cref="LoopDefinition.CollectionKey"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
     public IReadOnlyDictionary<string, IReadOnlyList<string?>> BuildCollections(DialogSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -141,13 +140,13 @@ internal sealed class LoopResolver
     }
 
     /// <summary>
-    /// Ermittelt den Iterationsindex der zuletzt gegebenen Antwort auf <paramref name="questionId"/>,
-    /// sofern die Frage in einem Schleifen-Bereich liegt; sonst <see langword="null"/>.
+    /// Determines the iteration index of the most recently given answer to <paramref name="questionId"/>,
+    /// provided the question lies within a loop range; otherwise <see langword="null"/>.
     /// </summary>
-    /// <param name="session">Die Session inkl. ihrer bisherigen Antworten.</param>
-    /// <param name="questionId">Die Id der gerade beantworteten Frage.</param>
-    /// <returns>Der aktuelle nullbasierte Iterationsindex oder <see langword="null"/> außerhalb einer Schleife.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="session"/> ist <see langword="null"/>.</exception>
+    /// <param name="session">The session including its answers so far.</param>
+    /// <param name="questionId">The id of the question just answered.</param>
+    /// <returns>The current zero-based iteration index, or <see langword="null"/> outside a loop.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
     public int? ResolveIterationIndex(DialogSession session, Guid questionId)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -167,10 +166,10 @@ internal sealed class LoopResolver
         => _loops.First(scope => ReferenceEquals(scope.Loop, loop)).Body;
 
     /// <summary>
-    /// Berechnet den Schleifen-Bereich als <c>(vorwärts erreichbar ab Entry) ∩ (rückwärts erreichbar zu
-    /// Breaking) ∪ {Entry, Breaking}</c>. Die Vorwärts-Suche stoppt an der Breaking Question (deren
-    /// Loop-Back-/Exit-Kanten werden nicht verfolgt); dadurch bleiben früh aus dem Zyklus austretende Zweige
-    /// (in F, nicht in B) und dem Zyklus vorgelagerte Fragen (in B, nicht in F) außerhalb des Body.
+    /// Computes the loop range as <c>(reachable forward from Entry) ∩ (reachable backward to
+    /// Breaking) ∪ {Entry, Breaking}</c>. The forward search stops at the breaking question (its
+    /// loop-back/exit edges are not followed); this keeps branches that exit the cycle early
+    /// (in F, not in B) and questions upstream of the cycle (in B, not in F) outside the body.
     /// </summary>
     private static HashSet<Guid> ComputeBody(Dialog dialog, LoopDefinition loop)
     {
@@ -191,7 +190,7 @@ internal sealed class LoopResolver
         return body;
     }
 
-    /// <summary>Vorwärts über ausgehende Übergänge erreichbare Fragen ab <paramref name="start"/>; expandiert <paramref name="stopAt"/> nicht.</summary>
+    /// <summary>Questions reachable forward via outgoing transitions from <paramref name="start"/>; does not expand <paramref name="stopAt"/>.</summary>
     private static HashSet<Guid> ReachableForward(Dialog dialog, Guid start, Guid stopAt)
     {
         var visited = new HashSet<Guid>();
@@ -215,7 +214,7 @@ internal sealed class LoopResolver
         return visited;
     }
 
-    /// <summary>Fragen, von denen aus <paramref name="target"/> über Übergänge rückwärts erreichbar ist (inkl. <paramref name="target"/>).</summary>
+    /// <summary>Questions from which <paramref name="target"/> is reachable backward via transitions (incl. <paramref name="target"/>).</summary>
     private static HashSet<Guid> ReachableBackward(Dialog dialog, Guid target)
     {
         var visited = new HashSet<Guid>();
@@ -239,15 +238,15 @@ internal sealed class LoopResolver
         return visited;
     }
 
-    /// <summary>Verknüpft eine <see cref="LoopDefinition"/> mit ihrem vorberechneten Schleifen-Bereich (Frage-Ids).</summary>
+    /// <summary>Links a <see cref="LoopDefinition"/> with its precomputed loop range (question ids).</summary>
     private sealed record LoopScope(LoopDefinition Loop, HashSet<Guid> Body);
 }
 
 /// <summary>
-/// Die beim Persistieren einer Antwort zu setzende Loop-Zuordnung: die Instanz-Id der Schleife und der
-/// nullbasierte Iterationsindex. Beide sind <see langword="null"/>, wenn die Antwort außerhalb jeder
-/// Schleife gegeben wird.
+/// The loop assignment to set when persisting an answer: the instance id of the loop and the
+/// zero-based iteration index. Both are <see langword="null"/> if the answer is given outside any
+/// loop.
 /// </summary>
-/// <param name="LoopInstanceId">Die Instanz-Id der laufenden Schleife oder <see langword="null"/> außerhalb.</param>
-/// <param name="IterationIndex">Der nullbasierte Iterationsindex oder <see langword="null"/> außerhalb.</param>
+/// <param name="LoopInstanceId">The instance id of the running loop, or <see langword="null"/> outside.</param>
+/// <param name="IterationIndex">The zero-based iteration index, or <see langword="null"/> outside.</param>
 internal readonly record struct LoopAssignment(Guid? LoopInstanceId, int? IterationIndex);

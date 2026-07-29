@@ -3,24 +3,24 @@ using Flirty.Domain;
 namespace Flirty.Designer.Models;
 
 /*
- * Die Nutzlasten, mit denen die Inspector-Panels des Canvas (#103) ihre Eingaben nach oben melden.
+ * The payloads with which the inspector panels of the canvas (#103) report their inputs upward.
  *
- * Warum eigene Typen und nicht die Formularmodelle: QuestionFormModel, TransitionFormModel,
- * LoopFormModel und TriggerFormModel sind `internal`, und Razor erzeugt Komponenten als `public` – ein
- * internal Typ an einem [Parameter] ist CS0053 und unter TreatWarningsAsErrors ein Buildfehler. Die
- * Modelle bleiben deshalb PRIVATER Zustand des jeweiligen Panels (dort darf `internal` stehen, weil es
- * nicht in der Parameterliste auftaucht), und über die Komponentengrenze geht nur das Ergebnis.
+ * Why own types and not the form models: QuestionFormModel, TransitionFormModel,
+ * LoopFormModel and TriggerFormModel are `internal`, and Razor generates components as `public` – an
+ * internal type on a [Parameter] is CS0053 and under TreatWarningsAsErrors a build error. The
+ * models therefore stay PRIVATE state of the respective panel (there `internal` may stand, because it
+ * does not appear in the parameter list), and across the component boundary only the result goes.
  *
- * Der Nebeneffekt ist die klarere Zuständigkeit: Panel = Formular samt Vorprüfungen, Seite = Commands.
- * Damit gibt es genau eine Stelle für den Gesten-Riegel und den Fehlerpfad.
+ * The side effect is the clearer responsibility: panel = form together with pre-checks, page = commands.
+ * With that there is exactly one place for the gesture lock and the error path.
  */
 
-/// <summary>Die geänderten Kopffelder einer Frage.</summary>
-/// <param name="QuestionId">Die bearbeitete Frage.</param>
-/// <param name="Key">Der fachliche Schlüssel.</param>
-/// <param name="Text">Der Fragetext.</param>
-/// <param name="Type">Der Antworttyp.</param>
-/// <param name="IsRequired">Ob eine Antwort erforderlich ist.</param>
+/// <summary>The changed header fields of a question.</summary>
+/// <param name="QuestionId">The edited question.</param>
+/// <param name="Key">The domain key.</param>
+/// <param name="Text">The question text.</param>
+/// <param name="Type">The answer type.</param>
+/// <param name="IsRequired">Whether an answer is required.</param>
 public sealed record QuestionEdit(
     Guid QuestionId,
     string Key,
@@ -28,45 +28,45 @@ public sealed record QuestionEdit(
     QuestionType Type,
     bool IsRequired);
 
-/// <summary>Die geänderten Felder eines Übergangs.</summary>
-/// <param name="TransitionId">Der bearbeitete Übergang.</param>
-/// <param name="TargetQuestionId">Die Zielfrage.</param>
-/// <param name="Expression">Die Bedingung; <see langword="null"/> heißt „bedingungslos".</param>
-/// <param name="IsDefault">Ob der Übergang greift, wenn keine Bedingung zutrifft.</param>
+/// <summary>The changed fields of a transition.</summary>
+/// <param name="TransitionId">The edited transition.</param>
+/// <param name="TargetQuestionId">The target question.</param>
+/// <param name="Expression">The condition; <see langword="null"/> means "unconditional".</param>
+/// <param name="IsDefault">Whether the transition takes effect when no condition matches.</param>
 public sealed record TransitionEdit(
     Guid TransitionId,
     Guid TargetQuestionId,
     string? Expression,
     bool IsDefault);
 
-/// <summary>Eine Umsortierung der Auswertungsreihenfolge innerhalb einer Ausgangsfrage.</summary>
-/// <param name="FromQuestionId">Die Ausgangsfrage, deren Übergänge umsortiert werden.</param>
-/// <param name="From">Die aktuelle Position.</param>
-/// <param name="To">Die Zielposition.</param>
+/// <summary>A reordering of the evaluation order within a source question.</summary>
+/// <param name="FromQuestionId">The source question whose transitions are reordered.</param>
+/// <param name="From">The current position.</param>
+/// <param name="To">The target position.</param>
 public sealed record TransitionMove(Guid FromQuestionId, int From, int To);
 
-/// <summary>Ein neuer Schleifen-Marker, abgeleitet aus einem Rücksprung.</summary>
-/// <param name="CollectionKey">Der Schlüssel, unter dem die Iterationen gesammelt werden.</param>
-/// <param name="EntryQuestionId">Die Einstiegsfrage (das Ziel des Rücksprungs).</param>
-/// <param name="BreakingQuestionId">Die Breaking Question (die Ausgangsfrage des Rücksprungs).</param>
+/// <summary>A new loop marker, derived from a back-jump.</summary>
+/// <param name="CollectionKey">The key under which the iterations are collected.</param>
+/// <param name="EntryQuestionId">The entry question (the target of the back-jump).</param>
+/// <param name="BreakingQuestionId">The breaking question (the source question of the back-jump).</param>
 public sealed record LoopDraft(string CollectionKey, Guid EntryQuestionId, Guid BreakingQuestionId);
 
-/// <summary>Die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde (#104).</summary>
+/// <summary>The new position of a node after the drag was finished in the browser (#104).</summary>
 /// <remarks>
-/// Auf der Editor-Seite (#102) meldet das JS-Modul den Zug direkt an die Seite; die Laufansicht bindet
-/// das Modul dagegen in der Canvas-Komponente, und die reicht ihn als ein Stück weiter.
+/// On the editor page (#102) the JS module reports the drag directly to the page; the run view binds
+/// the module instead in the canvas component, and it passes it on as one piece.
 /// </remarks>
-/// <param name="QuestionId">Die verschobene Frage.</param>
-/// <param name="X">Die neue waagerechte Canvas-Koordinate in px.</param>
-/// <param name="Y">Die neue senkrechte Canvas-Koordinate in px.</param>
+/// <param name="QuestionId">The moved question.</param>
+/// <param name="X">The new horizontal canvas coordinate in px.</param>
+/// <param name="Y">The new vertical canvas coordinate in px.</param>
 public sealed record NodeMove(Guid QuestionId, int X, int Y);
 
-/// <summary>Ein neuer Trigger.</summary>
-/// <param name="Scope">Der Zeitpunkt.</param>
-/// <param name="QuestionId">Die Bezugsfrage bei <see cref="TriggerScope.AfterQuestion"/>, sonst <see langword="null"/>.</param>
-/// <param name="Kind">Der Kanal.</param>
+/// <summary>A new trigger.</summary>
+/// <param name="Scope">The point in time.</param>
+/// <param name="QuestionId">The reference question for <see cref="TriggerScope.AfterQuestion"/>, otherwise <see langword="null"/>.</param>
+/// <param name="Kind">The channel.</param>
 /// <param name="Config">
-/// Die Konfiguration als JSON – im Panel über <c>TriggerFormModel.TryBuildConfig</c> gebaut, damit die
-/// Querfeld-Regeln aus #42 (Webhook braucht eine absolute URL) vor dem Command greifen.
+/// The configuration as JSON – built in the panel via <c>TriggerFormModel.TryBuildConfig</c>, so that the
+/// cross-field rules from #42 (webhook needs an absolute URL) take effect before the command.
 /// </param>
 public sealed record TriggerDraft(TriggerScope Scope, Guid? QuestionId, TriggerKind Kind, string Config);

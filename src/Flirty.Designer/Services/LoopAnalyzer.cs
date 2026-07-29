@@ -4,32 +4,32 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Wertet die Schleifen-Marker eines Dialogs für den Loop-Editor (#41) aus: Schleifen-Bereich (Body),
-/// Rücksprung-/Exit-Übergänge und die Warnungen zu Konfigurationen, die zur Laufzeit anders wirken als
-/// gedacht – allen voran der <b>Zyklus ohne erreichbaren Exit</b> (Endlosschleife).
+/// Evaluates the loop markers of a dialog for the loop editor (#41): loop range (body),
+/// back-jump/exit transitions and the warnings about configurations that take effect differently at runtime than
+/// intended – first and foremost the <b>cycle without a reachable exit</b> (infinite loop).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Die Body-Ermittlung spiegelt bewusst den Core-internen <c>LoopResolver</c>
-/// (<c>src/Flirty/Runtime/LoopResolver.cs</c>): <c>(vorwärts ab Entry, Stopp an Breaking) ∩ (rückwärts zu
-/// Breaking) ∪ {Entry, Breaking}</c>. Der Resolver selbst ist nicht wiederverwendbar – er ist
-/// <c>internal</c> im Core und arbeitet auf einer <c>Dialog</c>-Entity mit geladenen Navigationen,
-/// während der Designer nur die navigationsfreie Sicht <see cref="DialogDetail"/> hat. Dieselbe
-/// Abgrenzung wie bei <see cref="DesignerExpressionContext"/> ↔ <c>SessionExpressionContextBuilder</c>;
-/// gegen ein Auseinanderlaufen sichert ein Test in <c>tests/Flirty.Tests/Designer/LoopAnalyzerTests</c>,
-/// der beide Implementierungen auf demselben Graphen vergleicht.
+/// The body computation deliberately mirrors the core-internal <c>LoopResolver</c>
+/// (<c>src/Flirty/Runtime/LoopResolver.cs</c>): <c>(forward from Entry, stop at Breaking) ∩ (backward to
+/// Breaking) ∪ {Entry, Breaking}</c>. The resolver itself is not reusable – it is
+/// <c>internal</c> in the core and works on a <c>Dialog</c> entity with loaded navigations,
+/// while the designer only has the navigation-free view <see cref="DialogDetail"/>. The same
+/// delimitation as with <see cref="DesignerExpressionContext"/> ↔ <c>SessionExpressionContextBuilder</c>;
+/// against a drift a test in <c>tests/Flirty.Tests/Designer/LoopAnalyzerTests</c> secures it,
+/// comparing both implementations on the same graph.
 /// </para>
 /// <para>
-/// Die Erreichbarkeit des Exits spiegelt den <c>TransitionResolver</c>: Es gewinnt der erste
-/// <b>nicht</b>-Default, dessen Bedingung zutrifft (ein leerer Ausdruck trifft immer zu), sonst der erste
-/// Default. Ein bedingungsloser Rücksprung vor jedem Exit macht den Ausstieg daher unerreichbar.
+/// The reachability of the exit mirrors the <c>TransitionResolver</c>: the first
+/// <b>non</b>-default whose condition matches wins (an empty expression always matches), otherwise the first
+/// default. An unconditional back-jump before every exit therefore makes the exit unreachable.
 /// </para>
 /// </remarks>
 internal static class LoopAnalyzer
 {
-    /// <summary>Analysiert alle Schleifen-Marker des Dialogs.</summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <returns>Je Marker ein Analyseergebnis, in der Reihenfolge von <see cref="DialogDetail.Loops"/>.</returns>
+    /// <summary>Analyzes all loop markers of the dialog.</summary>
+    /// <param name="detail">The dialog together with the graph (from <c>GetDialogQuery</c>).</param>
+    /// <returns>Per marker an analysis result, in the order of <see cref="DialogDetail.Loops"/>.</returns>
     public static IReadOnlyList<LoopInsight> Analyze(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -39,10 +39,10 @@ internal static class LoopAnalyzer
         return [.. detail.Loops.Select(loop => Describe(detail, loop, bodies))];
     }
 
-    /// <summary>Analysiert einen einzelnen Schleifen-Marker des Dialogs.</summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <param name="loopId">Der Primärschlüssel des Markers.</param>
-    /// <returns>Das Analyseergebnis oder <see langword="null"/>, wenn der Dialog den Marker nicht enthält.</returns>
+    /// <summary>Analyzes a single loop marker of the dialog.</summary>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <param name="loopId">The primary key of the marker.</param>
+    /// <returns>The analysis result or <see langword="null"/> if the dialog does not contain the marker.</returns>
     public static LoopInsight? Analyze(DialogDetail detail, Guid loopId)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -51,18 +51,18 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
-    /// Zeigt der Übergang auf eine frühere (oder dieselbe) Frage <b>der Listenreihenfolge</b>? Dann
-    /// entsteht ein Zyklus – also eine Schleife, sobald ein Marker dazukommt.
+    /// Does the transition point to an earlier (or the same) question <b>in list order</b>? Then
+    /// a cycle arises – that is, a loop as soon as a marker is added.
     /// </summary>
     /// <remarks>
-    /// Bewusst über die Listenreihenfolge und nicht über die Schichtung des Layouts, damit
-    /// Listenansicht, Graph-Kante und Schleifen-Vorschlag <b>dieselbe</b> Aussage treffen. Die
-    /// Überladung mit vorbereiteter Reihenfolge gibt es für <see cref="DialogGraphBuilder"/>, der sie je
-    /// Kante braucht; die Regel selbst steht nur hier.
+    /// Deliberately over the list order and not over the layering of the layout, so that
+    /// list view, graph edge and loop suggestion make the <b>same</b> statement. The
+    /// overload with a prepared order exists for <see cref="DialogGraphBuilder"/>, which needs it per
+    /// edge; the rule itself stands only here.
     /// </remarks>
-    /// <param name="order">Die Frage-Ids in Listenreihenfolge.</param>
-    /// <param name="transition">Der zu prüfende Übergang.</param>
-    /// <returns><see langword="true"/>, wenn der Übergang zurückspringt.</returns>
+    /// <param name="order">The question ids in list order.</param>
+    /// <param name="transition">The transition to check.</param>
+    /// <returns><see langword="true"/> if the transition jumps back.</returns>
     public static bool IsBackJump(IReadOnlyList<Guid> order, TransitionDetail transition)
     {
         ArgumentNullException.ThrowIfNull(order);
@@ -74,10 +74,10 @@ internal static class LoopAnalyzer
         return from >= 0 && target >= 0 && target <= from;
     }
 
-    /// <summary>Wie <see cref="IsBackJump(IReadOnlyList{Guid}, TransitionDetail)"/>, aber über den Dialog.</summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <param name="transition">Der zu prüfende Übergang.</param>
-    /// <returns><see langword="true"/>, wenn der Übergang zurückspringt.</returns>
+    /// <summary>Like <see cref="IsBackJump(IReadOnlyList{Guid}, TransitionDetail)"/>, but over the dialog.</summary>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <param name="transition">The transition to check.</param>
+    /// <returns><see langword="true"/> if the transition jumps back.</returns>
     public static bool IsBackJump(DialogDetail detail, TransitionDetail transition)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -86,17 +86,17 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
-    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Ohne Marker sammelt die
-    /// Laufzeit die Antworten des Zyklus nicht, sondern überschreibt sie – deshalb werden sie
-    /// ausgewiesen statt still hingenommen.
+    /// Back-jump transitions to which (yet) no loop marker matches. Without a marker the
+    /// runtime does not collect the answers of the cycle, but overwrites them – therefore they are
+    /// reported instead of silently accepted.
     /// </summary>
     /// <remarks>
-    /// Herausgezogen aus <c>DialogEditor</c>, weil der Canvas (#103) den Vorschlag <b>am Zyklus</b>
-    /// anbietet statt in einer Liste. Beide Ansichten fragen dieselbe Methode – sonst könnte ein
-    /// Rücksprung in der Liste als unmarkiert gelten und auf dem Graphen nicht.
+    /// Extracted from <c>DialogEditor</c>, because the canvas (#103) offers the suggestion <b>at the cycle</b>
+    /// instead of in a list. Both views ask the same method – otherwise a
+    /// back-jump could count as unmarked in the list and not on the graph.
     /// </remarks>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <returns>Die unmarkierten Rücksprünge in Dialog-Reihenfolge.</returns>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <returns>The unmarked back-jumps in dialog order.</returns>
     public static IReadOnlyList<TransitionDetail> UnmarkedBackJumps(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -126,13 +126,13 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
-    /// Bestimmt den Schleifen-Bereich eines Markers – identisch zur Vorberechnung im
-    /// Core-<c>LoopResolver</c>. Fehlt die Einstiegs- oder Breaking Question im Dialog, ist der Bereich
-    /// leer (der Marker zeigt ins Leere und wird als Warnung ausgewiesen).
+    /// Determines the loop range of a marker – identical to the precomputation in the
+    /// core <c>LoopResolver</c>. If the entry or breaking question is missing in the dialog, the range is
+    /// empty (the marker points into the void and is reported as a warning).
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <param name="loop">Der zu vermessende Marker.</param>
-    /// <returns>Die Frage-Ids des Schleifenbereichs.</returns>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <param name="loop">The marker to measure.</param>
+    /// <returns>The question ids of the loop range.</returns>
     public static HashSet<Guid> ComputeBody(DialogDetail detail, LoopDetail loop)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -189,9 +189,9 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
-    /// Die Warnungen eines Markers – mit Ortsangabe, damit die Graph-Ansicht (#101) sie am Rahmen, am
-    /// Knoten oder an der Kante zeigen kann. Die <b>Texte und ihre Reihenfolge sind unverändert</b>: Der
-    /// Loop-Editor zeigt sie seit #41 so an, und Tests hängen an den Wortlauten.
+    /// The warnings of a marker – with a location, so that the graph view (#101) can show them at the frame, at the
+    /// node or at the edge. The <b>texts and their order are unchanged</b>: the
+    /// loop editor has shown them so since #41, and tests hang on the wordings.
     /// </summary>
     private static IReadOnlyList<GraphWarning> Warnings(
         DialogDetail detail,
@@ -250,7 +250,7 @@ internal static class LoopAnalyzer
                         + "trifft immer zu; sonst der oberste Default). Ergebnis ist eine Endlosschleife – "
                         + "dem Rücksprung eine Bedingung geben oder ihn hinter den Ausstieg sortieren.";
 
-                    // Der Verdecker ist die Ursache – ohne ihn bleibt nur die Breaking Question als Ort.
+                    // The blocker is the cause – without it only the breaking question remains as the location.
                     warnings.Add(blocker is null
                         ? GraphWarning.ForQuestion(breaking.Id, text)
                         : GraphWarning.ForTransition(blocker.Id, breaking.Id, text));
@@ -290,15 +290,15 @@ internal static class LoopAnalyzer
     }
 
     /// <summary>
-    /// Bildet die Auswahl des <c>TransitionResolver</c> nach und beantwortet, ob überhaupt ein Ausstieg
-    /// greifen kann: Der erste bedingungslose Nicht-Default gewinnt immer; wird keiner erreicht, greift
-    /// der oberste Default.
+    /// Reproduces the selection of the <c>TransitionResolver</c> and answers whether any exit
+    /// can take effect at all: the first unconditional non-default always wins; if none is reached, the
+    /// topmost default takes effect.
     /// </summary>
-    /// <param name="outgoing">Die Übergänge der Breaking Question in Auswertungsreihenfolge.</param>
-    /// <param name="body">Der Schleifenbereich.</param>
+    /// <param name="outgoing">The transitions of the breaking question in evaluation order.</param>
+    /// <param name="body">The loop range.</param>
     /// <returns>
-    /// Ob der Ausstieg erreichbar ist und – falls nicht – welcher Rücksprung ihn verdeckt. Der
-    /// Verdecker trägt die Warnung, damit die Graph-Ansicht sie an <b>seiner</b> Kante zeigen kann.
+    /// Whether the exit is reachable and – if not – which back-jump shadows it. The
+    /// shadower carries the warning, so that the graph view can show it at <b>its</b> edge.
     /// </returns>
     private static (bool Reachable, TransitionDetail? Blocker) InspectExit(
         IReadOnlyList<TransitionDetail> outgoing, IReadOnlySet<Guid> body)
@@ -325,7 +325,7 @@ internal static class LoopAnalyzer
     private static QuestionDetail? Question(DialogDetail detail, Guid questionId)
         => detail.Questions.FirstOrDefault(question => question.Id == questionId);
 
-    /// <summary>Vorwärts über ausgehende Übergänge erreichbare Fragen ab <paramref name="start"/>; expandiert <paramref name="stopAt"/> nicht.</summary>
+    /// <summary>Questions reachable forward via outgoing transitions from <paramref name="start"/>; does not expand <paramref name="stopAt"/>.</summary>
     private static HashSet<Guid> ReachableForward(DialogDetail detail, Guid start, Guid stopAt)
     {
         var visited = new HashSet<Guid>();
@@ -349,7 +349,7 @@ internal static class LoopAnalyzer
         return visited;
     }
 
-    /// <summary>Fragen, von denen aus <paramref name="target"/> über Übergänge rückwärts erreichbar ist (inkl. <paramref name="target"/>).</summary>
+    /// <summary>Questions from which <paramref name="target"/> is reachable backward via transitions (incl. <paramref name="target"/>).</summary>
     private static HashSet<Guid> ReachableBackward(DialogDetail detail, Guid target)
     {
         var visited = new HashSet<Guid>();

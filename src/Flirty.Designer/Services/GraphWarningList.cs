@@ -4,45 +4,45 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Fasst die Warnungen eines Graphen als Textliste zusammen – jede mit ihrem <b>Verursacher</b> davor.
-/// Das ist die Fassung, die der <c>DialogEditor</c> im Veröffentlichungs-Abschnitt zeigt und an der die
-/// Rückfrage vor dem Veröffentlichen hängt.
+/// Sums up the warnings of a graph as a text list – each with its <b>cause</b> in front.
+/// This is the version that the <c>DialogEditor</c> shows in the publish section and on which the
+/// confirmation before publishing hangs.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Quelle ist <see cref="DialogGraphModel.AllWarnings"/> und damit der <b>ganze</b> Graph: Dialog,
-/// Knoten (einschließlich der Erreichbarkeit), Kanten und Schleifen. Bis #118 speiste sich die
-/// Rückfrage nur aus dem <see cref="TransitionWarningAnalyzer"/>; eine unerreichbare Frage – vom Graphen
-/// deutlich ausgewiesen – ließ sich deshalb ohne Rückfrage veröffentlichen. Der Defekt war nicht die
-/// eine fehlende Warnung, sondern die <b>handverlesene Auswahl</b>: Jede künftige Warnungsart wäre
-/// wieder herausgefallen. Über <see cref="DialogGraphModel.AllWarnings"/> ist die Liste strukturell
-/// geschlossen.
+/// The source is <see cref="DialogGraphModel.AllWarnings"/> and thus the <b>whole</b> graph: dialog,
+/// nodes (including reachability), edges and loops. Up to #118 the confirmation was fed
+/// only from the <see cref="TransitionWarningAnalyzer"/>; an unreachable question – clearly indicated by
+/// the graph – could therefore be published without a confirmation. The defect was not the
+/// one missing warning, but the <b>hand-picked selection</b>: every future warning kind would have
+/// fallen out again. Via <see cref="DialogGraphModel.AllWarnings"/> the list is structurally
+/// closed.
 /// </para>
 /// <para>
-/// Eigener Service und nicht im <c>@code</c>-Block, weil <c>tests/Flirty.Tests/Designer</c> keine
-/// Komponenten rendert (kein bUnit): Was im Razor liegt, ist nicht prüfbar. Dieselbe Abgrenzung wie bei
+/// Own service and not in the <c>@code</c> block, because <c>tests/Flirty.Tests/Designer</c> renders no
+/// components (no bUnit): what lies in the Razor is not checkable. The same delimitation as with
 /// <see cref="GraphEditing"/>.
 /// </para>
 /// <para>
-/// Die <b>Wortlaute</b> entstehen hier nicht – sie kommen unverändert aus
-/// <see cref="TransitionWarningAnalyzer"/>, <see cref="LoopAnalyzer"/> und
-/// <see cref="DialogGraphBuilder"/> und sind Vertrag gegenüber Tests und E2E-Suite. Diese Klasse setzt
-/// ausschließlich das Präfix davor.
+/// The <b>wordings</b> do not arise here – they come unchanged from
+/// <see cref="TransitionWarningAnalyzer"/>, <see cref="LoopAnalyzer"/> and
+/// <see cref="DialogGraphBuilder"/> and are a contract towards tests and the E2E suite. This class sets
+/// only the prefix in front.
 /// </para>
 /// </remarks>
 internal static class GraphWarningList
 {
     /// <summary>
-    /// Beschreibt alle Warnungen des Graphen als Liste, jede mit dem Schlüssel ihres Verursachers davor.
+    /// Describes all warnings of the graph as a list, each with the key of its cause in front.
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph – Quelle der Frage- und Schleifen-Schlüssel.</param>
-    /// <param name="model">Das Zeichenmodell, aus dem die Warnungen stammen.</param>
+    /// <param name="detail">The dialog together with the graph – source of the question and loop keys.</param>
+    /// <param name="model">The drawing model from which the warnings stem.</param>
     /// <returns>
-    /// Die Warnungen in der Reihenfolge von <see cref="DialogGraphModel.AllWarnings"/>; leer, wenn der
-    /// Graph stimmig ist.
+    /// The warnings in the order of <see cref="DialogGraphModel.AllWarnings"/>; empty if the
+    /// graph is coherent.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="detail"/> oder <paramref name="model"/> ist <see langword="null"/>.
+    /// <paramref name="detail"/> or <paramref name="model"/> is <see langword="null"/>.
     /// </exception>
     public static IReadOnlyList<string> Describe(DialogDetail detail, DialogGraphModel model)
     {
@@ -52,7 +52,7 @@ internal static class GraphWarningList
         return [.. model.AllWarnings.Select(warning => Line(detail, warning))];
     }
 
-    /// <summary>Setzt einer Warnung ihren Verursacher voran – sofern sie einen hat.</summary>
+    /// <summary>Prepends a warning with its cause – provided it has one.</summary>
     private static string Line(DialogDetail detail, GraphWarning warning)
     {
         var origin = Origin(detail, warning);
@@ -60,14 +60,14 @@ internal static class GraphWarningList
     }
 
     /// <summary>
-    /// Der Schlüssel des verursachenden Elements, oder <see langword="null"/> für eine Warnung am Dialog
-    /// als Ganzem.
+    /// The key of the causing element, or <see langword="null"/> for a warning on the dialog
+    /// as a whole.
     /// </summary>
     /// <remarks>
-    /// <see cref="GraphWarning.QuestionId"/> trägt bereits die Bezugsfrage – bei einer Frage sie selbst,
-    /// bei einem Übergang seine Ausgangsfrage. Nur der Schleifen-Marker hat keine (er hängt am Rahmen,
-    /// nicht an einer Frage) und wird über seinen <c>CollectionKey</c> benannt; eine Warnung am Dialog
-    /// bleibt ohne Präfix, weil ihr Verursacher der Dialog selbst ist.
+    /// <see cref="GraphWarning.QuestionId"/> already carries the reference question – for a question it itself,
+    /// for a transition its source question. Only the loop marker has none (it hangs on the frame,
+    /// not on a question) and is named via its <c>CollectionKey</c>; a warning on the dialog
+    /// stays without a prefix, because its cause is the dialog itself.
     /// </remarks>
     private static string? Origin(DialogDetail detail, GraphWarning warning)
         => warning switch
@@ -78,14 +78,14 @@ internal static class GraphWarningList
         };
 
     /// <summary>
-    /// Der fachliche Schlüssel einer Frage. Der Fallback ist Absicht: Ein Verweis auf eine nicht (mehr)
-    /// vorhandene Frage ist selbst ein Befund und darf nicht als leeres Präfix verschwinden.
+    /// The domain key of a question. The fallback is deliberate: a reference to a question that
+    /// no longer exists is itself a finding and must not disappear as an empty prefix.
     /// </summary>
     private static string QuestionKey(DialogDetail detail, Guid questionId)
         => detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
             ?? $"unbekannt ({questionId})";
 
-    /// <summary>Der <c>CollectionKey</c> eines Schleifen-Markers, mit demselben Fallback.</summary>
+    /// <summary>The <c>CollectionKey</c> of a loop marker, with the same fallback.</summary>
     private static string LoopKey(DialogDetail detail, Guid loopId)
         => detail.Loops.FirstOrDefault(loop => loop.Id == loopId)?.CollectionKey
             ?? $"unbekannt ({loopId})";

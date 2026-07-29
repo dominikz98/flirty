@@ -4,24 +4,24 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// In-Process-Notification (Trigger-Scope <see cref="TriggerScope.OnDialogCompleted"/>): wird publiziert,
-/// nachdem eine Session abgeschlossen wurde – entweder durch den <see cref="SubmitAnswerCommandHandler"/>
-/// (letzte Antwort ohne greifenden Übergang) oder durch den <see cref="EditAnswerCommandHandler"/>, wenn
-/// die Neuberechnung nach einer Editierung auf einen Abschluss führt.
+/// In-process notification (trigger scope <see cref="TriggerScope.OnDialogCompleted"/>): published
+/// after a session has been completed – either by the <see cref="SubmitAnswerCommandHandler"/>
+/// (last answer with no applying transition) or by the <see cref="EditAnswerCommandHandler"/>, when
+/// the recomputation after an edit leads to a completion.
 /// </summary>
 /// <remarks>
-/// Trägt die zum Abschlusszeitpunkt gegebenen Antworten als navigationsfreie <see cref="SessionAnswerView"/>
-/// mit, damit Host-Handler das Ergebnis auswerten können, ohne den Konfigurationsgraphen zu kennen.
+/// Carries the answers given at the completion time as navigation-free <see cref="SessionAnswerView"/>
+/// so that host handlers can evaluate the result without knowing the configuration graph.
 /// </remarks>
-/// <param name="SessionId">Der Primärschlüssel der abgeschlossenen <see cref="DialogSession"/>.</param>
-/// <param name="DialogKey">Der fachliche, stabile Schlüssel des abgeschlossenen Dialogs.</param>
+/// <param name="SessionId">The primary key of the completed <see cref="DialogSession"/>.</param>
+/// <param name="DialogKey">The business, stable key of the completed dialog.</param>
 /// <param name="Answers">
-/// Die im Verlauf der Session gegebenen Antworten in aufsteigender <see cref="SessionAnswer.Sequence"/>
-/// (chronologische Reihenfolge).
+/// The answers given over the course of the session in ascending <see cref="SessionAnswer.Sequence"/>
+/// (chronological order).
 /// </param>
-// MSG0005: Der Mediator-Source-Generator (martinothamar) verlangt je Nachricht einen Handler in der
-// Core-Compilation. In-Process-Trigger werden bewusst erst von Host-Apps über eigene
-// INotificationHandler<T> behandelt (siehe docs/TRIGGERS.md) – daher hier gezielt unterdrückt.
+// MSG0005: The Mediator source generator (martinothamar) requires a handler per message in the
+// core compilation. In-process triggers are deliberately handled only by host apps via their own
+// INotificationHandler<T> (see docs/TRIGGERS.md) – therefore suppressed here on purpose.
 #pragma warning disable MSG0005
 public sealed record DialogCompletedNotification(
     Guid SessionId,

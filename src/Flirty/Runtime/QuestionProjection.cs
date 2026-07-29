@@ -3,30 +3,30 @@ using Flirty.Domain;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Gemeinsame Projektion einer <see cref="Question"/> aus einem geladenen <see cref="Dialog"/>-Graphen
-/// in die schlanke, navigationsfreie <see cref="QuestionView"/>. Wird von den Runtime-Handlern
-/// (<see cref="StartDialogCommandHandler"/>, <see cref="SubmitAnswerCommandHandler"/>) geteilt, damit
-/// die Auflösung samt Options-Reihenfolge nur an einer Stelle definiert ist.
+/// Shared projection of a <see cref="Question"/> from a loaded <see cref="Dialog"/> graph
+/// into the lean, navigation-free <see cref="QuestionView"/>. Shared by the runtime handlers
+/// (<see cref="StartDialogCommandHandler"/>, <see cref="SubmitAnswerCommandHandler"/>) so that
+/// the resolution including the option order is defined in only one place.
 /// </summary>
 internal static class QuestionProjection
 {
     /// <summary>
-    /// Löst die Frage mit <paramref name="questionId"/> aus dem geladenen <paramref name="dialog"/>-Graphen
-    /// auf und projiziert sie samt Optionen (in <see cref="AnswerOption.Order"/>-Reihenfolge) in eine
+    /// Resolves the question with <paramref name="questionId"/> from the loaded <paramref name="dialog"/> graph
+    /// and projects it along with its options (in <see cref="AnswerOption.Order"/> order) into a
     /// <see cref="QuestionView"/>.
     /// </summary>
-    /// <param name="dialog">Der geladene Dialog-Graph (inkl. Fragen und Optionen).</param>
-    /// <param name="questionId">Die Id der aufzulösenden Frage.</param>
-    /// <returns>Die projizierte <see cref="QuestionView"/>.</returns>
+    /// <param name="dialog">The loaded dialog graph (incl. questions and options).</param>
+    /// <param name="questionId">The id of the question to resolve.</param>
+    /// <returns>The projected <see cref="QuestionView"/>.</returns>
     /// <exception cref="InvalidOperationException">
-    /// Die Frage mit <paramref name="questionId"/> gehört nicht zum <paramref name="dialog"/>-Graphen
-    /// (Fehlkonfiguration).
+    /// The question with <paramref name="questionId"/> does not belong to the <paramref name="dialog"/> graph
+    /// (misconfiguration).
     /// </exception>
     public static QuestionView ResolveQuestion(Dialog dialog, Guid? questionId)
     {
         var question = dialog.Questions.FirstOrDefault(candidate => candidate.Id == questionId)
             ?? throw new InvalidOperationException(
-                $"Die Frage '{questionId}' gehört nicht zum Dialog '{dialog.Key}'.");
+                $"The question '{questionId}' does not belong to dialog '{dialog.Key}'.");
 
         var options = question.Options
             .OrderBy(option => option.Order)

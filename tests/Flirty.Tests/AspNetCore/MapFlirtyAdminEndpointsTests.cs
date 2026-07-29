@@ -704,7 +704,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, deleted.StatusCode);
 
         var problem = await created.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Contains("neue Version", problem!.Detail);
+        Assert.Contains("new version", problem!.Detail);
     }
 
     /// <summary>
@@ -753,7 +753,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         var blocked = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}");
         Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
         var problem = await blocked.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Contains("1 Session(s)", problem!.Detail);
+        Assert.Contains("1 session(s)", problem!.Detail);
 
         var abandon = await host.Client.PostAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/abandon-sessions", content: null);

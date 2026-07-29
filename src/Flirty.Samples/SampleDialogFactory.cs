@@ -3,25 +3,25 @@ using Flirty.Domain;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Baut den veröffentlichten Beispiel-Dialog, den das Console-Sample programmatisch (ohne Designer)
-/// in die Datenbank seedet. Der Dialog demonstriert Branching: die Startfrage <c>role</c> verzweigt je
-/// nach Auswahl auf eine rollenspezifische Detailfrage, die den Dialog jeweils abschließt.
+/// Builds the published sample dialog that the console sample seeds programmatically (without the
+/// designer) into the database. The dialog demonstrates branching: the start question <c>role</c> branches
+/// depending on the choice to a role-specific detail question, each of which completes the dialog.
 /// </summary>
 public static class SampleDialogFactory
 {
-    /// <summary>Der fachliche Schlüssel, unter dem der Beispiel-Dialog gestartet wird.</summary>
+    /// <summary>The business key under which the sample dialog is started.</summary>
     public const string DialogKey = "onboarding";
 
     /// <summary>
-    /// Erzeugt das vollständige Dialog-Aggregat (Fragen, Optionen, Übergänge) für den Beispiel-Dialog.
+    /// Creates the complete dialog aggregate (questions, options, transitions) for the sample dialog.
     /// </summary>
     /// <remarks>
-    /// Ablauf: <c>role</c> (SingleChoice <c>dev</c>/<c>pm</c>) → bei <c>role == "dev"</c> auf die
-    /// Freitext-Frage <c>language</c>, sonst per Default auf <c>product</c>. Beide Detailfragen sind
-    /// terminal (kein ausgehender Übergang) und schließen den Dialog ab. Alle Zeitstempel sind
-    /// UTC-normalisiert (der PostgreSQL-Provider verlangt Offset == UTC).
+    /// Flow: <c>role</c> (SingleChoice <c>dev</c>/<c>pm</c>) → on <c>role == "dev"</c> to the free-text
+    /// question <c>language</c>, otherwise by default to <c>product</c>. Both detail questions are
+    /// terminal (no outgoing transition) and complete the dialog. All timestamps are UTC-normalized
+    /// (the PostgreSQL provider requires Offset == UTC).
     /// </remarks>
-    /// <returns>Das für <see cref="Flirty.Persistence.FlirtyDbContext"/> speicherbare Dialog-Aggregat.</returns>
+    /// <returns>The dialog aggregate storable via <see cref="Flirty.Persistence.FlirtyDbContext"/>.</returns>
     public static Dialog BuildOnboardingDialog()
     {
         var timestamp = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);

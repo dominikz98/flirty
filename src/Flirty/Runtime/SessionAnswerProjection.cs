@@ -3,20 +3,20 @@ using Flirty.Domain;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Projiziert die bisherigen Antworten einer <see cref="DialogSession"/> in navigationsfreie
-/// <see cref="SessionAnswerView"/> für die Laufzeit-API. Zentraler Wiederverwendungspunkt für
-/// <see cref="ResumeDialogQueryHandler"/> (Lese-Zustand) und die Abschluss-Notification
+/// Projects the answers so far of a <see cref="DialogSession"/> into navigation-free
+/// <see cref="SessionAnswerView"/> for the runtime API. Central reuse point for
+/// <see cref="ResumeDialogQueryHandler"/> (read state) and the completion notification
 /// (<see cref="DialogCompletedNotification"/>).
 /// </summary>
 internal static class SessionAnswerProjection
 {
     /// <summary>
-    /// Löst je Antwort den fachlichen <see cref="Question.Key"/> aus der gepinnten Dialogversion auf und
-    /// ordnet aufsteigend nach <see cref="SessionAnswer.Sequence"/> (chronologische Reihenfolge).
+    /// Resolves, per answer, the business <see cref="Question.Key"/> from the pinned dialog version and
+    /// orders ascending by <see cref="SessionAnswer.Sequence"/> (chronological order).
     /// </summary>
-    /// <param name="dialog">Die von der Session gepinnte Dialogversion (liefert die Frage-Schlüssel).</param>
-    /// <param name="session">Die Session, deren Antworten projiziert werden.</param>
-    /// <returns>Die projizierten Antworten in chronologischer Reihenfolge; leer, wenn keine gegeben wurden.</returns>
+    /// <param name="dialog">The dialog version pinned by the session (provides the question keys).</param>
+    /// <param name="session">The session whose answers are projected.</param>
+    /// <returns>The projected answers in chronological order; empty if none were given.</returns>
     public static IReadOnlyList<SessionAnswerView> Project(Dialog dialog, DialogSession session)
     {
         var keyByQuestionId = dialog.Questions.ToDictionary(question => question.Id, question => question.Key);

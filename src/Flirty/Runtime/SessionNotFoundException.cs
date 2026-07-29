@@ -1,46 +1,46 @@
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Wird geworfen, wenn zu einer angegebenen Session-Id keine <see cref="Flirty.Domain.DialogSession"/>
-/// existiert – etwa beim Einreichen einer Antwort über <see cref="SubmitAnswerCommand"/> bzw.
+/// Thrown when no <see cref="Flirty.Domain.DialogSession"/> exists for a given session id
+/// – for example when submitting an answer via <see cref="SubmitAnswerCommand"/> or
 /// <see cref="IFlirtyEngine.SubmitAnswerAsync"/>.
 /// </summary>
 public sealed class SessionNotFoundException : Exception
 {
-    /// <summary>Erstellt die Ausnahme ohne weitere Angaben.</summary>
+    /// <summary>Creates the exception without further details.</summary>
     public SessionNotFoundException()
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit der angegebenen Meldung.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
+    /// <summary>Creates the exception with the given message.</summary>
+    /// <param name="message">The error message describing the cause.</param>
     public SessionNotFoundException(string message)
         : base(message)
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit Meldung und auslösender Ausnahme.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
-    /// <param name="innerException">Die Ausnahme, die diese Ausnahme ausgelöst hat.</param>
+    /// <summary>Creates the exception with a message and a triggering exception.</summary>
+    /// <param name="message">The error message describing the cause.</param>
+    /// <param name="innerException">The exception that caused this exception.</param>
     public SessionNotFoundException(string message, Exception innerException)
         : base(message, innerException)
     {
     }
 
     /// <summary>
-    /// Der Primärschlüssel der Session, die nicht gefunden wurde, oder <see langword="null"/>,
-    /// wenn er nicht bekannt ist.
+    /// The primary key of the session that was not found, or <see langword="null"/>
+    /// if it is not known.
     /// </summary>
     public Guid? SessionId { get; init; }
 
     /// <summary>
-    /// Erstellt eine <see cref="SessionNotFoundException"/> für die angegebene
-    /// <paramref name="sessionId"/> samt aussagekräftiger Meldung.
+    /// Creates a <see cref="SessionNotFoundException"/> for the given
+    /// <paramref name="sessionId"/> along with a meaningful message.
     /// </summary>
-    /// <param name="sessionId">Der Primärschlüssel der Session, die nicht aufgelöst werden konnte.</param>
-    /// <returns>Die vorbereitete Ausnahme mit gesetztem <see cref="SessionId"/>.</returns>
+    /// <param name="sessionId">The primary key of the session that could not be resolved.</param>
+    /// <returns>The prepared exception with <see cref="SessionId"/> set.</returns>
     public static SessionNotFoundException ForId(Guid sessionId)
-        => new($"Keine Session mit der Id '{sessionId}' gefunden.")
+        => new($"No session with the id '{sessionId}' found.")
         {
             SessionId = sessionId,
         };

@@ -3,15 +3,15 @@ using Flirty.Domain;
 namespace Flirty.AspNetCore.Dtos;
 
 /// <summary>
-/// Schlanke, serialisierbare Sicht auf eine Frage für die WebAPI-Antworten. Spiegelt
-/// <see cref="Flirty.Runtime.QuestionView"/> als HTTP-Contract des Pakets <c>Flirty.AspNetCore</c>.
+/// Lean, serializable view of a question for the WebAPI responses. Mirrors
+/// <see cref="Flirty.Runtime.QuestionView"/> as the HTTP contract of the package <c>Flirty.AspNetCore</c>.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Frage.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage.</param>
-/// <param name="Text">Der anzuzeigende Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
+/// <param name="Id">The primary key of the question.</param>
+/// <param name="Key">The business, stable key of the question.</param>
+/// <param name="Text">The question text to display.</param>
+/// <param name="Type">The answer type of the question.</param>
 /// <param name="Options">
-/// Die Antwortoptionen der Frage in Anzeigereihenfolge (leer bei Frei-Text-/Wert-Typen).
+/// The answer options of the question in display order (empty for free-text/value types).
 /// </param>
 public sealed record QuestionDto(
     Guid Id,
@@ -21,11 +21,11 @@ public sealed record QuestionDto(
     IReadOnlyList<AnswerOptionDto> Options);
 
 /// <summary>
-/// Schlanke, serialisierbare Sicht auf eine Antwortoption für die WebAPI-Antworten. Spiegelt
+/// Lean, serializable view of an answer option for the WebAPI responses. Mirrors
 /// <see cref="Flirty.Runtime.AnswerOptionView"/>.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Antwortoption.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Option.</param>
-/// <param name="Label">Die anzuzeigende Beschriftung der Option.</param>
-/// <param name="Value">Der zu speichernde Wert der Option.</param>
+/// <param name="Id">The primary key of the answer option.</param>
+/// <param name="Key">The business, stable key of the option.</param>
+/// <param name="Label">The label of the option to display.</param>
+/// <param name="Value">The value of the option to store.</param>
 public sealed record AnswerOptionDto(Guid Id, string Key, string Label, string Value);

@@ -3,18 +3,18 @@ using Flirty.Domain;
 namespace Flirty.AspNetCore.Dtos;
 
 /// <summary>
-/// Antwort-Körper von <c>GET /flirty/sessions/{id}</c>: der aktuelle Zustand einer Session – Status, die
-/// (ggf.) aktuell offene Frage und die bisher gegebenen Antworten – zum Wiederherstellen einer Befragung.
-/// Gemappt aus <see cref="Flirty.Runtime.ResumeDialogResult"/>.
+/// Response body of <c>GET /flirty/sessions/{id}</c>: the current state of a session – status, the
+/// (possibly) currently open question and the answers given so far – for restoring a survey.
+/// Mapped from <see cref="Flirty.Runtime.ResumeDialogResult"/>.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der abgefragten Session.</param>
-/// <param name="Status">Der aktuelle Lebenszyklus-Status der Session.</param>
+/// <param name="SessionId">The primary key of the queried session.</param>
+/// <param name="Status">The current lifecycle status of the session.</param>
 /// <param name="CurrentQuestion">
-/// Die aktuell offene Frage oder <see langword="null"/>, wenn die Session keine offene Frage mehr hat
-/// (abgeschlossen bzw. abgebrochen).
+/// The currently open question or <see langword="null"/> if the session no longer has an open question
+/// (completed or abandoned).
 /// </param>
 /// <param name="Answers">
-/// Die bisher gegebenen Antworten in aufsteigender Reihenfolge; leer, wenn noch keine Antwort erfasst wurde.
+/// The answers given so far in ascending order; empty if no answer has been recorded yet.
 /// </param>
 public sealed record SessionStateResponse(
     Guid SessionId,

@@ -6,20 +6,20 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Startet den veröffentlichten Dialog mit dem fachlichen Schlüssel <see cref="DialogKey"/> für den
-/// Anwender <see cref="ExternalUserKey"/>. Existiert für diesen Anwender bereits eine laufende
-/// (<see cref="SessionStatus.InProgress"/>) Session der aktuell veröffentlichten Dialogversion, wird
-/// diese fortgesetzt (Resume) statt eine neue anzulegen.
+/// Starts the published dialog with the business key <see cref="DialogKey"/> for the
+/// user <see cref="ExternalUserKey"/>. If a running
+/// (<see cref="SessionStatus.InProgress"/>) session of the currently published dialog version already
+/// exists for this user, it is resumed (resume) instead of creating a new one.
 /// </summary>
-/// <param name="DialogKey">Der fachliche, stabile Schlüssel des zu startenden Dialogs.</param>
-/// <param name="ExternalUserKey">Der fachliche Anwenderschlüssel der Host-App (z. B. Benutzer-Id).</param>
+/// <param name="DialogKey">The business, stable key of the dialog to start.</param>
+/// <param name="ExternalUserKey">The business user key of the host app (e.g. user id).</param>
 public sealed record StartDialogCommand(
     [property: Required] string DialogKey,
     [property: Required] string ExternalUserKey) : ICommand<StartDialogResult>;
 
 /// <summary>
-/// Handler für <see cref="StartDialogCommand"/>: löst den veröffentlichten Dialog auf, entscheidet
-/// zwischen Resume und Neu-Start und liefert die aktuell offene Frage.
+/// Handler for <see cref="StartDialogCommand"/>: resolves the published dialog, decides
+/// between resume and fresh start and returns the currently open question.
 /// </summary>
 internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCommand, StartDialogResult>
 {
@@ -27,12 +27,12 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
     private readonly IPublisher _publisher;
 
     /// <summary>
-    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/> und <see cref="IPublisher"/>.
+    /// Creates the handler over the given <see cref="IDialogStore"/> and <see cref="IPublisher"/>.
     /// </summary>
-    /// <param name="store">Das Repository für Dialoge und Sessions.</param>
-    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
+    /// <param name="store">The repository for dialogs and sessions.</param>
+    /// <param name="publisher">The Mediator publisher for the in-process trigger notifications.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/> oder <paramref name="publisher"/> ist <see langword="null"/>.
+    /// <paramref name="store"/> or <paramref name="publisher"/> is <see langword="null"/>.
     /// </exception>
     public StartDialogCommandHandler(IDialogStore store, IPublisher publisher)
     {
@@ -44,11 +44,11 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
 
     /// <inheritdoc />
     /// <exception cref="DialogNotFoundException">
-    /// Kein veröffentlichter Dialog mit dem angegebenen Schlüssel existiert.
+    /// No published dialog with the given key exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Der veröffentlichte Dialog besitzt keine Einstiegsfrage bzw. die aktuelle Frage kann nicht
-    /// aufgelöst werden (Fehlkonfiguration).
+    /// The published dialog has no entry question, or the current question cannot be
+    /// resolved (misconfiguration).
     /// </exception>
     public async ValueTask<StartDialogResult> Handle(
         StartDialogCommand command, CancellationToken cancellationToken)
@@ -58,8 +58,8 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
         var dialog = await _store.GetPublishedDialogAsync(command.DialogKey, cancellationToken)
             ?? throw DialogNotFoundException.ForKey(command.DialogKey);
 
-        // Resume: FindActiveSessionAsync filtert auf dialog.Id (= die gerade veröffentlichte Version),
-        // eine gefundene Session ist damit genau auf diesen Dialog-Graphen gepinnt.
+        // Resume: FindActiveSessionAsync filters on dialog.Id (= the just-published version),
+        // so a found session is pinned exactly to this dialog graph.
         var existing = await _store.FindActiveSessionAsync(
             dialog.Id, command.ExternalUserKey, cancellationToken);
         if (existing is not null)
@@ -72,7 +72,7 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
         if (dialog.StartQuestionId is null)
         {
             throw new InvalidOperationException(
-                $"Der veröffentlichte Dialog '{dialog.Key}' besitzt keine Einstiegsfrage (StartQuestionId).");
+                $"The published dialog '{dialog.Key}' has no entry question (StartQuestionId).");
         }
 
         var session = new DialogSession
@@ -89,7 +89,7 @@ internal sealed class StartDialogCommandHandler : ICommandHandler<StartDialogCom
         _store.AddSession(session);
         await _store.SaveChangesAsync(cancellationToken);
 
-        // In-Process-Trigger (EPIC 4): nur der echte Neu-Start meldet DialogStarted; ein Resume nicht.
+        // In-process trigger (EPIC 4): only the genuine fresh start reports DialogStarted; a resume does not.
         await _publisher.Publish(
             new DialogStartedNotification(
                 session.Id,

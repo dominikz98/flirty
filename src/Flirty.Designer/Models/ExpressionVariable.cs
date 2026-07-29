@@ -1,46 +1,46 @@
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Art des Werts, den eine Ausdrucks-Variable im Ausdruckskontext liefert. Steuert im
-/// Baustein-Einfüger des Branching-Editors (#40) die angebotenen Operatoren und die Quotierung des
-/// eingegebenen Vergleichswerts.
+/// Kind of value that an expression variable delivers in the expression context. Controls, in the
+/// snippet inserter of the branching editor (#40), the offered operators and the quoting of the
+/// entered comparison value.
 /// </summary>
 internal enum ExpressionValueKind
 {
-    /// <summary>Zeichenkette – Vergleichswerte werden quotiert (<c>role == "dev"</c>).</summary>
+    /// <summary>String – comparison values are quoted (<c>role == "dev"</c>).</summary>
     Text = 0,
 
-    /// <summary>Zahl – Vergleichswerte werden roh übernommen (<c>alter &gt; 18</c>).</summary>
+    /// <summary>Number – comparison values are taken raw (<c>alter &gt; 18</c>).</summary>
     Number = 1,
 
-    /// <summary>Wahrheitswert – <c>true</c>/<c>false</c> bzw. der Bezeichner allein.</summary>
+    /// <summary>Boolean – <c>true</c>/<c>false</c> or the identifier alone.</summary>
     Boolean = 2,
 
-    /// <summary>Liste (Mehrfachauswahl oder Loop-Collection) – <c>skills.Count &gt; 0</c>.</summary>
+    /// <summary>List (multi-choice or loop collection) – <c>skills.Count &gt; 0</c>.</summary>
     List = 3,
 
     /// <summary>
-    /// Reservierte Kontext-Variable (<c>now</c>, <c>session</c>). Wird nur im Nachschlagewerk gezeigt,
-    /// nicht im Baustein-Einfüger – sinnvolle Ausdrücke greifen hier auf Member zu (<c>now.Year</c>).
+    /// Reserved context variable (<c>now</c>, <c>session</c>). Shown only in the reference table,
+    /// not in the snippet inserter – meaningful expressions here access members (<c>now.Year</c>).
     /// </summary>
     Context = 4,
 }
 
 /// <summary>
-/// Ein im Ausdruckskontext verfügbarer Bezeichner samt Typ und Beispiel – die Datengrundlage für die
-/// Referenztabelle und den Baustein-Einfüger des Branching-Editors (#40).
+/// An identifier available in the expression context together with type and example – the data basis for the
+/// reference table and the snippet inserter of the branching editor (#40).
 /// </summary>
-/// <param name="Name">Der Bezeichner, wie er im Ausdruck steht (Frage-Schlüssel, <c>CollectionKey</c> oder reservierter Name).</param>
-/// <param name="Kind">Die Art des Werts (steuert Operatoren und Quotierung).</param>
-/// <param name="TypeLabel">Der deutsche Typname für die Anzeige (z. B. „Zahl").</param>
-/// <param name="Example">Ein gültiger Beispiel-Ausdruck mit diesem Bezeichner.</param>
+/// <param name="Name">The identifier as it appears in the expression (question key, <c>CollectionKey</c> or reserved name).</param>
+/// <param name="Kind">The kind of value (controls operators and quoting).</param>
+/// <param name="TypeLabel">The German type name for the display (e.g. "Zahl").</param>
+/// <param name="Example">A valid example expression with this identifier.</param>
 /// <param name="IsUsable">
-/// Gibt an, ob der Bezeichner im Ausdruck referenzierbar ist. <see langword="false"/> z. B. bei
-/// Schlüsseln, die keine gültigen Bezeichner sind, oder die von einer reservierten Variable verdeckt werden.
+/// Indicates whether the identifier can be referenced in the expression. <see langword="false"/> e.g. for
+/// keys that are not valid identifiers, or that are shadowed by a reserved variable.
 /// </param>
 /// <param name="Note">
-/// Erläuterung für die Referenztabelle – bei nicht nutzbaren Bezeichnern die Begründung, sonst ein
-/// Hinweis zur Bedeutung (oder <see langword="null"/>).
+/// Explanation for the reference table – for non-usable identifiers the reason, otherwise a
+/// hint about the meaning (or <see langword="null"/>).
 /// </param>
 internal sealed record ExpressionVariable(
     string Name,

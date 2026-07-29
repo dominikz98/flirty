@@ -1,41 +1,41 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Eine einzelne Frage innerhalb eines <see cref="Dialog"/>. Der <see cref="Type"/> bestimmt,
-/// wie die Antwort geparst und validiert wird.
+/// A single question within a <see cref="Dialog"/>. The <see cref="Type"/> determines
+/// how the answer is parsed and validated.
 /// </summary>
 public sealed class Question
 {
-    /// <summary>Eindeutiger Primärschlüssel der Frage.</summary>
+    /// <summary>Unique primary key of the question.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf den zugehörigen <see cref="Dialog"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Dialog"/>.</summary>
     public Guid DialogId { get; set; }
 
-    /// <summary>Fachlicher, stabiler Schlüssel der Frage (z. B. für den Ausdruckskontext).</summary>
+    /// <summary>Business, stable key of the question (e.g. for the expression context).</summary>
     public required string Key { get; set; }
 
-    /// <summary>Der angezeigte Fragetext.</summary>
+    /// <summary>The displayed question text.</summary>
     public required string Text { get; set; }
 
-    /// <summary>Der Antworttyp der Frage.</summary>
+    /// <summary>The answer type of the question.</summary>
     public QuestionType Type { get; set; }
 
-    /// <summary>Reihenfolge-Index der Frage innerhalb des Dialogs.</summary>
+    /// <summary>Order index of the question within the dialog.</summary>
     public int Order { get; set; }
 
-    /// <summary>Gibt an, ob eine Antwort auf diese Frage erforderlich ist.</summary>
+    /// <summary>Indicates whether an answer to this question is required.</summary>
     public bool IsRequired { get; set; }
 
     /// <summary>
-    /// Optionale Validierungsregeln als JSON (z. B. Min/Max, Regex). Auswertung erfolgt
-    /// durch den Antwort-Validator.
+    /// Optional validation rules as JSON (e.g. min/max, regex). Evaluation is performed
+    /// by the answer validator.
     /// </summary>
     public string? ValidationRules { get; set; }
 
-    /// <summary>Der Dialog, zu dem diese Frage gehört.</summary>
+    /// <summary>The dialog this question belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 
-    /// <summary>Die Antwortoptionen dieser Frage (relevant für Choice-Typen).</summary>
+    /// <summary>The answer options of this question (relevant for choice types).</summary>
     public ICollection<AnswerOption> Options { get; set; } = [];
 }

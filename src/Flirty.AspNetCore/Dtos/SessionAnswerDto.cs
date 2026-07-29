@@ -1,19 +1,19 @@
 namespace Flirty.AspNetCore.Dtos;
 
 /// <summary>
-/// Schlanke, serialisierbare Sicht auf eine bereits gegebene Antwort für die WebAPI-Antworten. Spiegelt
+/// Lean, serializable view of an answer already given for the WebAPI responses. Mirrors
 /// <see cref="Flirty.Runtime.SessionAnswerView"/>.
 /// </summary>
-/// <param name="QuestionId">Der Primärschlüssel der beantworteten Frage.</param>
-/// <param name="QuestionKey">Der fachliche, stabile Schlüssel der beantworteten Frage.</param>
-/// <param name="Value">Der gespeicherte Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
-/// <param name="Sequence">Die fortlaufende Position der Antwort innerhalb der Session (beginnend bei 0).</param>
-/// <param name="AnsweredAt">Der Zeitpunkt, zu dem die Antwort erfasst wurde.</param>
+/// <param name="QuestionId">The primary key of the answered question.</param>
+/// <param name="QuestionKey">The business, stable key of the answered question.</param>
+/// <param name="Value">The stored answer value as raw JSON text (format depending on the question type).</param>
+/// <param name="Sequence">The consecutive position of the answer within the session (starting at 0).</param>
+/// <param name="AnsweredAt">The time at which the answer was recorded.</param>
 /// <param name="LoopInstanceId">
-/// Die Instanz-Id der Schleife, zu der die Antwort gehört, oder <see langword="null"/> außerhalb einer Schleife.
+/// The instance id of the loop the answer belongs to, or <see langword="null"/> outside a loop.
 /// </param>
 /// <param name="IterationIndex">
-/// Der nullbasierte Iterationsindex innerhalb der Schleife oder <see langword="null"/> außerhalb einer Schleife.
+/// The zero-based iteration index within the loop, or <see langword="null"/> outside a loop.
 /// </param>
 public sealed record SessionAnswerDto(
     Guid QuestionId,
