@@ -357,11 +357,21 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             () => Assertions.Expect(start).ToHaveCountAsync(1, QuickCount));
 
         // 2) Verbinden über die Auswahlliste – das Tastaturäquivalent zum Ziehen am Port.
-        await SelectNodeAsync(page, start);
-        await page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 });
+        //
+        // Die Vorbedingung wird sichtbar gemacht, statt sie vorauszusetzen: „Verbinden" ist genau dann
+        // bedienbar, wenn der Server das gewählte Ziel kennt. Ohne diesen Zwischenschritt hing der Test
+        // an einem Rennen – die Auswahl in der Liste konnte vom Re-Render der Knotenauswahl überholt und
+        // damit verworfen werden, und der Klick lief in einen deaktivierten Knopf (#105). Wiederholt wird
+        // nur das Wählen; der Klick legt einen Übergang an und darf sich nicht verdoppeln.
+        await SelectNodeAsync(page, start, "start");
+
+        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" });
         await InteractWhenReadyAsync(
-            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" }).ClickAsync(),
-            () => Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, QuickCount));
+            () => page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 }),
+            () => Assertions.Expect(connect).ToBeEnabledAsync(QuickEnabled));
+
+        await connect.ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
 
         // 3) Default umschalten: Die Kante wechselt ihre Kennzeichnung, und damit verschwindet die
         //    Warnung „Kein Default-Übergang" aus dem Graphen.
@@ -535,6 +545,257 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, SlowCount);
     }
 
+    /// <summary>
+    /// Der Anlege-Flow auf dem Canvas (#105): Ein Dialog entsteht vollständig aus Gesten – Baustein
+    /// ziehen, vom Port ins <b>Leere</b> ziehen (Frage und Übergang in einem Zug), Bedingung mit
+    /// Live-Validierung, Default-Kante, Einstiegsfrage, Verschieben – wird veröffentlicht und übersteht
+    /// ein Neuladen, <b>inklusive</b> der Positionen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der Zug <b>ins Leere</b> ist der Grund, warum dieser Test existiert: Er ist die einzige Geste,
+    /// die zwei Commands aus einer Bewegung ableitet (<c>CreateQuestionCommand</c> +
+    /// <c>SetDialogLayoutCommand</c> + <c>CreateTransitionCommand</c>), und die einzige, deren
+    /// Hit-Test-Zweig „kein Knoten unter dem Zeiger" nur im Browser durchlaufen wird.
+    /// </para>
+    /// <para>
+    /// <b>Nach jeder Geste wird eine serverseitig erzeugte Wirkung abgewartet.</b> Der Riegel
+    /// <c>send()</c> im JS-Modul verwirft eine zweite Geste <b>still</b>, solange die erste läuft – eine
+    /// zu früh ausgelöste Bewegung hinterlässt keine Meldung, nur einen fehlenden Effekt. Deshalb steht
+    /// hinter jedem Zug eine Zählung oder eine Meldung, nie eine Wartezeit.
+    /// </para>
+    /// <para>
+    /// Veröffentlicht und die Einstiegsfrage gesetzt wird bewusst an zwei verschiedenen Orten: Die
+    /// Einstiegsfrage geht seit #105 am Knoten (der Graph warnte sonst über etwas, das nur woanders zu
+    /// heilen war), das Veröffentlichen bleibt im Dialog-Editor – es betrifft den ganzen Dialog, nicht
+    /// ein Element des Graphen.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeEmptyDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        var inspector = page.Locator(".graph-inspector");
+
+        // 1) Der erste Baustein kommt aus der Palette. Deren Reihenfolge ist die des Enums
+        //    (QuestionType.SingleChoice = 0), der vorgeschlagene Schlüssel also „auswahl“.
+        await DragToCanvasFractionAsync(page, page.Locator(".graph-palette-item").First, 0.25, 0.2);
+
+        var auswahl = page.Locator(".graph-node").Filter(new() { HasText = "auswahl" });
+        await Assertions.Expect(auswahl).ToHaveCountAsync(1, SlowCount);
+
+        // Jetzt – mit einer Frage – warnt der Graph über den fehlenden Einstieg. Am leeren Dialog tut er
+        // das absichtlich nicht, deshalb steht die Prüfung hier und nicht oben.
+        await Assertions.Expect(page.Locator(".banner.warn"))
+            .ToContainTextAsync("Keine Einstiegsfrage gesetzt", SlowContains);
+
+        // 2) Vom Port ins Leere: Frage UND Übergang aus einer Bewegung.
+        await DragToCanvasFractionAsync(page, auswahl.Locator(".graph-port"), 0.25, 0.72);
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.ok"))
+            .ToContainTextAsync("angelegt und mit auswahl verbunden", SlowContains);
+
+        // 3) Derselbe Zug ein zweites Mal – das belegt zugleich, dass der Riegel des Moduls die nächste
+        //    Geste wieder freigibt. Der zweite Zweig macht den Graphen erst vollständig: eine bedingte
+        //    Kante braucht eine Default-Kante als Gegenstück.
+        await DragToCanvasFractionAsync(page, auswahl.Locator(".graph-port"), 0.72, 0.72);
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(2, SlowCount);
+
+        // 4) Bedingung mit Live-Validierung. Der Ausdruck wird gegen den Musterkontext des Dialogs
+        //    kompiliert – „auswahl“ ist dort als Zeichenkette gebunden (DesignerExpressionContext).
+        //
+        //    Die Statusmeldung steht INNERHALB der wiederholten Einheit: Sie entsteht serverseitig und
+        //    ist damit der Nachweis, dass Blazor die Eingabe gesehen hat. Ein Blick auf den Feldwert
+        //    wäre keiner – der stünde auch im DOM, wenn die Eingabe verpufft ist.
+        await SelectOutgoingEdgeAsync(page, auswahl, 0);
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await page.Locator("#inspectorExpression").FillAsync("auswahl == \"ja\"");
+                await Assertions.Expect(page.Locator(".expr-status"))
+                    .ToContainTextAsync("Ausdruck ist gültig", QuickContains);
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+            },
+            // Geprüft wird die Beschriftung GENAU EINER Kante: Nach dem zweiten Zweig gibt es zwei
+            // Labels, und ein unbeschränkter Locator wäre eine Strict-Mode-Verletzung.
+            () => Assertions.Expect(ConditionLabel(page)).ToHaveCountAsync(1, QuickCount));
+
+        // 5) Die zweite Kante wird Default – danach ist der Graph warnungsfrei.
+        await SelectNodeAsync(page, auswahl);
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Default" }).Nth(1).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-edge.is-default")).ToHaveCountAsync(1, QuickCount));
+
+        // 6) Einstiegsfrage am Knoten (#105). Wirkung: Der Knoten trägt die Markierung, und die
+        //    Dialog-Warnung verschwindet – beides rechnet der Server beim Neuaufbau des Modells.
+        await SelectNodeAsync(page, auswahl);
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Als Einstiegsfrage setzen" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, QuickCount));
+
+        await Assertions.Expect(page.Locator(".graph-node.is-start").Filter(new() { HasText = "auswahl" }))
+            .ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.warn")).ToHaveCountAsync(0, SlowCount);
+
+        // 7) Verschieben. Alle drei Knoten sind schon gepinnt (jede Geste legte eine Position an), die
+        //    Zählung taugt hier also nicht als Nachweis – gemerkt wird die Position selbst. Sie steht in
+        //    Nutzerkoordinaten und ist damit unabhängig davon, wie das SVG gerade skaliert.
+        await DragByAsync(page, auswahl, 120, 90);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        var moved = await TransformOfAsync(auswahl);
+        Assert.NotNull(moved);
+
+        // 8) Veröffentlichen im Dialog-Editor – der Canvas kennt dafür bewusst keinen Knopf.
+        await page.Locator(".back a").ClickAsync();
+        await page.WaitForURLAsync(DialogUrl);
+        await PublishFromEditorAsync(page);
+
+        // 9) Der Persistenznachweis: Nach dem Neuladen kommt jedes Stück aus der Datenbank.
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.ReloadAsync();
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge.is-default")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(ConditionLabel(page)).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(3, SlowCount);
+        Assert.Equal(moved, await TransformOfAsync(auswahl));
+
+        // Und der Graph ist jetzt gesperrt – dieselbe Wirkung, die der Lesemodus-Test prüft.
+        await Assertions.Expect(page.Locator("svg[data-editable='false']")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        // Die Gegenprobe zum Guard: Die Einstiegsfrage ist Teil des Graphen, also an einer
+        // veröffentlichten Version nicht umzusetzen. Gesperrt, nicht fehlerhaft – der Knopf lässt sich
+        // gar nicht auslösen, statt in ein 409 zu laufen.
+        await SelectNodeAsync(page, page.Locator(".graph-node").Filter(new() { HasText = "text2" }));
+        await Assertions.Expect(
+                inspector.GetByRole(AriaRole.Button, new() { Name = "Als Einstiegsfrage setzen" }))
+            .ToBeDisabledAsync();
+    }
+
+    /// <summary>
+    /// Die zwei Gesten des Inspectors, die #103 bewusst offengelassen hatte (#105): einen Rücksprung
+    /// <b>am Zyklus</b> als Schleife markieren und einen Trigger an genau einer Frage anlegen.
+    /// </summary>
+    /// <remarks>
+    /// Beide Wege haben ihren Reiz erst im Browser: Der Schleifen-Vorschlag erscheint nur, wenn der
+    /// Designer den Zyklus selbst erkannt und den Collection-Schlüssel vorbelegt hat – und der
+    /// Trigger-Chip muss an der <b>auslösenden</b> Frage hängen, nicht an allen. Zum Schluss die
+    /// Listen-Parität: Beides steht unmittelbar auch im Dialog-Editor, weil es dieselben Commands sind.
+    /// </remarks>
+    [SkippableFact]
+    public async Task Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeEmptyDialogAsync(session);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        var inspector = page.Locator(".graph-inspector");
+
+        // Zwei Fragen über den zeigerlosen Weg – hier geht es um den Inspector, nicht um die Geste.
+        // Bewusst zwei verschiedene Typen: Die Schlüssel „auswahl“ und „text“ überschneiden sich nicht,
+        // während „auswahl“/„auswahl2“ als Textfilter beide Knoten träfen.
+        await page.Locator(".graph-palette-item").First.ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
+        await page.Locator(".graph-palette-item").Nth(2).ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
+
+        var auswahl = page.Locator(".graph-node").Filter(new() { HasText = "auswahl" });
+        var text = page.Locator(".graph-node").Filter(new() { HasText = "text" });
+
+        // Hinweg über die Auswahlliste (Index 2 = die zweite Frage in Dialog-Reihenfolge).
+        //
+        // Gewählt und geklickt wird in ZWEI Schritten mit einer serverseitigen Vorbedingung dazwischen:
+        // „Verbinden" ist genau dann bedienbar, wenn der Server das gewählte Ziel kennt. Wiederholt wird
+        // deshalb nur das Wählen (idempotent), nicht der Klick – der legt einen Übergang an und darf sich
+        // nicht verdoppeln.
+        await SelectNodeAsync(page, auswahl, "auswahl");
+
+        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" });
+        await InteractWhenReadyAsync(
+            () => page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 }),
+            () => Assertions.Expect(connect).ToBeEnabledAsync(QuickEnabled));
+
+        await connect.ClickAsync();
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
+
+        // Rückweg per Port-Geste – damit ist der Zyklus da, und der Designer erkennt ihn selbst.
+        await DragToTargetAsync(page, text.Locator(".graph-port"), auswahl.Locator(".graph-node-card"));
+        await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(page.Locator(".graph-edge.is-backjump")).ToHaveCountAsync(1, SlowCount);
+
+        // 1) Schleife AM ZYKLUS: Der Vorschlag hängt an der Kante, die den Rücksprung verursacht, und
+        //    ist mit dem Schlüssel der Einstiegsfrage vorbelegt (LoopFormModel.SuggestCollectionKey).
+        await SelectOutgoingEdgeAsync(page, text, 0);
+        await Assertions.Expect(inspector).ToContainTextAsync("Rücksprung ohne Schleifen-Marker", SlowContains);
+        await Assertions.Expect(page.Locator("#inspectorCollectionKey")).ToHaveValueAsync("auswahl_liste", SlowValue);
+
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Als Schleife markieren" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-loop-label")).ToHaveCountAsync(1, QuickCount));
+
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("auswahl_liste", SlowContains);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        // 2) Trigger am Knoten. Der Kanal steht schon auf Webhook (Vorgabe des Formularmodells), das
+        //    URL-Feld ist deshalb sofort da.
+        await SelectNodeAsync(page, auswahl);
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Trigger nach dieser Frage anlegen" })
+                .ClickAsync(),
+            () => Assertions.Expect(page.Locator("#inspectorTriggerUrl")).ToBeVisibleAsync(QuickVisible));
+
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await page.Locator("#inspectorTriggerUrl").FillAsync("https://hooks.test/canvas");
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+            },
+            () => Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, QuickCount));
+
+        // Der Chip hängt an der auslösenden Frage – nicht an allen.
+        await Assertions.Expect(auswahl.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
+
+        // Der Reload beweist, dass Marker und Trigger geschrieben wurden.
+        await page.ReloadAsync();
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("auswahl_liste", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, SlowCount);
+
+        // Keine zweite Wahrheit: Beides steht in den Listen des Dialog-Editors.
+        await page.Locator(".back a").ClickAsync();
+        await page.WaitForURLAsync(DialogUrl);
+        await Assertions.Expect(Section(page, "Schleifen (Loops)").Locator("tbody tr"))
+            .ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(Section(page, "Trigger").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
+    }
+
+    /// <summary>
+    /// Die Kantenbeschriftung, die die in Test A gesetzte Bedingung trägt. Der Ausdruck erscheint dort
+    /// gekürzt als Label (<c>DialogGraphBuilder</c>) und ist damit die im Bild sichtbare Wirkung des
+    /// Speicherns.
+    /// </summary>
+    private static ILocator ConditionLabel(IPage page)
+        => page.Locator(".graph-edge-label").Filter(new() { HasText = "auswahl == \"ja\"" });
+
     /// <summary>Liest das <c>transform</c> eines Knotens – die im DOM sichtbare Position.</summary>
     private static async Task<string?> TransformOfAsync(ILocator node)
         => await node.GetAttributeAsync("transform");
@@ -599,6 +860,32 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             from.Y + (from.Height / 2),
             target.X + offsetX,
             target.Y + offsetY);
+    }
+
+    /// <summary>
+    /// Zieht ein Element auf einen <b>Bruchteil</b> der Zeichenfläche (je Achse 0…1).
+    /// </summary>
+    /// <remarks>
+    /// Bewusst relativ statt in Pixeln: Das SVG skaliert seinen <c>viewBox</c> in den 70 vh hohen Host
+    /// (<c>preserveAspectRatio</c> in der Voreinstellung), und dieser teilt die Breite mit Palette und
+    /// Inspector. Wie viele Bildschirm-Pixel ein Knoten breit ist, hängt damit am Fenster – eine feste
+    /// Pixelangabe landete bei anderem Zuschnitt auf einem Knoten statt daneben, und aus dem Zug ins
+    /// Leere würde still eine Verbindung.
+    /// </remarks>
+    /// <param name="page">Die Seite.</param>
+    /// <param name="source">Der Palette-Eintrag bzw. der Ausgangs-Port.</param>
+    /// <param name="fractionX">Waagerechte Loslass-Stelle als Anteil der Flächenbreite.</param>
+    /// <param name="fractionY">Senkrechte Loslass-Stelle als Anteil der Flächenhöhe.</param>
+    private static async Task DragToCanvasFractionAsync(
+        IPage page, ILocator source, double fractionX, double fractionY)
+    {
+        var canvas = page.Locator(".graph-canvas");
+        await canvas.ScrollIntoViewIfNeededAsync();
+
+        var box = await canvas.BoundingBoxAsync();
+        Assert.NotNull(box);
+
+        await DragToCanvasAsync(page, source, (int)(box.Width * fractionX), (int)(box.Height * fractionY));
     }
 
     /// <summary>Zieht von einem Element auf die Mitte eines anderen – die Verbindungsgeste (#103).</summary>
@@ -947,11 +1234,90 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// Wählt einen Knoten aus und wartet, bis das Inspector-Panel dazu steht.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Wiederholt, weil die Auswahl ein frisch gerendertes Panel erzeugt und die erste Interaktion darauf
     /// verpuffen kann. Eine Auswahl ist idempotent – zweimal denselben Knoten zu wählen ändert nichts.
+    /// </para>
+    /// <para>
+    /// <paramref name="expectedKey"/> angeben, wenn <b>schon ein Frage-Panel offen ist</b>: Dann ist
+    /// <c>#inspectorKey</c> bereits sichtbar, und die Prüfung „ist sichtbar" träfe auf das alte Panel zu –
+    /// die Wiederholschleife hielte den verpufften Klick für erfolgreich. Der Schlüssel im Feld ist
+    /// dagegen eine Aussage darüber, <i>welche</i> Frage der Server gerade zeigt.
+    /// </para>
     /// </remarks>
-    private static async Task SelectNodeAsync(IPage page, ILocator node)
+    /// <param name="page">Die Seite.</param>
+    /// <param name="node">Der zu wählende Knoten.</param>
+    /// <param name="expectedKey">Der erwartete Schlüssel im Inspector, falls schon ein Panel offen ist.</param>
+    private static async Task SelectNodeAsync(IPage page, ILocator node, string? expectedKey = null)
         => await InteractWhenReadyAsync(
             () => node.Locator(".graph-node-card").ClickAsync(),
-            () => Assertions.Expect(page.Locator("#inspectorKey")).ToBeVisibleAsync(QuickVisible));
+            () => expectedKey is null
+                ? Assertions.Expect(page.Locator("#inspectorKey")).ToBeVisibleAsync(QuickVisible)
+                : Assertions.Expect(page.Locator("#inspectorKey")).ToHaveValueAsync(expectedKey, QuickValue));
+
+    /// <summary>
+    /// Wählt eine ausgehende Kante eines Knotens über die Liste im Inspector aus.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bewusst <b>nicht</b> per Klick auf <c>.graph-edge-hit</c>: Der Trefferpfad ist eine Bézier, und
+    /// die Mitte seiner Bounding-Box liegt nicht zwingend auf dem Strich – Playwright zielte dann
+    /// daneben und scheiterte an der Aktionierbarkeit statt an der Sache. Die Liste ist ohnehin der
+    /// Tastaturpfad zu den Kanten (die sind nicht fokussierbar).
+    /// </para>
+    /// <para>
+    /// Adressiert wird über <c>ol.graph-inspector-list</c>: Die <b>ausgehenden</b> Übergänge stehen in
+    /// einer geordneten Liste (ihre Reihenfolge ist die Auswertungsreihenfolge), die eingehenden in
+    /// einer ungeordneten. Ohne diese Unterscheidung träfe der Index bei einem Knoten mit eingehenden
+    /// Kanten die falsche.
+    /// </para>
+    /// </remarks>
+    /// <param name="page">Die Seite.</param>
+    /// <param name="node">Der Knoten, dessen Kante gewählt wird.</param>
+    /// <param name="index">Die Position in der Auswertungsreihenfolge (nullbasiert).</param>
+    private static async Task SelectOutgoingEdgeAsync(IPage page, ILocator node, int index)
+    {
+        await SelectNodeAsync(page, node);
+
+        await InteractWhenReadyAsync(
+            () => page.Locator(".graph-inspector ol.graph-inspector-list .graph-edge-link")
+                .Nth(index).ClickAsync(),
+            () => Assertions.Expect(page.Locator("#inspectorExpression")).ToBeVisibleAsync(QuickVisible));
+    }
+
+    /// <summary>
+    /// Veröffentlicht den Dialog aus dem Dialog-Editor heraus.
+    /// </summary>
+    /// <remarks>
+    /// Zwei Schritte in <b>einer</b> wiederholbaren Einheit: Bei offenen Graph-Warnungen fragt der
+    /// Editor zurück (#97), sonst nicht. Nach dem Veröffentlichen ist keiner der beiden Knöpfe mehr
+    /// sichtbar – die Einheit ist damit idempotent. „Veröffentlichen“ braucht
+    /// <c>Exact&#160;=&#160;true</c>: Ohne das matcht der Name auch „Ja, veröffentlichen“, und der
+    /// Locator verletzt den Strict Mode.
+    /// </remarks>
+    /// <param name="page">Die Seite, die auf dem Dialog-Editor steht.</param>
+    private static Task PublishFromEditorAsync(IPage page)
+        => InteractWhenReadyAsync(
+            async () =>
+            {
+                var publish = page.GetByRole(
+                    AriaRole.Button, new() { Name = "Veröffentlichen", Exact = true });
+                if (await publish.IsVisibleAsync())
+                {
+                    await publish.ClickAsync();
+                }
+
+                var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Ja, veröffentlichen" });
+                if (await confirm.IsVisibleAsync())
+                {
+                    await confirm.ClickAsync();
+                }
+            },
+            () => Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", QuickText));
+
+    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    private static readonly LocatorAssertionsToHaveTextOptions QuickText = new() { Timeout = 2_000 };
+
+    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    private static readonly LocatorAssertionsToBeEnabledOptions QuickEnabled = new() { Timeout = 2_000 };
 }

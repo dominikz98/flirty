@@ -139,6 +139,7 @@
                             Editable="Editable"
                             Busy="Busy"
                             Save="SaveQuestion"
+                            SetStart="SetStartQuestion"
                             Move="MoveTransition"
                             ToggleDefault="ToggleDefault"
                             Connect="Connect"
@@ -264,6 +265,10 @@
     /// <summary>Meldet geänderte Kopffelder einer Frage.</summary>
     [Parameter]
     public EventCallback<QuestionEdit> SaveQuestion { get; set; }
+
+    /// <summary>Meldet den Wunsch, die gewählte Frage zur Einstiegsfrage des Dialogs zu machen.</summary>
+    [Parameter]
+    public EventCallback<Guid> SetStartQuestion { get; set; }
 
     /// <summary>Meldet den bestätigten Löschwunsch einer Frage.</summary>
     [Parameter]

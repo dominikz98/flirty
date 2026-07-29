@@ -748,6 +748,7 @@ Schema-Änderung – Begründung und verworfene Alternativen in
 | Ziel/Bedingung eines Übergangs | Inspector-Panel | `UpdateTransitionCommand` |
 | „Als Schleife markieren" am Rücksprung | Inspector-Panel | `CreateLoopCommand` |
 | Trigger anlegen (Frage bzw. Dialog) | Inspector-Panel | `CreateTriggerCommand` |
+| „Als Einstiegsfrage setzen" (#105) | Inspector-Panel | `UpdateDialogCommand` |
 | Löschen (Frage, Übergang, Marker) | Inspector-Panel, zweistufig | `Delete*Command` |
 
 Die Rechenregeln dahinter lagen bis #103 privat im `@code`-Block von `DialogEditor.razor` und waren damit
@@ -756,6 +757,22 @@ Ausgangsfrage, `Reorder`) und `Services/LoopAnalyzer.cs` (`IsBackJump`, `Unmarke
 von **beiden** Ansichten benutzt. Neu dazu kam `QuestionFormModel.SuggestKey`: Anders als
 `LoopFormModel.SuggestCollectionKey`, das bei einer Kollision bewusst leer liefert, darf hier nie leer
 herauskommen – der Vorschlag trägt eine Geste, die sofort schreibt.
+
+#### Der Einstiegspunkt gehört auf die Fläche (#105)
+
+Die eine Zeile der Tabelle, die **nicht** den Graphen anfasst: „Als Einstiegsfrage setzen" im
+Frage-Panel schreibt über `UpdateDialogCommand` die Dialog-Metadaten. Nachgerüstet beim Bau der
+Canvas-E2E, weil der Anlege-Flow ohne sie unvollständig war: Ein Autor konnte den ganzen Graphen aus
+Gesten bauen, musste ihn aber für ein einzelnes Feld verlassen – und der Graph warnte die ganze Zeit
+über genau das („Keine Einstiegsfrage gesetzt", `DialogGraphBuilder`), ohne einen Weg dorthin
+anzubieten.
+
+Kein Bruch der Publish-Sperre, sondern ihr Normalfall: Der Guard in `UpdateDialogCommand` greift
+**genau dann**, wenn sich `StartQuestionId` ändert (Name und Beschreibung bleiben an einer
+veröffentlichten Version frei). Der Knopf trägt deshalb das übliche `Locked` des Panels
+(`!Editable || Busy`) und `RunGestureAsync` prüft `requireEditable` – aus der Sperre wird eine nicht
+auslösbare Aktion statt einer Fehlermeldung. Ist der Knoten schon Einstieg, entfällt der Knopf
+vollständig; die Zeile „Rolle" darüber sagt es bereits.
 
 #### Nach einer Mutation wird neu geladen
 
@@ -1067,6 +1084,9 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   **mehrdeutig** – und als Kernprobe des Akzeptanzkriteriums, dass ein `EditAnswerCommand` den Pfad neu
   rechnet und dabei den Zweig wechselt. Dazu die Trigger-Zuordnung (Knoten, dialogweit, `freshFrom`) ohne
   Engine, weil sie am Protokoll hängt.
+- `Designer/GraphEditingTests` – die Rechenregeln der Gesten (#103), die vorher privat im `@code`-Block
+  lagen: `NextOrder`, `NextPriority` **je Ausgangsfrage** und `Reorder` (Positionsindex → `Priority`,
+  inklusive der Reparatur doppelter Werte).
 - `Designer/DesignerTestHost` – kein Test, sondern der gemeinsame DI-Stack (Spiegel von `DesignerApp`)
   und die SQLite-Temp-Datenbank für die Gateway-Tests. Ändert sich `DesignerApp.ConfigureServices`, ist
   das die eine Stelle, die nachzuziehen ist.
@@ -1080,10 +1100,11 @@ HTTP-Spy).
 dotnet test tests/Flirty.Tests
 ```
 
-### Playwright-E2E der UI (#46)
+### Playwright-E2E der UI (#46, Canvas #105)
 
 Die Oberfläche selbst wird in `tests/Flirty.E2E` im **Browser** geprüft – dieselbe Mechanik wie bei der
-Chat-UI der Web-Sample (#45/#47):
+Chat-UI der Web-Sample (#45/#47). Der Canvas kam stufenweise dazu: #101–#104 lieferten je eine
+Rauchprobe, **#105** schließt die Abdeckung ab.
 
 - `DesignerAppFixture` hostet `DesignerApp` in-Prozess auf einem freien Kestrel-Port und legt vorab ein
   **aktives** Connection-Profil auf eine frisch migrierte SQLite-Temp-Datenbank an (Profil-Datei und DB
@@ -1099,8 +1120,7 @@ Chat-UI der Web-Sample (#45/#47):
 - `DesignerE2ETests.Graph_Ansicht_zeigt_den_Ablauf_und_fuehrt_in_den_Frage_Editor` – die Rauchprobe der
   Graph-Ansicht (#101): Der Canvas bindet sein JS-Modul, zeichnet drei Knoten und drei Kanten, markiert
   Einstieg und Abschluss, rahmt die Schleife und hängt den Trigger-Chip an genau die Frage, nach der er
-  feuert; die Auswahl öffnet den Inspector und führt in den bestehenden Frage-Editor. Die vollständige
-  Canvas-Abdeckung folgt in Stufe 5 (#105).
+  feuert; die Auswahl öffnet den Inspector und führt in den bestehenden Frage-Editor.
 - `DesignerE2ETests.Graph_Knoten_verschieben_ueberlebt_den_Reload` – die Rauchprobe der
   Layout-Persistenz (#102) am **veröffentlichten** Dialog: Knoten ziehen, Reload (der Server rendert die
   Position aus der Datenbank), „Layout zurücksetzen" – danach liegt der Knoten wieder auf seiner
@@ -1108,8 +1128,10 @@ Chat-UI der Web-Sample (#45/#47):
   ADR 0007: Es erscheint keine Fehlermeldung.
 - `DesignerE2ETests.Graph_Palette_und_Port_legen_Fragen_und_Uebergang_an`,
   `…Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade` und
-  `…Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` – die Gesten und der Lesemodus aus #103
-  (siehe den letzten Punkt unten: was davon im Browser belegt ist und was #105 bleibt).
+  `…Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` – die Gesten und der Lesemodus aus #103:
+  Palette-Zug und Port-Verbindung, der komplette Inspector-Pfad (Felder speichern, verbinden, Default
+  umschalten, löschen mit sichtbarer Kaskade), die **Listen-Parität** und „Verschieben geht, 409 bleibt
+  aus".
 - `DesignerE2ETests.Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor` – der Testlauf im Graphen (#104)
   auf demselben (unveröffentlichten) Dialog: umschalten, Lauf starten, zwei Iterationen; geprüft werden
   besuchte Knoten mit ihrem Antwortwert, die offene Frage, die Zahl der gegriffenen Kanten nach jedem
@@ -1117,6 +1139,19 @@ Chat-UI der Web-Sample (#45/#47):
   (Bindungen und Antworten je Iteration am gewählten Knoten), ein **Edit**, der den Pfad sichtbar schrumpfen
   lässt – und zum Schluss zweimal umschalten: „Verlauf" zeigt denselben Lauf, „Graph" bindet den Canvas
   neu. Das Zurückschalten ist zugleich die Probe, dass das Lösen der JS-Bindung den Circuit nicht reißt.
+- `DesignerE2ETests.Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload` – der
+  Anlege-Flow aus #105, ausschließlich über Gesten: Baustein aus der Palette ziehen, **zweimal vom Port
+  ins Leere** ziehen (Frage *und* Übergang aus einer Bewegung – der einzige Zweig, der „kein Knoten unter
+  dem Zeiger" durchläuft), Bedingung `auswahl == "ja"` im Inspector inklusive **Live-Validierung**, die
+  zweite Kante als Default, Einstiegsfrage **am Knoten** setzen, Knoten verschieben, im Dialog-Editor
+  veröffentlichen – und nach dem **Neuladen** kommt alles aus der Datenbank, inklusive der Position
+  (verglichen wird das `transform`, das in *Nutzerkoordinaten* steht und damit unabhängig von der
+  Skalierung des SVG ist).
+- `DesignerE2ETests.Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an` – die beiden Gesten, die #103
+  offengelassen hatte: einen per Port erzeugten **Rücksprung** über den Vorschlag *an der Kante* als
+  Schleife markieren (der Collection-Schlüssel ist mit `auswahl_liste` vorbelegt) und einen Trigger an
+  genau einer Frage anlegen – der Chip hängt danach dort und nicht an allen. Zum Schluss Reload und
+  Listen-Parität in „Schleifen (Loops)" und „Trigger".
 
 Ein paar Punkte, die beim Erweitern der Suite Zeit sparen:
 
@@ -1162,12 +1197,42 @@ Ein paar Punkte, die beim Erweitern der Suite Zeit sparen:
   sei denn, die Wirkungsprüfung umfasst die ganze Sequenz. Der Speichern-Knopf ist für die Dauer des
   Requests `disabled`; eine Wiederholung nur des Klicks läuft in einen deaktivierten Knopf und wartet bis
   zum Timeout.
-- **Was #103 im Browser prüft und was nicht.** Belegt sind die zwei riskantesten Gesten (Palette-Zug,
-  Port → Knoten), der Reload als Schreib-Nachweis, die **Listen-Parität**, der Lesemodus samt „409 bleibt
-  aus" sowie der komplette Inspector-Pfad (Felder speichern, verbinden, Default umschalten, löschen mit
-  sichtbarer Kaskade). Bewusst offen für #105: Ziehen ins Leere, Trigger- und Schleifen-Anlage. Beide sind
-  auf Command- bzw. Funktionsebene in `tests/Flirty.Tests/Designer` gedeckt – die E2E fehlt, die Prüfung
-  nicht.
+- **Hinter jeder Geste steht eine serverseitig erzeugte Wirkung – keine Wartezeit.** Der Riegel `send()`
+  im JS-Modul verwirft eine zweite Geste **still**, solange die erste läuft (siehe § *Gesten sind nicht
+  idempotent*): Eine zu früh ausgelöste Bewegung hinterlässt keine Fehlermeldung, nur einen fehlenden
+  Effekt. Taugliche Wirkungen sind Knoten- und Kantenzahlen, `is-pinned`, `is-start`, die Kanten­beschriftung
+  oder der Wortlaut in `.banner.ok`. Wird ein Canvas-Test rot, ist die erste Frage deshalb *„welche Geste
+  wurde still verworfen?"* – nicht die Assertion, die gescheitert ist.
+- **Eine nicht idempotente Aktion braucht eine sichtbare Vorbedingung statt einer Wiederholung.** Beim
+  Verbinden über `#inspectorConnect` ist das der Knopf „Verbinden", der genau dann bedienbar wird, wenn der
+  Server das gewählte Ziel kennt: Wiederholt wird nur das *Wählen* (folgenlos), geklickt wird danach
+  **einmal**. Ohne diesen Zwischenschritt hing der Test aus #103 an einem Rennen – die Auswahl in der Liste
+  konnte vom Re-Render der Knotenauswahl überholt und dabei verworfen werden (der `@key` am Panel ersetzt
+  die ganze Instanz), und der Klick lief in einen deaktivierten Knopf. In #105 aufgefallen und dort
+  mitgezogen.
+- **`SelectNodeAsync` braucht den erwarteten Schlüssel, wenn schon ein Frage-Panel offen ist.** Sonst ist
+  `#inspectorKey` bereits sichtbar, und die Wiederholschleife hält einen verpufften Klick für erfolgreich.
+  Der Feldinhalt sagt dagegen, *welche* Frage der Server gerade zeigt.
+- **Auf dem Canvas wird in Bruchteilen der Fläche gezielt, nicht in Pixeln.** Das SVG skaliert seinen
+  `viewBox` in den 70 vh hohen Host, dessen Breite sich Palette und Inspector teilen – wie viele
+  Bildschirm-Pixel ein Knoten breit ist, hängt am Fenster. Eine feste Pixelangabe landete bei anderem
+  Zuschnitt auf einem Knoten statt daneben, und aus dem Zug ins Leere würde still eine Verbindung
+  (`DragToCanvasFractionAsync`). Losgelassen werden muss ohnehin **innerhalb** der Canvas-Box – außerhalb
+  ist die Geste bewusst ein Abbruch (`insideCanvas` im Modul).
+- **Kanten werden über die Liste im Inspector gewählt, nicht per Klick auf `.graph-edge-hit`.** Der
+  Trefferpfad ist eine Bézier, deren Bounding-Box-Mitte nicht auf dem Strich liegen muss – Playwright
+  zielte dann daneben und scheiterte an der Aktionierbarkeit statt an der Sache. Die Liste ist ohnehin der
+  Tastaturpfad (`SelectOutgoingEdgeAsync` adressiert `ol.graph-inspector-list`, weil die *eingehenden*
+  Kanten in einer `ul` stehen).
+- **„Veröffentlichen" braucht `Exact = true`.** Ohne das matcht der Name auch „Ja, veröffentlichen", und
+  der Locator verletzt den Strict Mode. Beide Schritte gehören in *eine* wiederholte Einheit
+  (`PublishFromEditorAsync`): Bei offenen Graph-Warnungen fragt der Editor zurück, sonst nicht – und nach
+  dem Veröffentlichen ist keiner der Knöpfe mehr sichtbar, die Einheit ist also idempotent.
+- **Die Palette-Reihenfolge ist die des Enums.** `.graph-palette-item` `.First` ist
+  `QuestionType.SingleChoice` (Schlüsselvorschlag `auswahl`), `.Nth(2)` `FreeText` (`text`). Für Textfilter
+  auf Knoten sind das die brauchbaren Paare: `auswahl`/`auswahl2` träfen als Substring beide Knoten, und
+  der Typ-Text der Karte spielt mit („Einfachauswahl (SingleChoice)" enthält *auswahl*, „Freitext
+  (FreeText)" enthält *text*).
 
 ```pwsh
 pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium   # einmalig
@@ -1180,7 +1245,7 @@ dotnet test tests/Flirty.E2E
 #39 Frage-Editor ✅ → #40 Branching-Editor ✅ → #41 Loop-Editor ✅ → #42 Trigger-Editor ✅ →
 #43 Test-Runner ✅ → #46 Designer-E2E ✅.
 
-**EPIC 11 – Visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
+**EPIC 11 – Visueller Graph-Designer (#99, abgeschlossen):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
 #101 Graph-Ansicht (lesend) ✅ → #102 Layout-Persistenz + Verschieben ✅ (ADR 0007) →
 #103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen ✅ →
-#105 Playwright-E2E des Canvas.
+#105 Playwright-E2E des Canvas ✅.

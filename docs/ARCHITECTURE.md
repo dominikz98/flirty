@@ -211,7 +211,9 @@ Doku ist **Definition-of-Done jedes Issues**:
 - **Provider**: Migration + Smoke-CRUD gegen SQLite (optional PostgreSQL/SQL Server via Container).
 - **Console-Nutzung**: Console-Sample ohne ASP.NET-Referenz durchspielen.
 - **Loops**: mehrere Listen-Einträge erfassen, Breaking Question beendet, Collection im Kontext.
-- **Web-E2E**: Web-Sample + Designer via Playwright (Branching, Loop, Resume nach Reload, Edit) – #45/#47 und #46.
+- **Web-E2E**: Web-Sample + Designer via Playwright (Branching, Loop, Resume nach Reload, Edit) – #45/#47
+  und #46; der Graph-Canvas des Designers zusätzlich über #101–#105 (Gesten, Layout-Persistenz, Lesemodus,
+  Testlauf im Graphen).
 - **Coverage**: die CI misst `Flirty` + `Flirty.AspNetCore` (coverlet + ReportGenerator, ohne
   Schwellwert-Gate), siehe [CI.md § Coverage](./CI.md#coverage).
 - **NuGet**: `dotnet pack` erzeugt beide `.nupkg` (+ `.snupkg`); veröffentlicht wird über den eigenen,

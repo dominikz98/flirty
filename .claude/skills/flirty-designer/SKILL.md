@@ -8,10 +8,10 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 > **Status: EPIC 7 (Issues #37–#43) vollständig umgesetzt** – Connection-Profil-Verwaltung (#37),
 > Dialog-CRUD (#38), Frage-Editor (#39), Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42)
 > und Test-Runner (#43); `docs/DESIGNER.md` beschreibt alle sieben. Die UI ist seit **#46** per
-> Playwright-E2E abgedeckt. Aus **EPIC 11** (visueller Graph-Designer, #99) sind der Technik-Spike
-> (#100 → ADR 0006), die **Graph-Ansicht (#101)**, die **Layout-Persistenz (#102 → ADR 0007)**, das
-> **Editieren auf dem Canvas (#103 → ADR 0008)** und der **Testlauf im Graphen (#104)** erledigt; offen
-> ist nur noch die Canvas-E2E (#105). Dieser Skill ist die
+> Playwright-E2E abgedeckt. **EPIC 11** (visueller Graph-Designer, #99) ist ebenfalls **vollständig
+> umgesetzt**: Technik-Spike (#100 → ADR 0006), **Graph-Ansicht (#101)**, **Layout-Persistenz
+> (#102 → ADR 0007)**, **Editieren auf dem Canvas (#103 → ADR 0008)**, **Testlauf im Graphen (#104)** und
+> die **Canvas-E2E (#105)**. Dieser Skill ist die
 > **Leitplanke** für Erweiterungen: die beabsichtigte Architektur und die Konventionen, an die man sich
 > beim Implementieren halten soll.
 > Referenz: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7/11,
@@ -115,6 +115,12 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   und meldet Züge als `NodeMove`), `Components/GraphRunInspector.razor` (Antworten je Iteration,
   Bindungen, Ereignisse am gewählten Knoten), Laufzustand als `[Parameter]` an `GraphNodeCard`,
   `NodeMove` in `Models/GraphEdits.cs` und `RunExpressionSnapshot` jetzt `public` (CS0053).
+- **Canvas-E2E (#105):** die Abdeckung des Canvas im Browser (zwei neue Tests, siehe unten) – und die
+  einzige Feature-Ergänzung der Stufe: **„Als Einstiegsfrage setzen"** im `GraphQuestionPanel`
+  (`SetStart` → `GraphInspector.SetStartQuestion` → `DialogGraph.SetStartQuestionAsync` →
+  `UpdateDialogCommand`). Vorher ließ sich der Einstiegspunkt nur im Dialog-Editor setzen, obwohl der
+  Graph über sein Fehlen warnte. Kein Core-Code: Der Guard des Commands greift genau dann, wenn sich
+  `StartQuestionId` ändert, der Knopf trägt deshalb das übliche `Locked` des Panels.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
@@ -359,10 +365,10 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
 #40 Branching-Editor ✅ → #41 Loop-Editor ✅ → #42 Trigger-Editor ✅ → #43 Test-Runner ✅ →
 #46 Designer-E2E ✅.
 
-**EPIC 11 – visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
+**EPIC 11 – visueller Graph-Designer (#99, abgeschlossen):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
 #101 Graph-Ansicht lesend ✅ → #102 Layout-Persistenz (Tabelle `DialogLayout`) ✅ (ADR 0007) →
 #103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen ✅ →
-#105 Playwright-E2E des Canvas.
+#105 Playwright-E2E des Canvas ✅.
 
 ## Konventionen
 
@@ -397,7 +403,19 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   Maus-Koordinaten sind fensterbezogen, während der Canvas-Host 70 vh hoch unter Kopfzeile, Hinweis und
   Werkzeugleiste steht – ohne Scrollen zielt die Geste bei einem Knoten der unteren Schichten ins Leere,
   ohne jede Fehlermeldung. Über mehrere `Mouse.MoveAsync`-Schritte ziehen, damit die 4-px-Schwelle wie
-  bei einer echten Geste überschritten wird.
+  bei einer echten Geste überschritten wird. Gezielt wird in **Bruchteilen** der Fläche
+  (`DragToCanvasFractionAsync`), nicht in Pixeln: Das SVG skaliert seinen `viewBox` in den Host, wie groß
+  ein Knoten auf dem Schirm ist hängt also am Fenster – eine feste Pixelangabe träfe bei anderem Zuschnitt
+  einen Knoten statt die freie Fläche, und aus dem Zug ins Leere würde still eine Verbindung.
+- **Hinter jeder Canvas-Geste steht eine serverseitig erzeugte Wirkung, keine Wartezeit** (#105). `send()`
+  verwirft eine zweite Geste **still**, solange die erste läuft: Eine zu früh ausgelöste Bewegung
+  hinterlässt keinen Fehler, nur einen fehlenden Effekt. Wird ein Canvas-Test rot, lautet die erste Frage
+  deshalb „welche Geste wurde still verworfen?" – nicht „welche Assertion ist gescheitert?".
+- **Eine nicht idempotente Aktion braucht eine sichtbare Vorbedingung statt einer Wiederholung** (#105).
+  Beim Verbinden über `#inspectorConnect` ist das der Knopf „Verbinden": Er wird genau dann bedienbar, wenn
+  der Server das Ziel kennt. Wiederholt wird nur das Wählen, geklickt wird einmal. Sonst überholt der
+  Re-Render der Knotenauswahl die Listenauswahl und verwirft sie (der `@key` am Panel ersetzt die
+  Instanz) – dieselbe Familie wie „ein DOM-Wert beweist nichts", nur an einem `<select>`.
 - **Warnungstexte sind Vertrag.** `TransitionWarningAnalyzer` und `LoopAnalyzer` liefern
   `GraphWarning` (Ziel + Text). Der Text ist derselbe, den die Listenansicht seit jeher zeigt – die
   Publish-Rückfrage zählt ihn und die E2E-Suite sucht darin. Wer umformuliert, ändert die Oberfläche
