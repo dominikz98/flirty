@@ -278,6 +278,7 @@ else
                         SelectQuestion="SelectQuestion"
                         SelectTransition="SelectTransition"
                         SaveQuestion="SaveQuestionAsync"
+                        SetStartQuestion="SetStartQuestionAsync"
                         DeleteQuestion="DeleteQuestionAsync"
                         MoveTransition="MoveTransitionAsync"
                         ToggleDefault="ToggleDefaultAsync"
@@ -636,6 +637,40 @@ else
                     current.ValidationRules),
                 token),
             $"Frage „{edit.Key}“ gespeichert.");
+    }
+
+    /// <summary>
+    /// Macht die gewählte Frage zur Einstiegsfrage des Dialogs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der einzige Weg, der die <b>Dialog</b>-Metadaten anfasst statt den Graphen – und deshalb der
+    /// einzige, der <c>UpdateDialogCommand</c> ruft. Schlüssel, Name und Beschreibung gehen unverändert
+    /// mit: Der Command erwartet den vollständigen Satz, und der Canvas kennt nur die Einstiegsfrage.
+    /// </para>
+    /// <para>
+    /// Kein Sonderfall bei der Publish-Sperre, sondern ihr Normalfall: Der Guard des Commands greift
+    /// genau dann, wenn sich <c>StartQuestionId</c> ändert. Weil der Knopf im Panel bei gesperrtem
+    /// Graphen <c>disabled</c> ist und <see cref="RunGestureAsync"/> zusätzlich
+    /// <c>requireEditable</c> prüft, entsteht daraus keine Fehlermeldung, sondern eine nicht
+    /// auslösbare Aktion.
+    /// </para>
+    /// </remarks>
+    /// <param name="questionId">Die neue Einstiegsfrage.</param>
+    private async Task SetStartQuestionAsync(Guid questionId)
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        var dialog = _detail.Dialog;
+
+        _ = await RunGestureAsync(
+            (sender, token) => sender.Send(
+                new UpdateDialogCommand(Id, dialog.Key, dialog.Name, dialog.Description, questionId),
+                token),
+            $"„{QuestionKey(questionId)}“ ist jetzt Einstiegsfrage.");
     }
 
     /// <summary>

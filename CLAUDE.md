@@ -623,3 +623,45 @@ gaben:
 **Merksatz:** Wo eine feste Fläche mit dem Fortschritt gefüllt wird, ist die Anzahl das Problem, nicht die
 Darstellung – und ein Test, der Struktur prüft, sieht eine überlaufende Karte nicht. Ein Blick auf das
 gerenderte Bild (hier per Playwright-Screenshot im vorhandenen E2E-Lauf) kostet Minuten.
+
+**Canvas-E2E (#105) fertig** – Stufe 5 von EPIC 11 und damit **EPIC 11 / M5 abgeschlossen**. Der
+Schnitt weicht bewusst vom Issue-Text ab: Von den dort genannten „drei Tests" bestanden zwei schon als
+Rauchproben aus #101–#104 (`Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor` = Testlauf,
+`Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` + `Graph_Knoten_verschieben_ueberlebt_den_Reload`
+= Lesemodus). Dazugekommen sind die beiden, die `docs/DESIGNER.md` als „bewusst offen für #105" benannt
+hatte: `Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload` (Palette-Zug, **zweimal
+Ziehen ins Leere**, Bedingung mit Live-Validierung, Default, Einstiegsfrage, Verschieben, Veröffentlichen,
+Reload inkl. Positionen) und `Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an`. Die Suite umfasst
+damit 17 Tests und lief dreimal hintereinander grün. Vier Punkte, die den Ausschlag gaben:
+
+- **Der Anlege-Flow hat eine echte Lücke aufgedeckt: Die Einstiegsfrage ließ sich auf dem Canvas gar nicht
+  setzen.** Ein Autor konnte den ganzen Graphen aus Gesten bauen, musste die Fläche aber für ein einzelnes
+  Feld verlassen – während der Graph die ganze Zeit „Keine Einstiegsfrage gesetzt" warnte, ohne einen Weg
+  dorthin anzubieten. Nachgerüstet als „Als Einstiegsfrage setzen" im `GraphQuestionPanel`
+  (`SetStart` → `GraphInspector` → `DialogGraph.SetStartQuestionAsync` → `UpdateDialogCommand`). **Kein
+  Core-Code:** Der Guard des Commands greift genau dann, wenn sich `StartQuestionId` ändert (Name und
+  Beschreibung bleiben an einer veröffentlichten Version frei) – also trägt der Knopf das übliche `Locked`
+  des Panels, und aus der Publish-Sperre wird eine nicht auslösbare Aktion statt einer Fehlermeldung. Ist
+  der Knoten schon Einstieg, entfällt der Knopf; die Zeile „Rolle" sagt es bereits.
+- **Eine verworfene Geste ist stumm.** `send()` im JS-Modul lässt eine zweite Nachricht fallen, solange die
+  erste läuft – ohne Meldung, nur ohne Wirkung. Deshalb steht hinter **jeder** Geste eine serverseitig
+  erzeugte Größe (Knoten-/Kantenzahl, `is-pinned`, `is-start`, Kantenbeschriftung, Wortlaut in
+  `.banner.ok`), niemals eine Wartezeit. Umgekehrte Leserichtung: Wird ein Canvas-Test rot, lautet die
+  erste Frage „welche Geste wurde still verworfen?", nicht „welche Assertion ist gescheitert?".
+- **Der Testbau hat ein latentes Rennen im bestehenden #103-Test gefunden** – dieselbe Familie wie „ein
+  DOM-Wert beweist nichts", nur an einem `<select>`: Der Re-Render der Knotenauswahl ersetzt über den
+  `@key` die ganze Panel-Instanz und verwirft dabei die eben getroffene Auswahl in `#inspectorConnect`;
+  „Verbinden" blieb `disabled`, und der Klick lief in einen Timeout. Der Test war nur grün, weil das Panel
+  dort schon „warm" war. Behoben mit einer **sichtbaren Vorbedingung**: Wiederholt wird nur das Wählen
+  (folgenlos), und dass der Server das Ziel kennt, zeigt der bedienbare Knopf – geklickt wird danach
+  genau einmal. Der #103-Test ist mitgezogen.
+- **Zwei Selektor-Fallen, die zum Canvas gehören:** Eine Kante wird über die Liste im Inspector gewählt,
+  **nicht** per Klick auf `.graph-edge-hit` – der Trefferpfad ist eine Bézier, deren Bounding-Box-Mitte
+  nicht auf dem Strich liegen muss, und Playwright zielt dann daneben. Und gezielt wird auf der Fläche in
+  **Bruchteilen** statt in Pixeln: Das SVG skaliert seinen `viewBox` in den 70 vh hohen Host, dessen Breite
+  sich Palette und Inspector teilen – eine feste Pixelangabe trifft bei anderem Zuschnitt einen Knoten
+  statt die freie Fläche, und aus dem Zug ins Leere wird still eine Verbindung.
+
+**Merksatz:** Wer einen Ablauf zum ersten Mal *vollständig* nachspielt, findet, was an ihm fehlt – nicht
+nur, was an ihm kaputt ist. Die fehlende Einstiegsfrage-Affordanz stand in keinem Issue und hätte kein
+Unit-Test zeigen können; sichtbar wurde sie erst, als der Test den Weg gehen musste, den ein Anwender geht.

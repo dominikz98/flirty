@@ -87,6 +87,25 @@
     }
 </dl>
 
+@* Der Einstiegspunkt gehört auf die Fläche: Ohne diesen Knopf ließe sich der ganze Graph auf dem
+   Canvas bauen, aber nicht starten – der Autor müsste ihn für ein einzelnes Feld verlassen, und genau
+   darüber warnt der Graph („Keine Einstiegsfrage gesetzt", DialogGraphBuilder). Gesetzt wird er über
+   UpdateDialogCommand, dessen Guard exakt passt: An einer veröffentlichten Version ist genau DIESES
+   Feld gesperrt (Name/Beschreibung bleiben frei) – deshalb trägt der Knopf das übliche `Locked` und
+   läuft nicht in einen 409.
+
+   Ist der Knoten schon Einstieg, entfällt der Knopf: Die Rolle darüber sagt es bereits, und ein
+   deaktivierter Knopf ohne Alternative wäre eine Leerform. *@
+@if (!Node.IsStart)
+{
+    <div class="actions">
+        <button class="btn" disabled="@Locked"
+                @onclick="() => SetStart.InvokeAsync(Node.QuestionId)">
+            Als Einstiegsfrage setzen
+        </button>
+    </div>
+}
+
 <h3 class="graph-inspector-section">Ausgehende Übergänge</h3>
 
 @if (Outgoing.Count == 0)
@@ -297,6 +316,10 @@ else
     /// <summary>Meldet geänderte Kopffelder.</summary>
     [Parameter]
     public EventCallback<QuestionEdit> Save { get; set; }
+
+    /// <summary>Meldet den Wunsch, diese Frage zur Einstiegsfrage des Dialogs zu machen.</summary>
+    [Parameter]
+    public EventCallback<Guid> SetStart { get; set; }
 
     /// <summary>Meldet eine Umsortierung der ausgehenden Übergänge.</summary>
     [Parameter]
