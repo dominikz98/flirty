@@ -1,66 +1,66 @@
 ---
 name: flirty-question-type
-description: Neuen Fragetyp (QuestionType) und/oder eine Antwort-Validierungsregel in Flirty ergänzen. Verwenden bei "neuer QuestionType", "neuer Fragetyp", "Validierungsregel", "ValidationRules", "Antwort-Validierung erweitern", "IAnswerValidator".
+description: Add a new question type (QuestionType) and/or an answer validation rule in Flirty. Use for "new QuestionType", "new question type", "validation rule", "ValidationRules", "extend answer validation", "IAnswerValidator".
 ---
 
-# Neuen QuestionType + Validierungsregel hinzufügen
+# Add a new QuestionType + validation rule
 
-Der Fragetyp bestimmt, wie eine eingereichte Antwort **fachlich** validiert wird. Die Validierung läuft
-als Mediator-`IPipelineBehavior` (`AnswerValidationPipelineBehavior`) **vor** den Submit/Edit-Handlern.
-Referenz: `docs/VALIDATION.md`, `docs/DOMAIN-MODEL.md`.
+The question type determines how a submitted answer is validated **at the business level**. Validation
+runs as a Mediator `IPipelineBehavior` (`AnswerValidationPipelineBehavior`) **before** the submit/edit
+handlers. Reference: `docs/VALIDATION.md`, `docs/DOMAIN-MODEL.md`.
 
-## Vorbilder (vor dem Schreiben lesen)
+## Prior art (read before writing)
 
-- `src/Flirty/Domain/QuestionType.cs` – das Enum (als `int` persistiert).
-- `src/Flirty/Validation/AnswerValidator.cs` – die typ- und regelbasierte Prüfung.
-- `src/Flirty/Validation/ValidationRules.cs` – JSON-Schema der optionalen Regeln.
-- `src/Flirty/Validation/AnswerValidationResult.cs` – strukturiertes Ergebnis (`IsValid` + `Errors`).
+- `src/Flirty/Domain/QuestionType.cs` – the enum (persisted as `int`).
+- `src/Flirty/Validation/AnswerValidator.cs` – the type- and rule-based check.
+- `src/Flirty/Validation/ValidationRules.cs` – JSON schema of the optional rules.
+- `src/Flirty/Validation/AnswerValidationResult.cs` – structured result (`IsValid` + `Errors`).
 
-## Bestehende Typen & Regeln
+## Existing types & rules
 
-Typen: `SingleChoice`, `MultiChoice`, `FreeText`, `Number`, `Date`, `Boolean`.
-Regeln (`Question.ValidationRules`, camelCase-JSON, alle optional): `minLength`/`maxLength`/`pattern`
-(FreeText), `min`/`max` (Number). Der Antwortwert ist **roher JSON-Text** und wird tolerant gelesen
-(gültiges JSON typisiert, sonst als String).
+Types: `SingleChoice`, `MultiChoice`, `FreeText`, `Number`, `Date`, `Boolean`.
+Rules (`Question.ValidationRules`, camelCase JSON, all optional): `minLength`/`maxLength`/`pattern`
+(FreeText), `min`/`max` (Number). The answer value is **raw JSON text** and is read leniently (valid JSON
+is typed, otherwise treated as a string).
 
-## Schritte
+## Steps
 
-### Neuen QuestionType
+### New QuestionType
 
-1. Wert in `src/Flirty/Domain/QuestionType.cs` **anhängen** (Enum ist `int`-persistiert → keine
-   bestehenden Ordinalwerte ändern).
-2. In `AnswerValidator.cs` einen `case` für den neuen Typ ergänzen: gültig-wenn-Logik definieren,
-   Antwortwert über den vorhandenen toleranten JSON-Reader interpretieren.
-3. Bei Wert-Verstoß **kein** Wurf, sondern `AnswerValidationResult` mit `Errors` zurückgeben. Nur echte
-   **Fehlkonfiguration** der Frage (unbekannter Typ, ungültiges Regex/JSON) wirft
+1. **Append** the value in `src/Flirty/Domain/QuestionType.cs` (the enum is `int`-persisted → do not
+   change existing ordinal values).
+2. Add a `case` for the new type in `AnswerValidator.cs`: define the valid-when logic, interpret the
+   answer value via the existing lenient JSON reader.
+3. On a value violation return an `AnswerValidationResult` with `Errors`, **do not** throw. Only a
+   genuine **misconfiguration** of the question (unknown type, invalid regex/JSON) throws
    `InvalidOperationException`.
 
-### Neue Validierungsregel
+### New validation rule
 
-1. Feld in `ValidationRules.cs` ergänzen (optional, camelCase, case-insensitiv gelesen; fehlend =
-   „keine Einschränkung"). Regel **typ-skopiert** halten – auf nicht betroffene Typen ignorieren.
-2. Anwendung in `AnswerValidator.cs` für die betroffenen Typen einbauen. Bei Regex: mit **Timeout**
-   (ReDoS-Schutz), Teiltreffer via `Regex.IsMatch` (zum Vollmatch im Muster `^…$` verankern).
-3. Regel in der Tabelle in `docs/VALIDATION.md` dokumentieren.
+1. Add a field in `ValidationRules.cs` (optional, camelCase, read case-insensitively; absent = "no
+   constraint"). Keep the rule **type-scoped** – ignore it on unaffected types.
+2. Wire it into `AnswerValidator.cs` for the affected types. For regex: with a **timeout** (ReDoS
+   protection), partial match via `Regex.IsMatch` (anchor with `^…$` in the pattern for a full match).
+3. Document the rule in the table in `docs/VALIDATION.md`.
 
-## Wichtig
+## Important
 
-- Kein DB-Zugriff im Validator – er bekommt die bereits geladene `Question` (inkl. Optionen +
-  `ValidationRules`) und den rohen Wert. Er ist **zustandslos** und als Singleton registriert.
-- Neue Auswahltypen (choice-artig) prüfen Zugehörigkeit gegen `AnswerOption.Value` der Frage.
+- No DB access in the validator – it receives the already-loaded `Question` (incl. options +
+  `ValidationRules`) and the raw value. It is **stateless** and registered as a singleton.
+- New choice-like types check membership against the question's `AnswerOption.Value`.
 
 ## Tests
 
-`tests/Flirty.Tests/Validation/AnswerValidatorTests.cs` – Validator isoliert (neuer Typ/Regel: gültig,
-ungültig, toleranter Fallback, Fehlkonfiguration). `AnswerValidationPipelineBehaviorTests.cs` – end-to-end
-via `IFlirtyEngine` gegen SQLite (ungültige Antwort → `AnswerValidationException` **ohne** Persistenz).
+`tests/Flirty.Tests/Validation/AnswerValidatorTests.cs` – validator in isolation (new type/rule: valid,
+invalid, lenient fallback, misconfiguration). `AnswerValidationPipelineBehaviorTests.cs` – end-to-end via
+`IFlirtyEngine` against SQLite (invalid answer → `AnswerValidationException` **without** persistence).
 
 ## Definition of Done
 
-Deutsche XML-Docs · `docs/VALIDATION.md` (Typ-Tabelle bzw. Regel-Tabelle) aktualisiert · Tests grün. Ändert
-sich das Domänenmodell/Schema, zusätzlich Skill `flirty-ef-migration` durchlaufen.
+English XML docs · `docs/VALIDATION.md` (type table or rule table) updated · tests green. If the domain
+model/schema changes, additionally run the `flirty-ef-migration` skill.
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet build Flirty.sln

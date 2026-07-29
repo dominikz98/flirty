@@ -1,94 +1,94 @@
 ---
 name: flirty-nuget-package
-description: Flirty-NuGet-Pakete bauen, versionieren und veröffentlichen (Flirty + Flirty.AspNetCore). Verwenden bei "dotnet pack", "NuGet-Paket", "veröffentlichen/publish", "Version erhöhen", "neues Paket paketierbar machen", "Migrations-DLLs bündeln", "SourceLink/snupkg".
+description: Build, version and publish the Flirty NuGet packages (Flirty + Flirty.AspNetCore). Use for "dotnet pack", "NuGet package", "publish", "bump version", "make a new project packable", "bundle migration DLLs", "SourceLink/snupkg".
 ---
 
-# NuGet-Packaging & Veröffentlichung
+# NuGet packaging & publishing
 
-Genau **zwei** Projekte sind veröffentlichbar: `Flirty` (Core) und `Flirty.AspNetCore`. Alle anderen
-erben `IsPackable=false`. Referenz: `docs/NUGET-PACKAGING.md`, `docs/CI.md`, `Directory.Build.targets`.
+Exactly **two** projects are publishable: `Flirty` (core) and `Flirty.AspNetCore`. All others inherit
+`IsPackable=false`. Reference: `docs/NUGET-PACKAGING.md`, `docs/CI.md`, `Directory.Build.targets`.
 
-## Wichtige Fakten
+## Key facts
 
-- **Metadaten zentral:** Gemeinsames (`Authors`, Lizenz `MIT`, Icon, `RepositoryUrl`, SourceLink) in
-  `Directory.Build.props`; Paket-**Verhalten** (Symbolpakete, README/Icon-Includes, Version) in
-  `Directory.Build.targets`, gated auf `IsPackable=='true'`. Im `.csproj` stehen nur `IsPackable`,
+- **Metadata centralized:** shared bits (`Authors`, license `MIT`, icon, `RepositoryUrl`, SourceLink) in
+  `Directory.Build.props`; package **behavior** (symbol packages, README/icon includes, version) in
+  `Directory.Build.targets`, gated on `IsPackable=='true'`. In the `.csproj` only `IsPackable`,
   `PackageId`, `Description`, `PackageTags`.
-- **Datumsbasierte Version** `JJJJMM.Revision` (z. B. `202607.1`), Jahr/Monat aus `UtcNow`, Revision
-  default `1`, überschreibbar per `-p:BuildRevision=N`. `AssemblyVersion`/`FileVersion` sind davon
-  **entkoppelt** (`Jahr.Monat.Revision.0`, weil die Segmente `UInt16` ≤ 65535 sind). **Nicht** manuell
-  in den `.csproj` hochzählen.
-- **`TreatWarningsAsErrors=true` gilt auch für Pack (NU5xxx).** Lizenz, Icon (`icon.png`, 128×128) und
-  README müssen vollständig sein, sonst bricht `pack`.
-- **Migrations-DLLs gebündelt:** `Flirty` kann die Migrations-Projekte **nicht** per `ProjectReference`
-  einbinden (Build-Graph-Zyklus). Ein Pack-Target `IncludeFlirtyMigrationAssemblies` in
-  `src/Flirty/Flirty.csproj` baut sie per `<MSBuild>`-Task und legt die drei DLLs via
-  `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage` nach `lib/net10.0/`. Zur Laufzeit lädt EF
-  Core sie über `MigrationsAssembly("Flirty.Migrations.<Provider>")`.
+- **Date-based version** `YYYYMM.Revision` (e.g. `202607.1`), year/month from `UtcNow`, revision
+  default `1`, overridable via `-p:BuildRevision=N`. `AssemblyVersion`/`FileVersion` are **decoupled**
+  from it (`Year.Month.Revision.0`, because the segments are `UInt16` ≤ 65535). Do **not** bump manually
+  in the `.csproj`.
+- **`TreatWarningsAsErrors=true` also applies to pack (NU5xxx).** License, icon (`icon.png`, 128×128)
+  and README must be complete, otherwise `pack` fails.
+- **Migration DLLs bundled:** `Flirty` **cannot** reference the migration projects via `ProjectReference`
+  (build-graph cycle). A pack target `IncludeFlirtyMigrationAssemblies` in `src/Flirty/Flirty.csproj`
+  builds them via an `<MSBuild>` task and places the three DLLs into `lib/net10.0/` via
+  `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage`. At runtime EF Core loads them via
+  `MigrationsAssembly("Flirty.Migrations.<Provider>")`.
 
-## Paket bauen
+## Build a package
 
 ```pwsh
-dotnet pack -c Release -o artifacts                 # Version JJJJMM.1
+dotnet pack -c Release -o artifacts                 # version YYYYMM.1
 dotnet pack -c Release -o artifacts -p:BuildRevision=7   # -> Flirty.202607.7.nupkg
 ```
 
-Erwartetes Ergebnis in `artifacts/` (je Paket `.nupkg` **und** `.snupkg`):
+Expected result in `artifacts/` (per package `.nupkg` **and** `.snupkg`):
 
 ```
 Flirty.<version>.nupkg / .snupkg
 Flirty.AspNetCore.<version>.nupkg / .snupkg
 ```
 
-Prüfen, dass im `Flirty`-Paket unter `lib/net10.0/` **alle vier** DLLs liegen (`Flirty.dll` +
-die drei `Flirty.Migrations.*.dll`).
+Check that in the `Flirty` package under `lib/net10.0/` **all four** DLLs are present (`Flirty.dll` +
+the three `Flirty.Migrations.*.dll`).
 
-## Ein neues Projekt paketierbar machen (selten)
+## Make a new project packable (rare)
 
-`IsPackable=true`, `PackageId`, `Description`, `PackageTags` im `.csproj` setzen. Damit greift automatisch
-die CS1591-Erzwingung (deutsche XML-Docs auf aller public API) und die Paket-Verdrahtung aus
+Set `IsPackable=true`, `PackageId`, `Description`, `PackageTags` in the `.csproj`. This automatically
+engages the CS1591 enforcement (English XML docs on all public API) and the package wiring from
 `Directory.Build.targets`.
 
-## Veröffentlichen (#49)
+## Publishing (#49)
 
-Der Push liegt in `.github/workflows/release.yml` – **nicht** in `ci.yml` (die baut/testet/packt nur).
-Feed ist **NuGet.org**, ausgelöst wird ausschließlich manuell.
+The push lives in `.github/workflows/release.yml` – **not** in `ci.yml` (which only builds/tests/packs).
+The feed is **NuGet.org**, triggered exclusively manually.
 
 ```pwsh
-gh workflow run release.yml -f dry_run=true   # bauen + verifizieren, KEIN Push (immer zuerst)
-gh workflow run release.yml                   # Version JJJJMM.<Run-Nummer>.0
-gh workflow run release.yml -f revision=7     # Version JJJJMM.7.0
+gh workflow run release.yml -f dry_run=true   # build + verify, NO push (always first)
+gh workflow run release.yml                   # version YYYYMM.<run number>.0
+gh workflow run release.yml -f revision=7     # version YYYYMM.7.0
 ```
 
-- **Zwei Jobs:** `build` (restore → build → `dotnet test tests/Flirty.Tests` → pack → **verifizieren** →
-  Artefakt `nupkg`) und `push`, der an der GitHub-Environment **`nuget`** hängt (Secret
-  `NUGET_API_KEY` + optionales Reviewer-Gate). Das Gate sitzt bewusst *zwischen* beiden.
-- **Verifikationsschritt** vor dem Push prüft an den realen Dateien: je Paket `.nupkg` **und**
-  `.snupkg` sowie alle **vier** DLLs unter `lib/net10.0/` im Core-Paket. Beim Bearbeiten beachten:
-  `Flirty.*.nupkg` matcht auch `Flirty.AspNetCore.*.nupkg` → das Core-Paket über `Flirty.[0-9]*`
-  isolieren.
-- **`.snupkg` werden automatisch mitgepusht** (liegen neben den `.nupkg`, NuGet.org hat einen
-  Symbol-Server). Kein zweiter Push.
-- **Kein Azure Artifacts** – bewusst: es nimmt Symbolpakete über `dotnet nuget push` nicht an und
-  erfüllte das AC „inkl. Symbols" nicht.
-- **Unwiderruflich:** Veröffentlichte Versionen lassen sich nur unlisten, nicht löschen. Deshalb
-  immer erst `dry_run=true`.
+- **Two jobs:** `build` (restore → build → `dotnet test tests/Flirty.Tests` → pack → **verify** →
+  artifact `nupkg`) and `push`, which hangs off the GitHub environment **`nuget`** (secret
+  `NUGET_API_KEY` + optional reviewer gate). The gate deliberately sits *between* the two.
+- The **verification step** before the push checks against the real files: per package `.nupkg` **and**
+  `.snupkg` as well as all **four** DLLs under `lib/net10.0/` in the core package. When editing, mind
+  that `Flirty.*.nupkg` also matches `Flirty.AspNetCore.*.nupkg` → isolate the core package via
+  `Flirty.[0-9]*`.
+- **`.snupkg` are pushed automatically** (they sit next to the `.nupkg`, NuGet.org has a symbol server).
+  No second push.
+- **No Azure Artifacts** – deliberately: it does not accept symbol packages via `dotnet nuget push` and
+  would not satisfy the AC "incl. symbols".
+- **Irreversible:** published versions can only be unlisted, not deleted. Hence always `dry_run=true`
+  first.
 
-Details, inklusive der einmaligen Einrichtung (API-Key mit Glob `Flirty*`, Environment `nuget`):
-`docs/NUGET-PACKAGING.md` § Publizieren.
+Details, including the one-time setup (API key with glob `Flirty*`, environment `nuget`):
+`docs/NUGET-PACKAGING.md` § Publishing.
 
-## Fallstrick: die dritte Versionsstelle
+## Pitfall: the third version segment
 
-Die MSBuild-Property `Version` ist zweistellig (`202607.7`), NuGet normalisiert auf **drei** Segmente.
-Dateiname, `.nuspec` und die Anzeige auf nuget.org lauten also `202607.7.0`. Beim Suchen nach einem
-Artefakt oder einer Paketversion die `.0` mitdenken; `dotnet add package … --version 202607.7`
-funktioniert trotzdem (NuGet normalisiert die Anfrage).
+The MSBuild property `Version` is two-part (`202607.7`), NuGet normalizes to **three** segments. So the
+file name, `.nuspec` and the display on nuget.org read `202607.7.0`. When searching for an artifact or a
+package version, keep the `.0` in mind; `dotnet add package … --version 202607.7` still works (NuGet
+normalizes the request).
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet pack -c Release -o artifacts -p:BuildRevision=99
-# erwartet: Flirty.<JJJJMM>.99.0.nupkg/.snupkg + Flirty.AspNetCore.<JJJJMM>.99.0.nupkg/.snupkg
+# expected: Flirty.<YYYYMM>.99.0.nupkg/.snupkg + Flirty.AspNetCore.<YYYYMM>.99.0.nupkg/.snupkg
 Expand-Archive artifacts/Flirty.*.nupkg -DestinationPath artifacts/inspect -Force
-Get-ChildItem artifacts/inspect/lib/net10.0   # erwartet: 4 DLLs (Core + 3x Migrations)
+Get-ChildItem artifacts/inspect/lib/net10.0   # expected: 4 DLLs (core + 3x migrations)
 ```
