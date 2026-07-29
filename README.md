@@ -4,62 +4,62 @@
 [![NuGet: Flirty](https://img.shields.io/nuget/v/Flirty?label=NuGet%3A%20Flirty)](https://www.nuget.org/packages/Flirty)
 [![NuGet: Flirty.AspNetCore](https://img.shields.io/nuget/v/Flirty.AspNetCore?label=NuGet%3A%20Flirty.AspNetCore)](https://www.nuget.org/packages/Flirty.AspNetCore)
 
-Wiederverwendbare **Chatbot-/Dialog-Engine für .NET**. Du baust nur die UI – Flirty übernimmt
-Persistenz, Antwort-Validierung, **Branching**, **Loops**, **Resume**, editierbare Antworten und
-**Trigger** (Rückkanäle in deine App). Dialoge werden über einen **Blazor-Designer** konfiguriert
-(auch von nicht-technischen Nutzern).
+Reusable **chatbot/dialog engine for .NET**. You only build the UI – Flirty handles
+persistence, answer validation, **branching**, **loops**, **resume**, editable answers and
+**triggers** (back channels into your app). Dialogs are configured via a **Blazor designer**
+(also by non-technical users).
 
-Der Core ist eine reine Class-Library **ohne ASP.NET-Abhängigkeit** und läuft unverändert in
-Console-, Worker- und Web-Anwendungen. HTTP-Endpunkte sind opt-in über das Zusatzpaket
+The core is a pure class library **without an ASP.NET dependency** and runs unchanged in
+console, worker and web applications. HTTP endpoints are opt-in via the add-on package
 `Flirty.AspNetCore`.
 
 ## Features
 
-| Feature | Umsetzung |
+| Feature | Implementation |
 |---|---|
-| Resume innerhalb eines Dialogs | Session hält die aktuelle Frage; Wiederaufnahme über die Session-Id |
-| Antworten nachträglich editieren | `EditAnswerAsync` + Neuberechnung des Folgepfads |
-| Branching (mehrere Zweige) | Übergänge mit gesandboxten Bedingungsausdrücken (Default: DynamicExpresso) |
-| Loops (Liste bis zur Abbruchfrage) | Branching-Zyklus + Schleifen-Marker, Iterationen als Collection im Kontext |
-| Trigger nach Antwort / Abschluss | In-Process-Notifications (Mediator) **und** Outbound-Webhooks |
-| Antwort-Validierung | Typprüfung + `ValidationRules` je Frage, vor dem Handler in der Pipeline |
-| Dialog-Versionierung | Veröffentlichte Versionen sind unveränderlich; Änderungen laufen über eine neue Version, laufende Sessions bleiben auf ihrer |
-| Multi-DB + Auto-Migration | SQLite / PostgreSQL / SQL Server, Migrationen pro Provider |
-| Einfache Integration | `services.AddFlirty(o => …)`, optional `app.MapFlirtyEndpoints()` |
+| Resume within a dialog | The session holds the current question; resumption via the session id |
+| Editing answers after the fact | `EditAnswerAsync` + recomputation of the downstream path |
+| Branching (multiple branches) | Transitions with sandboxed condition expressions (default: DynamicExpresso) |
+| Loops (list up to the exit question) | Branching cycle + loop marker, iterations as a collection in the context |
+| Trigger after an answer / on completion | In-process notifications (Mediator) **and** outbound webhooks |
+| Answer validation | Type check + `ValidationRules` per question, before the handler in the pipeline |
+| Dialog versioning | Published versions are immutable; changes go through a new version, running sessions stay on theirs |
+| Multi-DB + auto-migration | SQLite / PostgreSQL / SQL Server, migrations per provider |
+| Simple integration | `services.AddFlirty(o => …)`, optionally `app.MapFlirtyEndpoints()` |
 
-## Projekte
+## Projects
 
-| Projekt | Zweck |
+| Project | Purpose |
 |---|---|
-| `src/Flirty` | Core-Engine (Domain, Runtime, EF-Core-Persistenz, Mediator, DI-Extensions). **Kein ASP.NET** → auch in Console/Worker nutzbar. NuGet-Package. |
-| `src/Flirty.AspNetCore` | Optionale WebAPI-Endpunkte (`MapFlirtyEndpoints`, `MapFlirtyAdminEndpoints`). NuGet-Package. |
-| `src/Flirty.Designer` | Blazor Web App zum Konfigurieren von Dialogen/Fragen/Antworten/Branching/Loops/Triggern, inkl. Test-Runner. Multi-DB → [`docs/DESIGNER.md`](https://github.com/dominikz98/flirty/blob/main/docs/DESIGNER.md). |
-| `src/Flirty.Migrations.*` | EF-Migrationen je Provider (SQLite, PostgreSQL, SQL Server); in das `Flirty`-Paket gebündelt. |
-| `src/Flirty.Samples` | Lauffähiges **Console-Sample** (nur Core, kein ASP.NET) → [`docs/GETTING-STARTED-Console.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Console.md). |
-| `src/Flirty.Samples.Web` | Lauffähiges **Web-Sample** (Minimal-API + statische Chat-UI): Resume/Edit/Branching/Loop/Trigger + Webhook-Empfänger → [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md). |
-| `tests/Flirty.Tests` | Unit-/Integrationstests (xUnit). |
-| `tests/Flirty.E2E` | Playwright-E2E-Tests (Web-Sample-Chat-UI und Blazor-Designer). |
+| `src/Flirty` | Core engine (domain, runtime, EF Core persistence, Mediator, DI extensions). **No ASP.NET** → usable in console/worker too. NuGet package. |
+| `src/Flirty.AspNetCore` | Optional WebAPI endpoints (`MapFlirtyEndpoints`, `MapFlirtyAdminEndpoints`). NuGet package. |
+| `src/Flirty.Designer` | Blazor Web App for configuring dialogs/questions/answers/branching/loops/triggers, incl. test runner. Multi-DB → [`docs/DESIGNER.md`](https://github.com/dominikz98/flirty/blob/main/docs/DESIGNER.md). |
+| `src/Flirty.Migrations.*` | EF migrations per provider (SQLite, PostgreSQL, SQL Server); bundled into the `Flirty` package. |
+| `src/Flirty.Samples` | Runnable **console sample** (core only, no ASP.NET) → [`docs/GETTING-STARTED-Console.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Console.md). |
+| `src/Flirty.Samples.Web` | Runnable **web sample** (minimal API + static chat UI): resume/edit/branching/loop/trigger + webhook receiver → [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md). |
+| `tests/Flirty.Tests` | Unit/integration tests (xUnit). |
+| `tests/Flirty.E2E` | Playwright E2E tests (web-sample chat UI and Blazor designer). |
 
 ## Installation
 
 ```pwsh
-dotnet add package Flirty                 # Core-Engine (ohne ASP.NET nutzbar)
-dotnet add package Flirty.AspNetCore      # optional: fertige WebAPI-Endpunkte
+dotnet add package Flirty                 # Core engine (usable without ASP.NET)
+dotnet add package Flirty.AspNetCore      # optional: ready-made WebAPI endpoints
 ```
 
-> Zielframework ist **.NET 10**. Das Versionsschema ist datumsbasiert (`JJJJMM.Revision.0`, z. B.
-> `202607.3.0`) – kein SemVer-Signal, siehe
+> The target framework is **.NET 10**. The version scheme is date-based (`YYYYMM.Revision.0`, e.g.
+> `202607.3.0`) – not a SemVer signal, see
 > [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md).
 
 ## Quickstart (Console)
 
-`AddFlirty(o => …)` verdrahtet den kompletten Stack (Mediator, Runtime-Facade, Persistenz,
-Expression-Engine, Validierung). Ausschnitt aus dem Console-Sample
+`AddFlirty(o => …)` wires up the complete stack (Mediator, runtime facade, persistence,
+expression engine, validation). Excerpt from the console sample
 ([`src/Flirty.Samples/Program.cs`](https://github.com/dominikz98/flirty/blob/main/src/Flirty.Samples/Program.cs)):
 
 ```csharp
-// SQLite in-memory (Shared-Cache): solange die keep-alive-Verbindung offen ist, teilen sich
-// alle DI-erzeugten FlirtyDbContext-Instanzen dieselbe Datenbank.
+// SQLite in-memory (shared cache): as long as the keep-alive connection stays open,
+// all DI-created FlirtyDbContext instances share the same database.
 const string connectionString = "Data Source=FlirtyQuickstart;Mode=Memory;Cache=Shared";
 
 using var keepAlive = new SqliteConnection(connectionString);
@@ -68,7 +68,7 @@ keepAlive.Open();
 using var provider = new ServiceCollection()
     .AddLogging()
     .AddFlirty(o => o.UseSqlite(connectionString))
-    // Eigener Rückkanal: die Engine ruft ihn beim Dialog-Abschluss auf.
+    // Your own back channel: the engine calls it when the dialog completes.
     .AddFlirtyHandler<DialogCompletedNotification, MyDoneHandler>()
     .BuildServiceProvider();
 
@@ -77,128 +77,128 @@ var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
 
 var start = await engine.StartDialogAsync("onboarding", "user-1");
 var result = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
-// result.NextQuestion / result.IsCompleted steuern den weiteren Ablauf.
+// result.NextQuestion / result.IsCompleted drive the rest of the flow.
 ```
 
-> **Achtung bei der Migration:** `o.ApplyMigrations()` registriert einen `IHostedService` und wirkt
-> deshalb nur in einem **Generic Host**. Im reinen `ServiceCollection`-Setup wie oben legt man das
-> Schema stattdessen mit `context.Database.EnsureCreated()` an.
+> **Careful with the migration:** `o.ApplyMigrations()` registers an `IHostedService` and therefore
+> only takes effect inside a **Generic Host**. In a plain `ServiceCollection` setup as above, create the
+> schema instead with `context.Database.EnsureCreated()`.
 
-Vollständiges, lauffähiges Beispiel (Projekt-Setup, Dialog ohne Designer seeden, Facade-Durchlauf,
-eigener `INotificationHandler`):
+A complete, runnable example (project setup, seeding a dialog without the designer, a facade run,
+your own `INotificationHandler`):
 [`docs/GETTING-STARTED-Console.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Console.md).
 
-## Quickstart (Web / Endpunkte)
+## Quickstart (Web / Endpoints)
 
-Im Web-Host ist `o.ApplyMigrations()` die bequeme Wahl – der `WebApplicationBuilder` ist ein Generic
-Host und startet den Migrations-Service beim Hochfahren. Ausschnitt aus dem Web-Sample
+In a web host `o.ApplyMigrations()` is the convenient choice – the `WebApplicationBuilder` is a Generic
+Host and starts the migration service on boot. Excerpt from the web sample
 ([`src/Flirty.Samples.Web/WebSampleApp.cs`](https://github.com/dominikz98/flirty/blob/main/src/Flirty.Samples.Web/WebSampleApp.cs)):
 
 ```csharp
 builder.Services.AddFlirty(o =>
 {
-    o.UseSqlite(connectionString);        // oder UsePostgreSql(...) / UseSqlServer(...)
-    o.ApplyMigrations();                  // Auto-Migration beim Start
+    o.UseSqlite(connectionString);        // or UsePostgreSql(...) / UseSqlServer(...)
+    o.ApplyMigrations();                  // auto-migration on start
     o.AddWebhook(TriggerScope.OnDialogCompleted, baseUrl + "/demo/webhooks/flirty");
 });
 
-// Eigener In-Process-Handler als Rückkanal in die App.
+// Your own in-process handler as a back channel into the app.
 builder.Services.AddFlirtyHandler<DialogCompletedNotification, DemoDialogCompletedHandler>();
 
 var app = builder.Build();
 
-app.MapFlirtyEndpoints("/flirty");        // Paket Flirty.AspNetCore
+app.MapFlirtyEndpoints("/flirty");        // package Flirty.AspNetCore
 app.Run();
 ```
 
-`MapFlirtyEndpoints` registriert vier Endpunkte (dünne Schicht über die Mediator-Commands) und gibt die
-`RouteGroupBuilder` zurück – z. B. für `.RequireAuthorization()`:
+`MapFlirtyEndpoints` registers four endpoints (a thin layer over the Mediator commands) and returns the
+`RouteGroupBuilder` – e.g. for `.RequireAuthorization()`:
 
-| Methode & Route | Bedeutung |
+| Method & route | Meaning |
 |---|---|
-| `POST /flirty/sessions` | Dialog starten (oder bestehende Session fortsetzen) |
-| `GET /flirty/sessions/{id}` | Zustand lesen (Resume nach Reload) |
-| `POST /flirty/sessions/{id}/answers` | Antwort einreichen |
-| `PUT /flirty/sessions/{id}/answers/{questionId}` | Frühere Antwort editieren |
+| `POST /flirty/sessions` | Start a dialog (or resume an existing session) |
+| `GET /flirty/sessions/{id}` | Read the state (resume after a reload) |
+| `POST /flirty/sessions/{id}/answers` | Submit an answer |
+| `PUT /flirty/sessions/{id}/answers/{questionId}` | Edit an earlier answer |
 
-Ergänzend registriert `app.MapFlirtyAdminEndpoints("/flirty/admin")` das Konfigurations-CRUD
-(Dialoge, Fragen, Antwortoptionen, Übergänge, Schleifen, Trigger) – dieselben Operationen, die auch der
-Designer nutzt. **In Produktion unbedingt absichern** (z. B. `.RequireAuthorization()`).
+Additionally, `app.MapFlirtyAdminEndpoints("/flirty/admin")` registers the configuration CRUD
+(dialogs, questions, answer options, transitions, loops, triggers) – the same operations the
+designer uses. **Be sure to secure this in production** (e.g. `.RequireAuthorization()`).
 
-Vollständiger Guide (Setup, Request/Response-Beispiele, Fehler-Mapping, Admin-CRUD):
+Full guide (setup, request/response examples, error mapping, admin CRUD):
 [`docs/GETTING-STARTED-WebApi.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-WebApi.md).
 
-## Designer starten
+## Start the designer
 
 ```pwsh
 dotnet run --project src/Flirty.Designer
 ```
 
-Danach [`http://localhost:5016`](http://localhost:5016) öffnen. Zuerst unter **Verbindungen**
-(`/connections`) ein Connection-Profil anlegen, testen und aktivieren (Provider + Verbindungszeichenfolge,
-inkl. „Migrieren"); anschließend unter **Dialoge** (`/dialogs`) Dialoge, Fragen, Antwortoptionen,
-Übergänge, Schleifen und Trigger konfigurieren. Der **Test-Runner** (`/dialogs/{id}/test`) spielt auch
-unveröffentlichte Entwürfe mit der echten Engine durch. Details:
+Then open [`http://localhost:5016`](http://localhost:5016). First, under **Connections**
+(`/connections`), create, test and activate a connection profile (provider + connection string,
+incl. "Migrate"); then, under **Dialogs** (`/dialogs`), configure dialogs, questions, answer options,
+transitions, loops and triggers. The **test runner** (`/dialogs/{id}/test`) plays even
+unpublished drafts through with the real engine. Details:
 [`docs/DESIGNER.md`](https://github.com/dominikz98/flirty/blob/main/docs/DESIGNER.md).
 
-## Samples ausführen
+## Running the samples
 
 ```pwsh
-dotnet run --project src/Flirty.Samples        # Console-Dialog im Terminal
-dotnet run --project src/Flirty.Samples.Web    # Chat-UI unter http://localhost:5080
+dotnet run --project src/Flirty.Samples        # console dialog in the terminal
+dotnet run --project src/Flirty.Samples.Web    # chat UI at http://localhost:5080
 ```
 
-Das Web-Sample legt beim Start einen Demo-Dialog an und zeigt Branching, eine Schleife über eine Liste,
-Resume nach Reload, das Editieren einzelner Antworten sowie ausgelöste Trigger und empfangene Webhooks.
+The web sample creates a demo dialog on start and shows branching, a loop over a list,
+resume after a reload, editing individual answers as well as fired triggers and received webhooks.
 
-## Dokumentation
+## Documentation
 
-**Einstieg**
+**Getting started**
 
 - Getting Started (Console): [`docs/GETTING-STARTED-Console.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Console.md)
 - Getting Started (WebAPI): [`docs/GETTING-STARTED-WebApi.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-WebApi.md)
-- Getting Started (Web-Sample / Chat-UI): [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md)
+- Getting Started (web sample / chat UI): [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md)
 - Designer (Blazor): [`docs/DESIGNER.md`](https://github.com/dominikz98/flirty/blob/main/docs/DESIGNER.md)
 
-**Konzepte**
+**Concepts**
 
-- Architektur-Gesamtbild: [`docs/ARCHITECTURE.md`](https://github.com/dominikz98/flirty/blob/main/docs/ARCHITECTURE.md)
-- Domänenmodell & EF-Konfiguration: [`docs/DOMAIN-MODEL.md`](https://github.com/dominikz98/flirty/blob/main/docs/DOMAIN-MODEL.md)
-- Runtime (Start/Resume/Submit/Edit): [`docs/RUNTIME.md`](https://github.com/dominikz98/flirty/blob/main/docs/RUNTIME.md)
-- Persistenz & Migrationen: [`docs/PERSISTENCE.md`](https://github.com/dominikz98/flirty/blob/main/docs/PERSISTENCE.md)
-- Mediator-Setup: [`docs/MEDIATOR.md`](https://github.com/dominikz98/flirty/blob/main/docs/MEDIATOR.md)
-- Branching / Expressions: [`docs/BRANCHING-EXPRESSIONS.md`](https://github.com/dominikz98/flirty/blob/main/docs/BRANCHING-EXPRESSIONS.md)
+- Architecture overview: [`docs/ARCHITECTURE.md`](https://github.com/dominikz98/flirty/blob/main/docs/ARCHITECTURE.md)
+- Domain model & EF configuration: [`docs/DOMAIN-MODEL.md`](https://github.com/dominikz98/flirty/blob/main/docs/DOMAIN-MODEL.md)
+- Runtime (start/resume/submit/edit): [`docs/RUNTIME.md`](https://github.com/dominikz98/flirty/blob/main/docs/RUNTIME.md)
+- Persistence & migrations: [`docs/PERSISTENCE.md`](https://github.com/dominikz98/flirty/blob/main/docs/PERSISTENCE.md)
+- Mediator setup: [`docs/MEDIATOR.md`](https://github.com/dominikz98/flirty/blob/main/docs/MEDIATOR.md)
+- Branching / expressions: [`docs/BRANCHING-EXPRESSIONS.md`](https://github.com/dominikz98/flirty/blob/main/docs/BRANCHING-EXPRESSIONS.md)
 - Loops: [`docs/LOOPS.md`](https://github.com/dominikz98/flirty/blob/main/docs/LOOPS.md)
-- Trigger (Notifications + Webhooks): [`docs/TRIGGERS.md`](https://github.com/dominikz98/flirty/blob/main/docs/TRIGGERS.md)
-- Antwort-Validierung: [`docs/VALIDATION.md`](https://github.com/dominikz98/flirty/blob/main/docs/VALIDATION.md)
+- Triggers (notifications + webhooks): [`docs/TRIGGERS.md`](https://github.com/dominikz98/flirty/blob/main/docs/TRIGGERS.md)
+- Answer validation: [`docs/VALIDATION.md`](https://github.com/dominikz98/flirty/blob/main/docs/VALIDATION.md)
 
-**Projekt & Betrieb**
+**Project & operations**
 
-- NuGet-Packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
-- CI-Pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
-- Roadmap / Backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
-- Entscheidungen (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – warum Mediator, warum ASP.NET-freier Core, warum eine gesandboxte Expression-Engine, warum Migrationen pro Provider, warum veröffentlichte Dialogversionen unveränderlich sind, warum der Designer-Canvas selbst gebaut wird, warum das Canvas-Layout in einer eigenen Tabelle liegt
+- NuGet packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
+- CI pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
+- Roadmap / backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
+- Decisions (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – why Mediator, why an ASP.NET-free core, why a sandboxed expression engine, why migrations per provider, why published dialog versions are immutable, why the designer canvas is built in-house, why the canvas layout lives in its own table
 
 ## Build & Test
 
 ```pwsh
 dotnet build Flirty.sln
-dotnet test tests/Flirty.Tests             # Unit-/Integrationstests
-dotnet test tests/Flirty.E2E               # Playwright-E2E (Browser nötig, siehe unten)
+dotnet test tests/Flirty.Tests             # unit/integration tests
+dotnet test tests/Flirty.E2E               # Playwright E2E (browser required, see below)
 dotnet pack -c Release -o artifacts        # Flirty.*.nupkg + Flirty.AspNetCore.*.nupkg (+ .snupkg)
 ```
 
-> Die beiden Test-Projekte werden bewusst **getrennt** gestartet: `dotnet test` ohne Ziel führt sie
-> parallel aus, wodurch die browsergetriebenen E2E mit der Unit-Suite um dieselben Kerne konkurrieren.
-> Die E2E brauchen Chromium
-> (`pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium`); fehlt er, überspringen
-> sie sich. Die PostgreSQL-/SQL-Server-Tests brauchen Docker und werden ohne Docker ebenfalls
-> übersprungen. Zielframework ist **.NET 10** (SDK erforderlich).
+> The two test projects are deliberately started **separately**: `dotnet test` without a target runs them
+> in parallel, which makes the browser-driven E2E compete with the unit suite for the same cores.
+> The E2E need Chromium
+> (`pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium`); if it is missing, they
+> skip themselves. The PostgreSQL/SQL Server tests need Docker and are likewise
+> skipped without Docker. The target framework is **.NET 10** (SDK required).
 
-> Veröffentlicht wird über den Workflow `release.yml` – manuell und hinter einem Freigabe-Gate:
-> [`docs/NUGET-PACKAGING.md` § Publizieren](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md#publizieren-49).
+> Publishing goes through the `release.yml` workflow – manually and behind an approval gate:
+> [`docs/NUGET-PACKAGING.md` § Publishing](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md#publishing-49).
 
-## Lizenz & Feedback
+## License & Feedback
 
-MIT – siehe [`LICENSE`](https://github.com/dominikz98/flirty/blob/main/LICENSE).
-Fragen, Fehler und Wünsche gerne als [GitHub-Issue](https://github.com/dominikz98/flirty/issues).
+MIT – see [`LICENSE`](https://github.com/dominikz98/flirty/blob/main/LICENSE).
+Questions, bugs and requests are welcome as a [GitHub issue](https://github.com/dominikz98/flirty/issues).

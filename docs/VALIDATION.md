@@ -1,24 +1,24 @@
-# Antwort-Validierung: `IAnswerValidator` (Pipeline-Behavior)
+# Answer validation: `IAnswerValidator` (pipeline behavior)
 
-Wie eine eingereichte Antwort **fachlich** validiert wird – anhand des Fragetyps
-(`Question.Type`) und der optionalen, je Frage konfigurierten Regeln (`Question.ValidationRules`),
-umgesetzt als Mediator-`IPipelineBehavior`, das **vor** den Runtime-Handlern greift. Umgesetzt in
-Issue **#30** – EPIC 3 – Dialog-Runtime. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §7,
-Runtime-Ablauf in [RUNTIME.md](./RUNTIME.md), Mediator-Grundlagen in [MEDIATOR.md](./MEDIATOR.md).
+How a submitted answer is validated **semantically** – based on the question type
+(`Question.Type`) and the optional rules configured per question (`Question.ValidationRules`),
+implemented as a Mediator `IPipelineBehavior` that takes effect **before** the runtime handlers. Implemented in
+issue **#30** – EPIC 3 – dialog runtime. Reference: [ARCHITECTURE.md](./ARCHITECTURE.md) §7,
+runtime flow in [RUNTIME.md](./RUNTIME.md), Mediator basics in [MEDIATOR.md](./MEDIATOR.md).
 
-## Überblick
+## Overview
 
-Die Basis-Pipeline validiert bislang nur **deklarativ** (DataAnnotations, `[Required]`) über das
-`ValidationPipelineBehavior`. Die **fachliche** Prüfung – „passt der Wert zum Fragetyp und zu den
-konfigurierten Regeln?" – leistet seit #30 der `IAnswerValidator`, aufgerufen aus dem
-`AnswerValidationPipelineBehavior`. Eine ungültige Antwort wird abgewiesen, **bevor** sie persistiert
-(`SubmitAnswerCommand`) bzw. der Pfad neu berechnet wird (`EditAnswerCommand`).
+Until now the base pipeline validated only **declaratively** (DataAnnotations, `[Required]`) via the
+`ValidationPipelineBehavior`. The **semantic** check – "does the value fit the question type and the
+configured rules?" – has, since #30, been the job of the `IAnswerValidator`, invoked from the
+`AnswerValidationPipelineBehavior`. An invalid answer is rejected **before** it is persisted
+(`SubmitAnswerCommand`) or before the path is recomputed (`EditAnswerCommand`).
 
 ```
 ISender.Send(SubmitAnswerCommand)
-  └─ LoggingPipelineBehavior            (protokolliert)
-       └─ ValidationPipelineBehavior    (DataAnnotations: [Required] gegen null/leer)
-            └─ AnswerValidationBehavior  (fachlich: Typ + ValidationRules)  ← #30
+  └─ LoggingPipelineBehavior            (logs)
+       └─ ValidationPipelineBehavior    (DataAnnotations: [Required] against null/empty)
+            └─ AnswerValidationBehavior  (semantic: type + ValidationRules)  ← #30
                  └─ SubmitAnswerCommandHandler
 ```
 
@@ -31,72 +31,72 @@ public interface IAnswerValidator
 }
 ```
 
-- Reiner, **zustandsloser** Service (Default `AnswerValidator`, als Singleton registriert – analog zum
-  `IExpressionEvaluator`). Kein DB-Zugriff: Er erhält die bereits geladene `Question` (inkl. Optionen
-  und `ValidationRules`) und den rohen JSON-Antwortwert.
-- Liefert ein strukturiertes `AnswerValidationResult` (`IsValid` + `Errors`) statt zu werfen –
-  konsistent zum `ExpressionValidationResult` des Expression-Pfads.
-- Wirft `InvalidOperationException` bei **Fehlkonfiguration** der Frage (unbekannter Typ, ungültiges
-  `ValidationRules`-JSON, ungültiges Regex-Muster) – abgegrenzt von Wert-Fehlern.
+- A pure, **stateless** service (default `AnswerValidator`, registered as a singleton – analogous to the
+  `IExpressionEvaluator`). No DB access: it receives the already-loaded `Question` (incl. options
+  and `ValidationRules`) and the raw JSON answer value.
+- Returns a structured `AnswerValidationResult` (`IsValid` + `Errors`) instead of throwing –
+  consistent with the `ExpressionValidationResult` of the expression path.
+- Throws `InvalidOperationException` on a **misconfiguration** of the question (unknown type, invalid
+  `ValidationRules` JSON, invalid regex pattern) – distinct from value errors.
 
-### Werte-Format (tolerant)
+### Value format (tolerant)
 
-Der Antwortwert ist **roher JSON-Text** (wie `SessionAnswer.Value`). Der Validator liest ihn – wie der
-`DynamicExpressoExpressionEvaluator` – tolerant: gültiges JSON wird typisiert interpretiert, ist der
-Text kein gültiges JSON, gilt er unverändert als Zeichenkette (z. B. `"\"dev\""` **und** `dev` werden
-für eine Auswahl gleich behandelt).
+The answer value is **raw JSON text** (like `SessionAnswer.Value`). The validator reads it – like the
+`DynamicExpressoExpressionEvaluator` – tolerantly: valid JSON is interpreted with its type, and if the
+text is not valid JSON, it counts unchanged as a string (e.g. `"\"dev\""` **and** `dev` are treated
+the same for a choice).
 
-## Prüfung je `QuestionType`
+## Validation per `QuestionType`
 
-| Typ | Gültig, wenn … |
+| Type | Valid when … |
 |---|---|
-| `FreeText` | beliebiger Text; zusätzlich Regeln `minLength`/`maxLength`/`pattern` |
-| `Number` | JSON-Zahl oder numerischer String; zusätzlich Regeln `min`/`max` |
-| `Boolean` | JSON-`true`/`false` bzw. `"true"`/`"false"` |
-| `Date` | als ISO-8601-Datum parsebar (`DateTimeOffset`/`DateOnly`, invariant) |
-| `SingleChoice` | Wert entspricht genau einem `AnswerOption.Value` der Frage |
-| `MultiChoice` | JSON-Array von Zeichenketten; jeder Eintrag ein bekannter `AnswerOption.Value` |
+| `FreeText` | any text; additionally the rules `minLength`/`maxLength`/`pattern` |
+| `Number` | a JSON number or a numeric string; additionally the rules `min`/`max` |
+| `Boolean` | JSON `true`/`false` or `"true"`/`"false"` |
+| `Date` | parseable as an ISO-8601 date (`DateTimeOffset`/`DateOnly`, invariant) |
+| `SingleChoice` | the value matches exactly one `AnswerOption.Value` of the question |
+| `MultiChoice` | a JSON array of strings; every entry a known `AnswerOption.Value` |
 
-## `ValidationRules` (JSON-Schema)
+## `ValidationRules` (JSON schema)
 
-`Question.ValidationRules` trägt optionales JSON (camelCase, case-insensitiv gelesen). Alle Felder
-sind optional; ein fehlendes Feld bedeutet „keine Einschränkung". Die Regeln sind **typ-skopiert** –
-nicht anwendbare Regeln werden ignoriert.
+`Question.ValidationRules` carries optional JSON (camelCase, read case-insensitively). All fields
+are optional; a missing field means "no constraint". The rules are **type-scoped** –
+inapplicable rules are ignored.
 
-| Feld | Typ | Wirkt auf | Bedeutung |
+| Field | Type | Applies to | Meaning |
 |---|---|---|---|
-| `minLength` | int | `FreeText` | Mindestlänge (Zeichen) |
-| `maxLength` | int | `FreeText` | Maximallänge (Zeichen) |
-| `min` | number | `Number` | kleinster zulässiger Wert (inklusiv) |
-| `max` | number | `Number` | größter zulässiger Wert (inklusiv) |
-| `pattern` | string | `FreeText` | regulärer Ausdruck (Teiltreffer via `Regex.IsMatch`; zur Vollprüfung im Muster verankern, z. B. `^…$`) – mit Timeout (ReDoS-Schutz) |
+| `minLength` | int | `FreeText` | minimum length (characters) |
+| `maxLength` | int | `FreeText` | maximum length (characters) |
+| `min` | number | `Number` | smallest permitted value (inclusive) |
+| `max` | number | `Number` | largest permitted value (inclusive) |
+| `pattern` | string | `FreeText` | regular expression (partial match via `Regex.IsMatch`; anchor it in the pattern for a full check, e.g. `^…$`) – with a timeout (ReDoS protection) |
 
 ```json
 { "minLength": 2, "maxLength": 50, "pattern": "^[A-Za-z ]+$" }
 ```
 
-Von Hand schreiben muss man das JSON nicht: der **Frage-Editor** des Blazor-Designers pflegt die Regeln
-typ-abhängig über Eingabefelder und übersetzt das `pattern` schon beim Speichern (siehe
-[DESIGNER.md → Validierungsregeln](./DESIGNER.md#validierungsregeln)).
+You do not have to write the JSON by hand: the **question editor** of the Blazor designer maintains the rules
+type-dependently via input fields and translates the `pattern` already on save (see
+[DESIGNER.md → Validation rules](./DESIGNER.md#validation-rules)).
 
 ## `AnswerValidationPipelineBehavior`
 
-Das Behavior verbindet Validator und Mediator-Pipeline:
+The behavior connects the validator and the Mediator pipeline:
 
-1. Greift nur für antworteinreichende Commands (`SubmitAnswerCommand`, `EditAnswerCommand`, erkannt am
-   internen Marker `IAnswerCommand`) mit nicht-leerem `Value`.
-2. Löst über den `IDialogStore` **Session → gepinnte Dialogversion → Frage** auf.
-3. Ruft `IAnswerValidator.Validate(question, value)`. Bei `IsValid == false` wird eine
-   `AnswerValidationException` geworfen (leitet von `ValidationException` ab und trägt `QuestionId`
-   + `Errors`), bevor der Handler läuft.
-4. **Defer-Regel:** Kann die Frage nicht aufgelöst werden (Session/Dialog/Frage fehlt), validiert das
-   Behavior nicht und ruft nur `next` – die kanonischen Fehler (`SessionNotFoundException`,
-   `InvalidOperationException`, DataAnnotations-`ValidationException`) bleiben allein Sache des
-   Handlers bzw. des `ValidationPipelineBehavior`.
+1. Takes effect only for answer-submitting commands (`SubmitAnswerCommand`, `EditAnswerCommand`, recognized by the
+   internal marker `IAnswerCommand`) with a non-empty `Value`.
+2. Resolves **session → pinned dialog version → question** via the `IDialogStore`.
+3. Calls `IAnswerValidator.Validate(question, value)`. On `IsValid == false` an
+   `AnswerValidationException` is thrown (derives from `ValidationException` and carries `QuestionId`
+   + `Errors`) before the handler runs.
+4. **Defer rule:** if the question cannot be resolved (session/dialog/question missing), the behavior
+   does not validate and only calls `next` – the canonical errors (`SessionNotFoundException`,
+   `InvalidOperationException`, DataAnnotations `ValidationException`) remain solely the concern of the
+   handler or of the `ValidationPipelineBehavior`.
 
-### Registrierung (warum geschlossen)
+### Registration (why closed)
 
-`AddFlirty()` registriert das Behavior **geschlossen je Command-Typ** (nicht offen-generisch) als
+`AddFlirty()` registers the behavior **closed per command type** (not open-generic) as
 `Scoped`:
 
 ```csharp
@@ -107,29 +107,29 @@ services.AddScoped<IPipelineBehavior<EditAnswerCommand, EditAnswerResult>,
     AnswerValidationPipelineBehavior<EditAnswerCommand, EditAnswerResult>>();
 ```
 
-Das Behavior benötigt den scoped `IDialogStore` (und damit einen registrierten `FlirtyDbContext`).
-Eine offen-generische Registrierung würde es für **jede** Nachricht konstruieren – auch dort, wo kein
-`FlirtyDbContext` vorhanden ist – und die Auflösung brechen. Geschlossen greift es nur für Submit/Edit;
-`Scoped` teilt es sich denselben Kontext wie der Handler (`GetSessionAsync` liefert getrackt → keine
-zweite Abfrage).
+The behavior needs the scoped `IDialogStore` (and therefore a registered `FlirtyDbContext`).
+An open-generic registration would construct it for **every** message – even where no
+`FlirtyDbContext` is present – and break resolution. Closed, it takes effect only for submit/edit;
+`Scoped`, it shares the same context as the handler (`GetSessionAsync` returns it tracked → no
+second query).
 
-## Fehlerfälle
+## Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Wert passt nicht zum Typ / unbekannte Auswahl / Regelverstoß | `AnswerValidationException` (aus der Pipeline, vor dem Handler) |
-| Frage fehlkonfiguriert (ungültiges `ValidationRules`-JSON / Regex-Muster / Typ) | `InvalidOperationException` |
-| Session/gepinnter Dialog/Frage nicht auflösbar | keine Validierung → kanonischer Handler-Fehler |
-| `null`/leeres `Value` | `ValidationException` (DataAnnotations, vor der fachlichen Validierung) |
+| Value does not fit the type / unknown choice / rule violation | `AnswerValidationException` (from the pipeline, before the handler) |
+| Question misconfigured (invalid `ValidationRules` JSON / regex pattern / type) | `InvalidOperationException` |
+| Session/pinned dialog/question not resolvable | no validation → canonical handler error |
+| `null`/empty `Value` | `ValidationException` (DataAnnotations, before the semantic validation) |
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet test tests/Flirty.Tests
 ```
 
-`tests/Flirty.Tests/Validation/AnswerValidatorTests.cs` prüft den Validator isoliert (alle Typen,
-Regeln, Membership, toleranter Fallback, Fehlkonfiguration).
-`tests/Flirty.Tests/Validation/AnswerValidationPipelineBehaviorTests.cs` treibt das Behavior end-to-end
-durch die volle Pipeline via `IFlirtyEngine` gegen SQLite: ungültige Antwort → `AnswerValidationException`
-ohne Persistenz/Invalidierung, gültige Antwort läuft durch, plus die DI-Registrierung.
+`tests/Flirty.Tests/Validation/AnswerValidatorTests.cs` checks the validator in isolation (all types,
+rules, membership, tolerant fallback, misconfiguration).
+`tests/Flirty.Tests/Validation/AnswerValidationPipelineBehaviorTests.cs` drives the behavior end-to-end
+through the full pipeline via `IFlirtyEngine` against SQLite: an invalid answer → `AnswerValidationException`
+without persistence/invalidation, a valid answer runs through, plus the DI registration.

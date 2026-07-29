@@ -14,7 +14,7 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
 > the **canvas E2E (#105)**. This skill is the **guardrail** for extensions: the intended architecture
 > and the conventions to stick to when implementing.
 > Reference: `docs/DESIGNER.md`, `docs/ARCHITECTURE.md` §4/§8/§10, `docs/BACKLOG.md` EPIC 7/11,
-> `docs/adr/0006-canvas-technik-im-designer.md`, `docs/adr/0008-gesten-auf-dem-canvas.md`.
+> `docs/adr/0006-canvas-technology-in-the-designer.md`, `docs/adr/0008-gestures-on-the-canvas.md`.
 
 ## Current state (verified)
 

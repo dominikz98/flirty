@@ -1,30 +1,30 @@
-# Getting Started – Web-Sample (Minimal-API + Chat-UI)
+# Getting Started – Web Sample (Minimal API + Chat UI)
 
-> Stand: Issue #45. Dieser Guide zeigt die lauffähige **Web-Sample** unter
-> [`src/Flirty.Samples.Web`](../src/Flirty.Samples.Web): ein Minimal-API-Host, der die Flirty-Endpunkte
-> hostet **und** über eine statische Chat-UI (HTML + Vanilla JS) **konsumiert**. Demonstriert werden
-> **Resume**, **Edit**, **Branching**, **Loop über Liste** und **Trigger** – mit einem eigenen
-> In-Process-**Handler** und einem Inbound-**Webhook-Empfänger**. Grundlagen: die Endpunkte in
-> [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md), die Trigger in [TRIGGERS.md](./TRIGGERS.md),
-> die Schleifen in [LOOPS.md](./LOOPS.md).
+> Status: Issue #45. This guide shows the runnable **web sample** under
+> [`src/Flirty.Samples.Web`](../src/Flirty.Samples.Web): a minimal-API host that hosts the Flirty endpoints
+> **and** **consumes** them through a static chat UI (HTML + vanilla JS). Demonstrated are
+> **resume**, **edit**, **branching**, a **loop over a list** and **triggers** – with a custom
+> in-process **handler** and an inbound **webhook receiver**. Foundations: the endpoints in
+> [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md), the triggers in [TRIGGERS.md](./TRIGGERS.md),
+> the loops in [LOOPS.md](./LOOPS.md).
 
-## Ausführen
+## Running
 
 ```pwsh
 dotnet run --project src/Flirty.Samples.Web
 ```
 
-Danach [`http://localhost:5080`](http://localhost:5080) öffnen. Die App legt beim Start einen Demo-Dialog
-an (siehe unten), die Chat-UI startet automatisch eine Session. Spiele den Dialog durch (Rollen-Auswahl →
-Detailfrage → mehrere Fähigkeiten über die Schleife → Abschluss); rechts zeigen Panels die gesammelten
-Fähigkeiten, die ausgelösten In-Process-Trigger und die empfangenen Webhooks. **Reload** stellt die Session
-wieder her (Resume), das **✏️** an einer Antwort editiert sie (Edit).
+Then open [`http://localhost:5080`](http://localhost:5080). On start the app provisions a demo dialog
+(see below), and the chat UI automatically starts a session. Play the dialog through (role selection →
+detail question → several skills via the loop → completion); on the right, panels show the collected
+skills, the fired in-process triggers and the received webhooks. **Reload** restores the session
+(resume), the **✏️** on an answer edits it (edit).
 
-## Projekt-Setup
+## Project setup
 
-Der Host ist ein `Microsoft.NET.Sdk.Web`-Projekt und referenziert nur den Core, das Endpunkt-Paket und –
-für `o.ApplyMigrations()` mit SQLite – die SQLite-Migrations-Assembly. ASP.NET Core kommt über das SDK,
-**keine** zusätzlichen NuGet-Pakete:
+The host is a `Microsoft.NET.Sdk.Web` project and references only the core, the endpoint package and –
+for `o.ApplyMigrations()` with SQLite – the SQLite migrations assembly. ASP.NET Core comes through the SDK,
+**no** additional NuGet packages:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
@@ -36,136 +36,135 @@ für `o.ApplyMigrations()` mit SQLite – die SQLite-Migrations-Assembly. ASP.NE
 </Project>
 ```
 
-## 1. Registrierung & Endpunkte
+## 1. Registration & endpoints
 
-Die Komposition liegt in [`WebSampleApp`](../src/Flirty.Samples.Web/WebSampleApp.cs) (geteilt von
-`Program.cs` und den Integrationstests). `AddFlirty(…)` verdrahtet den Stack; der eigene In-Process-Handler
-wird per `AddFlirtyHandler<…>()` registriert, das Loopback-Ziel des Outbound-Webhooks per `o.AddWebhook(…)`:
+The composition lives in [`WebSampleApp`](../src/Flirty.Samples.Web/WebSampleApp.cs) (shared by
+`Program.cs` and the integration tests). `AddFlirty(…)` wires up the stack; the custom in-process handler
+is registered via `AddFlirtyHandler<…>()`, the loopback target of the outbound webhook via `o.AddWebhook(…)`:
 
 ```csharp
 builder.Services.AddFlirty(o =>
 {
     o.UseSqlite(connectionString);
     o.ApplyMigrations();
-    o.AddWebhook(TriggerScope.OnDialogCompleted, baseUrl + "/demo/webhooks/flirty"); // Loopback-Demo
+    o.AddWebhook(TriggerScope.OnDialogCompleted, baseUrl + "/demo/webhooks/flirty"); // loopback demo
 });
 builder.Services.AddFlirtyHandler<DialogCompletedNotification, DemoDialogCompletedHandler>();
 ```
 
 ```csharp
 app.UseDefaultFiles();
-app.UseStaticFiles();                         // statische Chat-UI aus wwwroot
-app.MapFlirtyEndpoints("/flirty");            // Laufzeit – von der Chat-UI konsumiert
-app.MapFlirtyAdminEndpoints("/flirty/admin"); // Konfiguration – baut den Demo-Dialog
+app.UseStaticFiles();                         // static chat UI from wwwroot
+app.MapFlirtyEndpoints("/flirty");            // runtime – consumed by the chat UI
+app.MapFlirtyAdminEndpoints("/flirty/admin"); // configuration – builds the demo dialog
 ```
 
-> **Sicherheit:** Die Admin-Endpunkte sind im Sample bewusst **ohne** `RequireAuthorization()` gemappt, damit
-> das Provisioning und die UI ohne Auth-Setup laufen. In Produktion die Admin-Fläche zwingend absichern
-> (siehe [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md) §4).
+> **Security:** In the sample the admin endpoints are deliberately mapped **without** `RequireAuthorization()`,
+> so that provisioning and the UI run without an auth setup. In production, the admin surface must be secured
+> (see [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md) §4).
 
-Steuerbare Konfiguration (Defaults in `appsettings.json`): `ConnectionStrings:Flirty`, `Flirty:BaseUrl`,
+Configurable settings (defaults in `appsettings.json`): `ConnectionStrings:Flirty`, `Flirty:BaseUrl`,
 `Flirty:ApplyMigrations`, `Flirty:EnableOutboundWebhook`, `Flirty:AutoProvision`.
 
-## 2. Demo-Dialog: Aufbau über die Admin-CRUD-API
+## 2. Demo dialog: built via the admin CRUD API
 
-Der Demo-Dialog `web-onboarding` wird beim Start idempotent über die **Admin-CRUD-API** aufgebaut
-([`DemoDialogProvisioner`](../src/Flirty.Samples.Web/DemoDialogProvisioner.cs), getrieben vom
-[`DemoProvisioningHostedService`](../src/Flirty.Samples.Web/DemoProvisioningHostedService.cs)). Ablauf:
+The demo dialog `web-onboarding` is built idempotently on start via the **admin CRUD API**
+([`DemoDialogProvisioner`](../src/Flirty.Samples.Web/DemoDialogProvisioner.cs), driven by the
+[`DemoProvisioningHostedService`](../src/Flirty.Samples.Web/DemoProvisioningHostedService.cs)). Flow:
 `POST /dialogs` → `POST …/questions` (+ `…/options`) → `PUT /dialogs/{id}` (StartQuestionId) →
 `POST …/transitions` → `POST …/dialogs/{id}/publish`.
 
-Dialogfluss (Branching **und** Loop über Liste):
+Dialog flow (branching **and** a loop over a list):
 
 ```text
-role (SingleChoice: dev|pm)                     ← Branching (Startfrage)
+role (SingleChoice: dev|pm)                     ← branching (entry question)
    ├─ role=="dev"  → language (FreeText)
    └─ default      → product  (FreeText)
-language|product → skill (FreeText)             ← Loop-Entry (CollectionKey "skills")
-skill            → more  (SingleChoice: yes|no) ← Breaking Question
-   ├─ more=="yes" → skill  (Loop-Back, Priority 0)
-   └─ default     → summary (Exit, Priority 1)
-summary (Boolean, terminal)                     → Abschluss → Trigger
+language|product → skill (FreeText)             ← loop entry (CollectionKey "skills")
+skill            → more  (SingleChoice: yes|no) ← breaking question
+   ├─ more=="yes" → skill  (loop-back, Priority 0)
+   └─ default     → summary (exit, Priority 1)
+summary (Boolean, terminal)                     → completion → trigger
 ```
 
-> **Bewusste Ausnahme (Loop-Marker):** Die Admin-CRUD-API deckt **kein** Loop-CRUD ab (nur Dialog/Frage/
-> Option/Übergang, siehe [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md) §4). Der Zyklus entsteht
-> über die Loop-Back-`Transition` (`more == "yes"` → `skill`), die eigentliche
-> [`LoopDefinition`](../src/Flirty/Domain/LoopDefinition.cs) (`CollectionKey="skills"`, Entry `skill`,
-> Breaking `more`) hängt der Provisioner **einmalig direkt über den `FlirtyDbContext`** an – erst dadurch
-> sammelt die Laufzeit die `skill`-Antworten je Iteration statt sie zu überschreiben (siehe
+> **Deliberate exception (loop marker):** The admin CRUD API covers **no** loop CRUD (only dialog/question/
+> option/transition, see [GETTING-STARTED-WebApi.md](./GETTING-STARTED-WebApi.md) §4). The cycle arises
+> from the loop-back `Transition` (`more == "yes"` → `skill`); the actual
+> [`LoopDefinition`](../src/Flirty/Domain/LoopDefinition.cs) (`CollectionKey="skills"`, entry `skill`,
+> breaking `more`) is attached by the provisioner **once directly via the `FlirtyDbContext`** – only then
+> does the runtime collect the `skill` answers per iteration instead of overwriting them (see
 > [LOOPS.md](./LOOPS.md)).
 
-## 3. Chat-UI (`wwwroot`)
+## 3. Chat UI (`wwwroot`)
 
-Die UI ([`wwwroot/app.js`](../src/Flirty.Samples.Web/wwwroot/app.js)) spricht ausschließlich die
-HTTP-Endpunkte an und hält keinen Server-Zustand:
+The UI ([`wwwroot/app.js`](../src/Flirty.Samples.Web/wwwroot/app.js)) talks exclusively to the
+HTTP endpoints and holds no server state:
 
-- **Start/Resume:** `externalUserKey` und `sessionId` liegen im `localStorage`. Beim Laden wird der Verlauf
-  über `GET /flirty/sessions/{id}` rekonstruiert (Resume nach Reload); ohne gespeicherte Session wird per
-  `POST /flirty/sessions` neu gestartet.
-- **Antworten:** `POST /flirty/sessions/{id}/answers` mit dem `value` als **rohem JSON-Text** je Fragetyp
-  (SingleChoice/FreeText → JSON-String, Boolean → `true`/`false`).
-- **Edit:** `PUT /flirty/sessions/{id}/answers/{questionId}` (bei Loop-Antworten mit `iterationIndex`);
-  die Anzahl verworfener Folgeantworten wird angezeigt.
-- **Loop/Branching:** ergeben sich aus dem gerenderten `currentQuestion`-Fluss; die gesammelten `skills`
-  zeigt ein Seitenpanel.
+- **Start/Resume:** `externalUserKey` and `sessionId` live in `localStorage`. On load the history is
+  reconstructed via `GET /flirty/sessions/{id}` (resume after reload); without a stored session a new one is
+  started via `POST /flirty/sessions`.
+- **Answers:** `POST /flirty/sessions/{id}/answers` with the `value` as **raw JSON text** per question type
+  (SingleChoice/FreeText → JSON string, Boolean → `true`/`false`).
+- **Edit:** `PUT /flirty/sessions/{id}/answers/{questionId}` (for loop answers with `iterationIndex`);
+  the number of discarded downstream answers is shown.
+- **Loop/Branching:** arise from the rendered `currentQuestion` flow; the collected `skills` are shown
+  by a side panel.
 
-> **Eingabesteuerung: eine Stelle für Antwort und Edit.** `renderAnswerControls` baut die Steuerung
-> **typabhängig** – Options-Buttons bei `SingleChoice`, Ja/Nein bei `Boolean`, sonst ein Feld mit passendem
-> `input.type` – und wird von der offenen Frage **und** vom Edit-Formular genutzt. Das ist kein Selbstzweck:
-> Die UI zeigt Antworten in ihrer *Anzeigeform* (das Options-**Label**, „Ja"/„Nein"), gespeichert wird aber
-> der **Wert** (`option.value`, `true`/`false`). Ein eigenes Edit-Formular mit generischem Textfeld hat
-> genau diese beiden Ebenen vermischt und das Label zurückgeschrieben – bei einer Auswahl lehnte der
-> [`AnswerValidator`](../src/Flirty/Validation/AnswerValidator.cs) das als ungültige Option mit `400` ab,
-> bei `Boolean` kippte die Antwort still auf „Nein". Deshalb bekommt der Edit-Pfad dieselben Controls und
-> das Feld wird mit dem **rohen** Wert vorbelegt (`decodeRaw`, nicht `decodeForDisplay`).
+> **Input control: one place for answer and edit.** `renderAnswerControls` builds the control
+> **type-dependently** – option buttons for `SingleChoice`, Yes/No for `Boolean`, otherwise a field with a
+> matching `input.type` – and is used by the open question **and** the edit form. This is not an end in
+> itself: the UI shows answers in their *display form* (the option **label**, "Yes"/"No"), but what is
+> stored is the **value** (`option.value`, `true`/`false`). A separate edit form with a generic text field
+> mixed exactly these two levels and wrote the label back – for a choice the
+> [`AnswerValidator`](../src/Flirty/Validation/AnswerValidator.cs) rejected it as an invalid option with `400`,
+> for `Boolean` the answer silently flipped to "No". That is why the edit path gets the same controls and
+> the field is pre-filled with the **raw** value (`decodeRaw`, not `decodeForDisplay`).
 
-> **Ein Request zur Zeit.** Für die Dauer eines Submits bzw. Edits setzt `setBusy(true)` die
-> **✏️**-Schaltflächen aller Antwortblasen auf `disabled` – die Eingabezeile ist beim Absenden ohnehin
-> geleert. Ohne diese Sperre konnte ein schnell geklickter Edit die noch fliegende Antwort überholen: Der
-> Server kannte die letzte Antwort dann noch nicht, verwarf beim Edit eine Antwort zu wenig und lehnte den
-> nachlaufenden Submit mit `409` („ist nicht die aktuell offene Frage") ab. Die Daten blieben dabei
-> konsistent – die Anzeige aber nicht plausibel. Aufgefallen ist das an einem darauf reagierenden
-> E2E-Test (#97).
+> **One request at a time.** For the duration of a submit or edit, `setBusy(true)` sets the
+> **✏️** buttons of all answer bubbles to `disabled` – the input line is cleared on send anyway.
+> Without this lock, a quickly clicked edit could overtake the still-flying answer: the
+> server did not yet know the last answer, discarded one answer too few on the edit and rejected the
+> trailing submit with `409` ("is not the currently open question"). The data stayed
+> consistent – but the display was not plausible. This was noticed via an E2E test reacting to it (#97).
 
-## 4. Trigger: Handler + Webhook-Empfänger
+## 4. Triggers: handler + webhook receiver
 
-- **In-Process-Handler:** [`DemoDialogCompletedHandler`](../src/Flirty.Samples.Web/DemoDialogCompletedHandler.cs)
-  (`INotificationHandler<DialogCompletedNotification>`) protokolliert jeden Abschluss in eine Senke, die
-  `GET /demo/triggers` anzeigt.
-- **Inbound-Webhook-Empfänger:** `POST /demo/webhooks/flirty` nimmt den ausgehenden HTTP-`POST` der Engine
-  entgegen, liest den Header `X-Flirty-Event` und den JSON-Body und legt beides für `GET /demo/webhooks` ab.
-  Weil das Sample per `o.AddWebhook(OnDialogCompleted, …/demo/webhooks/flirty)` an sich selbst zustellt,
-  ist der komplette **Outbound→Inbound-Rundlauf** live im Trigger-Panel sichtbar.
+- **In-process handler:** [`DemoDialogCompletedHandler`](../src/Flirty.Samples.Web/DemoDialogCompletedHandler.cs)
+  (`INotificationHandler<DialogCompletedNotification>`) logs every completion into a sink that
+  `GET /demo/triggers` shows.
+- **Inbound webhook receiver:** `POST /demo/webhooks/flirty` receives the engine's outbound HTTP `POST`,
+  reads the header `X-Flirty-Event` and the JSON body and stores both for `GET /demo/webhooks`.
+  Because the sample delivers to itself via `o.AddWebhook(OnDialogCompleted, …/demo/webhooks/flirty)`,
+  the complete **outbound→inbound round-trip** is visible live in the trigger panel.
 
-## Verifikation
+## Verification
 
 ```pwsh
-dotnet test tests/Flirty.Tests -c Release   # In-Process-TestServer: Branching/Loop/Resume/Edit/Handler/Inbound
+dotnet test tests/Flirty.Tests -c Release   # in-process TestServer: branching/loop/resume/edit/handler/inbound
 ```
 
-Der Integrationstest [`WebSampleTests`](../tests/Flirty.Tests/Samples/WebSampleTests.cs) hostet die echte
-Sample-Komposition über einen In-Process-`TestServer` (SQLite in-memory) und spielt sie end-to-end durch.
-Der volle Outbound→Inbound-Webhook-Rundlauf braucht echtes Kestrel und ist im Browser abgesichert:
+The integration test [`WebSampleTests`](../tests/Flirty.Tests/Samples/WebSampleTests.cs) hosts the real
+sample composition over an in-process `TestServer` (SQLite in-memory) and plays it through end-to-end.
+The full outbound→inbound webhook round-trip needs real Kestrel and is secured in the browser:
 
 ```pwsh
-pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium  # einmalig
+pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium  # once
 dotnet test tests/Flirty.E2E -c Release
 ```
 
-[`WebSampleE2ETests`](../tests/Flirty.E2E/WebSampleE2ETests.cs) startet die App auf echtem Kestrel und treibt
-die Chat-UI im Browser. Sieben Tests decken das Akzeptanzkriterium aus **#47** ab:
+[`WebSampleE2ETests`](../tests/Flirty.E2E/WebSampleE2ETests.cs) starts the app on real Kestrel and drives
+the chat UI in the browser. Seven tests cover the acceptance criterion from **#47**:
 
-| Test | Deckt ab |
+| Test | Covers |
 |---|---|
-| `Durchlauf_Branching_Loop_und_Trigger_Rundlauf` | dev-Zweig, zwei Schleifen-Iterationen, Abschluss, In-Process-Handler und Outbound→Inbound-Webhook |
-| `Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife` | der `IsDefault`-Übergang (`pm` → `product`) als Gegenprobe zum dev-Zweig |
-| `Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her` | Reload **innerhalb** der Schleife → Iterationszustand und offene Frage kommen vom Server |
-| `Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten` | Freitext-Edit inkl. Anzahl verworfener Folgeantworten und Neuberechnung des Pfads |
-| `Editieren_der_Verzweigungsfrage_wechselt_den_Zweig` | Edit einer Auswahl → Zweigwechsel; zugleich Regressionstest für die typabhängige Eingabesteuerung (siehe §3) |
-| `Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration` | `iterationIndex`-Pfad und das Wieder-Öffnen einer bereits abgeschlossenen Session |
-| `Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert` | die zweite Hälfte desselben Regressionstests: eine `Boolean`-Antwort darf beim Edit nicht still kippen |
+| `Durchlauf_Branching_Loop_und_Trigger_Rundlauf` | dev branch, two loop iterations, completion, in-process handler and outbound→inbound webhook |
+| `Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife` | the `IsDefault` transition (`pm` → `product`) as a counter-check to the dev branch |
+| `Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her` | reload **inside** the loop → iteration state and open question come from the server |
+| `Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten` | free-text edit incl. number of discarded downstream answers and recomputation of the path |
+| `Editieren_der_Verzweigungsfrage_wechselt_den_Zweig` | edit of a choice → branch switch; at the same time a regression test for the type-dependent input control (see §3) |
+| `Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration` | `iterationIndex` path and re-opening an already-completed session |
+| `Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert` | the second half of the same regression test: a `Boolean` answer must not silently flip on edit |
 
-Alle Tests teilen sich die App samt Datenbank, bekommen aber je einen frischen Browser-Context (leeres
-`localStorage` → eigener `externalUserKey` → eigene Session). Fehlen die Playwright-Browser, überspringen
-sich die E2E-Tests, statt zu scheitern.
+All tests share the app including the database, but each gets a fresh browser context (empty
+`localStorage` → its own `externalUserKey` → its own session). If the Playwright browsers are missing, the
+E2E tests skip instead of failing.

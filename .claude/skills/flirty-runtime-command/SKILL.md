@@ -67,7 +67,7 @@ discovers handlers in the same compilation. Reference: `docs/RUNTIME.md`, `docs/
 > ```
 > – or `DialogEditGuard.EnsureEditable(dialog)` if the dialog is already loaded. A published version is
 > immutable, because running sessions load their graph from the same row (ADR
-> `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`). The guard sits **before**
+> `docs/adr/0005-immutable-published-dialog-version.md`). The guard sits **before**
 > resolving the child elements, so the understandable conflict message wins and not a not-found from a
 > follow-up check. In the test: the case "published → `DialogPublishedException`" belongs there (pattern:
 > `tests/Flirty.Tests/Runtime/DialogVersioningTests.cs`).

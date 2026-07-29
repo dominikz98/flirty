@@ -9,7 +9,7 @@ Flirty keeps each provider migration in its **own assembly**
 (`src/Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`), because EF Core assigns migrations to the
 context in a provider-independent way and scans the whole assembly when applying them. **After every
 model change all three sets must be regenerated with the same name.** Reference: `docs/PERSISTENCE.md`,
-`docs/DOMAIN-MODEL.md`, ADR `docs/adr/0001-migrationen-pro-provider.md`.
+`docs/DOMAIN-MODEL.md`, ADR `docs/adr/0001-migrations-per-provider.md`.
 
 ## Provider mapping
 

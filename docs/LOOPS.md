@@ -1,178 +1,178 @@
-# Loops (Schleifen): Iterationen, Collections & Break-Bedingungen
+# Loops: iterations, collections & break conditions
 
-Wie die Dialog-Runtime Schleifen ausführt: **Zyklus-Erkennung**, **Iterations-Zähler**, **Sammlung je
-Iteration** in einer Collection, **Break-Bedingung** und **Editieren innerhalb einer Iteration**.
-Umgesetzt in Issue **#29** (EPIC 3 – Dialog-Runtime). Referenz:
-[ARCHITECTURE.md](./ARCHITECTURE.md) §10, Domänenmodell in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md),
-Ausdrücke/Kontext in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Runtime-Commands in
+How the dialog runtime executes loops: **cycle detection**, **iteration counter**, **collecting per
+iteration** into a collection, **break condition** and **editing within an iteration**.
+Implemented in issue **#29** (EPIC 3 – dialog runtime). Reference:
+[ARCHITECTURE.md](./ARCHITECTURE.md) §10, domain model in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md),
+expressions/context in [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), runtime commands in
 [RUNTIME.md](./RUNTIME.md).
 
-## Überblick
+## Overview
 
-Loops entstehen **über das vorhandene Branching**: eine `Transition` zeigt auf eine **frühere** Frage und
-bildet damit einen Zyklus. Der `LoopDefinition`-Marker liegt nur als Metadaten-Ebene darüber – es gibt
-**keinen separaten Runtime-Sonderpfad** (ARCHITECTURE §11.5). Die gesamte Loop-Logik kapselt der interne
-`LoopResolver`; er wird vom geteilten `TransitionResolver` (Kontextaufbau für Submit **und** Edit) und vom
-`SubmitAnswerCommandHandler` (Feldzuweisung beim Persistieren) genutzt.
+Loops arise **through the existing branching**: a `Transition` points at an **earlier** question and thereby
+forms a cycle. The `LoopDefinition` marker sits only as a metadata layer on top of it – there is
+**no separate runtime special path** (ARCHITECTURE §11.5). The entire loop logic is encapsulated by the internal
+`LoopResolver`; it is used by the shared `TransitionResolver` (context build-up for submit **and** edit) and by the
+`SubmitAnswerCommandHandler` (field assignment on persisting).
 
-Der Marker bewirkt zweierlei:
-1. **Runtime**: die Antworten des Schleifenbereichs werden je Iteration in `CollectionKey` gesammelt
-   (statt überschrieben); `SessionAnswer.LoopInstanceId`/`IterationIndex` erlauben mehrere Antworten pro
-   Frage (eine je Iteration).
-2. **Designer**: der Zyklus wird als Loop-Block mit markierter Breaking Question visualisiert und auf
-   fehlenden/unerreichbaren Ausstieg geprüft – seit #41, siehe [unten](#schleifen-im-designer).
+The marker has two effects:
+1. **Runtime**: the answers of the loop range are collected per iteration into `CollectionKey`
+   (instead of overwritten); `SessionAnswer.LoopInstanceId`/`IterationIndex` allow multiple answers per
+   question (one per iteration).
+2. **Designer**: the cycle is visualized as a loop block with a marked breaking question and checked for
+   a missing/unreachable exit – since #41, see [below](#loops-in-the-designer).
 
-## `LoopDefinition` (Marker)
+## `LoopDefinition` (marker)
 
-| Feld | Bedeutung |
+| Field | Meaning |
 |---|---|
-| `CollectionKey` | Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen (z. B. `positions`). |
-| `EntryQuestionId` | Einstiegsfrage der Schleife (Ziel der Loop-Back-Transition). |
-| `BreakingQuestionId` | Frage, deren Exit-Übergang den Zyklus verlässt. |
+| `CollectionKey` | Key under which the answers collected per iteration lie in the expression context (e.g. `positions`). |
+| `EntryQuestionId` | Entry question of the loop (target of the loop-back transition). |
+| `BreakingQuestionId` | Question whose exit transition leaves the cycle. |
 
-Der **Exit** ist keine eigene Eigenschaft, sondern läuft über die normale `Transition`-Mechanik: die
-Breaking Question hat (mindestens) einen Loop-Back-Übergang auf die Einstiegsfrage und einen
-Exit-Übergang, der den Zyklus verlässt. Welcher greift, entscheidet die Break-Bedingung.
+The **exit** is not a property of its own, but runs through the normal `Transition` mechanics: the
+breaking question has (at least) one loop-back transition to the entry question and one
+exit transition that leaves the cycle. Which one takes effect is decided by the break condition.
 
-## Ablauf
+## Flow
 
-Der `LoopResolver` wird je gepinnter Dialogversion aufgebaut und leitet seinen Zustand ausschließlich aus
-den vorhandenen `SessionAnswer`-Zeilen ab (kein zusätzliches Session-Feld):
+The `LoopResolver` is built per pinned dialog version and derives its state exclusively from the
+existing `SessionAnswer` rows (no additional session field):
 
-1. **Body-Ermittlung** (einmalig je Schleife, aus dem Übergangs-Graphen): der Schleifenbereich ist
-   `(vorwärts ab Entry erreichbar) ∩ (rückwärts zu Breaking erreichbar) ∪ {Entry, Breaking}`. Die
-   Vorwärts-Suche stoppt an der Breaking Question (deren Loop-Back-/Exit-Kanten werden nicht verfolgt).
-   Dadurch bleiben früh aus dem Zyklus austretende Zweige (vorwärts erreichbar, aber ohne Weg zu Breaking)
-   und dem Zyklus vorgelagerte Fragen (erreichen Breaking, sind aber nicht ab Entry erreichbar) außerhalb
-   des Body. Ein Ein-Fragen-Loop (`Entry == Breaking`) ergibt `{Entry}`.
-2. **Iterations-/Instanz-Zuordnung** (beim Persistieren einer Antwort auf Frage `Q`, vor dem Anhängen):
-   - `Q` in keinem Body → `LoopInstanceId`/`IterationIndex` bleiben `null` (unverändertes Nicht-Loop-Verhalten).
-   - Erster Eintritt (keine Body-Antwort der Schleife vorhanden) → **frische** `LoopInstanceId`, `IterationIndex = 0`.
-   - Sonst: aktive Instanz = Instanz der jüngsten Body-Antwort, `maxIter` = größter Iterationsindex dieser
-     Instanz. Wird die **Einstiegsfrage** in der laufenden Iteration erneut beantwortet (Loop-Back), beginnt
-     die nächste Iteration (`maxIter + 1`); alle übrigen Fragen bleiben in der aktuellen Iteration (`maxIter`).
-   - Invariante: höchstens eine Antwort je `(Instanz, Frage, Iteration)`.
-3. **Collection-Aufbau** (für den `ExpressionContext`, gebaut **nach** dem Persistieren): je
-   `CollectionKey` die `Value` der Einstiegsfrage je Iteration der jüngsten Instanz, geordnet nach
-   Iterationsindex. Jeder `CollectionKey` wird **immer** gebunden (leere Liste, solange die Schleife noch
-   nicht betreten wurde), damit Ausdrücke wie `positions.Count > 0` auch vor der ersten Iteration
-   auswertbar sind. Die **laufende** Iteration zählt automatisch mit: Der Kontext wird nach dem
-   Persistieren gebaut, sodass die Einstiegsantwort der aktuellen Iteration bereits in der Collection
-   liegt, wenn die Break-Bedingung an der Breaking Question ausgewertet wird.
-4. **Break-Bedingung**: An der Breaking Question entscheidet das übliche Branching. Der Loop-Back-Übergang
-   (auf die Einstiegsfrage) und der Exit-Übergang werden nach `Priority` geprüft; die Bedingungsausdrücke
-   sehen die gesammelte Collection und den `iterationIndex`.
-5. **Danach normaler Fluss**: Greift der Exit-Übergang, verlässt die Session den Zyklus auf die
-   nachgelagerte Frage; deren Antworten tragen wieder keine Loop-Felder (`LoopInstanceId`/`IterationIndex`
+1. **Body determination** (once per loop, from the transition graph): the loop range is
+   `(reachable forward from entry) ∩ (reachable backward to breaking) ∪ {entry, breaking}`. The
+   forward search stops at the breaking question (its loop-back/exit edges are not followed).
+   As a result, branches that exit the cycle early (reachable forward, but with no path to breaking)
+   and questions upstream of the cycle (which reach breaking, but are not reachable from entry) stay outside
+   the body. A single-question loop (`Entry == Breaking`) yields `{entry}`.
+2. **Iteration/instance assignment** (when persisting an answer to question `Q`, before appending):
+   - `Q` in no body → `LoopInstanceId`/`IterationIndex` stay `null` (unchanged non-loop behavior).
+   - First entry (no body answer of the loop present) → **fresh** `LoopInstanceId`, `IterationIndex = 0`.
+   - Otherwise: active instance = instance of the most recent body answer, `maxIter` = the largest iteration index of that
+     instance. When the **entry question** is answered again in the running iteration (loop-back), the
+     next iteration begins (`maxIter + 1`); all other questions stay in the current iteration (`maxIter`).
+   - Invariant: at most one answer per `(instance, question, iteration)`.
+3. **Collection build-up** (for the `ExpressionContext`, built **after** persisting): per
+   `CollectionKey` the `Value` of the entry question per iteration of the most recent instance, ordered by
+   iteration index. Each `CollectionKey` is **always** bound (empty list as long as the loop has not yet
+   been entered), so that expressions like `positions.Count > 0` are evaluable even before the first iteration.
+   The **running** iteration automatically counts along: the context is built after
+   persisting, so the entry answer of the current iteration already lies in the collection
+   when the break condition is evaluated at the breaking question.
+4. **Break condition**: at the breaking question the usual branching decides. The loop-back transition
+   (to the entry question) and the exit transition are checked by `Priority`; the condition expressions
+   see the collected collection and the `iterationIndex`.
+5. **Then normal flow**: if the exit transition takes effect, the session leaves the cycle onto the
+   downstream question; its answers again carry no loop fields (`LoopInstanceId`/`IterationIndex`
    = `null`).
 
-## Break-Bedingungen
+## Break conditions
 
-Die Break-/Loop-Back-Bedingung ist ein gewöhnlicher `Transition.Expression` und sieht dieselben Variablen
-wie jedes Branching – zusätzlich die Loop-Collections und den Iterationsindex:
+The break/loop-back condition is an ordinary `Transition.Expression` and sees the same variables
+as any branching – additionally the loop collections and the iteration index:
 
 ```text
-more == "yes"          // Loop-Back anhand der Antwort der Breaking Question
-positions.Count < 2    // Loop-Back, bis zwei Einträge gesammelt sind (collection-getrieben)
-iterationIndex < 3     // höchstens vier Iterationen (Index 0..3)
+more == "yes"          // loop-back based on the answer of the breaking question
+positions.Count < 2    // loop-back until two entries are collected (collection-driven)
+iterationIndex < 3     // at most four iterations (index 0..3)
 ```
 
-Die Werte der Collection sind – wie alle Ausdruckswerte – **roher JSON-Text** je Iteration
-(die Einstiegsantwort), z. B. `positions = ["{\"title\":\"Dev\"}", "{\"title\":\"Lead\"}"]`. Details zur
-Bindung und Typisierung: [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md).
+The values of the collection are – like all expression values – **raw JSON text** per iteration
+(the entry answer), e.g. `positions = ["{\"title\":\"Dev\"}", "{\"title\":\"Lead\"}"]`. Details on the
+binding and typing: [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md).
 
-## Editieren innerhalb einer Iteration
+## Editing within an iteration
 
-`EditAnswerCommand`/`IFlirtyEngine.EditAnswerAsync` tragen einen optionalen nullbasierten
+`EditAnswerCommand`/`IFlirtyEngine.EditAnswerAsync` carry an optional zero-based
 `IterationIndex`:
 
-- **`null`** (Default) → wie außerhalb von Schleifen: die **früheste** Antwort der Frage wird editiert
-  (bei einer Loop-Frage die Iteration 0). Rückwärtskompatibel.
-- **gesetzt** → gezielt die Antwort der angegebenen Iteration.
+- **`null`** (default) → as outside loops: the **earliest** answer of the question is edited
+  (for a loop question, iteration 0). Backward-compatible.
+- **set** → specifically the answer of the given iteration.
 
-Das Überschreiben lässt `Sequence`, `LoopInstanceId` und `IterationIndex` unverändert. Die Invalidierung
-der nachgelagerten Antworten bleibt **Sequence-basiert** (alle Antworten mit höherer `Sequence` werden
-verworfen) – das erfasst korrekt den Rest der editierten Iteration **und** alle Folge-Iterationen; der
-Nutzer durchläuft die späteren Iterationen anschließend neu.
+The overwrite leaves `Sequence`, `LoopInstanceId` and `IterationIndex` unchanged. The invalidation
+of the downstream answers stays **Sequence-based** (all answers with a higher `Sequence` are
+discarded) – this correctly captures the rest of the edited iteration **and** all subsequent iterations; the
+user then walks through the later iterations again.
 
-## Fehlerfälle
+## Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Zwei Schleifen-Bereiche überlappen sich (verschachtelte/überlappende Loops) | `InvalidOperationException` (nicht unterstützt, siehe MVP-Grenzen) |
-| Editieren einer nicht vorhandenen Iteration (`IterationIndex` ohne passende Antwort) | `InvalidOperationException` |
+| Two loop ranges overlap (nested/overlapping loops) | `InvalidOperationException` (not supported, see MVP limits) |
+| Editing a non-existent iteration (`IterationIndex` with no matching answer) | `InvalidOperationException` |
 
-Die übrigen Fehlerfälle von Submit/Edit gelten unverändert (siehe [RUNTIME.md](./RUNTIME.md)).
+The remaining error cases of submit/edit apply unchanged (see [RUNTIME.md](./RUNTIME.md)).
 
-## Bewusst außerhalb des MVP
+## Deliberately outside the MVP
 
-- **Verschachtelte/überlappende Loops** – werden fail-loud abgelehnt (ein Body je Frage).
-- **Loop-Wiedereintritt nach Exit** – innerhalb eines Session-Laufs wird pro Schleife genau eine Instanz
-  geführt; ein erneutes Betreten nach dem Verlassen legt keine zweite Instanz an.
-- **Strukturierte Iterations-Objekte** – gesammelt wird je Iteration genau die Einstiegsantwort (ein
-  Eintrag pro Iteration), nicht alle Antworten des Bereichs.
-- **`CollectionKey` ↔ `Question.Key`-Kollision** – Designer-Konvention: Collection- und Frage-Schlüssel
-  disjunkt halten. Ausgewiesen wird die Kollision an beiden Stellen (Bezeichner-Referenz des
-  Branching-Editors seit #40, Warnung des Loop-Editors seit #41: der Frage-Schlüssel wird von der
-  gleichnamigen Collection verdeckt) – verhindert wird sie nicht. Eindeutig erzwungen ist nur der
-  `CollectionKey` **innerhalb** der Schleifen eines Dialogs.
+- **Nested/overlapping loops** – rejected fail-loud (one body per question).
+- **Loop re-entry after exit** – within a single session run exactly one instance is kept per loop;
+  re-entering after leaving does not create a second instance.
+- **Structured iteration objects** – collected per iteration is exactly the entry answer (one
+  entry per iteration), not all answers of the range.
+- **`CollectionKey` ↔ `Question.Key` collision** – designer convention: keep collection and question keys
+  disjoint. The collision is flagged at both places (identifier reference of the
+  branching editor since #40, warning of the loop editor since #41: the question key is shadowed by the
+  collection of the same name) – it is not prevented. Uniquely enforced is only the
+  `CollectionKey` **within** the loops of a dialog.
 
-## Schleifen im Designer
+## Loops in the designer
 
-Seit **#41** lassen sich die Marker im Designer pflegen: Abschnitt „Schleifen (Loops)" im Dialog-Editor
-plus die Detailseite `/dialogs/{dialogId}/loops/{loopId}` mit **Loop-Block** (Bereichsfragen, markierte
-Breaking Question, Rücksprünge und Ausstiege), bearbeitbarem `CollectionKey` und Warnungen – unter anderem
-vor einem Zyklus **ohne erreichbaren Ausstieg** (Endlosschleife) und vor **überlappenden** Bereichen, die
-den `LoopResolver` schon im Konstruktor scheitern lassen. Details und der vollständige Warnkatalog:
+Since **#41** the markers can be maintained in the designer: the "Loops" section in the dialog editor
+plus the detail page `/dialogs/{dialogId}/loops/{loopId}` with a **loop block** (range questions, marked
+breaking question, back-jumps and exits), an editable `CollectionKey` and warnings – among others
+about a cycle **with no reachable exit** (infinite loop) and about **overlapping** ranges, which
+make the `LoopResolver` fail already in the constructor. Details and the full warning catalog:
 [DESIGNER.md](./DESIGNER.md#loop-editor-41).
 
-Den Zyklus selbst legt weiterhin der Branching-Editor an – eine `Transition` auf eine frühere Frage, dort
-als **Rücksprung** markiert. Ein solcher Rücksprung ohne passenden Marker wird im Schleifen-Abschnitt als
-Vorschlag ausgewiesen (ohne Marker würden die Antworten des Zyklus überschrieben statt gesammelt).
+The cycle itself is still created by the branching editor – a `Transition` to an earlier question, marked
+there as a **back-jump**. Such a back-jump without a matching marker is flagged in the loop section as a
+suggestion (without a marker the answers of the cycle would be overwritten instead of collected).
 
-Unter der UI liegen die Admin-Commands `Create/Update/DeleteLoopCommand` und – für Hosts ohne Designer –
-die Endpunkte `POST {prefix}/dialogs/{dialogId}/loops` bzw. `PUT/DELETE .../loops/{loopId}` aus
-`Flirty.AspNetCore`. Der `CollectionKey` muss je Dialog eindeutig sein (sonst 409); ohne diese Prüfung
-würden sich zwei gleichnamige Marker in der Collection-Bindung still überschreiben. Lesend liefert
-`GetDialogQuery` die Marker seit #40 mit (`DialogDetail.Loops`) – der Branching-Editor braucht die
-`CollectionKey`s, um Ausdrücke wie `skills.Count > 0` überhaupt validieren zu können.
+Under the UI lie the admin commands `Create/Update/DeleteLoopCommand` and – for hosts without a designer –
+the endpoints `POST {prefix}/dialogs/{dialogId}/loops` and `PUT/DELETE .../loops/{loopId}` from
+`Flirty.AspNetCore`. The `CollectionKey` must be unique per dialog (otherwise 409); without this check
+two markers of the same name would silently overwrite each other in the collection binding. As a read,
+`GetDialogQuery` delivers the markers since #40 (`DialogDetail.Loops`) – the branching editor needs the
+`CollectionKey`s to be able to validate expressions like `skills.Count > 0` at all.
 
-## Nutzung
+## Usage
 
 ```csharp
-// Loop-Dialog: position (Entry) -> more (Breaking, yes/no) -> summary (nach der Schleife)
-// Übergänge: position -> more (Default);
-//            more -> position  (Expression "more == \"yes\"", Priorität 0, Loop-Back);
-//            more -> summary   (Default, Priorität 1, Exit).
+// Loop dialog: position (entry) -> more (breaking, yes/no) -> summary (after the loop)
+// Transitions: position -> more (default);
+//              more -> position  (expression "more == \"yes\"", priority 0, loop-back);
+//              more -> summary   (default, priority 1, exit).
 // LoopDefinition { CollectionKey = "positions", EntryQuestionId = position, BreakingQuestionId = more }.
 
 var start = await engine.StartDialogAsync("loop", "user-1");
-await engine.SubmitAnswerAsync(start.SessionId, positionId, "\"Dev\"");   // Iteration 0
-await engine.SubmitAnswerAsync(start.SessionId, moreId, "\"yes\"");        // Loop-Back
-await engine.SubmitAnswerAsync(start.SessionId, positionId, "\"Lead\"");  // Iteration 1
-var afterMore = await engine.SubmitAnswerAsync(start.SessionId, moreId, "\"no\""); // Exit -> summary
+await engine.SubmitAnswerAsync(start.SessionId, positionId, "\"Dev\"");   // iteration 0
+await engine.SubmitAnswerAsync(start.SessionId, moreId, "\"yes\"");        // loop-back
+await engine.SubmitAnswerAsync(start.SessionId, positionId, "\"Lead\"");  // iteration 1
+var afterMore = await engine.SubmitAnswerAsync(start.SessionId, moreId, "\"no\""); // exit -> summary
 
-// Zustand samt Iterationen lesen:
+// Read the state including iterations:
 var state = await engine.ResumeDialogAsync(start.SessionId);
 foreach (var answer in state.Answers)
 {
     Console.WriteLine($"{answer.QuestionKey} [Iter {answer.IterationIndex?.ToString() ?? "-"}] = {answer.Value}");
 }
 
-// Gezielt die erste Iteration korrigieren (verwirft nachgelagerte Iterationen):
+// Correct the first iteration specifically (discards downstream iterations):
 var edited = await engine.EditAnswerAsync(start.SessionId, positionId, "\"Developer\"", iterationIndex: 0);
-Console.WriteLine($"Verworfene nachgelagerte Antworten: {edited.InvalidatedAnswers}");
+Console.WriteLine($"Discarded downstream answers: {edited.InvalidatedAnswers}");
 ```
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet test tests/Flirty.Tests
 ```
 
-Die Tests unter `tests/Flirty.Tests/Runtime/` decken die Loop-Runtime ab: `LoopResolverTests` prüft
-Body-Ermittlung (inkl. Ein-Fragen-Loop und Überlappungs-Ablehnung), Iterations-/Instanz-Zuordnung,
-Collection-Aufbau und Iterationsindex isoliert; `LoopRuntimeTests` treibt mehrere Iterationen, das
-Verlassen des Zyklus, collection- und iterationsindex-getriebene Break-Bedingungen sowie das Editieren
-einer Iteration gegen eine echte SQLite-Datenbank durch; `FlirtyEngineTests` spielt eine Schleife
-end-to-end über `IFlirtyEngine` durch.
+The tests under `tests/Flirty.Tests/Runtime/` cover the loop runtime: `LoopResolverTests` checks
+body determination (incl. single-question loop and overlap rejection), iteration/instance assignment,
+collection build-up and iteration index in isolation; `LoopRuntimeTests` drives multiple iterations, the
+leaving of the cycle, collection- and iteration-index-driven break conditions as well as the editing
+of an iteration against a real SQLite database; `FlirtyEngineTests` plays a loop
+end-to-end through `IFlirtyEngine`.

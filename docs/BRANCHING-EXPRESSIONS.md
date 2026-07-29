@@ -1,20 +1,20 @@
-# Branching & Expressions: Expression-Engine
+# Branching & Expressions: Expression engine
 
-Wie Flirty Bedingungsausdrücke des Branchings auswertet – die Abstraktion `IExpressionEvaluator`
-und das Kontext-Modell `ExpressionContext`. Umgesetzt in Issue **#22** (EPIC 2). Referenz:
-[ARCHITECTURE.md](./ARCHITECTURE.md) §7/§10/§11, Modell-Details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
+How Flirty evaluates the branching condition expressions – the abstraction `IExpressionEvaluator`
+and the context model `ExpressionContext`. Implemented in issue **#22** (EPIC 2). Reference:
+[ARCHITECTURE.md](./ARCHITECTURE.md) §7/§10/§11, model details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
 
-## Überblick
+## Overview
 
-Verzweigungen (Branching) und Schleifen (Loops) hängen an **booleschen Bedingungsausdrücken**:
+Branching and loops hang on **boolean condition expressions**:
 
-- `Transition.Expression` – entscheidet, welcher Übergang von einer Frage greift.
-- `TriggerDefinition.Expression` – entscheidet, ob ein Trigger auslöst.
+- `Transition.Expression` – decides which transition from a question takes effect.
+- `TriggerDefinition.Expression` – decides whether a trigger fires.
 
-Ausgewertet werden diese Ausdrücke über die austauschbare Engine `IExpressionEvaluator`
-(Namespace `Flirty.Expressions`). #22 legt nur die Abstraktion fest; die gesandboxte Default-Engine
-(#23), der Compile-Check für den Designer (#24) und die DI-Integration (#34) sind unten in eigenen
-Abschnitten beschrieben.
+These expressions are evaluated via the replaceable engine `IExpressionEvaluator`
+(namespace `Flirty.Expressions`). #22 only defines the abstraction; the sandboxed default engine
+(#23), the compile check for the designer (#24) and the DI integration (#34) are described below in
+their own sections.
 
 ## `IExpressionEvaluator`
 
@@ -27,31 +27,31 @@ public interface IExpressionEvaluator
 }
 ```
 
-- **Synchron:** Die Auswertung ist eine reine In-Memory-Operation (die Default-Engine DynamicExpresso
-  arbeitet synchron) – daher kein `async`/`CancellationToken`.
-- **Null/leerer Ausdruck:** Ein `null`er oder leerer `Expression` gilt fachlich als
-  *bedingungslos zutreffend*. Diese Kurzschluss-Behandlung liegt bei der **Runtime**, nicht beim
-  Evaluator; Implementierungen dürfen einen nicht-leeren Ausdruck erwarten.
+- **Synchronous:** Evaluation is a pure in-memory operation (the default engine DynamicExpresso
+  works synchronously) – hence no `async`/`CancellationToken`.
+- **Null/empty expression:** A `null` or empty `Expression` counts, semantically, as
+  *unconditionally matching*. This short-circuit handling belongs to the **runtime**, not to the
+  evaluator; implementations may expect a non-empty expression.
 
-## Kontext-Modell `ExpressionContext`
+## Context model `ExpressionContext`
 
-Der unveränderliche `ExpressionContext` bündelt die zum Auswertungszeitpunkt sichtbaren Daten einer
-laufenden Session. Er bildet die fünf in ARCHITECTURE §7 genannten Bausteine ab:
+The immutable `ExpressionContext` bundles the data of a running session that is visible at the
+evaluation point in time. It maps the five building blocks named in ARCHITECTURE §7:
 
-| Baustein | Property | Typ | Bedeutung |
+| Building block | Property | Type | Meaning |
 |---|---|---|---|
-| `answers` | `Answers` | `IReadOnlyDictionary<string, string?>` | Antworten indiziert nach `Question.Key` |
-| Loop-Collections | `Collections` | `IReadOnlyDictionary<string, IReadOnlyList<string?>>` | je Iteration gesammelte Antworten, indiziert nach `LoopDefinition.CollectionKey` |
-| `iterationIndex` | `IterationIndex` | `int?` | nullbasierter Iterationsindex, `null` außerhalb einer Schleife |
-| `now` | `Now` | `DateTimeOffset` | Auswertungszeitpunkt |
-| `session` | `Session` | `DialogSession` | die laufende Session |
+| `answers` | `Answers` | `IReadOnlyDictionary<string, string?>` | answers indexed by `Question.Key` |
+| Loop collections | `Collections` | `IReadOnlyDictionary<string, IReadOnlyList<string?>>` | answers collected per iteration, indexed by `LoopDefinition.CollectionKey` |
+| `iterationIndex` | `IterationIndex` | `int?` | zero-based iteration index, `null` outside a loop |
+| `now` | `Now` | `DateTimeOffset` | evaluation point in time |
+| `session` | `Session` | `DialogSession` | the running session |
 
-Die Werte sind **roher JSON-Text** – exakt wie in `SessionAnswer.Value` gespeichert (Format
-abhängig vom Fragetyp). Die typisierte Deserialisierung (z. B. `"42"` → `int`) übernimmt die konkrete
-Engine (#23); das Kontext-Modell selbst bleibt bewusst untypisiert.
+The values are **raw JSON text** – exactly as stored in `SessionAnswer.Value` (the format depends
+on the question type). The typed deserialization (e.g. `"42"` → `int`) is done by the concrete
+engine (#23); the context model itself deliberately stays untyped.
 
-Nicht angegebene Sammlungen werden als **leere, nicht-`null`e** Sammlungen initialisiert; `Session`
-ist Pflicht (Guard via `ArgumentNullException`).
+Collections that are not supplied are initialized as **empty, non-`null`** collections; `Session`
+is mandatory (guarded via `ArgumentNullException`).
 
 ```csharp
 var context = new ExpressionContext(
@@ -65,114 +65,114 @@ var context = new ExpressionContext(
     iterationIndex: null);
 ```
 
-## Beispiel-Ausdrücke
+## Example expressions
 
-Die Default-Engine wertet Ausdrücke wie diese aus (vgl. ARCHITECTURE §10):
+The default engine evaluates expressions like these (cf. ARCHITECTURE §10):
 
 ```text
-age > 18                 // Verzweigung nach numerischer Antwort
-positions.Count > 0      // Break-Bedingung einer Schleife über die gesammelte Collection
+age > 18                 // branching by numeric answer
+positions.Count > 0      // break condition of a loop over the collected collection
 ```
 
-## Default-Engine: `DynamicExpressoExpressionEvaluator` (#23)
+## Default engine: `DynamicExpressoExpressionEvaluator` (#23)
 
-Die gesandboxte Default-Implementierung von `IExpressionEvaluator` (Namespace `Flirty.Expressions`)
-setzt auf [DynamicExpresso](https://github.com/dynamicexpresso/DynamicExpresso) auf. Sie ist
-**synchron** und **zustandslos** (je Auswertung ein frischer, isolierter Interpreter) und damit als
-Singleton nutzbar.
+The sandboxed default implementation of `IExpressionEvaluator` (namespace `Flirty.Expressions`)
+builds on [DynamicExpresso](https://github.com/dynamicexpresso/DynamicExpresso). It is
+**synchronous** and **stateless** (a fresh, isolated interpreter per evaluation) and therefore
+usable as a singleton.
 
-### Verfügbare Ausdrucks-Variablen
+### Available expression variables
 
-Der Kontext wird auf flache Top-Level-Bezeichner abgebildet – passend zu Ausdrücken wie `age > 18`:
+The context is mapped to flat top-level identifiers – matching expressions like `age > 18`:
 
-| Bezeichner | Quelle | Typisierung |
+| Identifier | Source | Typing |
 |---|---|---|
-| je `Question.Key` (z. B. `age`, `name`) | `Answers` | aus JSON deserialisiert |
-| je `CollectionKey` (z. B. `positions`) | `Collections` | Liste der Iterationswerte (`.Count`, Elementzugriff) |
+| per `Question.Key` (e.g. `age`, `name`) | `Answers` | deserialized from JSON |
+| per `CollectionKey` (e.g. `positions`) | `Collections` | list of iteration values (`.Count`, element access) |
 | `now` | `Now` | `DateTimeOffset` |
 | `iterationIndex` | `IterationIndex` | `int?` |
 | `session` | `Session` | `DialogSession` |
 
-Reservierte Bezeichner (`now`, `iterationIndex`, `session`) werden zuletzt gesetzt und können daher
-nicht von gleichnamigen Antwort-/Collection-Schlüsseln verdeckt werden.
+Reserved identifiers (`now`, `iterationIndex`, `session`) are set last and therefore cannot be
+shadowed by answer/collection keys of the same name.
 
-### Typisierte Deserialisierung
+### Typed deserialization
 
-Die roh als JSON-Text vorliegenden Werte werden typisiert übernommen: JSON-Zahl → `long`/`double`,
-JSON-String → `string`, `true`/`false` → `bool`, Array → Liste, Objekt → Dictionary. Ist ein Wert
-kein gültiges JSON (z. B. ein unquotierter Auswahl-Schlüssel), wird er unverändert als Zeichenkette
-verwendet. Dadurch werten `age > 18` (bei `"42"`) und `name == "Ada"` (bei `"\"Ada\""`) korrekt aus.
+The values, present as raw JSON text, are taken over typed: JSON number → `long`/`double`,
+JSON string → `string`, `true`/`false` → `bool`, array → list, object → dictionary. If a value
+is not valid JSON (e.g. an unquoted choice key), it is used unchanged as a string. This way
+`age > 18` (for `"42"`) and `name == "Ada"` (for `"\"Ada\""`) evaluate correctly.
 
-### Sandbox (Member-Whitelist, kein roher C#-`eval`)
+### Sandbox (member whitelist, no raw C# `eval`)
 
-> Warum gesandboxt und warum diese Engine – inklusive der verworfenen Alternativen
-> (Roslyn-Scripting, NCalc, eigene Grammatik): [ADR 0004](./adr/0004-gesandboxte-expression-engine.md).
-> Kurzfassung: Ausdrücke kommen aus dem Designer und liegen **in der Datenbank**, sind also Daten –
-> alles, was hier ausführbar wäre, könnte jeder mit Schreibzugriff auf die Konfiguration ausführen.
+> Why sandboxed and why this engine – including the discarded alternatives
+> (Roslyn scripting, NCalc, a custom grammar): [ADR 0004](./adr/0004-sandboxed-expression-engine.md).
+> In short: expressions come from the designer and live **in the database**, so they are data –
+> anything executable here could be executed by anyone with write access to the configuration.
 
-- Interpreter-Optionen strikt auf `PrimitiveTypes | SystemKeywords` beschränkt: Literale, Vergleichs-,
-  Arithmetik- und UND/ODER-Operatoren. `CommonTypes` (`Math`, `Convert`, `Enumerable`) ist **nicht**
-  aktiviert.
-- **Reflection bleibt blockiert** (kein `EnableReflection`), **Zuweisungen sind deaktiviert**
-  (`EnableAssignment(AssignmentOperators.None)`). Zugreifbar sind nur die injizierten Variablen und
-  deren Instanz-Member. Nicht gewhitelistete Typen (z. B. `System.IO.File`) sind unerreichbar.
-- **Fail-loud:** Syntaxfehler, unbekannte Bezeichner, Sandbox-Verletzungen und nicht-boolesche
-  Ergebnisse werfen eine `ExpressionEvaluationException` (kapselt die Engine-Ursache in
-  `InnerException`, hält die Engine austauschbar). Der *Compile-Check* beim Speichern (siehe
-  [Validierung / Compile-Check](#validierung--compile-check-24)) nutzt dieselbe Sandbox, meldet Fehler
-  aber als Ergebnis statt per Exception; das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der
-  Runtime.
+- Interpreter options strictly limited to `PrimitiveTypes | SystemKeywords`: literals, comparison,
+  arithmetic and AND/OR operators. `CommonTypes` (`Math`, `Convert`, `Enumerable`) is **not**
+  enabled.
+- **Reflection stays blocked** (no `EnableReflection`), **assignments are disabled**
+  (`EnableAssignment(AssignmentOperators.None)`). Accessible are only the injected variables and
+  their instance members. Non-whitelisted types (e.g. `System.IO.File`) are unreachable.
+- **Fail-loud:** syntax errors, unknown identifiers, sandbox violations and non-boolean results
+  throw an `ExpressionEvaluationException` (which wraps the engine cause in `InnerException`,
+  keeping the engine replaceable). The *compile check* on save (see
+  [Validation / compile check](#validation--compile-check-24)) uses the same sandbox, but reports
+  errors as a result instead of via an exception; short-circuiting `null`/empty expressions remains
+  the runtime's job.
 
-## Validierung / Compile-Check (#24)
+## Validation / compile check (#24)
 
-Für den Designer stellt die Engine neben `Evaluate` einen **Compile-Check** bereit: `Validate`
-**kompiliert** einen Ausdruck (DynamicExpresso `Parse`), **führt ihn aber nicht aus**. So lassen sich
-Ausdrücke bereits **beim Speichern** prüfen und Fehler melden – ohne Exception, mit strukturiertem
-Ergebnis.
+For the designer the engine provides, alongside `Evaluate`, a **compile check**: `Validate`
+**compiles** an expression (DynamicExpresso `Parse`) but **does not execute it**. This allows
+expressions to be checked already **on save** and errors to be reported – without an exception, with
+a structured result.
 
 ```csharp
 public interface IExpressionEvaluator
 {
     bool Evaluate(string expression, ExpressionContext context);
 
-    // kompiliert, führt nicht aus:
+    // compiles, does not execute:
     ExpressionValidationResult Validate(string expression, ExpressionContext context);
 }
 ```
 
-`ExpressionValidationResult` trägt:
+`ExpressionValidationResult` carries:
 
-| Property | Typ | Bedeutung |
+| Property | Type | Meaning |
 |---|---|---|
-| `IsValid` | `bool` | ob der Ausdruck kompilierbar ist |
-| `Error` | `string?` | menschlesbare Fehlermeldung (`null`, wenn gültig) |
-| `ErrorPosition` | `int?` | nullbasierte Fehlerposition im Ausdruck (soweit gemeldet), z. B. zum Unterstreichen im Designer |
+| `IsValid` | `bool` | whether the expression is compilable |
+| `Error` | `string?` | human-readable error message (`null` when valid) |
+| `ErrorPosition` | `int?` | zero-based error position in the expression (as far as reported), e.g. to underline in the designer |
 
-Der übergebene `ExpressionContext` liefert die verfügbaren Variablen (und deren Typen) für die Prüfung –
-die Validierung nutzt **dieselbe Sandbox und Variablen-Bindung wie `Evaluate`**. Erkannt werden damit:
+The passed `ExpressionContext` supplies the available variables (and their types) for the check –
+the validation uses **the same sandbox and variable binding as `Evaluate`**. This detects:
 
-- **Syntaxfehler** und ungültige Operator-Verwendung,
-- **unbekannte Bezeichner** (Variablen, die der Kontext nicht kennt),
-- **Injection-/Sandbox-Verletzungen** (Reflection, nicht gewhitelistete Typen wie `System.IO.File`),
-- ein **nicht-boolesches** Ergebnis.
+- **syntax errors** and invalid operator usage,
+- **unknown identifiers** (variables the context does not know),
+- **injection/sandbox violations** (reflection, non-whitelisted types like `System.IO.File`),
+- a **non-boolean** result.
 
-Verhalten:
+Behavior:
 
-- Ein `null`er/leerer Ausdruck gilt als **gültig** („bedingungslos zutreffend", konsistent zur Runtime).
-- `Validate` **wirft nie** für einen fehlerhaften Ausdruck – Fehler landen im Ergebnis. Einzige Ausnahme:
-  ein `null`er Kontext (`ArgumentNullException`).
-- Meldungen kommen bis auf **einen** Fall unverändert von DynamicExpresso (samt Position – „Unbekannter
-  Bezeichner 'xy' (an Stelle 0)" sagt dem Dialog-Autor genau das Richtige). Ausgetauscht wird nur die
-  Meldung zum **Reflexions-Zugriff**: Die Bibliothek rät dort dazu, Reflection per
-  `Interpreter.EnableReflection()` einzuschalten – ein Hinweis an den Einbettenden der Bibliothek, nicht
-  an den Anwender im Designer, und genau der Sandbox-Entscheidung entgegengesetzt (#97). Erkannt wird der
-  Fall am Ausnahmetyp `ReflectionNotAllowedException`, nicht am (lokalisierten) Meldungstext. Wo die
-  Grenze der Bibliothek liegt: Sie greift bei Membern, die selbst wieder ein reflexives Objekt liefern
-  (`.Assembly`, `MethodInfo` …); ein blankes `GetType()` bzw. `GetType().Name` läuft durch – daraus lässt
-  sich kein Code ausführen, es bleibt beim Typnamen.
+- A `null`/empty expression counts as **valid** ("unconditionally matching", consistent with the runtime).
+- `Validate` **never throws** for a faulty expression – errors land in the result. The only exception:
+  a `null` context (`ArgumentNullException`).
+- Messages, except for **one** case, come unchanged from DynamicExpresso (including the position –
+  "Unknown identifier 'xy' (at position 0)" tells the dialog author exactly the right thing). Only the
+  message about **reflection access** is replaced: there the library advises turning reflection on via
+  `Interpreter.EnableReflection()` – a hint to the embedder of the library, not to the user in the
+  designer, and exactly opposed to the sandbox decision (#97). The case is recognized by the exception
+  type `ReflectionNotAllowedException`, not by the (localized) message text. Where the library's limit
+  lies: it kicks in on members that themselves return a reflective object again
+  (`.Assembly`, `MethodInfo` …); a bare `GetType()` or `GetType().Name` passes through – no code can
+  be executed from it, it stays at the type name.
 
 ```csharp
-// Designer beim Speichern:
+// Designer on save:
 var result = evaluator.Validate(transition.Expression, context);
 if (!result.IsValid)
 {
@@ -180,70 +180,71 @@ if (!result.IsValid)
 }
 ```
 
-### Musterkontext im Designer (#40)
+### Sample context in the designer (#40)
 
-Der Designer hat beim Bearbeiten eines Übergangs **keine laufende Session** – der Kontext für `Validate`
-wird deshalb aus dem Dialog-Graphen gebaut (`Flirty.Designer/Services/DesignerExpressionContext.cs`).
-Entscheidend sind dabei die **Typen**, nicht die Werte: Der Beispielwert je Frage ist derselbe rohe
-JSON-Text, den die Laufzeit in `SessionAnswer.Value` ablegt, und wird von der Engine identisch
-deserialisiert (`FreeText → "Text"`, `Number → 0`, `Boolean → true`, `Date → "2026-01-01"`,
-`SingleChoice →` erster Optionswert, `MultiChoice →` Array der Optionswerte). Eine **Datumsantwort ist
-damit auch im Designer eine Zeichenkette** – `geburtstag < now` wird zu Recht abgelehnt, weil es zur
-Laufzeit ebenfalls scheitern würde.
+When editing a transition the designer has **no running session** – the context for `Validate` is
+therefore built from the dialog graph (`Flirty.Designer/Services/DesignerExpressionContext.cs`).
+What matters here are the **types**, not the values: the sample value per question is the same raw
+JSON text that the runtime stores in `SessionAnswer.Value`, and it is deserialized identically by the
+engine (`FreeText → "Text"`, `Number → 0`, `Boolean → true`, `Date → "2026-01-01"`,
+`SingleChoice →` first option value, `MultiChoice →` array of option values). A **date answer is thus
+a string in the designer too** – `geburtstag < now` is rightly rejected, because it would fail at
+runtime as well.
 
-Loop-Collections werden wie vom `LoopResolver` **stets** gebunden (vor der ersten Iteration als leere
-Liste), damit `skills.Count > 0` prüfbar bleibt; die dafür nötigen `CollectionKey`s liefert
-`GetDialogQuery` seit #40 lesend mit (`DialogDetail.Loops`). Schlüssel, die keine gültigen Bezeichner
-sind oder von `now`/`iterationIndex`/`session` verdeckt werden, bindet der Designer nicht und weist sie
-in seiner Bezeichner-Referenz als nicht nutzbar aus.
+Loop collections are, as with the `LoopResolver`, **always** bound (before the first iteration as an
+empty list), so that `skills.Count > 0` stays checkable; the `CollectionKey`s needed for that have
+been delivered as reads by `GetDialogQuery` since #40 (`DialogDetail.Loops`). Keys that are not valid
+identifiers or that are shadowed by `now`/`iterationIndex`/`session` are not bound by the designer and
+are marked as unusable in its identifier reference.
 
-Für **Zeichenketten-Literale** gilt: Die Engine parst C#-Escapes (`\"`, `\\`, `\n`, …), aber **keine**
-`\u00XX`-Escapes. Ein per `JsonSerializer` quotierter Wert ist deshalb nicht zwangsläufig ein gültiges
-Ausdrucks-Literal – dessen Encoder schreibt ein Anführungszeichen als Unicode-Escape, was die Engine mit
-„Invalid character escape sequence" ablehnt.
+For **string literals** the following holds: the engine parses C# escapes (`\"`, `\\`, `\n`, …), but
+**not** `\u00XX` escapes. A value quoted via `JsonSerializer` is therefore not necessarily a valid
+expression literal – its encoder writes a quotation mark as a Unicode escape, which the engine rejects
+with "Invalid character escape sequence".
 
-### Echte Bindungen im Testlauf (#43)
+### Real bindings in the test run (#43)
 
-Der Musterkontext beantwortet „ist der Ausdruck **kompilierbar**?". Ob er auch das **Richtige** trifft,
-zeigt der [Test-Runner](./DESIGNER.md#test-runner-43): Er stellt zu jedem Schritt eines echten Laufs die
-tatsächlichen Bindungen dar (`Flirty.Designer/Services/RunExpressionContext.cs`) – Antworten je
-Frage-Schlüssel, gesammelte Loop-Collections und den `iterationIndex`. Auch das ist ein **Spiegel** des
-Core-internen `SessionExpressionContextBuilder` (der arbeitet auf einer `Dialog`-Entity mit geladenen
-Navigationen, der Designer nur auf navigationsfreien Sichten); ein Test vergleicht beide an jedem Schritt
-eines Durchlaufs. Wird am `SessionExpressionContextBuilder` oder am `LoopResolver` etwas geändert, ist
-dieser Spiegel – wie `DesignerExpressionContext` und `LoopAnalyzer` – mitzuziehen.
+The sample context answers "is the expression **compilable**?". Whether it also hits the **right**
+thing is shown by the [test runner](./DESIGNER.md#test-runner-43): for every step of a real run it
+displays the actual bindings (`Flirty.Designer/Services/RunExpressionContext.cs`) – answers per
+question key, collected loop collections and the `iterationIndex`. This too is a **mirror** of the
+core-internal `SessionExpressionContextBuilder` (which works on a `Dialog` entity with loaded
+navigations, the designer only on navigation-free views); a test compares both at every step of a
+run. If something is changed on the `SessionExpressionContextBuilder` or the `LoopResolver`, this
+mirror – like `DesignerExpressionContext` and `LoopAnalyzer` – must be pulled along.
 
-## Runtime-Konsum (#26)
+## Runtime consumption (#26)
 
-Erster Laufzeit-Konsument der Engine ist der `SubmitAnswerCommand`-Handler (#26, siehe
-[RUNTIME.md](./RUNTIME.md#submitanswercommand)): Nach dem Persistieren einer Antwort wertet er die
-ausgehenden `Transition`s der Frage nach `Priority` aus und wählt die erste zutreffende (sonst den
-`IsDefault`-Übergang). Dabei liegt – wie oben beschrieben – das **Kurzschließen** eines `null`en/leeren
-`Expression` (bedingungslos zutreffend) bei der Runtime, nicht beim Evaluator. Der `ExpressionContext`
-wird aus den bisherigen `SessionAnswer`s gebildet (je Frage die zuletzt gegebene Antwort, indiziert
-nach `Question.Key`); seit #26 ist die Default-Engine in `AddFlirty()` als Singleton registriert.
+The first runtime consumer of the engine is the `SubmitAnswerCommand` handler (#26, see
+[RUNTIME.md](./RUNTIME.md#submitanswercommand)): after persisting an answer it evaluates the outgoing
+`Transition`s of the question by `Priority` and picks the first matching one (otherwise the
+`IsDefault` transition). Here – as described above – the **short-circuiting** of a `null`/empty
+`Expression` (unconditionally matching) belongs to the runtime, not to the evaluator. The
+`ExpressionContext` is formed from the existing `SessionAnswer`s (per question the last given answer,
+indexed by `Question.Key`); since #26 the default engine is registered as a singleton in `AddFlirty()`.
 
-Seit der **Loop-Runtime (#29)** befüllt der geteilte `TransitionResolver` zusätzlich die beiden
-Loop-Bausteine des Kontexts: `Collections` trägt je `CollectionKey` die Einstiegsantwort je Iteration
-(jeder `CollectionKey` wird stets gebunden – ggf. leere Liste –, damit `positions.Count > 0` auch vor der
-ersten Iteration auswertbar ist), und `iterationIndex` reflektiert die aktuelle Iteration der gerade
-beantworteten Frage (`null` außerhalb einer Schleife). Details in [LOOPS.md](./LOOPS.md).
+Since the **loop runtime (#29)** the shared `TransitionResolver` additionally fills the two loop
+building blocks of the context: `Collections` carries per `CollectionKey` the entry answer per
+iteration (each `CollectionKey` is always bound – possibly an empty list – so that
+`positions.Count > 0` is evaluable even before the first iteration), and `iterationIndex` reflects the
+current iteration of the just-answered question (`null` outside a loop). Details in
+[LOOPS.md](./LOOPS.md).
 
-## DI-Integration & Austausch (#34)
+## DI integration & replacement (#34)
 
-`AddFlirty()` registriert die Default-Engine seit #26 als **Singleton** (sie ist zustandslos). Wer eine
-andere Engine will – z. B. NCalc –, implementiert `IExpressionEvaluator` und ersetzt die
-Default-Registrierung:
+`AddFlirty()` registers the default engine as a **singleton** since #26 (it is stateless). Whoever
+wants a different engine – e.g. NCalc – implements `IExpressionEvaluator` and replaces the default
+registration:
 
 ```csharp
 services.AddFlirty(o =>
 {
     o.UseSqlite(connectionString);
-    o.UseExpressionEvaluator<MyEvaluator>();   // ersetzt DynamicExpressoExpressionEvaluator
+    o.UseExpressionEvaluator<MyEvaluator>();   // replaces DynamicExpressoExpressionEvaluator
 });
 ```
 
-Der eigene Typ wird ebenfalls als Singleton registriert. Zu erfüllen sind beide Zusagen dieses
-Dokuments: `Evaluate` wirft bei nicht auswertbaren Ausdrücken (fail-loud), `Validate` **kompiliert nur**
-und meldet Fehler als Ergebnis. Das Kurzschließen `null`er/leerer Ausdrücke bleibt Aufgabe der Runtime –
-eine eigene Engine darf einen nicht-leeren Ausdruck erwarten.
+The custom type is registered as a singleton too. Both promises of this document are to be met:
+`Evaluate` throws for non-evaluable expressions (fail-loud), `Validate` **only compiles** and reports
+errors as a result. The short-circuiting of `null`/empty expressions remains the runtime's job – a
+custom engine may expect a non-empty expression.

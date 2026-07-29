@@ -1,36 +1,36 @@
-# Persistenz: Provider & Migrationen
+# Persistence: Providers & Migrations
 
-Wie Flirty EF Core an **SQLite**, **PostgreSQL** und **SQL Server** anbindet und die Migrationen je
-Provider verwaltet. Umgesetzt in Issue **#19**. Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md) §8,
-Modell-Details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
+How Flirty binds EF Core to **SQLite**, **PostgreSQL** and **SQL Server** and manages the migrations per
+provider. Implemented in issue **#19**. Reference: [ARCHITECTURE.md](./ARCHITECTURE.md) §8,
+model details in [DOMAIN-MODEL.md](./DOMAIN-MODEL.md).
 
-## Überblick
+## Overview
 
-Der Kern (`src/Flirty`) bleibt **provider-agnostisch**: `FlirtyDbContext` besitzt nur den
-Options-Konstruktor und legt keinen Provider fest. Alle drei EF-Core-Provider werden mit dem
-`Flirty`-NuGet-Paket ausgeliefert; der Konsument wählt zur Laufzeit einen davon aus.
+The core (`src/Flirty`) stays **provider-agnostic**: `FlirtyDbContext` has only the
+options constructor and does not fix a provider. All three EF Core providers ship with the
+`Flirty` NuGet package; the consumer picks one of them at runtime.
 
-| Provider | NuGet-Paket | Migrations-Assembly |
+| Provider | NuGet package | Migrations assembly |
 |---|---|---|
 | SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | `Flirty.Migrations.Sqlite` |
 | PostgreSQL | `Npgsql.EntityFrameworkCore.PostgreSQL` | `Flirty.Migrations.PostgreSql` |
 | SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | `Flirty.Migrations.SqlServer` |
 
-Die Provider-`Use…`-Methoden (`UseSqlite`, `UseNpgsql`, `UseSqlServer`) stammen aus den
-EF-Core-Provider-Paketen selbst. Die komfortable Options-API `AddFlirty(o => o.UseSqlite(…))`
-(Provider-Wahl inkl. `FlirtyDbContext`-Registrierung) ist seit **#34** verfügbar; die Auto-Migration
-darüber (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) kam in **#20**. Siehe
-[Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34).
+The provider `Use…` methods (`UseSqlite`, `UseNpgsql`, `UseSqlServer`) come from the
+EF Core provider packages themselves. The convenient options API `AddFlirty(o => o.UseSqlite(…))`
+(provider selection incl. `FlirtyDbContext` registration) has been available since **#34**; the auto-migration
+on top of it (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) came in **#20**. See
+[Provider selection via AddFlirty](#provider-selection-via-addflirty-34).
 
-## Warum getrennte Migrations-Assemblies?
+## Why separate migrations assemblies?
 
-EF Core ordnet Migrationen dem `FlirtyDbContext` **provider-unabhängig** zu und scannt beim
-Anwenden das gesamte Migrations-Assembly. Lägen die `InitialCreate`-Migrationen aller drei Provider
-im selben Assembly, käme es zu doppelten Migrations-IDs, und `Database.Migrate()` würde versuchen,
-provider-fremdes SQL (z. B. SQLite-DDL gegen PostgreSQL) anzuwenden.
+EF Core associates migrations with the `FlirtyDbContext` **provider-independently** and scans the
+entire migrations assembly when applying them. If the `InitialCreate` migrations of all three providers
+lived in the same assembly, there would be duplicate migration IDs, and `Database.Migrate()` would try to
+apply provider-foreign SQL (e.g. SQLite DDL against PostgreSQL).
 
-Deshalb liegt **jede Provider-Migration in einem eigenen Assembly** (`src/Flirty.Migrations.<Provider>`).
-Zur Laufzeit wählt der Aufruf die passende Migrations-Assembly:
+That is why **each provider migration lives in its own assembly** (`src/Flirty.Migrations.<Provider>`).
+At runtime the call picks the matching migrations assembly:
 
 ```csharp
 new DbContextOptionsBuilder<FlirtyDbContext>()
@@ -38,46 +38,46 @@ new DbContextOptionsBuilder<FlirtyDbContext>()
     .Options;
 ```
 
-Diese Projekte sind `IsPackable=false` (nur In-Repo, für `dotnet ef` und Tests). Ihre DLLs werden
-jedoch beim Packen ins `Flirty`-NuGet-Paket **mitgebündelt** (siehe [Auto-Migration](#auto-migration-beim-start-20)),
-damit auch reine Paket-Konsumenten migrieren können.
+These projects are `IsPackable=false` (in-repo only, for `dotnet ef` and tests). Their DLLs are
+nonetheless **bundled** into the `Flirty` NuGet package when packing (see [Auto-migration](#auto-migration-at-startup-20)),
+so that pure package consumers can migrate too.
 
-## Projekt-Layout
+## Project layout
 
 ```
 src/
-├─ Flirty                     Core: FlirtyDbContext + Konfigurationen, referenziert alle 3 Provider
-├─ Flirty.Migrations.Sqlite       Migrationen + SqliteDesignTimeDbContextFactory
-├─ Flirty.Migrations.PostgreSql   Migrationen + PostgreSqlDesignTimeDbContextFactory
-└─ Flirty.Migrations.SqlServer    Migrationen + SqlServerDesignTimeDbContextFactory
+├─ Flirty                     Core: FlirtyDbContext + configurations, references all 3 providers
+├─ Flirty.Migrations.Sqlite       Migrations + SqliteDesignTimeDbContextFactory
+├─ Flirty.Migrations.PostgreSql   Migrations + PostgreSqlDesignTimeDbContextFactory
+└─ Flirty.Migrations.SqlServer    Migrations + SqlServerDesignTimeDbContextFactory
 ```
 
-Jedes Set enthält denselben Stand, Migration für Migration namensgleich: `InitialCreate` (#19) und
-`AddDialogLayout` (#102, Tabelle `DialogLayout` für die Canvas-Positionen des Designers – siehe
-[ADR 0007](./adr/0007-layout-als-eigene-tabelle.md)).
+Each set contains the same state, migration for migration with identical names: `InitialCreate` (#19) and
+`AddDialogLayout` (#102, table `DialogLayout` for the designer's canvas positions – see
+[ADR 0007](./adr/0007-layout-as-its-own-table.md)).
 
-Jedes Migrations-Projekt referenziert `Flirty` (bringt Context + Provider transitiv) und
-`Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`). Eine `internal sealed`
-`IDesignTimeDbContextFactory<FlirtyDbContext>` konfiguriert den jeweiligen Provider samt
-`MigrationsAssembly`, damit `dotnet ef` den Context ohne laufende App bauen kann (der
-Connection-String darin ist ein Platzhalter – `migrations add`/`script` verbinden nicht).
+Each migrations project references `Flirty` (which brings the context + providers transitively) and
+`Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`). An `internal sealed`
+`IDesignTimeDbContextFactory<FlirtyDbContext>` configures the respective provider including
+`MigrationsAssembly`, so that `dotnet ef` can build the context without a running app (the
+connection string in it is a placeholder – `migrations add`/`script` do not connect).
 
-## Migrationen erzeugen
+## Creating migrations
 
-`dotnet ef` ist als lokales Tool gepinnt (`.config/dotnet-tools.json`); einmalig
-`dotnet tool restore` genügt. Eine neue/aktualisierte Migration wird **für jeden Provider einzeln**
-erzeugt (gleicher Name, damit die Sets synchron bleiben):
+`dotnet ef` is pinned as a local tool (`.config/dotnet-tools.json`); a one-time
+`dotnet tool restore` is enough. A new/updated migration is created **for each provider individually**
+(same name, so the sets stay in sync):
 
 ```bash
 dotnet ef migrations add InitialCreate \
   --project src/Flirty.Migrations.Sqlite \
   --startup-project src/Flirty.Migrations.Sqlite \
   --context FlirtyDbContext --output-dir Migrations
-# analog für Flirty.Migrations.PostgreSql und Flirty.Migrations.SqlServer
+# likewise for Flirty.Migrations.PostgreSql and Flirty.Migrations.SqlServer
 ```
 
-Nach jeder Modelländerung müssen **alle drei** Sets neu erzeugt werden. Das SQL je Provider lässt
-sich ohne Datenbank prüfen (SQLite unterstützt kein `--idempotent`):
+After every model change **all three** sets must be regenerated. The SQL per provider can be
+checked without a database (SQLite does not support `--idempotent`):
 
 ```bash
 dotnet ef migrations script \
@@ -85,55 +85,55 @@ dotnet ef migrations script \
   --startup-project src/Flirty.Migrations.PostgreSql --idempotent
 ```
 
-## Provider-Wahl über AddFlirty (#34)
+## Provider selection via AddFlirty (#34)
 
-Seit **#34** registriert `AddFlirty` den `FlirtyDbContext` auf Wunsch selbst – inklusive Provider und
-passender `MigrationsAssembly`. Der Aufrufer muss `AddDbContext` dann **nicht** mehr manuell aufrufen:
+Since **#34** `AddFlirty` registers the `FlirtyDbContext` itself on request – including the provider and
+the matching `MigrationsAssembly`. The caller then does **not** have to call `AddDbContext` manually anymore:
 
 ```csharp
-services.AddFlirty(o => o.UseSqlite("Data Source=flirty.db"));       // oder:
+services.AddFlirty(o => o.UseSqlite("Data Source=flirty.db"));       // or:
 services.AddFlirty(o => o.UsePostgreSql(connectionString));
 services.AddFlirty(o => o.UseSqlServer(connectionString).ApplyMigrations());
 ```
 
-Jede `Use…`-Methode setzt intern die zum Provider gehörende Migrations-Assembly
-(`Flirty.Migrations.Sqlite`/`PostgreSql`/`SqlServer`, siehe Tabelle oben). Der Kontext wird als
-`Scoped` registriert – dieselbe Lebensdauer wie `IDialogStore`/`IFlirtyEngine`. Ein erneuter
-`Use…`-Aufruf überschreibt die vorige Provider-Wahl.
+Each `Use…` method internally sets the migrations assembly belonging to the provider
+(`Flirty.Migrations.Sqlite`/`PostgreSql`/`SqlServer`, see the table above). The context is registered as
+`Scoped` – the same lifetime as `IDialogStore`/`IFlirtyEngine`. A repeated
+`Use…` call overwrites the previous provider selection.
 
-Der manuelle Weg über `AddDbContext<FlirtyDbContext>(…)` (siehe [Auto-Migration](#auto-migration-beim-start-20))
-bleibt weiterhin gültig – z. B. wenn der Kontext feiner konfiguriert werden soll – und ist nun
-**optional**. Zusätzlich stellt `AddFlirty` seit #34 den austauschbaren `o.UseExpressionEvaluator<T>()`
-und die Webhook-Registrierung `o.AddWebhook(name, url)` (Stub, aktive Auslieferung in EPIC 4/M2) bereit.
+The manual path via `AddDbContext<FlirtyDbContext>(…)` (see [Auto-migration](#auto-migration-at-startup-20))
+remains valid – e.g. when the context should be configured more finely – and is now
+**optional**. In addition, since #34 `AddFlirty` provides the swappable `o.UseExpressionEvaluator<T>()`
+and the webhook registration `o.AddWebhook(name, url)` (stub, active delivery in EPIC 4/M2).
 
-### Provider als Wert wählen (#37)
+### Selecting the provider as a value (#37)
 
-Seit **#37** lässt sich der Provider auch **als Wert** wählen – nötig, wenn er erst **zur Laufzeit**
-feststeht (z. B. die Multi-DB-Connection-Profile des [Designers](./DESIGNER.md)). Dafür gibt es:
+Since **#37** the provider can also be chosen **as a value** – necessary when it is only known **at runtime**
+(e.g. the multi-DB connection profiles of the [Designer](./DESIGNER.md)). For this there is:
 
-- das öffentliche Enum **`FlirtyDatabaseProvider`** (`Sqlite`/`PostgreSql`/`SqlServer`) und
-- die Extension **`DbContextOptionsBuilder.UseFlirtyProvider(provider, connectionString)`**, die den
-  passenden EF-Core-Provider **und** die korrekte `MigrationsAssembly` in einem Schritt setzt.
+- the public enum **`FlirtyDatabaseProvider`** (`Sqlite`/`PostgreSql`/`SqlServer`) and
+- the extension **`DbContextOptionsBuilder.UseFlirtyProvider(provider, connectionString)`**, which sets the
+  matching EF Core provider **and** the correct `MigrationsAssembly` in one step.
 
 ```csharp
-// Optionen für ein beliebiges Profil zur Laufzeit bauen:
+// Build options for an arbitrary profile at runtime:
 var options = new DbContextOptionsBuilder<FlirtyDbContext>()
     .UseFlirtyProvider(FlirtyDatabaseProvider.PostgreSql, connectionString)
     .Options;
 using var context = new FlirtyDbContext(options);
 
-// oder über die Options-API:
+// or via the options API:
 services.AddFlirty(o => o.UseProvider(FlirtyDatabaseProvider.SqlServer, connectionString));
 ```
 
-`UseFlirtyProvider` ist die **einzige** Stelle, an der die drei Migrations-Assembly-Namen verankert sind;
-die typspezifischen `o.UseSqlite/UsePostgreSql/UseSqlServer` delegieren seit #37 auf `o.UseProvider(...)`
-und damit auf dieselbe Abbildung (kein dupliziertes Mapping mehr).
+`UseFlirtyProvider` is the **only** place where the three migrations-assembly names are anchored;
+the type-specific `o.UseSqlite/UsePostgreSql/UseSqlServer` have delegated to `o.UseProvider(...)` since #37
+and thus to the same mapping (no duplicated mapping anymore).
 
-## Auto-Migration beim Start (#20)
+## Auto-migration at startup (#20)
 
-Statt `Database.Migrate()` manuell aufzurufen, kann Flirty die ausstehenden Migrationen beim
-**Host-Start** automatisch anwenden. Aktiviert wird das über die Options-API:
+Instead of calling `Database.Migrate()` manually, Flirty can apply the pending migrations automatically at
+**host startup**. This is enabled via the options API:
 
 ```csharp
 services.AddDbContext<FlirtyDbContext>(o =>
@@ -141,132 +141,132 @@ services.AddDbContext<FlirtyDbContext>(o =>
 services.AddFlirty(o => o.ApplyMigrations());
 ```
 
-`o.ApplyMigrations()` registriert den `FlirtyMigrationHostedService` – ein `IHostedService`, das in
-`StartAsync` einen eigenen DI-Scope öffnet, den `FlirtyDbContext` auflöst und `Database.MigrateAsync()`
-ausführt. Bewusst `IHostedService` (nicht `BackgroundService`): der Host **awaited** alle `StartAsync`,
-bevor er als gestartet gilt (bei ASP.NET Core, bevor Kestrel Requests annimmt). So ist das Schema vor
-dem ersten Request migriert, und ein Migrationsfehler bricht den Start fail-fast ab. Der DbContext wird
-per `IServiceScopeFactory` aufgelöst (nicht injiziert), weil der Hosted Service Singleton, der Context
-aber scoped ist.
+`o.ApplyMigrations()` registers the `FlirtyMigrationHostedService` – an `IHostedService` that in
+`StartAsync` opens its own DI scope, resolves the `FlirtyDbContext` and runs `Database.MigrateAsync()`.
+Deliberately an `IHostedService` (not a `BackgroundService`): the host **awaits** all `StartAsync`
+before it counts as started (with ASP.NET Core, before Kestrel accepts requests). This way the schema is
+migrated before the first request, and a migration error aborts the startup fail-fast. The DbContext is
+resolved via `IServiceScopeFactory` (not injected), because the hosted service is a singleton while the
+context is scoped.
 
-> `o.ApplyMigrations()` setzt einen registrierten `FlirtyDbContext` inkl. Provider und
-> `MigrationsAssembly` voraus. Seit **#34** registriert die Provider-Wahl
-> `o.UseSqlite/UsePostgreSql/UseSqlServer` den Context selbst (siehe
-> [Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34)); der manuelle `AddDbContext`-Weg
-> wie oben bleibt optional gültig.
+> `o.ApplyMigrations()` presupposes a registered `FlirtyDbContext` including a provider and
+> `MigrationsAssembly`. Since **#34** the provider selection
+> `o.UseSqlite/UsePostgreSql/UseSqlServer` registers the context itself (see
+> [Provider selection via AddFlirty](#provider-selection-via-addflirty-34)); the manual `AddDbContext` path
+> as above stays optionally valid.
 
-### Bündelung der Migrations-DLLs ins NuGet-Paket
+### Bundling the migration DLLs into the NuGet package
 
-Damit ein Konsument des `Flirty`-Pakets auto-migrieren kann, müssen die drei Migrations-Assemblies mit
-ausgeliefert werden. `Flirty` kann sie aber **nicht** per `ProjectReference` einbinden: die
-Migrations-Projekte referenzieren bereits `Flirty`, ein Rückverweis (auch mit
-`ReferenceOutputAssembly=false`) wäre ein Build-Graph-Zyklus. Deshalb baut ein Pack-Target in
-`Flirty.csproj` die drei Projekte per `<MSBuild>`-Task (nicht Teil des statischen Build-Graphen) und legt
-ihre DLLs über `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage` nach `lib/net10.0/`. Zur Laufzeit
-lädt EF Core die per Name gewählte Migrations-Assembly (`MigrationsAssembly("Flirty.Migrations.<Provider>")`)
-aus dem Probing-Pfad des Konsumenten. Details zum Packaging: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
+So that a consumer of the `Flirty` package can auto-migrate, the three migrations assemblies must ship
+along. But `Flirty` **cannot** include them via `ProjectReference`: the
+migration projects already reference `Flirty`, and a back-reference (even with
+`ReferenceOutputAssembly=false`) would be a build-graph cycle. That is why a pack target in
+`Flirty.csproj` builds the three projects via an `<MSBuild>` task (not part of the static build graph) and
+places their DLLs into `lib/net10.0/` via `TargetsForTfmSpecificBuildOutput`/`BuildOutputInPackage`. At runtime
+EF Core loads the migrations assembly chosen by name (`MigrationsAssembly("Flirty.Migrations.<Provider>")`)
+from the consumer's probing path. Packaging details: [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
-## IDialogStore (Repository) (#21)
+## IDialogStore (repository) (#21)
 
-Über dem `FlirtyDbContext` liegt das Repository `IDialogStore` (Implementierung `DialogStore`, beide
-`internal` – konsumiert werden sie von der Runtime-Schicht im selben Assembly, nicht von Host-Apps).
-Es kapselt die Lade-/Speicheroperationen, die Start/Resume/Submit/Edit (#25) brauchen, und hält den
-EF-Core-Kontext aus den Mediator-Handlern heraus.
+On top of the `FlirtyDbContext` sits the repository `IDialogStore` (implementation `DialogStore`, both
+`internal` – they are consumed by the runtime layer in the same assembly, not by host apps).
+It encapsulates the load/save operations that Start/Resume/Submit/Edit (#25) need, and keeps the
+EF Core context out of the Mediator handlers.
 
-| Methode | Zweck | Tracking |
+| Method | Purpose | Tracking |
 |---|---|---|
-| `GetPublishedDialogAsync(key)` | höchste **veröffentlichte** Version zu `key`, voller Graph | ungetrackt |
-| `GetDialogAsync(dialogId)` | exakte, von einer Session **gepinnte** Version per Id (ohne `IsPublished`-Filter) | ungetrackt |
-| `GetSessionAsync(sessionId)` | Session inkl. Antworten | **getrackt** |
-| `FindActiveSessionAsync(dialogId, externalUserKey)` | neueste **laufende** Session eines Anwenders | **getrackt** |
-| `AddSession(session)` | neue Session (inkl. erster Antworten) tracken | – |
-| `SaveChangesAsync()` | Unit-of-Work-Naht: alle Änderungen gebündelt speichern | – |
+| `GetPublishedDialogAsync(key)` | highest **published** version for `key`, full graph | untracked |
+| `GetDialogAsync(dialogId)` | exact version **pinned** by a session, by id (without the `IsPublished` filter) | untracked |
+| `GetSessionAsync(sessionId)` | session incl. answers | **tracked** |
+| `FindActiveSessionAsync(dialogId, externalUserKey)` | newest **running** session of a user | **tracked** |
+| `AddSession(session)` | track a new session (incl. first answers) | – |
+| `SaveChangesAsync()` | unit-of-work seam: save all changes in one batch | – |
 
-Wesentliche Entscheidungen:
+Key decisions:
 
-- **Dialog-Graph ungetrackt + Split-Query.** Der Konfigurationsgraph (Fragen/Optionen, Übergänge,
-  Schleifen, Trigger) ist zur Laufzeit unveränderlich; `AsNoTracking()` spart Overhead. Wegen der vier
-  Geschwister-Collections wird per `AsSplitQuery()` geladen, um ein kartesisches Produkt zu vermeiden.
-- **`Dialog.Layout` wird hier bewusst nicht geladen.** Canvas-Positionen (#102) sind Anzeigedaten des
-  Designers; die Laufzeit hat für sie keine Verwendung. Nur `IDialogAdminStore.GetDialogGraphAsync`
-  nimmt sie mit – das ist die Quelle der Graph-Ansicht.
-- **Session getrackt.** Submit/Edit mutieren die geladene Session – daher **kein** `AsNoTracking`, sonst
-  gingen die Änderungen bei `SaveChangesAsync` still verloren.
-- **Getrennte Loads über die Aggregatgrenze.** `DialogSession.DialogId` ist kein Fremdschlüssel; eine
-  Session lädt ihren Dialog nicht automatisch. Resume/Submit/Edit sind daher zwei Loads
+- **Dialog graph untracked + split query.** The configuration graph (questions/options, transitions,
+  loops, triggers) is immutable at runtime; `AsNoTracking()` saves overhead. Because of the four
+  sibling collections it is loaded via `AsSplitQuery()` to avoid a cartesian product.
+- **`Dialog.Layout` is deliberately not loaded here.** Canvas positions (#102) are display data of the
+  designer; the runtime has no use for them. Only `IDialogAdminStore.GetDialogGraphAsync`
+  takes them along – that is the source of the graph view.
+- **Session tracked.** Submit/Edit mutate the loaded session – therefore **no** `AsNoTracking`, otherwise
+  the changes would be silently lost at `SaveChangesAsync`.
+- **Separate loads across the aggregate boundary.** `DialogSession.DialogId` is not a foreign key; a
+  session does not load its dialog automatically. Resume/Submit/Edit are therefore two loads
   (`GetSessionAsync` + `GetDialogAsync(session.DialogId)`).
-- **Aktiv-Session client-seitig sortiert.** `FindActiveSessionAsync` sortiert die Kandidaten in-memory
-  nach `StartedAt`, weil SQLite `DateTimeOffset` (als TEXT gespeichert) nicht in `ORDER BY` übersetzt.
-  Pro (Dialog, Anwender) wird höchstens eine laufende Session erwartet.
-- **Neue Kinder an geladenen Aggregaten.** Beim Anhängen eines `SessionAnswer` an eine bereits
-  **getrackte** Session die `Id` nicht vorbelegen – der Guid-Key ist store-generiert (EF-Konvention);
-  EF vergibt ihn beim `SaveChanges`. Eine vorbelegte Id an einem Kind eines getrackten Aggregats würde
-  als Update statt Insert interpretiert.
+- **Active session sorted client-side.** `FindActiveSessionAsync` sorts the candidates in-memory
+  by `StartedAt`, because SQLite does not translate `DateTimeOffset` (stored as TEXT) in `ORDER BY`.
+  At most one running session is expected per (dialog, user).
+- **New children on loaded aggregates.** When attaching a `SessionAnswer` to an already
+  **tracked** session, do not pre-set the `Id` – the Guid key is store-generated (EF convention);
+  EF assigns it at `SaveChanges`. A pre-set id on a child of a tracked aggregate would be
+  interpreted as an update instead of an insert.
 
-Registriert wird `IDialogStore` seit #21 in `AddFlirty()` als `Scoped` (gleiche Lebensdauer wie der
-`FlirtyDbContext`). Aufgelöst werden kann es, sobald ein `FlirtyDbContext` registriert ist (per
-Provider-Wahl `o.UseSqlite/…` seit #34 oder manuell per `AddDbContext`).
+`IDialogStore` has been registered in `AddFlirty()` as `Scoped` since #21 (the same lifetime as the
+`FlirtyDbContext`). It can be resolved as soon as a `FlirtyDbContext` is registered (via the
+provider selection `o.UseSqlite/…` since #34 or manually via `AddDbContext`).
 
-## Test-Strategie
+## Test strategy
 
-Akzeptanzkriterium: *„DB wird gegen jeden der drei Provider erzeugt."* Die Tests (`tests/Flirty.Tests`,
-Ordner `Persistence/`) wenden je Provider **alle** Migrationen via `Database.Migrate()` an und prüfen
-einen vollständigen Aggregat-Round-Trip (`ProviderMigrationAssertions`, Beispieldaten aus
-`TestDialogFactory`). Die Zusicherung listet die erwarteten Migrationsnamen einzeln auf und verlangt
-`GetPendingMigrations()` leer – ein vergessenes Provider-Set fällt damit auf, statt still grün zu
-bleiben:
+Acceptance criterion: *"the DB is created against each of the three providers."* The tests (`tests/Flirty.Tests`,
+folder `Persistence/`) apply **all** migrations via `Database.Migrate()` per provider and check
+a full aggregate round-trip (`ProviderMigrationAssertions`, sample data from
+`TestDialogFactory`). The assertion lists the expected migration names individually and requires
+`GetPendingMigrations()` to be empty – a forgotten provider set is thus caught, instead of staying silently
+green:
 
-- **SQLite** – reale in-memory-DB über eine offen gehaltene `SqliteConnection` (keine externe
-  Abhängigkeit, läuft überall).
-- **PostgreSQL / SQL Server** – reale Datenbanken über **Testcontainers** (`Testcontainers.PostgreSql`,
-  `Testcontainers.MsSql`). Diese benötigen ein laufendes **Docker**. Fehlt Docker (lokaler Lauf ohne
-  Docker), werden die beiden Tests via `[SkippableFact]` + `Skip.IfNot(DockerAvailability.IsAvailable, …)`
-  sauber **übersprungen** statt zu scheitern. Auf CI (`ubuntu-latest`) ist Docker vorhanden, sodass beide
-  Provider dort real getestet werden.
+- **SQLite** – a real in-memory DB over a held-open `SqliteConnection` (no external
+  dependency, runs everywhere).
+- **PostgreSQL / SQL Server** – real databases over **Testcontainers** (`Testcontainers.PostgreSql`,
+  `Testcontainers.MsSql`). These need a running **Docker**. If Docker is missing (a local run without
+  Docker), the two tests are cleanly **skipped** via `[SkippableFact]` + `Skip.IfNot(DockerAvailability.IsAvailable, …)`
+  instead of failing. On CI (`ubuntu-latest`) Docker is present, so both
+  providers are tested for real there.
 
-Das `IDialogStore`-Repository (#21) wird zusätzlich in `DialogStoreTests` gegen dieselbe
-SQLite-in-memory-Datenbank geprüft (offene `SqliteConnection` + `EnsureCreated()`): veröffentlicht-
-vs. gepinnt-Laden, die Tracking-Verträge (Dialog ungetrackt, Session getrackt), der Aktiv-Session-Filter
-sowie die Unit-of-Work-Naht (`AddSession` + `SaveChangesAsync`).
+The `IDialogStore` repository (#21) is additionally checked in `DialogStoreTests` against the same
+SQLite in-memory database (an open `SqliteConnection` + `EnsureCreated()`): published-
+vs. pinned-loading, the tracking contracts (dialog untracked, session tracked), the active-session filter
+as well as the unit-of-work seam (`AddSession` + `SaveChangesAsync`).
 
-## Provider-spezifische Fallstricke
+## Provider-specific pitfalls
 
-- **Zeitstempel UTC.** Npgsql mappt `DateTimeOffset` auf `timestamptz` und verlangt Offset == UTC.
-  Timestamps daher stets UTC-normalisiert ablegen (siehe `TestDialogFactory.SampleTime`).
-- **Index-Schlüssellänge 256.** Fachliche Schlüssel (`Dialog.Key`, `Question.Key`, …) sind auf 256
-  Zeichen begrenzt, weil SQL Server `nvarchar(max)` nicht als Indexschlüssel zulässt.
-- **JSON als Textspalten.** `Value`/`Config`/`ValidationRules` werden als unbegrenzte Textspalten
-  gespeichert – bewusst **ohne** provider-native `json`/`jsonb`-Typen, damit die Konfiguration der
-  kleinste gemeinsame Nenner aller Provider bleibt.
-- **Keine Unique-Indizes über `null`-fähige Spalten** – divergente Null-Semantik zwischen SQL Server
-  und SQLite/PostgreSQL.
-- **`DateTimeOffset`-Speicherung** unterscheidet sich je Provider: SQL Server `datetimeoffset`,
-  PostgreSQL `timestamp with time zone`, SQLite `TEXT`. Der obige UTC-Grundsatz hält das konsistent.
+- **Timestamps UTC.** Npgsql maps `DateTimeOffset` to `timestamptz` and requires offset == UTC.
+  Store timestamps therefore always UTC-normalized (see `TestDialogFactory.SampleTime`).
+- **Index key length 256.** Domain keys (`Dialog.Key`, `Question.Key`, …) are limited to 256
+  characters, because SQL Server does not allow `nvarchar(max)` as an index key.
+- **JSON as text columns.** `Value`/`Config`/`ValidationRules` are stored as unbounded text columns
+  – deliberately **without** provider-native `json`/`jsonb` types, so that the configuration stays the
+  smallest common denominator of all providers.
+- **No unique indexes over `null`-able columns** – divergent null semantics between SQL Server
+  and SQLite/PostgreSQL.
+- **`DateTimeOffset` storage** differs per provider: SQL Server `datetimeoffset`,
+  PostgreSQL `timestamp with time zone`, SQLite `TEXT`. The UTC principle above keeps that consistent.
 
-## Paketversionen (Central Package Management)
+## Package versions (Central Package Management)
 
-Alle Versionen sind zentral in `Directory.Packages.props` gepinnt: die drei EF-Core-10-Provider
-(`10.0.9` bzw. Npgsql `10.0.3`), `Microsoft.EntityFrameworkCore.Design` (`10.0.9`) sowie die
-Test-Abhängigkeiten `Testcontainers.PostgreSql`/`Testcontainers.MsSql` und `Xunit.SkippableFact`.
-`TreatWarningsAsErrors=true` gilt repo-weit – neue transitive Pakete dürfen keine
-Security-Advisories (NU1903) einschleppen.
+All versions are pinned centrally in `Directory.Packages.props`: the three EF Core 10 providers
+(`10.0.9` resp. Npgsql `10.0.3`), `Microsoft.EntityFrameworkCore.Design` (`10.0.9`) as well as the
+test dependencies `Testcontainers.PostgreSql`/`Testcontainers.MsSql` and `Xunit.SkippableFact`.
+`TreatWarningsAsErrors=true` applies repo-wide – new transitive packages must not drag in
+security advisories (NU1903).
 
-## Abgrenzung
+## Scope / delineation
 
-- **Auto-Migration** (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) und das **Bündeln** der
-  Migrations-Assemblies ins NuGet-Paket: **#20** – umgesetzt (siehe oben). Das minimale
-  `FlirtyOptions` mit `ApplyMigrations()` entstand hier; #34 erweitert es additiv.
-- **Options-API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (Provider-Wahl inkl.
-  `FlirtyDbContext`-Registrierung, `UseExpressionEvaluator`, Webhook-Registrierung): **#34** –
-  umgesetzt (siehe [Provider-Wahl über AddFlirty](#provider-wahl-über-addflirty-34)). Die aktive
-  Webhook-Auslieferung kam mit **#33** dazu (EPIC 4), siehe [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
-- **`IDialogStore`** (Repository über `FlirtyDbContext`, inkl. DI-Registrierung in `AddFlirty()`):
-  **#21** – umgesetzt (siehe oben). Die konsumierenden Commands/Queries (Start/Resume/Submit/Edit) kamen
-  mit **#25**–**#28**, siehe [RUNTIME.md](./RUNTIME.md). Das **Admin-CRUD** (#36, erweitert um Schleifen
-  in #41 und Trigger in #42) hängt bewusst an einem eigenen Repository `IDialogAdminStore`: Der
-  Laufzeit-`IDialogStore` **liest** den Konfigurationsgraphen und schreibt nur Session-Zustand, das
-  Admin-Gegenstück schreibt den Graphen selbst (generisches `Add`/`Remove`/`RemoveRange` plus die
-  Schlüssel- und Verweis-Abfragen der CRUD-Commands).
-- Entscheidungsgrundlage: [ADR 0001 – Migrationen pro Provider](./adr/0001-migrationen-pro-provider.md)
-  (inkl. Nachtrag: die dort noch offenen Punkte #20 und #34/#37 sind erledigt). Übersicht aller
-  Entscheidungen: [docs/adr/](./adr/README.md).
+- **Auto-migration** (`o.ApplyMigrations()` → `FlirtyMigrationHostedService`) and the **bundling** of the
+  migrations assemblies into the NuGet package: **#20** – implemented (see above). The minimal
+  `FlirtyOptions` with `ApplyMigrations()` arose here; #34 extends it additively.
+- **Options API** `AddFlirty(o => o.UseSqlite/UsePostgreSql/UseSqlServer)` (provider selection incl.
+  `FlirtyDbContext` registration, `UseExpressionEvaluator`, webhook registration): **#34** –
+  implemented (see [Provider selection via AddFlirty](#provider-selection-via-addflirty-34)). The active
+  webhook delivery was added with **#33** (EPIC 4), see [TRIGGERS.md](./TRIGGERS.md#outbound-webhooks).
+- **`IDialogStore`** (repository over `FlirtyDbContext`, incl. DI registration in `AddFlirty()`):
+  **#21** – implemented (see above). The consuming commands/queries (Start/Resume/Submit/Edit) came
+  with **#25**–**#28**, see [RUNTIME.md](./RUNTIME.md). The **admin CRUD** (#36, extended by loops
+  in #41 and triggers in #42) hangs deliberately off its own repository `IDialogAdminStore`: the
+  runtime `IDialogStore` **reads** the configuration graph and writes only session state, the
+  admin counterpart writes the graph itself (generic `Add`/`Remove`/`RemoveRange` plus the
+  key and reference queries of the CRUD commands).
+- Decision basis: [ADR 0001 – Migrations per provider](./adr/0001-migrations-per-provider.md)
+  (incl. addendum: the points #20 and #34/#37 still open there are done). Overview of all
+  decisions: [docs/adr/](./adr/README.md).
