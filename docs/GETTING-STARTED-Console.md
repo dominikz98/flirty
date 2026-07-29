@@ -1,15 +1,15 @@
 # Getting Started – Console (Single-Project)
 
-> Stand: Issue #44. Dieser Guide zeigt, wie man die Flirty-Engine in einer reinen Console-App nutzt –
-> **nur der Core** (`src/Flirty`), **kein ASP.NET**. Ein Dialog wird programmatisch geseedet, über die
-> Facade `IFlirtyEngine` durchgespielt und der Abschluss löst einen **eigenen `INotificationHandler`**
-> aus. Der lauffähige Code liegt unter [`src/Flirty.Samples`](../src/Flirty.Samples).
+> As of: issue #44. This guide shows how to use the Flirty engine in a pure console app –
+> **the core only** (`src/Flirty`), **no ASP.NET**. A dialog is seeded programmatically, played
+> through via the facade `IFlirtyEngine`, and completion fires a **custom `INotificationHandler`**.
+> The runnable code lives under [`src/Flirty.Samples`](../src/Flirty.Samples).
 
-## Projekt-Setup
+## Project setup
 
-Ein Console-Single-Project braucht nur eine Referenz auf den Core plus die konkreten
-`Microsoft.Extensions.*`-Implementierungen für den DI-Container und Logging (der Core liefert davon
-nur die `*.Abstractions`):
+A console single-project needs only a reference to the core plus the concrete
+`Microsoft.Extensions.*` implementations for the DI container and logging (the core ships only the
+`*.Abstractions` of those):
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -17,7 +17,7 @@ nur die `*.Abstractions`):
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <!-- EF Core, SQLite-Provider, Mediator.Abstractions, DynamicExpresso kommen transitiv. -->
+    <!-- EF Core, the SQLite provider, Mediator.Abstractions, DynamicExpresso come transitively. -->
     <ProjectReference Include="..\Flirty\Flirty.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -27,15 +27,15 @@ nur die `*.Abstractions`):
 </Project>
 ```
 
-Kein `FrameworkReference Microsoft.AspNetCore.App`, kein `Flirty.AspNetCore` – der Core ist bewusst
-ASP.NET-frei (siehe [ARCHITECTURE.md](./ARCHITECTURE.md)).
+No `FrameworkReference Microsoft.AspNetCore.App`, no `Flirty.AspNetCore` – the core is deliberately
+ASP.NET-free (see [ARCHITECTURE.md](./ARCHITECTURE.md)).
 
-## 1. Registrierung (DI ohne Host)
+## 1. Registration (DI without a host)
 
-`AddFlirty(o => …)` verdrahtet den kompletten Stack (Mediator, Runtime-Facade, Persistenz,
-Expression-Engine, Validierung). Für die Persistenz genügt hier **SQLite in-memory** (Shared-Cache):
-solange eine keep-alive-Verbindung offen bleibt, teilen sich alle DI-erzeugten
-`FlirtyDbContext`-Instanzen dieselbe in-memory-Datenbank.
+`AddFlirty(o => …)` wires up the complete stack (Mediator, runtime facade, persistence,
+expression engine, validation). For persistence, **SQLite in-memory** (shared cache) is enough here:
+as long as one keep-alive connection stays open, all DI-created `FlirtyDbContext` instances share the
+same in-memory database.
 
 ```csharp
 const string connectionString = "Data Source=FlirtySampleConsole;Mode=Memory;Cache=Shared";
@@ -46,40 +46,40 @@ keepAlive.Open();
 using var provider = new ServiceCollection()
     .AddLogging()
     .AddFlirty(options => options.UseSqlite(connectionString))
-    .AddSingleton<TextWriter>(Console.Out)                       // Ziel für den eigenen Handler
+    .AddSingleton<TextWriter>(Console.Out)                       // target for the custom handler
     .AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()
     .BuildServiceProvider();
 ```
 
-> Für eine **dateibasierte** DB (`o.UseSqlite("Data Source=flirty.db")`) mit Auto-Migration
-> (`o.ApplyMigrations()`) wird ein Generic Host benötigt, weil `ApplyMigrations()` einen
-> `IHostedService` registriert. Für das Single-Project-Sample reicht der in-memory-Weg mit
-> `context.Database.EnsureCreated()` (siehe unten).
+> For a **file-based** DB (`o.UseSqlite("Data Source=flirty.db")`) with auto-migration
+> (`o.ApplyMigrations()`), a Generic Host is required, because `ApplyMigrations()` registers an
+> `IHostedService`. For the single-project sample, the in-memory route with
+> `context.Database.EnsureCreated()` is enough (see below).
 
-## 2. Dialog programmatisch seeden (ohne Designer)
+## 2. Seed a dialog programmatically (without the designer)
 
-Ohne den Blazor-Designer legt man den Dialog direkt über den `FlirtyDbContext` an. Damit
-`StartDialogAsync(dialogKey, …)` ihn findet, muss der Dialog **veröffentlicht** sein
-(`IsPublished = true`) und eine `StartQuestionId` besitzen:
+Without the Blazor designer, you create the dialog directly via the `FlirtyDbContext`. For
+`StartDialogAsync(dialogKey, …)` to find it, the dialog must be **published**
+(`IsPublished = true`) and have a `StartQuestionId`:
 
 ```csharp
 using (var seedScope = provider.CreateScope())
 {
     var context = seedScope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
-    context.Database.EnsureCreated();                            // Schema bei in-memory ohne Migrationen
+    context.Database.EnsureCreated();                            // schema for in-memory without migrations
     context.Dialogs.Add(SampleDialogFactory.BuildOnboardingDialog());
     context.SaveChanges();
 }
 ```
 
-`SampleDialogFactory` baut ein Branching-Beispiel: die Startfrage `role` (SingleChoice `dev`/`pm`)
-verzweigt per `role == "dev"` auf die Freitext-Frage `language`, sonst per Default auf `product`;
-beide Detailfragen sind terminal und schließen den Dialog ab.
+`SampleDialogFactory` builds a branching example: the entry question `role` (SingleChoice `dev`/`pm`)
+branches via `role == "dev"` to the free-text question `language`, otherwise by default to `product`;
+both detail questions are terminal and complete the dialog.
 
-## 3. Dialog über die Facade durchspielen
+## 3. Play the dialog through via the facade
 
-`IFlirtyEngine` kapselt die Runtime-Commands. Antwortwerte werden als **roher JSON-Text** übergeben
-(Format je Fragetyp, z. B. `"dev"` für eine Auswahl, `"C#"` für Freitext):
+`IFlirtyEngine` encapsulates the runtime commands. Answer values are passed as **raw JSON text**
+(the format depends on the question type, e.g. `"dev"` for a choice, `"C#"` for free text):
 
 ```csharp
 var start = await engine.StartDialogAsync("onboarding", "console-user");
@@ -87,7 +87,7 @@ var current = start.CurrentQuestion;
 
 while (true)
 {
-    // current.Text + current.Options anzeigen, Antwort einlesen …
+    // display current.Text + current.Options, read the answer …
     var result = await engine.SubmitAnswerAsync(start.SessionId, current.Id, value);
     if (result.IsCompleted || result.NextQuestion is null)
         break;
@@ -95,29 +95,29 @@ while (true)
 }
 ```
 
-Der bisherige Verlauf lässt sich jederzeit rein lesend abrufen (z. B. nach einem Reload):
+The history so far can be retrieved read-only at any time (e.g. after a reload):
 
 ```csharp
 var state = await engine.ResumeDialogAsync(start.SessionId);
 // state.Status, state.CurrentQuestion, state.Answers
 ```
 
-Im Sample kapselt `ConsoleDialogRunner` diese Schleife und trennt Ein-/Ausgabe über die
-`IAnswerSource`-Abstraktion (`ConsoleAnswerSource` liest interaktiv von der Konsole,
-`ScriptedAnswerSource` liefert feste Antworten für Tests).
+In the sample, `ConsoleDialogRunner` encapsulates this loop and separates input/output via the
+`IAnswerSource` abstraction (`ConsoleAnswerSource` reads interactively from the console,
+`ScriptedAnswerSource` supplies fixed answers for tests).
 
-> **Das Wertformat ist Sache der Host-App.** Die Engine erwartet rohen JSON-Text; was der Anwender
-> tippt, ist es nicht. Im Sample übernimmt `AnswerEncoder` die Umrechnung je `QuestionType`: Freitext und
-> Auswahl werden **quotiert** (`Dev` → `"Dev"`), `MultiChoice` wird zum JSON-Array, `Number` zu einem
-> **invarianten** Zahlliteral (Dezimalpunkt, kein Komma) und `Boolean` zu `true`/`false` (auch aus
-> „ja"/„j"/„1"). Passt der Wert nicht zum Typ oder zu den `ValidationRules` der Frage, wirft
-> `SubmitAnswerAsync` eine `AnswerValidationException` – siehe [VALIDATION.md](./VALIDATION.md).
+> **The value format is the host app's concern.** The engine expects raw JSON text; what the user
+> types is not. In the sample, `AnswerEncoder` handles the conversion per `QuestionType`: free text and
+> choice are **quoted** (`Dev` → `"Dev"`), `MultiChoice` becomes a JSON array, `Number` an
+> **invariant** numeric literal (decimal point, no comma) and `Boolean` becomes `true`/`false` (also from
+> "yes"/"y"/"1"). If the value does not match the type or the question's `ValidationRules`,
+> `SubmitAnswerAsync` throws an `AnswerValidationException` – see [VALIDATION.md](./VALIDATION.md).
 
-## 4. Eigener `INotificationHandler` (In-Process-Rückkanal)
+## 4. A custom `INotificationHandler` (in-process back channel)
 
-Der Rückkanal ist ein `Mediator.INotificationHandler<T>`. Im Sample reagiert
-`ConsoleDialogCompletedHandler` auf eine `DialogCompletedNotification` und schreibt eine
-Zusammenfassung:
+The back channel is a `Mediator.INotificationHandler<T>`. In the sample,
+`ConsoleDialogCompletedHandler` reacts to a `DialogCompletedNotification` and writes a
+summary:
 
 ```csharp
 public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogCompletedNotification>
@@ -127,31 +127,31 @@ public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogC
 
     public ValueTask Handle(DialogCompletedNotification notification, CancellationToken ct)
     {
-        _output.WriteLine($"Dialog '{notification.DialogKey}' abgeschlossen …");
+        _output.WriteLine($"Dialog '{notification.DialogKey}' completed …");
         return ValueTask.CompletedTask;
     }
 }
 ```
 
-Seit **#31** publiziert die **Engine selbst** die Notification: Der `SubmitAnswerCommandHandler` löst beim
-Dialog-Abschluss `DialogCompletedNotification` per `IPublisher` aus, wodurch alle registrierten
-`INotificationHandler<T>` automatisch aufgerufen werden. Die Registrierung per DI (Abschnitt 1) genügt –
-komfortabel über den Helper `AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()`
-(seit #32); der `ConsoleDialogRunner` muss **nichts** mehr manuell auflösen oder aufrufen. Der Handler
-selbst bleibt unverändert.
+Since **#31** the **engine itself** publishes the notification: on dialog completion the
+`SubmitAnswerCommandHandler` fires `DialogCompletedNotification` via `IPublisher`, which automatically
+invokes all registered `INotificationHandler<T>`. Registration via DI (section 1) is enough –
+conveniently through the helper `AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()`
+(since #32); the `ConsoleDialogRunner` no longer has to resolve or call **anything** manually. The handler
+itself stays unchanged.
 
-Der `DialogCompletedNotification` gehört – wie alle vier Trigger-Contracts (`DialogStarted`,
-`AnswerSubmitted`, `QuestionAnswered`, `DialogCompleted`) – zum **Core** (Namespace `Flirty.Runtime`),
-weil der martinothamar-Mediator Notification-Typen nur innerhalb der Core-Compilation kennt. Details und
-das vollständige Auslöse-/Scope-Mapping stehen in [TRIGGERS.md](./TRIGGERS.md).
+The `DialogCompletedNotification` belongs – like all four trigger contracts (`DialogStarted`,
+`AnswerSubmitted`, `QuestionAnswered`, `DialogCompleted`) – to the **core** (namespace `Flirty.Runtime`),
+because the martinothamar Mediator only knows notification types within the core compilation. Details and
+the full firing/scope mapping are in [TRIGGERS.md](./TRIGGERS.md).
 
-## Ausführen
+## Running
 
 ```pwsh
 dotnet run --project src/Flirty.Samples
 ```
 
-Beispielausgabe (dev-Zweig):
+Example output (dev branch):
 
 ```text
 === Flirty Console-Sample ===
@@ -166,5 +166,5 @@ Welche Programmiersprache nutzt du am liebsten?
 Dialog abgeschlossen.
 ```
 
-Der end-to-end-Durchlauf (inkl. Branching und Handler-Auslösung) ist als Test abgesichert:
+The end-to-end run (incl. branching and handler firing) is secured by a test:
 `tests/Flirty.Tests/Samples/ConsoleSampleTests.cs`.

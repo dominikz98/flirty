@@ -1,304 +1,304 @@
-# Flirty – Backlog (GitHub-Issues)
+# Flirty – Backlog (GitHub issues)
 
-Diese Datei ist die Vorlage zum Anlegen der GitHub-Issues. Jedes `###`-Item = ein Issue.
-Reihenfolge = grobe MVP-Priorisierung. Architektur-Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md).
+This file is the template for creating the GitHub issues. Every `###` item = one issue.
+Order = rough MVP prioritization. Architecture reference: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Labels
 
-| Label | Bedeutung |
+| Label | Meaning |
 |---|---|
-| `type:epic` | Übergeordnetes Sammel-Issue |
-| `type:feature` | Funktionales Inkrement |
-| `type:chore` | Infrastruktur/Setup |
-| `type:test` | Test-Arbeit |
-| `type:docs` | Dokumentation |
-| `area:core` | Projekt `Flirty` |
-| `area:api` | Projekt `Flirty.AspNetCore` |
-| `area:designer` | Projekt `Flirty.Designer` |
-| `area:samples` | Projekt `Flirty.Samples` |
+| `type:epic` | Overarching umbrella issue |
+| `type:feature` | Functional increment |
+| `type:chore` | Infrastructure/setup |
+| `type:test` | Test work |
+| `type:docs` | Documentation |
+| `area:core` | Project `Flirty` |
+| `area:api` | Project `Flirty.AspNetCore` |
+| `area:designer` | Project `Flirty.Designer` |
+| `area:samples` | Project `Flirty.Samples` |
 
-## Meilensteine
+## Milestones
 
-- **M1 – MVP-Kern**: EPIC 0, 1, 2, 3, 5 (+ Console-Sample aus 8)
-- **M2 – Web & Trigger**: EPIC 4, 6, Web-Sample aus 8
+- **M1 – MVP core**: EPIC 0, 1, 2, 3, 5 (+ console sample from 8)
+- **M2 – Web & triggers**: EPIC 4, 6, web sample from 8
 - **M3 – Designer**: EPIC 7
-- **M4 – Qualität & Release**: EPIC 9, 10
-- **M5 – Visueller Graph-Designer**: EPIC 11
+- **M4 – Quality & release**: EPIC 9, 10
+- **M5 – Visual graph designer**: EPIC 11
 
-> **Definition of Done (alle Issues):** Code + XML-Docs (Build bricht bei fehlender public-API-Doku, CS1591=Error) + Tests grün + relevanter `docs/`-Guide aktualisiert.
+> **Definition of Done (all issues):** code + XML docs (the build breaks on missing public-API docs, CS1591=Error) + green tests + the relevant `docs/` guide updated.
 
 ---
 
-## EPIC 0 – Repo & Solution Bootstrap `type:epic` `type:chore`
+## EPIC 0 – Repo & solution bootstrap `type:epic` `type:chore`
 
-### Repo-Grundgerüst & Build-Konventionen
+### Repo scaffolding & build conventions
 `type:chore`
 `git init` + `.gitignore` (VisualStudio/Rider), `.editorconfig`, `Directory.Build.props`
 (net10, `Nullable=enable`, `ImplicitUsings=enable`, `TreatWarningsAsErrors`,
-`GenerateDocumentationFile=true`, **CS1591 als Error**), `Directory.Packages.props`
-(Central Package Management: Mediator (martinothamar), EF Core 10 + Provider, DynamicExpresso).
-- **AC:** `dotnet build` grün; fehlende public-API-Doku bricht den Build.
+`GenerateDocumentationFile=true`, **CS1591 as Error**), `Directory.Packages.props`
+(Central Package Management: Mediator (martinothamar), EF Core 10 + provider, DynamicExpresso).
+- **AC:** `dotnet build` green; missing public-API docs break the build.
 
-### Projekt-Skelette + Solution-Verdrahtung
+### Project skeletons + solution wiring
 `type:chore`
-6 Projekte anlegen und in `Flirty.sln` referenzieren:
+Create 6 projects and reference them in `Flirty.sln`:
 `Flirty`, `Flirty.AspNetCore`→Flirty, `Flirty.Designer`→Flirty, `Flirty.Samples`→Flirty(+AspNetCore),
 `Flirty.Tests`→Flirty, `Flirty.E2E` (standalone).
-- **AC:** `dotnet build Flirty.sln` grün; `Flirty` referenziert **kein** ASP.NET.
+- **AC:** `dotnet build Flirty.sln` green; `Flirty` references **no** ASP.NET.
 
-### Mediator-Setup im Core
+### Mediator setup in the core
 `type:chore` `area:core`
-Mediator (martinothamar) registrieren (Source-Generator), Basis-`IPipelineBehavior`
-(Logging/Validierung) als Skelett.
-- **AC:** ein Dummy-Command läuft durch das Pipeline-Behavior.
+Register Mediator (martinothamar) (source generator), base `IPipelineBehavior`
+(logging/validation) as a skeleton.
+- **AC:** a dummy command runs through the pipeline behavior.
 
-### NuGet-Packaging vorbereiten
+### Prepare NuGet packaging
 `type:chore` `area:core` `area:api`
-Package-Metadaten für `Flirty` + `Flirty.AspNetCore` (Id, Autoren, Lizenz, README, Icon),
-`IsPackable` nur für diese zwei, SourceLink, `IncludeSymbols`/`snupkg`, Versionierung (MinVer/Tag).
-- **AC:** `dotnet pack` erzeugt `Flirty.*.nupkg` + `Flirty.AspNetCore.*.nupkg` (inkl. `.snupkg`).
+Package metadata for `Flirty` + `Flirty.AspNetCore` (id, authors, license, README, icon),
+`IsPackable` only for these two, SourceLink, `IncludeSymbols`/`snupkg`, versioning (MinVer/tag).
+- **AC:** `dotnet pack` produces `Flirty.*.nupkg` + `Flirty.AspNetCore.*.nupkg` (incl. `.snupkg`).
 
-### CI-Pipeline-Stub
+### CI pipeline stub
 `type:chore`
-build + test + `dotnet pack` (GitHub Actions oder Azure Pipelines).
-- **AC:** Pipeline grün, Artefakte = beide `.nupkg`.
+build + test + `dotnet pack` (GitHub Actions or Azure Pipelines).
+- **AC:** pipeline green, artifacts = both `.nupkg`.
 
 ---
 
-## EPIC 1 – Domain & Persistenz `type:epic` `area:core`
+## EPIC 1 – Domain & persistence `type:epic` `area:core`
 
-### Domain-Entities + Enums
+### Domain entities + enums
 `type:feature` `area:core`
 Dialog, Question, AnswerOption, Transition, **LoopDefinition**, TriggerDefinition,
-DialogSession, SessionAnswer (inkl. `LoopInstanceId`/`IterationIndex`).
+DialogSession, SessionAnswer (incl. `LoopInstanceId`/`IterationIndex`).
 
-### FlirtyDbContext + Konfigurationen
+### FlirtyDbContext + configurations
 `type:feature` `area:core`
-DbContext, Keys, Indizes, JSON-Spalten (Value, ValidationRules, Trigger-Config).
+DbContext, keys, indexes, JSON columns (Value, ValidationRules, trigger config).
 
-### Provider SQLite / PostgreSQL / SQL Server + Migrationen
+### Provider SQLite / PostgreSQL / SQL Server + migrations
 `type:feature` `area:core`
-Provider-Anbindung + Migrationen je Provider.
-- **AC:** DB wird gegen jeden der drei Provider erzeugt.
+Provider binding + migrations per provider.
+- **AC:** the DB is created against each of the three providers.
 
-### Auto-Migration Hosted Service
+### Auto-migration hosted service
 `type:feature` `area:core`
-`FlirtyMigrationHostedService` (aktiv bei `o.ApplyMigrations()`).
+`FlirtyMigrationHostedService` (active with `o.ApplyMigrations()`).
 
-### IDialogStore Repository
+### IDialogStore repository
 `type:feature` `area:core`
-Repository über `FlirtyDbContext`. `test` Store-Tests (SQLite in-memory).
+Repository over `FlirtyDbContext`. `test` store tests (SQLite in-memory).
 
 ---
 
-## EPIC 2 – Expression-/Condition-Engine `type:epic` `area:core`
+## EPIC 2 – Expression/condition engine `type:epic` `area:core`
 
-### IExpressionEvaluator + Kontext-Modell
+### IExpressionEvaluator + context model
 `type:feature` `area:core`
-Kontext: `answers`, Loop-Collections (`CollectionKey`), `iterationIndex`, `now`, `session`.
+Context: `answers`, loop collections (`CollectionKey`), `iterationIndex`, `now`, `session`.
 
-### DynamicExpresso-Implementierung (Sandbox)
+### DynamicExpresso implementation (sandbox)
 `type:feature` `area:core`
-Member-Whitelist, keine beliebige Code-Ausführung.
+Member whitelist, no arbitrary code execution.
 
-### Expression-Validierung / Compile-Check
+### Expression validation / compile check
 `type:feature` `area:core`
-Für Designer nutzbar (Fehler beim Speichern melden).
-`test` Ausdrücke: Operatoren, UND/ODER, Fehlerfälle, Injection-Abwehr.
+Usable for the designer (report errors on save).
+`test` expressions: operators, AND/OR, error cases, injection defense.
 
 ---
 
-## EPIC 3 – Dialog-Runtime (Mediator-Commands) `type:epic` `area:core`
+## EPIC 3 – Dialog runtime (Mediator commands) `type:epic` `area:core`
 
-### StartDialogCommand + IFlirtyEngine-Facade
+### StartDialogCommand + IFlirtyEngine facade
 `type:feature` `area:core`
-Start + Resume bestehender InProgress-Session.
+Start + resume of an existing InProgress session.
 
 ### SubmitAnswerCommand
 `type:feature` `area:core`
-Validierung → Persistenz → Transition-Auswertung → nächste Frage/Completion → Notifications.
+Validation → persistence → transition evaluation → next question/completion → notifications.
 
 ### ResumeDialogQuery
 `type:feature` `area:core`
-State + bisherige Antworten.
+State + answers so far.
 
-### EditAnswerCommand + Pfad-Neuberechnung
+### EditAnswerCommand + path recomputation
 `type:feature` `area:core`
-Zurückspringen, überschreiben, nachgelagerte Antworten neu berechnen/invalidieren.
+Jump back, overwrite, recompute/invalidate downstream answers.
 
-### Loop-Runtime
+### Loop runtime
 `type:feature` `area:core`
-Zyklus-Erkennung, Iterations-Zähler, Sammlung je Iteration in `CollectionKey`,
-Break-Bedingung, danach normaler Fluss; Editieren innerhalb einer Iteration.
-`test` mehrere Iterationen, Breaking Question, Collection im Kontext, Edit in Iteration.
+Cycle detection, iteration counter, collection per iteration in `CollectionKey`,
+break condition, then the normal flow; editing within an iteration.
+`test` multiple iterations, breaking question, collection in context, edit in an iteration.
 
-### IAnswerValidator (Pipeline-Behavior)
+### IAnswerValidator (pipeline behavior)
 `type:feature` `area:core`
-Typ + `ValidationRules`. `test` Branching-, Resume-, Edit-, Validierungs-Tests.
+Type + `ValidationRules`. `test` branching, resume, edit and validation tests.
 
 ---
 
-## EPIC 4 – Trigger (Notifications + Webhooks) `type:epic` `area:core`
+## EPIC 4 – Triggers (notifications + webhooks) `type:epic` `area:core`
 
-### Notification-Contracts + Publikation
+### Notification contracts + publication
 `type:feature` `area:core`
 `DialogStartedNotification`, `AnswerSubmittedNotification`, `QuestionAnsweredNotification`,
-`DialogCompletedNotification`; Publikation aus den Command-Handlern.
+`DialogCompletedNotification`; publication from the command handlers.
 
-### Convenience für In-Process-Handler
+### Convenience for in-process handlers
 `type:feature` `area:core`
-Doku + Helper zum „Reinhängen" eigener `INotificationHandler<T>` (Console-Szenario).
+Docs + helper to "plug in" your own `INotificationHandler<T>` (console scenario).
 
-### Webhook-Handler
+### Webhook handler
 `type:feature` `area:core`
-Eingebauter `INotificationHandler` (IHttpClientFactory + Retry/Timeout, `TriggerDefinition`-getrieben).
-`test` Dispatch + Webhook (Mock-HttpMessageHandler).
+Built-in `INotificationHandler` (IHttpClientFactory + retry/timeout, `TriggerDefinition`-driven).
+`test` dispatch + webhook (mock HttpMessageHandler).
 
 ---
 
-## EPIC 5 – DI-Extensions & Options `type:epic` `area:core`
+## EPIC 5 – DI extensions & options `type:epic` `area:core`
 
-### AddFlirty(...) Extension-Method
+### AddFlirty(...) extension method
 `type:feature` `area:core`
-Mediator-Registrierung, Provider-Wahl, `ApplyMigrations`, Webhook-Registrierung,
+Mediator registration, provider choice, `ApplyMigrations`, webhook registration,
 `UseExpressionEvaluator`.
-`test` Registrierungs-/Resolve-Tests inkl. reinem Console-Setup ohne ASP.NET.
+`test` registration/resolve tests incl. a pure console setup without ASP.NET.
 
 ---
 
-## EPIC 6 – WebAPI-Endpunkte (`Flirty.AspNetCore`) `type:epic` `area:api`
+## EPIC 6 – WebAPI endpoints (`Flirty.AspNetCore`) `type:epic` `area:api`
 
-### Projekt + MapFlirtyEndpoints + DTOs
+### Project + MapFlirtyEndpoints + DTOs
 `type:feature` `area:api`
-`FrameworkReference Microsoft.AspNetCore.App`; `MapFlirtyEndpoints` sendet Mediator-Commands;
-DTOs für Start/Resume/Answer/Edit.
+`FrameworkReference Microsoft.AspNetCore.App`; `MapFlirtyEndpoints` sends Mediator commands;
+DTOs for Start/Resume/Answer/Edit.
 
-### Optionale Admin-CRUD-Endpunkte
+### Optional admin CRUD endpoints
 `type:feature` `area:api`
-Dialoge/Fragen/Optionen/Transitions. `test` Integrationstests (`WebApplicationFactory`).
+Dialogs/questions/options/transitions. `test` integration tests (`WebApplicationFactory`).
 
 ---
 
 ## EPIC 7 – Designer (Blazor) `type:epic` `area:designer`
 
-### Connection-Profil-Verwaltung (Multi-DB)
+### Connection-profile management (multi-DB)
 `type:feature` `area:designer`
-Mehrere Profile, Test-Connection, Migrate-Button, `IDbContextFactory`-Auswahl.
+Multiple profiles, test-connection, migrate button, `IDbContextFactory` selection.
 
-### Dialog-CRUD-UI
-`type:feature` `area:designer`
-
-### Frage-Editor
-`type:feature` `area:designer`
-Typ, Reihenfolge, Validierung, Antwortoptionen.
-
-### Branching-Editor
-`type:feature` `area:designer`
-Transitions + Expression-Builder + Live-Validierung via `IExpressionEvaluator`.
-
-### Loop-Visualisierung
-`type:feature` `area:designer`
-Zyklus als Loop-Block, Breaking Question markieren, `CollectionKey` bearbeiten;
-Warnung bei Zyklus ohne erreichbare Exit-Bedingung (Endlosschleife).
-
-### Trigger-Editor
+### Dialog CRUD UI
 `type:feature` `area:designer`
 
-### Test-Runner
+### Question editor
 `type:feature` `area:designer`
-Dialog im Designer durchspielen (inkl. Loop-Iterationen).
-- **AC:** nicht-technischer Nutzer kann einen Dialog inkl. Schleife end-to-end anlegen.
+Type, order, validation, answer options.
+
+### Branching editor
+`type:feature` `area:designer`
+Transitions + expression builder + live validation via `IExpressionEvaluator`.
+
+### Loop visualization
+`type:feature` `area:designer`
+Cycle as a loop block, mark the breaking question, edit the `CollectionKey`;
+warning on a cycle without a reachable exit condition (infinite loop).
+
+### Trigger editor
+`type:feature` `area:designer`
+
+### Test runner
+`type:feature` `area:designer`
+Play a dialog through in the designer (incl. loop iterations).
+- **AC:** a non-technical user can create a dialog including a loop end-to-end.
 
 ---
 
-## EPIC 8 – Sample-Apps `type:epic` `area:samples`
+## EPIC 8 – Sample apps `type:epic` `area:samples`
 
-### Console-Single-Project-Sample
+### Console single-project sample
 `type:feature` `area:samples`
-Nur Core + eigener `INotificationHandler`; Dialog per Facade durchspielen (kein ASP.NET).
+Core only + a custom `INotificationHandler`; play a dialog through via the facade (no ASP.NET).
 
-### Web-Sample (Minimal-API + Chat-UI)
+### Web sample (minimal API + chat UI)
 `type:feature` `area:samples`
-Konsumiert die Endpunkte; zeigt Resume/Edit/Branching/**Loop über Liste**/Trigger;
-Beispiel-Handler + Webhook-Empfänger.
+Consumes the endpoints; shows resume/edit/branching/**loop over a list**/triggers;
+example handler + webhook receiver.
 
 ---
 
-## EPIC 9 – Tests, CI & Publish `type:epic` `type:test`
+## EPIC 9 – Tests, CI & publish `type:epic` `type:test`
 
-### Playwright-E2E Designer
+### Playwright E2E designer
 `type:test`
-Dialog anlegen → Branching → Loop → speichern.
+Create a dialog → branching → loop → save.
 
-### Playwright-E2E Web-Sample
+### Playwright E2E web sample
 `type:test`
-Branching + Loop durchspielen, Reload→Resume, vorherige Antwort editieren.
+Play branching + loop through, reload→resume, edit a previous answer.
 
-### Coverage-Report in CI
+### Coverage report in CI
 `type:chore`
 
-### NuGet-Publish
+### NuGet publish
 `type:chore` `area:core` `area:api`
-`dotnet pack` + Push (Feed konfigurierbar: NuGet.org oder Azure Artifacts).
-- **AC:** beide Packages inkl. Symbols veröffentlicht.
+`dotnet pack` + push (feed configurable: NuGet.org or Azure Artifacts).
+- **AC:** both packages published incl. symbols.
 
 ---
 
-## EPIC 10 – Doku-Guides & ADRs `type:epic` `type:docs`
+## EPIC 10 – Doc guides & ADRs `type:epic` `type:docs`
 
-### docs/-Guides
+### docs/ guides
 `type:docs`
 `ARCHITECTURE.md`, `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `DESIGNER.md`,
 `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `TRIGGERS.md`, `NUGET-PACKAGING.md`.
 
 ### ADRs
 `type:docs`
-`docs/adr/`: Mediator, ASP.NET-freier Core, Expression-Engine, Migrationen pro Provider.
+`docs/adr/`: Mediator, ASP.NET-free core, expression engine, migrations per provider.
 
-### Root-README (Quickstart)
+### Root README (quickstart)
 `type:docs`
-Console + Web Quickstart, Snippets aus den Samples.
+Console + web quickstart, snippets from the samples.
 
 ---
 
-## EPIC 11 – Visueller Graph-Designer (Canvas) `type:epic` `area:designer` `area:core`
+## EPIC 11 – Visual graph designer (canvas) `type:epic` `area:designer` `area:core`
 
-Der Designer konfiguriert einen **Graphen**, zeigt ihn aber als Stapel Formulare – der Ablauf eines
-Dialogs ist daraus nicht ablesbar. Ziel ist eine Canvas-Ansicht mit den bestehenden Editoren als
-Inspector. Die Formular- und Listenpfade bleiben **vollständig erhalten**; der Canvas ist zusätzlich,
-nicht Ersatz. Geschnitten in sechs für sich lieferbare Stufen (#99).
+The designer configures a **graph** but shows it as a stack of forms – the flow of a
+dialog is not readable from that. The goal is a canvas view with the existing editors as the
+inspector. The form and list paths remain **fully intact**; the canvas is additional,
+not a replacement. Cut into six stages each deliverable on its own (#99).
 
-### Spike: Canvas-Technik
+### Spike: canvas technology
 `type:spike` `area:designer`
-Eigenbau-SVG gegen `Z.Blazor.Diagrams` an derselben Messlatte (30 Knoten / 45 Kanten, gedrosselter
-Circuit, Lizenz, Build unter `TreatWarningsAsErrors`). Ergebnis ist ein ADR, kein Code.
+In-house SVG against `Z.Blazor.Diagrams` on the same yardstick (30 nodes / 45 edges, a throttled
+circuit, license, build under `TreatWarningsAsErrors`). The result is an ADR, not code.
 
-### Graph-Ansicht des Dialogs (lesend)
+### Graph view of the dialog (reading)
 `type:feature` `area:designer`
-`/dialogs/{id}/graph`: Fragen als Knoten, alle Übergänge als beschriftete Kanten, Einstiegs-,
-Abschluss- und unerreichbare Fragen markiert, Schleifen als Bereich über dem `LoopAnalyzer`-Body,
-Trigger als Chips, Warnungen am betroffenen Element. Deterministisches Auto-Layout, Pan/Zoom,
-Inspector-Panel. Kein neuer Core-Code.
+`/dialogs/{id}/graph`: questions as nodes, all transitions as labeled edges, entry,
+completion and unreachable questions marked, loops as a range over the `LoopAnalyzer` body,
+triggers as chips, warnings at the affected element. Deterministic auto-layout, pan/zoom,
+inspector panel. No new core code.
 
-### Layout-Persistenz + Knoten verschieben
+### Layout persistence + moving nodes
 `type:feature` `area:core` `area:designer`
-Tabelle `DialogLayout` samt Migration für alle drei Provider, `SetDialogLayoutCommand` /
-`ResetDialogLayoutCommand` (**ohne** `DialogEditGuard` – Koordinaten berühren die Session-Semantik
-nicht), `Layout` in `DialogDetail` + Admin-Endpunkte, Klon-Zweig in `CreateDialogVersionCommand`,
-Aufräum-Zweig in `DeleteQuestionCommand`. Eigener ADR.
+Table `DialogLayout` including a migration for all three providers, `SetDialogLayoutCommand` /
+`ResetDialogLayoutCommand` (**without** `DialogEditGuard` – coordinates do not touch the session semantics),
+`Layout` in `DialogDetail` + admin endpoints, clone branch in `CreateDialogVersionCommand`,
+cleanup branch in `DeleteQuestionCommand`. Its own ADR.
 
-### Editieren auf dem Canvas
+### Editing on the canvas
 `type:feature` `area:designer`
-Fragetyp aus einer Palette ziehen, von Port zu Knoten verbinden, löschen (bestätigt), Default
-umschalten, Priorität per Reihenfolge, Schleife aus einem Zyklus erzeugen, Trigger per Kontextmenü.
-Veröffentlichter Dialog ⇒ Lesemodus (Verschieben bleibt erlaubt, ADR 0005).
+Drag a question type from a palette, connect from a port to a node, delete (confirmed), toggle the
+default, priority by order, create a loop from a cycle, triggers via a context menu.
+A published dialog ⇒ read mode (moving stays allowed, ADR 0005).
 
-### Testlauf im Graphen
+### Test run in the graph
 `type:feature` `area:designer`
-Der Test-Runner (#43) hebt den durchlaufenen Pfad hervor, zeigt die Iterationszahl am Loop-Rahmen und
-lässt Trigger aus `DesignerTriggerLog` am auslösenden Knoten aufblitzen.
+The test runner (#43) highlights the taken path, shows the iteration count on the loop frame and
+lets triggers from `DesignerTriggerLog` flash at the triggering node.
 
-### Playwright-E2E des Canvas
+### Playwright E2E of the canvas
 `type:test` `area:designer`
-Anlege-Flow, Testlauf und Lesemodus im Browser – analog #46. Der Canvas wartet auf `data-canvas-ready`
-statt auf das Wiederholmuster `InteractWhenReadyAsync` (Gesten sind nicht idempotent).
+Creation flow, test run and read mode in the browser – analogous to #46. The canvas waits for `data-canvas-ready`
+instead of the retry pattern `InteractWhenReadyAsync` (gestures are not idempotent).

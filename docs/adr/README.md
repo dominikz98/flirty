@@ -1,74 +1,74 @@
 # Architecture Decision Records (ADRs)
 
-Die Entscheidungshistorie von Flirty. Ein ADR hält **eine** Grundsatzentscheidung fest – vor allem
-das, was sonst nirgends stehen bleibt: die **verworfenen Alternativen** und ihren Grund.
+Flirty's decision history. An ADR records **one** fundamental decision – above all
+the thing that gets left nowhere else: the **discarded alternatives** and their reason.
 
-Damit ist die Abgrenzung zu den `docs/`-Guides klar: Ein **Guide beschreibt, wie etwas funktioniert**
-und wird mit dem Code fortgeschrieben. Ein **ADR beschreibt, warum es so und nicht anders ist** und
-wird nicht fortgeschrieben. Wer eine Anleitung sucht, ist im Guide richtig (Wegweiser in der
-`CLAUDE.md` im Repo-Root); wer wissen will, warum eine naheliegende Alternative *nicht* gewählt
-wurde, hier.
+This makes the boundary to the `docs/` guides clear: a **guide describes how something works**
+and is kept up to date with the code. An **ADR describes why it is this way and not otherwise** and
+is not kept up to date. Whoever is looking for an instruction is right in the guide (signpost in the
+`CLAUDE.md` in the repo root); whoever wants to know why a nearby alternative was *not* chosen,
+here.
 
-## Entscheidungen
+## Decisions
 
-| Nr. | Titel | Status | Kontext-Issue |
+| No. | Title | Status | Context issue |
 |---|---|---|---|
-| [0001](./0001-migrationen-pro-provider.md) | Migrationen pro Provider (getrennte Assemblies) | Akzeptiert | #19 |
-| [0002](./0002-mediator-als-in-process-bus.md) | Mediator (martinothamar) als In-Process-Bus | Akzeptiert | #14 |
-| [0003](./0003-aspnet-freier-core.md) | ASP.NET-freier Core, Web als opt-in-Paket | Akzeptiert | #13 |
-| [0004](./0004-gesandboxte-expression-engine.md) | Gesandboxte Expression-Engine hinter einer Abstraktion | Akzeptiert | #22/#23 |
-| [0005](./0005-unveraenderliche-veroeffentlichte-dialogversion.md) | Veröffentlichte Dialogversionen sind unveränderlich | Akzeptiert | #95 |
-| [0006](./0006-canvas-technik-im-designer.md) | Canvas-Technik im Designer: Eigenbau-SVG statt Diagramm-Bibliothek | Akzeptiert | #100 |
-| [0007](./0007-layout-als-eigene-tabelle.md) | Canvas-Layout als eigene Tabelle, mit guard-freiem Layout-Command | Akzeptiert | #102 |
-| [0008](./0008-gesten-auf-dem-canvas.md) | Editier-Gesten auf dem Canvas: bestehende Commands, Neuladen, Sperre je Geste | Akzeptiert | #103 |
+| [0001](./0001-migrations-per-provider.md) | Migrations per provider (separate assemblies) | Accepted | #19 |
+| [0002](./0002-mediator-as-in-process-bus.md) | Mediator (martinothamar) as the in-process bus | Accepted | #14 |
+| [0003](./0003-aspnet-free-core.md) | ASP.NET-free core, web as an opt-in package | Accepted | #13 |
+| [0004](./0004-sandboxed-expression-engine.md) | Sandboxed expression engine behind an abstraction | Accepted | #22/#23 |
+| [0005](./0005-immutable-published-dialog-version.md) | Published dialog versions are immutable | Accepted | #95 |
+| [0006](./0006-canvas-technology-in-the-designer.md) | Canvas technology in the designer: in-house SVG instead of a diagram library | Accepted | #100 |
+| [0007](./0007-layout-as-its-own-table.md) | Canvas layout as its own table, with a guard-free layout command | Accepted | #102 |
+| [0008](./0008-gestures-on-the-canvas.md) | Editing gestures on the canvas: existing commands, reload, lock per gesture | Accepted | #103 |
 
-Die ADRs stützen sich gegenseitig: 0002 erzwingt, dass alle Handler im Core liegen – was 0003
-(dünne, austauschbare Web-Schicht) technisch absichert. 0004 hängt an der Designer-Fähigkeit,
-Ausdrücke ohne Deployment zu ändern; 0001 daran, dass ein Paket alle drei Provider mitbringt. 0005
-ist der Nachzügler: Es macht eine Zusage einlösbar, die das Domänenmodell seit #17 nur *vorbereitet*
-hatte – und ist damit das Beispiel dafür, dass ein Guide beschreiben kann, was der Code nicht hält.
-0006 ist die Kehrseite von 0003: Weil dort der *Core* von ASP.NET freigehalten wird, darf der Designer
-umgekehrt browsernah sein – ein collocated JS-Modul im Designer verletzt keine Zusage des Pakets. Und
-es ist der einzige ADR, der auf **gemessenen** Zahlen steht statt auf einer Abwägung. 0007 zieht eine
-Grenze an 0005: Die Publish-Sperre gilt dem *Graphen*, und weil Canvas-Koordinaten in einer eigenen
-Tabelle liegen, ist der guard-freie Layout-Command keine Lücke, sondern der Rand des Geltungsbereichs.
-0005 wird dabei **nicht** umgeschrieben – seine 16 Aufrufstellen bleiben, wie sie sind. 0008 schränkt
-umgekehrt 0007 ein: Dessen „der Commit lädt nicht neu" gilt weiter, aber nur für den *Layout*-Pfad, weil
-nur dessen Command den vollständigen Stand zurückgibt – eine Graph-Änderung muss neu laden, sonst wären
-die graphweit gerechneten Warnungen eine Behauptung des Clients. Auch hier wird 0007 nicht
-umgeschrieben, sondern zitiert.
+The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
+(a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
+change expressions without a deployment; 0001 on a single package bringing all three providers along. 0005
+is the latecomer: it makes a promise redeemable that the domain model had only *prepared* since #17 –
+and is thereby the example that a guide can describe what the code does not hold. 0006 is the flip side of 0003:
+because there the *core* is kept free of ASP.NET, the designer may conversely be browser-near –
+a collocated JS module in the designer breaks no promise of the package. And
+it is the only ADR that stands on **measured** numbers instead of a trade-off. 0007 draws a
+boundary at 0005: the publish lock applies to the *graph*, and because canvas coordinates live in their own
+table, the guard-free layout command is not a gap but the edge of the scope.
+0005 is thereby **not** rewritten – its 16 call sites stay as they are. 0008 conversely restricts
+0007: its "the commit does not reload" still holds, but only for the *layout* path, because
+only its command returns the complete state – a graph change must reload, otherwise
+the graph-wide computed warnings would be a claim of the client. Here too 0007 is not
+rewritten but quoted.
 
 ## Format
 
-Vorlage ist ADR 0001; neue ADRs übernehmen die Gliederung unverändert, damit der Ordner homogen bleibt:
+The template is ADR 0001; new ADRs adopt the structure unchanged so the folder stays homogeneous:
 
 ```markdown
-# ADR NNNN – <Titel>
+# ADR NNNN – <Title>
 
-- **Status:** Akzeptiert | Abgelöst durch NNNN
-- **Kontext-Issue:** #NN – <Issue-Titel>
-- **Betroffen:** <Projekte / Pfade>
+- **Status:** Accepted | Superseded by NNNN
+- **Context issue:** #NN – <Issue title>
+- **Affected:** <Projects / paths>
 
-## Kontext                  Welches Problem stand an? Welche Zwänge galten?
-## Entscheidung             Was gilt jetzt – knapp und überprüfbar.
-## Verworfene Alternativen  Was lag nahe und warum ist es ausgeschieden?
-## Konsequenzen             Positiv / Negativ / Offen – auch das Unbequeme.
+## Context                  What problem was at hand? Which constraints applied?
+## Decision                 What holds now – concise and verifiable.
+## Discarded alternatives   What was nearby and why did it fall out?
+## Consequences             Positive / Negative / Open – including the uncomfortable.
 
 Details: [<GUIDE>.md](../<GUIDE>.md).
 ```
 
-Sprache ist **deutsch** (wie im gesamten Repo), Zeilenlänge ~100 Zeichen.
+The language is **English** (as in the whole repo), line length ~100 characters.
 
-## Pflege
+## Maintenance
 
-- **Ein ADR wird nicht umgeschrieben.** Ändert sich eine Entscheidung, bekommt der ADR entweder einen
-  kurzen **Nachtrag** (wenn nur ein „Offen"-Punkt aufgelöst wurde, siehe 0001) oder er wird durch einen
-  **neuen** ADR abgelöst; der alte behält seinen Text und wechselt den Status auf
-  `Abgelöst durch NNNN`. Der Wert eines ADRs liegt darin, den Stand zum Entscheidungszeitpunkt zu
-  zeigen – ein rückwirkend geglätteter ADR beantwortet die Frage „warum eigentlich?" nicht mehr.
-- **Nummern werden fortlaufend vergeben und nie neu verteilt.** 0001 bleibt 0001, obwohl die
-  Entscheidung chronologisch nach #13/#14 fiel: Auf die Datei verweisen `CLAUDE.md`,
-  [PERSISTENCE.md](../PERSISTENCE.md) und `.claude/skills/flirty-ef-migration/SKILL.md`.
-- **Nicht jede Änderung braucht einen ADR.** Ein ADR lohnt, wenn eine naheliegende Alternative
-  bewusst ausgeschieden ist und die Entscheidung später teuer zu revidieren wäre. Alles andere
-  gehört in den zuständigen Guide.
+- **An ADR is not rewritten.** If a decision changes, the ADR either gets a
+  short **addendum** (when only an "Open" point was resolved, see 0001) or it is superseded by a
+  **new** ADR; the old one keeps its text and switches its status to
+  `Superseded by NNNN`. The value of an ADR lies in showing the state at the time of the decision –
+  a retroactively smoothed ADR no longer answers the question "why, actually?".
+- **Numbers are assigned consecutively and never reassigned.** 0001 stays 0001, even though the
+  decision fell chronologically after #13/#14: the file is pointed at by `CLAUDE.md`,
+  [PERSISTENCE.md](../PERSISTENCE.md) and `.claude/skills/flirty-ef-migration/SKILL.md`.
+- **Not every change needs an ADR.** An ADR is worth it when a nearby alternative was
+  deliberately ruled out and the decision would be expensive to revise later. Everything else
+  belongs in the responsible guide.

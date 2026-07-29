@@ -1,30 +1,29 @@
-# Dialog-Runtime: Start, Resume, Submit & Edit
+# Dialog Runtime: Start, Resume, Submit & Edit
 
-Wie eine Host-App einen Dialog zur Laufzeit **startet** bzw. eine laufende Session **fortsetzt**
-(Resume), wie sie **Antworten einreicht** (Submit) – wodurch der Dialog per Branching bis zum
-Abschluss durchlaufen wird –, wie sie den **aktuellen Session-Zustand samt bisheriger Antworten
-liest** (`ResumeDialogQuery`) und wie sie eine **frühere Antwort editiert** (Edit) – wodurch der
-nachgelagerte Pfad neu berechnet/invalidiert wird. Umgesetzt in den Issues **#25** (Start/Resume),
-**#26** (Submit), **#27** (Zustand lesen) und **#28** (Editieren) – EPIC 3 – Dialog-Runtime.
-Referenz: [ARCHITECTURE.md](./ARCHITECTURE.md)
-§6/§7, Mediator-Grundlagen in
-[MEDIATOR.md](./MEDIATOR.md), Branching/Ausdrücke in
-[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), Schleifen in
-[LOOPS.md](./LOOPS.md), Repository in
+How a host app **starts** a dialog at runtime or **resumes** a running session (Resume), how it
+**submits answers** (Submit) – whereby the dialog is run to completion via branching –, how it
+**reads the current session state including the answers given so far** (`ResumeDialogQuery`) and how it
+**edits an earlier answer** (Edit) – whereby the downstream path is recomputed/invalidated. Implemented
+in issues **#25** (Start/Resume), **#26** (Submit), **#27** (read state) and **#28** (edit) – EPIC 3 –
+Dialog Runtime. Reference: [ARCHITECTURE.md](./ARCHITECTURE.md)
+§6/§7, Mediator basics in
+[MEDIATOR.md](./MEDIATOR.md), branching/expressions in
+[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md), loops in
+[LOOPS.md](./LOOPS.md), repository in
 [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21).
 
-## Überblick
+## Overview
 
-Alle Engine-Operationen sind **Mediator-Commands/Queries** und laufen durch die Basis-Pipeline
-(Logging + Validierung). Host-Apps haben zwei gleichwertige Wege:
+All engine operations are **Mediator commands/queries** and run through the base pipeline
+(logging + validation). Host apps have two equivalent paths:
 
-- **Facade `IFlirtyEngine`** – bequeme, typisierte Methoden; kapselt `ISender`.
-- **`ISender.Send(...)` direkt** – volle Kontrolle über die Pipeline (eigene Behaviors/Notifications).
+- **Facade `IFlirtyEngine`** – convenient, typed methods; encapsulates `ISender`.
+- **`ISender.Send(...)` directly** – full control over the pipeline (custom behaviors/notifications).
 
-`IFlirtyEngine` wird von `AddFlirty()` als `ServiceLifetime.Scoped` registriert (gleiche Lebensdauer
-wie Mediator und `IDialogStore`).
+`IFlirtyEngine` is registered by `AddFlirty()` as `ServiceLifetime.Scoped` (same lifetime
+as the Mediator and `IDialogStore`).
 
-## IFlirtyEngine-Facade
+## IFlirtyEngine facade
 
 ```csharp
 public interface IFlirtyEngine
@@ -47,9 +46,9 @@ public interface IFlirtyEngine
 }
 ```
 
-Die Facade wächst in den Folge-Issues additiv. Aktuell bietet sie den Dialog-Start (#25), den Start einer
-konkreten Dialogversion (#43), das Einreichen von Antworten (#26), das Lesen des Session-Zustands (#27)
-und das Editieren einer früheren Antwort (#28).
+The facade grows additively across the follow-up issues. Currently it offers the dialog start (#25), the
+start of a specific dialog version (#43), submitting answers (#26), reading the session state (#27)
+and editing an earlier answer (#28).
 
 ## StartDialogCommand
 
@@ -59,19 +58,19 @@ public sealed record StartDialogCommand(
     [property: Required] string ExternalUserKey) : ICommand<StartDialogResult>;
 ```
 
-- `DialogKey` – fachlicher, stabiler Schlüssel des Dialogs (die **höchste veröffentlichte** Version
-  wird gestartet).
-- `ExternalUserKey` – fachlicher Anwenderschlüssel der Host-App (z. B. Benutzer-Id).
-- Beide sind `[Required]`; leere/`null`-Werte werden vom `ValidationPipelineBehavior` mit einer
-  `ValidationException` abgewiesen, bevor der Handler läuft.
+- `DialogKey` – the stable business key of the dialog (the **highest published** version
+  is started).
+- `ExternalUserKey` – the host app's business user key (e.g. a user id).
+- Both are `[Required]`; empty/`null` values are rejected by the `ValidationPipelineBehavior` with a
+  `ValidationException` before the handler runs.
 
-> Einen optionalen `seed?` (initiale Ausdruckskontext-Werte) gibt es **bewusst nicht**: Die
-> Transition-Auswertung (siehe unten) speist ihren `ExpressionContext` ausschließlich aus den
-> persistierten Antworten der Session; für vorbelegte Startwerte gibt es keinen Speicherort im Modell.
-> Wer Kontext von außen braucht, stellt ihn als beantwortete Frage voran oder tauscht den
-> `IExpressionEvaluator` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md#di-integration--austausch-34)).
+> An optional `seed?` (initial expression-context values) **deliberately does not exist**: the
+> transition evaluation (see below) feeds its `ExpressionContext` exclusively from the
+> persisted answers of the session; there is no storage location in the model for pre-filled start values.
+> Whoever needs context from the outside puts it up front as an answered question or swaps the
+> `IExpressionEvaluator` (see [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md#di-integration--replacement-34)).
 
-### Ergebnis
+### Result
 
 ```csharp
 public sealed record StartDialogResult(Guid SessionId, bool IsResumed, QuestionView CurrentQuestion);
@@ -82,56 +81,56 @@ public sealed record QuestionView(
 public sealed record AnswerOptionView(Guid Id, string Key, string Label, string Value);
 ```
 
-- `IsResumed` unterscheidet Neu-Start (`false`) von Resume (`true`).
-- `CurrentQuestion` ist eine schlanke, navigationsfreie Sicht auf die aktuell offene Frage inkl. ihrer
-  Optionen (in `Order`-Reihenfolge) – die Host-App muss den Konfigurationsgraphen nicht kennen.
+- `IsResumed` distinguishes a fresh start (`false`) from a resume (`true`).
+- `CurrentQuestion` is a slim, navigation-free view of the currently open question incl. its
+  options (in `Order` order) – the host app does not need to know the configuration graph.
 
-## Start vs. Resume – Ablauf
+## Start vs. Resume – flow
 
-Der Handler nutzt ausschließlich `IDialogStore`:
+The handler uses `IDialogStore` exclusively:
 
-1. **Dialog auflösen:** `GetPublishedDialogAsync(dialogKey)` lädt die höchste veröffentlichte Version
-   samt Graph. Fehlt sie, wirft der Handler `DialogNotFoundException`.
-2. **Resume-oder-Neu-Entscheid:** `FindActiveSessionAsync(dialog.Id, externalUserKey)` sucht die
-   zuletzt gestartete laufende (`InProgress`) Session.
-   - **Treffer → Resume:** die bestehende Session wird zurückgegeben (`IsResumed = true`), es wird
-     **keine** neue Session angelegt.
-   - **Kein Treffer → Neu-Start:** eine neue `DialogSession` wird angelegt (`Status = InProgress`,
-     `CurrentQuestionId = dialog.StartQuestionId`, `DialogVersion` gepinnt, `StartedAt = UtcNow`),
-     via `AddSession` + `SaveChangesAsync` persistiert (`IsResumed = false`).
-3. **Aktuelle Frage:** wird aus dem geladenen Dialog-Graphen projiziert.
+1. **Resolve dialog:** `GetPublishedDialogAsync(dialogKey)` loads the highest published version
+   including its graph. If it is missing, the handler throws `DialogNotFoundException`.
+2. **Resume-or-fresh decision:** `FindActiveSessionAsync(dialog.Id, externalUserKey)` looks for the
+   most recently started running (`InProgress`) session.
+   - **Hit → Resume:** the existing session is returned (`IsResumed = true`), **no**
+     new session is created.
+   - **No hit → fresh start:** a new `DialogSession` is created (`Status = InProgress`,
+     `CurrentQuestionId = dialog.StartQuestionId`, `DialogVersion` pinned, `StartedAt = UtcNow`),
+     persisted via `AddSession` + `SaveChangesAsync` (`IsResumed = false`).
+3. **Current question:** is projected from the loaded dialog graph.
 
-### Versions-Pinning
+### Version pinning
 
-`FindActiveSessionAsync` filtert auf die exakte `dialog.Id` – also die **aktuell veröffentlichte**
-Version. Resume gilt damit nur innerhalb dieser Version: Wird eine neue Dialogversion veröffentlicht,
-findet der nächste Start-Aufruf die auf die alte Version gepinnte Session nicht und beginnt eine neue
-Session auf der neuen Version. Eine bereits laufende Session bleibt an **ihre** Version gebunden und
-läuft dort zu Ende – Submit/Resume/Edit laden ihren Graphen über die gepinnte `DialogId`.
+`FindActiveSessionAsync` filters on the exact `dialog.Id` – i.e. the **currently published**
+version. Resume therefore applies only within this version: when a new dialog version is published,
+the next start call does not find the session pinned to the old version and begins a new
+session on the new version. An already running session stays bound to **its** version and
+runs to completion there – Submit/Resume/Edit load their graph via the pinned `DialogId`.
 
-Damit diese Zusage hält, sind zwei Regeln im Admin-CRUD nötig (beide seit
-[ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md)):
+For this promise to hold, two rules are needed in the admin CRUD (both since
+[ADR 0005](./adr/0005-immutable-published-dialog-version.md)):
 
-1. **Eine veröffentlichte Version ist unveränderlich.** Jede Änderung an ihrem Graphen (Fragen,
-   Antwortoptionen, Übergänge, Schleifen-Marker, Trigger, Einstiegsfrage) wird mit
-   `DialogPublishedException` → **409** abgelehnt. Sonst schlüge sie sofort in die laufenden Sessions
-   durch: Sie pinnen die Version, laden aber dieselbe Zeile, die das CRUD verändert.
-2. **Weiterentwickelt wird über eine neue Version** – `CreateDialogVersionCommand` klont den Graphen als
-   Entwurf mit der nächsten Versionsnummer. `PublishDialogCommand` zieht die bisher produktive Version
-   desselben Schlüssels dabei zurück, sodass je Schlüssel höchstens eine Version veröffentlicht ist.
+1. **A published version is immutable.** Every change to its graph (questions,
+   answer options, transitions, loop markers, triggers, entry question) is rejected with
+   `DialogPublishedException` → **409**. Otherwise it would immediately propagate into the running sessions:
+   they pin the version but load the same row that the CRUD changes.
+2. **Evolution happens via a new version** – `CreateDialogVersionCommand` clones the graph as a
+   draft with the next version number. `PublishDialogCommand` retires the previously productive version
+   of the same key in doing so, so that at most one version per key is published.
 
-> **Was die Zusage nicht abdeckt:** Wird eine Version **gelöscht**, während Sessions darauf laufen,
-> fehlt ihnen ihr Graph – jeder Zugriff endet im Konflikt. Deshalb lehnt `DeleteDialogCommand` das
-> Löschen ab, solange Sessions mit `InProgress` existieren, und
-> `AbandonDialogSessionsCommand` beendet sie auf Wunsch vorher (Status `Abandoned`, Antworten bleiben).
+> **What the promise does not cover:** if a version is **deleted** while sessions are running on it,
+> their graph is missing – every access ends in a conflict. That is why `DeleteDialogCommand` rejects
+> deletion as long as sessions with `InProgress` exist, and
+> `AbandonDialogSessionsCommand` ends them beforehand on request (status `Abandoned`, answers remain).
 
-### Fehlerfälle
+### Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Kein veröffentlichter Dialog zum Schlüssel | `DialogNotFoundException` (trägt den `DialogKey`) |
-| Veröffentlichter Dialog ohne `StartQuestionId` | `InvalidOperationException` (Fehlkonfiguration) |
-| Leerer/`null` `DialogKey`/`ExternalUserKey` | `ValidationException` (aus der Pipeline) |
+| No published dialog for the key | `DialogNotFoundException` (carries the `DialogKey`) |
+| Published dialog without `StartQuestionId` | `InvalidOperationException` (misconfiguration) |
+| Empty/`null` `DialogKey`/`ExternalUserKey` | `ValidationException` (from the pipeline) |
 
 ## StartDialogVersionCommand (#43)
 
@@ -141,32 +140,31 @@ public sealed record StartDialogVersionCommand(
     [property: Required] string ExternalUserKey) : ICommand<StartDialogResult>;
 ```
 
-Startet eine **konkrete Dialogversion – unabhängig vom Veröffentlichungsstatus**. Gegenstück zum
-`StartDialogCommand`, der bewusst nur die höchste *veröffentlichte* Version eines fachlichen Schlüssels
-startet.
+Starts a **specific dialog version – regardless of publication status**. Counterpart to the
+`StartDialogCommand`, which deliberately starts only the highest *published* version of a business key.
 
-Der Handler ist bis auf die Auflösung identisch: statt `GetPublishedDialogAsync(key)` nutzt er
-`GetDialogAsync(dialogId)`. Alles Weitere – Resume-oder-Neu-Entscheid über
-`FindActiveSessionAsync(dialog.Id, externalUserKey)`, Versions-Pinning, `DialogStartedNotification` nur
-beim echten Neu-Start – bleibt gleich. Das funktioniert ohne Sonderpfad, weil die Session ihre
-`DialogId` pinnt und Resume/Submit/Edit ihre Dialogversion ohnehin über das
-veröffentlichungs-**un**abhängige `GetDialogAsync` laden.
+The handler is identical except for the resolution: instead of `GetPublishedDialogAsync(key)` it uses
+`GetDialogAsync(dialogId)`. Everything else – the resume-or-fresh decision via
+`FindActiveSessionAsync(dialog.Id, externalUserKey)`, version pinning, `DialogStartedNotification` only
+on a genuine fresh start – stays the same. This works without a special path because the session pins its
+`DialogId` and Resume/Submit/Edit load their dialog version via the publication-**in**dependent
+`GetDialogAsync` anyway.
 
-**Anwendungsfall:** Vorschau und Test vor dem Veröffentlichen – konkret der Test-Runner des Designers
-(siehe [DESIGNER.md](./DESIGNER.md#test-runner-43)).
+**Use case:** preview and test before publishing – concretely the designer's test runner
+(see [DESIGNER.md](./DESIGNER.md#test-runner-43)).
 
-### Fehlerfälle
+### Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Keine Dialogversion mit dieser Id | `ConfigurationNotFoundException` |
-| Dialog ohne `StartQuestionId` | `InvalidOperationException` (Fehlkonfiguration) |
-| Leerer/`null` `ExternalUserKey` | `ValidationException` (aus der Pipeline) |
+| No dialog version with this id | `ConfigurationNotFoundException` |
+| Dialog without `StartQuestionId` | `InvalidOperationException` (misconfiguration) |
+| Empty/`null` `ExternalUserKey` | `ValidationException` (from the pipeline) |
 
-> **Bewusst ohne HTTP-Endpunkt.** In `Flirty.AspNetCore` ist der Publish-Status die Produktionsschranke:
-> Über HTTP lassen sich nur veröffentlichte Dialoge starten. Das Umgehen bleibt In-Process-Aufrufern
-> (Designer, Worker, Tests) vorbehalten. Wer den Command in einer eigenen Host-App exponiert, führt die
-> Schranke selbst wieder ein.
+> **Deliberately without an HTTP endpoint.** In `Flirty.AspNetCore` the publish status is the production
+> barrier: over HTTP only published dialogs can be started. Bypassing it remains reserved for in-process
+> callers (designer, worker, tests). Whoever exposes the command in their own host app reintroduces the
+> barrier themselves.
 
 ## SubmitAnswerCommand
 
@@ -177,75 +175,75 @@ public sealed record SubmitAnswerCommand(
     [property: Required] string Value) : ICommand<SubmitAnswerResult>;
 ```
 
-- `SessionId` – die laufende Session, in der geantwortet wird.
-- `QuestionId` – die zu beantwortende Frage; muss der aktuell offenen Frage
-  (`DialogSession.CurrentQuestionId`) entsprechen. Das Bearbeiten früherer Antworten ist dem
-  `EditAnswerCommand` (#28) vorbehalten.
-- `Value` – der Antwortwert als **roher JSON-Text** (Format abhängig vom Fragetyp, z. B. der
-  `AnswerOption.Value` einer Auswahl als JSON-String `"\"dev\""`).
+- `SessionId` – the running session in which the answer is given.
+- `QuestionId` – the question to be answered; must correspond to the currently open question
+  (`DialogSession.CurrentQuestionId`). Editing earlier answers is reserved for the
+  `EditAnswerCommand` (#28).
+- `Value` – the answer value as **raw JSON text** (format depends on the question type, e.g. an
+  option's `AnswerOption.Value` as the JSON string `"\"dev\""`).
 
-> `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
-> `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
-> Handler behandelt (Session-Lookup schlägt fehl bzw. Frage ≠ aktuelle Frage). Die typisierte,
-> regelbasierte Antwort-Validierung (`IAnswerValidator` + `ValidationRules`) greift zusätzlich über das
-> `AnswerValidationPipelineBehavior` **vor** dem Handler (#30, siehe [VALIDATION.md](./VALIDATION.md)).
+> `[Required]` only rejects `null`/empty `Value` via the `ValidationPipelineBehavior`; for the
+> `Guid` fields it does not catch `Guid.Empty` (value type). Empty/wrong ids are handled at the business
+> level in the handler (session lookup fails or question ≠ current question). The typed,
+> rule-based answer validation (`IAnswerValidator` + `ValidationRules`) additionally kicks in via the
+> `AnswerValidationPipelineBehavior` **before** the handler (#30, see [VALIDATION.md](./VALIDATION.md)).
 
-### Ergebnis
+### Result
 
 ```csharp
 public sealed record SubmitAnswerResult(Guid SessionId, bool IsCompleted, QuestionView? NextQuestion);
 ```
 
-- `IsCompleted` – `true`, wenn der Dialog mit dieser Antwort abgeschlossen wurde.
-- `NextQuestion` – die als Nächstes zu präsentierende Frage (dieselbe schlanke `QuestionView` wie bei
-  `StartDialogCommand`) bzw. `null` bei Abschluss.
+- `IsCompleted` – `true` when the dialog was completed with this answer.
+- `NextQuestion` – the question to present next (the same slim `QuestionView` as with
+  `StartDialogCommand`) or `null` on completion.
 
-### Ablauf
+### Flow
 
-Der Handler nutzt `IDialogStore` (getrackte Session) und `IExpressionEvaluator` (Transitions):
+The handler uses `IDialogStore` (tracked session) and `IExpressionEvaluator` (transitions):
 
-1. **Session laden:** `GetSessionAsync(sessionId)` (getrackt, inkl. Antworten). Fehlt sie, wirft der
-   Handler `SessionNotFoundException`.
-2. **Vorbedingungen:** Die Session muss `InProgress` sein und `QuestionId` der aktuell offenen Frage
-   entsprechen; sonst `InvalidOperationException`.
-3. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session
-   gepinnte Version samt Graph.
-4. **Antwort persistieren:** ein neuer `SessionAnswer` wird an die getrackte Session angehängt
-   (`Value`, `AnsweredAt = UtcNow`, fortlaufende `Sequence`) – die `Id` wird **nicht** vorbelegt
-   (store-generiert; vgl. [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)). Liegt die Frage
-   in einem Schleifen-Bereich, werden zusätzlich `LoopInstanceId`/`IterationIndex` gesetzt (#29, siehe
-   [LOOPS.md](./LOOPS.md)); außerhalb einer Schleife bleiben beide `null`.
-5. **Transition-Auswertung:** Die ausgehenden Übergänge der Frage werden nach `Priority` geordnet;
-   der erste bedingte Übergang, dessen Ausdruck über den `IExpressionEvaluator` zutrifft, gewinnt,
-   sonst greift der als `IsDefault` markierte. Ein `null`er/leerer `Expression` gilt als bedingungslos
-   zutreffend (Kurzschluss in der Runtime). Der `ExpressionContext` wird aus den bisherigen Antworten
-   der Session gebildet (je Frage die zuletzt gegebene Antwort, indiziert nach `Question.Key`); seit der
-   Loop-Runtime (#29) füllt der geteilte `TransitionResolver` zusätzlich die je Iteration gesammelten
-   Loop-Collections und den `iterationIndex` (siehe [LOOPS.md](./LOOPS.md)), sodass Break-Bedingungen wie
-   `positions.Count > 0` greifen.
-6. **Weiterschalten oder Abschluss:**
-   - **Kein ausgehender Übergang** → Abschluss: `Status = Completed`, `CompletedAt = UtcNow`,
+1. **Load session:** `GetSessionAsync(sessionId)` (tracked, incl. answers). If it is missing, the
+   handler throws `SessionNotFoundException`.
+2. **Preconditions:** the session must be `InProgress` and `QuestionId` must correspond to the currently
+   open question; otherwise `InvalidOperationException`.
+3. **Load pinned dialog:** `GetDialogAsync(session.DialogId)` delivers the version pinned by the session
+   including its graph.
+4. **Persist answer:** a new `SessionAnswer` is appended to the tracked session
+   (`Value`, `AnsweredAt = UtcNow`, consecutive `Sequence`) – the `Id` is **not** pre-set
+   (store-generated; cf. [PERSISTENCE.md](./PERSISTENCE.md#idialogstore-repository-21)). If the question
+   lies within a loop range, `LoopInstanceId`/`IterationIndex` are additionally set (#29, see
+   [LOOPS.md](./LOOPS.md)); outside a loop both stay `null`.
+5. **Transition evaluation:** the outgoing transitions of the question are ordered by `Priority`;
+   the first conditional transition whose expression evaluates true via the `IExpressionEvaluator` wins,
+   otherwise the one marked as `IsDefault` takes effect. A `null`/empty `Expression` counts as
+   unconditionally matching (short circuit in the runtime). The `ExpressionContext` is built from the
+   answers given so far in the session (per question the answer given last, indexed by `Question.Key`);
+   since the loop runtime (#29) the shared `TransitionResolver` additionally fills the loop collections
+   gathered per iteration and the `iterationIndex` (see [LOOPS.md](./LOOPS.md)), so that break conditions like
+   `positions.Count > 0` take effect.
+6. **Advance or complete:**
+   - **No outgoing transition** → completion: `Status = Completed`, `CompletedAt = UtcNow`,
      `CurrentQuestionId = null`.
-   - **Greifender Übergang** → `CurrentQuestionId` = dessen `TargetQuestionId`.
-7. **Speichern:** `SaveChangesAsync()` (Unit-of-Work-Naht).
+   - **Matching transition** → `CurrentQuestionId` = its `TargetQuestionId`.
+7. **Save:** `SaveChangesAsync()` (unit-of-work seam).
 
 > **Notifications** (`AnswerSubmittedNotification`, `QuestionAnsweredNotification`,
-> `DialogCompletedNotification`) publiziert der Handler seit **#31** nach dem Speichern:
-> `AnswerSubmitted` nach dem Persistieren der Antwort, `QuestionAnswered` mit dem Übergangs-Ergebnis und –
-> bei Abschluss – zusätzlich `DialogCompleted`. Details und das vollständige Scope-Mapping in
+> `DialogCompletedNotification`) are published by the handler since **#31** after saving:
+> `AnswerSubmitted` after persisting the answer, `QuestionAnswered` with the transition result and –
+> on completion – additionally `DialogCompleted`. Details and the full scope mapping in
 > [TRIGGERS.md](./TRIGGERS.md).
 
-### Fehlerfälle
+### Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
-| Session nicht `InProgress` (abgeschlossen/abgebrochen) | `InvalidOperationException` |
-| `QuestionId` ≠ aktuell offene Frage | `InvalidOperationException` |
-| Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
-| Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
-| `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
-| `Value` passt nicht zu Typ/Regeln der Frage | `AnswerValidationException` (aus dem `AnswerValidationPipelineBehavior`, #30, siehe [VALIDATION.md](./VALIDATION.md)) |
+| No session for the `SessionId` | `SessionNotFoundException` (carries the `SessionId`) |
+| Session not `InProgress` (completed/abandoned) | `InvalidOperationException` |
+| `QuestionId` ≠ currently open question | `InvalidOperationException` |
+| Transitions present, none matches **and** no default | `InvalidOperationException` (misconfiguration) |
+| Matching transition points to an unknown target question | `InvalidOperationException` (misconfiguration) |
+| `null`/empty `Value` | `ValidationException` (from the pipeline) |
+| `Value` does not match the question's type/rules | `AnswerValidationException` (from the `AnswerValidationPipelineBehavior`, #30, see [VALIDATION.md](./VALIDATION.md)) |
 
 ## ResumeDialogQuery
 
@@ -254,18 +252,18 @@ public sealed record ResumeDialogQuery(
     [property: Required] Guid SessionId) : IQuery<ResumeDialogResult>;
 ```
 
-- `SessionId` – die auszulesende Session. Die Query ist **rein lesend** (kein `SaveChangesAsync`) und
-  verändert die Session nicht.
-- Erste `IQuery` des Projekts; sie durchläuft dieselbe Pipeline (Logging + Validierung) wie die
-  Commands. `[Required]` greift bei `Guid` (Werttyp) nicht gegen `Guid.Empty` – eine unbekannte Id wird
-  fachlich im Handler mit `SessionNotFoundException` behandelt.
+- `SessionId` – the session to read out. The query is **purely reading** (no `SaveChangesAsync`) and
+  does not change the session.
+- The project's first `IQuery`; it runs through the same pipeline (logging + validation) as the
+  commands. `[Required]` does not catch `Guid.Empty` for `Guid` (value type) – an unknown id is
+  handled at the business level in the handler with `SessionNotFoundException`.
 
-> **Abgrenzung zum Resume von #25:** Das *Resume-oder-Neu* einer Session je Anwender (per `dialogKey`
-> + `externalUserKey`) leistet weiterhin `StartDialogCommand`. `ResumeDialogQuery` ist das rein lesende
-> Gegenstück: „gegeben eine `SessionId`, gib mir Zustand + bisherige Antworten" – z. B. um eine
-> Befragung nach einem Reload der Host-App wiederherzustellen.
+> **Delimitation from the Resume of #25:** the *resume-or-fresh* of a session per user (by `dialogKey`
+> + `externalUserKey`) is still done by `StartDialogCommand`. `ResumeDialogQuery` is the purely reading
+> counterpart: "given a `SessionId`, give me the state + the answers given so far" – e.g. to restore a
+> survey after a reload of the host app.
 
-### Ergebnis
+### Result
 
 ```csharp
 public sealed record ResumeDialogResult(
@@ -279,35 +277,35 @@ public sealed record SessionAnswerView(
     Guid? LoopInstanceId, int? IterationIndex);
 ```
 
-- `Status` – der Domain-Status der Session (`InProgress`/`Completed`/`Abandoned`), direkt durchgereicht.
-- `CurrentQuestion` – die aktuell offene Frage (dieselbe schlanke `QuestionView` wie bei Start/Submit)
-  bzw. `null`, wenn die Session keine offene Frage mehr hat (abgeschlossen/abgebrochen).
-- `Answers` – die bisher gegebenen Antworten in aufsteigender `Sequence` (chronologisch); je Antwort
-  wird der fachliche `QuestionKey` aus der gepinnten Dialogversion aufgelöst. Der `Value` ist der
-  gespeicherte rohe JSON-Text. Seit der Loop-Runtime (#29) trägt die Sicht zusätzlich `LoopInstanceId`
-  und `IterationIndex` (beide `null` außerhalb einer Schleife), damit Host-Apps die gesammelten
-  Iterationen darstellen können (siehe [LOOPS.md](./LOOPS.md)).
+- `Status` – the domain status of the session (`InProgress`/`Completed`/`Abandoned`), passed through directly.
+- `CurrentQuestion` – the currently open question (the same slim `QuestionView` as with start/submit)
+  or `null` when the session no longer has an open question (completed/abandoned).
+- `Answers` – the answers given so far in ascending `Sequence` (chronological); per answer
+  the business `QuestionKey` is resolved from the pinned dialog version. The `Value` is the
+  stored raw JSON text. Since the loop runtime (#29) the view additionally carries `LoopInstanceId`
+  and `IterationIndex` (both `null` outside a loop), so that host apps can display the gathered
+  iterations (see [LOOPS.md](./LOOPS.md)).
 
-### Ablauf
+### Flow
 
-Der Handler nutzt ausschließlich `IDialogStore` (lesend):
+The handler uses `IDialogStore` exclusively (reading):
 
-1. **Session laden:** `GetSessionAsync(sessionId)` (inkl. Antworten). Fehlt sie, wirft der Handler
+1. **Load session:** `GetSessionAsync(sessionId)` (incl. answers). If it is missing, the handler throws
    `SessionNotFoundException`.
-2. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session gepinnte
-   Version samt Graph (für die Auflösung der fachlichen Frage-Schlüssel und die Frage-Projektion).
-3. **Antworten projizieren:** je `SessionAnswer` → `SessionAnswerView` (Schlüssel via Dialog-Graph),
-   aufsteigend nach `Sequence`.
-4. **Aktuelle Frage projizieren:** hat die Session eine `CurrentQuestionId`, wird die Frage aus dem
-   Graphen projiziert; sonst `null`.
+2. **Load pinned dialog:** `GetDialogAsync(session.DialogId)` delivers the version pinned by the session
+   including its graph (for resolving the business question keys and the question projection).
+3. **Project answers:** per `SessionAnswer` → `SessionAnswerView` (key via the dialog graph),
+   ascending by `Sequence`.
+4. **Project current question:** if the session has a `CurrentQuestionId`, the question is projected from
+   the graph; otherwise `null`.
 
-### Fehlerfälle
+### Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
-| Gepinnte Dialogversion existiert nicht mehr | `InvalidOperationException` |
-| Aktuelle Frage nicht im Dialog-Graphen | `InvalidOperationException` (Fehlkonfiguration) |
+| No session for the `SessionId` | `SessionNotFoundException` (carries the `SessionId`) |
+| Pinned dialog version no longer exists | `InvalidOperationException` |
+| Current question not in the dialog graph | `InvalidOperationException` (misconfiguration) |
 
 ## EditAnswerCommand
 
@@ -319,83 +317,82 @@ public sealed record EditAnswerCommand(
     int? IterationIndex = null) : ICommand<EditAnswerResult>;
 ```
 
-- `SessionId` – die Session, deren Antwort editiert wird.
-- `QuestionId` – die Frage, deren bereits gegebene Antwort überschrieben werden soll. Sie muss zum
-  gepinnten Dialog gehören und in dieser Session **bereits beantwortet** worden sein; anders als bei
-  `SubmitAnswerCommand` muss sie **nicht** die aktuell offene Frage sein (Zurückspringen).
-- `Value` – der neue Antwortwert als **roher JSON-Text** (Format abhängig vom Fragetyp).
-- `IterationIndex` – optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die
-  Antwort einer bestimmten Iteration zu editieren (#29, siehe [LOOPS.md](./LOOPS.md)). `null` editiert –
-  wie außerhalb von Schleifen – die früheste Antwort der Frage (Iteration 0 bei einer Loop-Frage).
+- `SessionId` – the session whose answer is edited.
+- `QuestionId` – the question whose already-given answer is to be overwritten. It must belong to the
+  pinned dialog and **already have been answered** in this session; unlike with
+  `SubmitAnswerCommand` it does **not** have to be the currently open question (jumping back).
+- `Value` – the new answer value as **raw JSON text** (format depends on the question type).
+- `IterationIndex` – optional zero-based iteration index to edit, within a loop, the answer of a
+  specific iteration in a targeted way (#29, see [LOOPS.md](./LOOPS.md)). `null` edits –
+  as outside loops – the earliest answer of the question (iteration 0 for a loop question).
 
-> `[Required]` weist über das `ValidationPipelineBehavior` nur `null`/leeres `Value` ab; bei den
-> `Guid`-Feldern greift es nicht gegen `Guid.Empty` (Werttyp). Leere/falsche Ids werden fachlich im
-> Handler behandelt.
+> `[Required]` only rejects `null`/empty `Value` via the `ValidationPipelineBehavior`; for the
+> `Guid` fields it does not catch `Guid.Empty` (value type). Empty/wrong ids are handled at the business
+> level in the handler.
 
-### Ergebnis
+### Result
 
 ```csharp
 public sealed record EditAnswerResult(
     Guid SessionId, bool IsCompleted, QuestionView? NextQuestion, int InvalidatedAnswers);
 ```
 
-- `IsCompleted` – `true`, wenn der Dialog nach der Neuberechnung abgeschlossen ist (die editierte Frage
-  ist terminal).
-- `NextQuestion` – die nach der Neuberechnung als Nächstes zu präsentierende Frage (dieselbe schlanke
-  `QuestionView`) bzw. `null` bei Abschluss.
-- `InvalidatedAnswers` – Anzahl der wegen der Editierung verworfenen nachgelagerten Antworten.
+- `IsCompleted` – `true` when the dialog is completed after the recomputation (the edited question
+  is terminal).
+- `NextQuestion` – the question to present next after the recomputation (the same slim
+  `QuestionView`) or `null` on completion.
+- `InvalidatedAnswers` – the number of downstream answers discarded because of the edit.
 
-### Ablauf
+### Flow
 
-Der Handler nutzt `IDialogStore` (getrackte Session) und – über den gemeinsamen `TransitionResolver` –
-den `IExpressionEvaluator` (Transitions). Mentales Modell: **„nachgelagerten Pfad abschneiden + die
-editierte Frage mit neuem Wert neu einreichen".**
+The handler uses `IDialogStore` (tracked session) and – via the shared `TransitionResolver` –
+the `IExpressionEvaluator` (transitions). Mental model: **"cut off the downstream path + re-submit the
+edited question with the new value."**
 
-1. **Session laden:** `GetSessionAsync(sessionId)` (getrackt, inkl. Antworten). Fehlt sie, wirft der
-   Handler `SessionNotFoundException`.
-2. **Vorbedingung:** Die Session darf **nicht** abgebrochen (`Abandoned`) sein; laufende **und**
-   abgeschlossene Sessions sind editierbar (nachträgliche Korrektur). Sonst `InvalidOperationException`.
-3. **Gepinnten Dialog laden:** `GetDialogAsync(session.DialogId)` liefert die von der Session gepinnte
-   Version samt Graph; die Frage muss zum Dialog gehören.
-4. **Ziel-Antwort finden:** ohne `IterationIndex` die (früheste) Antwort auf `QuestionId` in der Session;
-   mit `IterationIndex` gezielt die Antwort dieser Iteration (Loop). Wurde die Frage (bzw. die angegebene
-   Iteration) noch nicht beantwortet, wirft der Handler `InvalidOperationException` (es gibt nichts zu
-   editieren).
-5. **Überschreiben:** der `Value` der Ziel-Antwort wird ersetzt und `AnsweredAt = UtcNow` gesetzt; die
-   `Sequence` bleibt erhalten.
-6. **Invalidieren:** alle nachgelagerten Antworten (höhere `Sequence` als die editierte) werden aus der
-   getrackten Session entfernt und beim Speichern gelöscht (Cascade-/Orphan-Delete). Es gibt bewusst
-   **kein** Validity-Flag – der Pfad ist implizit, invalidierte Antworten werden hart gelöscht.
-7. **Pfad neu berechnen:** ausgehend von der editierten Frage werden die Übergänge über den
-   `TransitionResolver` neu ausgewertet (der Kontext sieht nun den überschriebenen Wert und **keine**
-   nachgelagerten Antworten mehr).
-8. **Weiterschalten, Abschluss oder Wieder-Öffnen:**
-   - **Kein ausgehender Übergang** → Abschluss (`Status = Completed`, `CompletedAt = UtcNow`,
+1. **Load session:** `GetSessionAsync(sessionId)` (tracked, incl. answers). If it is missing, the
+   handler throws `SessionNotFoundException`.
+2. **Precondition:** the session must **not** be abandoned (`Abandoned`); running **and**
+   completed sessions are editable (subsequent correction). Otherwise `InvalidOperationException`.
+3. **Load pinned dialog:** `GetDialogAsync(session.DialogId)` delivers the version pinned by the session
+   including its graph; the question must belong to the dialog.
+4. **Find target answer:** without `IterationIndex` the (earliest) answer to `QuestionId` in the session;
+   with `IterationIndex` specifically the answer of that iteration (loop). If the question (or the specified
+   iteration) has not yet been answered, the handler throws `InvalidOperationException` (there is nothing to
+   edit).
+5. **Overwrite:** the target answer's `Value` is replaced and `AnsweredAt = UtcNow` is set; the
+   `Sequence` is retained.
+6. **Invalidate:** all downstream answers (higher `Sequence` than the edited one) are removed from the
+   tracked session and deleted on save (cascade/orphan delete). There is deliberately
+   **no** validity flag – the path is implicit, invalidated answers are hard-deleted.
+7. **Recompute path:** starting from the edited question the transitions are re-evaluated via the
+   `TransitionResolver` (the context now sees the overwritten value and **no** more
+   downstream answers).
+8. **Advance, complete or reopen:**
+   - **No outgoing transition** → completion (`Status = Completed`, `CompletedAt = UtcNow`,
      `CurrentQuestionId = null`).
-   - **Greifender Übergang** → `Status = InProgress`, `CompletedAt = null`,
-     `CurrentQuestionId = TargetQuestionId`. Eine zuvor abgeschlossene Session wird damit **wieder
-     geöffnet**.
-9. **Speichern:** `SaveChangesAsync()` (Unit-of-Work-Naht).
+   - **Matching transition** → `Status = InProgress`, `CompletedAt = null`,
+     `CurrentQuestionId = TargetQuestionId`. A previously completed session is thereby **reopened**.
+9. **Save:** `SaveChangesAsync()` (unit-of-work seam).
 
-### Fehlerfälle
+### Error cases
 
-| Situation | Verhalten |
+| Situation | Behavior |
 |---|---|
-| Keine Session zur `SessionId` | `SessionNotFoundException` (trägt die `SessionId`) |
-| Session abgebrochen (`Abandoned`) | `InvalidOperationException` |
-| Gepinnte Dialogversion existiert nicht mehr | `InvalidOperationException` |
-| `QuestionId` gehört nicht zum Dialog | `InvalidOperationException` |
-| Frage in dieser Session noch nicht beantwortet | `InvalidOperationException` |
-| Übergänge vorhanden, keiner trifft **und** kein Default | `InvalidOperationException` (Fehlkonfiguration) |
-| Greifender Übergang zeigt auf unbekannte Zielfrage | `InvalidOperationException` (Fehlkonfiguration) |
-| `null`/leeres `Value` | `ValidationException` (aus der Pipeline) |
-| `Value` passt nicht zu Typ/Regeln der Frage | `AnswerValidationException` (aus dem `AnswerValidationPipelineBehavior`, #30, siehe [VALIDATION.md](./VALIDATION.md)) |
+| No session for the `SessionId` | `SessionNotFoundException` (carries the `SessionId`) |
+| Session abandoned (`Abandoned`) | `InvalidOperationException` |
+| Pinned dialog version no longer exists | `InvalidOperationException` |
+| `QuestionId` does not belong to the dialog | `InvalidOperationException` |
+| Question not yet answered in this session | `InvalidOperationException` |
+| Transitions present, none matches **and** no default | `InvalidOperationException` (misconfiguration) |
+| Matching transition points to an unknown target question | `InvalidOperationException` (misconfiguration) |
+| `null`/empty `Value` | `ValidationException` (from the pipeline) |
+| `Value` does not match the question's type/rules | `AnswerValidationException` (from the `AnswerValidationPipelineBehavior`, #30, see [VALIDATION.md](./VALIDATION.md)) |
 
-> **Loop-Iterationen** (mehrere Antworten pro Frage über `LoopInstanceId`/`IterationIndex`) werden über
-> den optionalen `IterationIndex` gezielt editiert (#29). Die Sequence-basierte Invalidierung verwirft
-> dabei den Rest der editierten Iteration **und** alle Folge-Iterationen; Details in [LOOPS.md](./LOOPS.md).
+> **Loop iterations** (several answers per question via `LoopInstanceId`/`IterationIndex`) are edited in a
+> targeted way via the optional `IterationIndex` (#29). The sequence-based invalidation thereby discards
+> the rest of the edited iteration **and** all subsequent iterations; details in [LOOPS.md](./LOOPS.md).
 
-## Nutzung
+## Usage
 
 ```csharp
 var services = new ServiceCollection();
@@ -406,53 +403,53 @@ var provider = services.BuildServiceProvider();
 
 using var scope = provider.CreateScope();
 
-// Variante A – über die Facade:
+// Variant A – via the facade:
 var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
 var result = await engine.StartDialogAsync("onboarding", externalUserKey: "user-42");
 
-// Variante B – direkt über den Mediator:
+// Variant B – directly via the Mediator:
 var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 var same = await sender.Send(new StartDialogCommand("onboarding", "user-42"));
 
-Console.WriteLine(result.IsResumed ? "Fortgesetzt" : "Neu gestartet");
+Console.WriteLine(result.IsResumed ? "Resumed" : "Freshly started");
 Console.WriteLine(result.CurrentQuestion.Text);
 
-// Antwort auf die aktuelle Frage einreichen → nächste Frage oder Abschluss:
+// Submit an answer to the current question → next question or completion:
 var next = await engine.SubmitAnswerAsync(
     result.SessionId, result.CurrentQuestion.Id, value: "\"dev\"");
 
-Console.WriteLine(next.IsCompleted ? "Dialog abgeschlossen" : next.NextQuestion!.Text);
+Console.WriteLine(next.IsCompleted ? "Dialog completed" : next.NextQuestion!.Text);
 
-// Später (z. B. nach einem Reload) den Zustand samt bisheriger Antworten wiederherstellen:
+// Later (e.g. after a reload) restore the state including the answers given so far:
 var state = await engine.ResumeDialogAsync(result.SessionId);
-Console.WriteLine($"Status: {state.Status}, Antworten bisher: {state.Answers.Count}");
-Console.WriteLine(state.CurrentQuestion?.Text ?? "keine offene Frage (abgeschlossen)");
+Console.WriteLine($"Status: {state.Status}, answers so far: {state.Answers.Count}");
+Console.WriteLine(state.CurrentQuestion?.Text ?? "no open question (completed)");
 
-// Eine frühere Antwort korrigieren → nachgelagerter Pfad wird neu berechnet/invalidiert:
+// Correct an earlier answer → the downstream path is recomputed/invalidated:
 var edited = await engine.EditAnswerAsync(
     result.SessionId, result.CurrentQuestion.Id, value: "\"pm\"");
-Console.WriteLine($"Verworfene Folge-Antworten: {edited.InvalidatedAnswers}");
-Console.WriteLine(edited.IsCompleted ? "Dialog abgeschlossen" : edited.NextQuestion!.Text);
+Console.WriteLine($"Discarded downstream answers: {edited.InvalidatedAnswers}");
+Console.WriteLine(edited.IsCompleted ? "Dialog completed" : edited.NextQuestion!.Text);
 ```
 
-## Folge-Commands (EPIC 3)
+## Follow-up commands (EPIC 3)
 
-Die **Loop-Runtime (#29)** – Iterations-Sammlung je `CollectionKey`, Break-Bedingung, Editieren einer
-Iteration – ist umgesetzt; sie erweitert Submit/Edit additiv und ist in [LOOPS.md](./LOOPS.md)
-dokumentiert. Die **fachliche Antwort-Validierung (#30)** – `IAnswerValidator` + `ValidationRules` als
-Pipeline-Behavior – ist umgesetzt und in [VALIDATION.md](./VALIDATION.md) dokumentiert. Damit ist
-EPIC 3 abgeschlossen.
+The **loop runtime (#29)** – iteration collection per `CollectionKey`, break condition, editing an
+iteration – is implemented; it extends Submit/Edit additively and is documented in [LOOPS.md](./LOOPS.md).
+The **business answer validation (#30)** – `IAnswerValidator` + `ValidationRules` as a
+pipeline behavior – is implemented and documented in [VALIDATION.md](./VALIDATION.md). With that,
+EPIC 3 is complete.
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet test tests/Flirty.Tests
 ```
 
-Die Tests unter `tests/Flirty.Tests/Runtime/` treiben Start, Resume, Submit, das Lesen des
-Session-Zustands (`ResumeDialogQuery`) **und** das Editieren einer früheren Antwort
-(`EditAnswerCommand`) gegen eine echte SQLite-Datenbank durch die volle Mediator-Pipeline via
-`IFlirtyEngine` (Facade → `ISender` → Handler → `IDialogStore`/`IExpressionEvaluator` → EF Core) und
-decken Branching (bedingter/Default-Übergang), Completion, die fortlaufende Antwort-`Sequence`, die
-chronologische Antwort-Reihenfolge beim Lesen, die Pfad-Neuberechnung samt Invalidierung nachgelagerter
-Antworten und Wieder-Öffnen abgeschlossener Sessions, die Fehlerfälle sowie die DI-Registrierung ab.
+The tests under `tests/Flirty.Tests/Runtime/` drive start, resume, submit, reading the
+session state (`ResumeDialogQuery`) **and** editing an earlier answer
+(`EditAnswerCommand`) against a real SQLite database through the full Mediator pipeline via
+`IFlirtyEngine` (facade → `ISender` → handler → `IDialogStore`/`IExpressionEvaluator` → EF Core) and
+cover branching (conditional/default transition), completion, the consecutive answer `Sequence`, the
+chronological answer order when reading, the path recomputation including invalidation of downstream
+answers and the reopening of completed sessions, the error cases as well as the DI registration.

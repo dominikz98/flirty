@@ -1,29 +1,29 @@
-# Mediator-Setup (Core)
+# Mediator setup (core)
 
-> Stand: Issue #14. Dieser Guide beschreibt, wie der Mediator (martinothamar) im Core-Projekt
-> `Flirty` verdrahtet ist und wie man Commands/Queries, Handler und Pipeline-Behaviors ergänzt.
-> **Warum** überhaupt ein Mediator – und was stattdessen zur Wahl stand (MediatR, eigene
-> Service-Interfaces) – steht in [ADR 0002](./adr/0002-mediator-als-in-process-bus.md).
+> Status: Issue #14. This guide describes how the mediator (martinothamar) is wired up in the core
+> project `Flirty` and how to add commands/queries, handlers and pipeline behaviors.
+> **Why** a mediator at all – and what stood as the alternatives (MediatR, custom
+> service interfaces) – is in [ADR 0002](./adr/0002-mediator-as-in-process-bus.md).
 
-## Überblick
+## Overview
 
-Flirty nutzt **[Mediator (martinothamar)](https://github.com/martinothamar/Mediator)** – eine
-Source-Generator-basierte Implementierung des Mediator-Patterns (kein Reflection-Overhead, MIT).
+Flirty uses **[Mediator (martinothamar)](https://github.com/martinothamar/Mediator)** – a
+source-generator-based implementation of the mediator pattern (no reflection overhead, MIT).
 
-- **`Mediator.Abstractions`** liefert die Vertragstypen (`ICommand<TResponse>`, `IQuery<TResponse>`,
+- **`Mediator.Abstractions`** provides the contract types (`ICommand<TResponse>`, `IQuery<TResponse>`,
   `INotification`, `ICommandHandler<,>`, `INotificationHandler<>`, `IPipelineBehavior<,>`, `ISender`,
   `IMediator`, `IPublisher`, `Unit`).
-- **`Mediator.SourceGenerator`** generiert zur Compile-Zeit die `IMediator`-Implementierung und die
-  DI-Registrierung `AddMediator(...)` (Namespace `Microsoft.Extensions.DependencyInjection`).
+- **`Mediator.SourceGenerator`** generates the `IMediator` implementation at compile time and the
+  DI registration `AddMediator(...)` (namespace `Microsoft.Extensions.DependencyInjection`).
 
-Beide Pakete sind zentral in `Directory.Packages.props` gepinnt (v3.0.2) und im Core referenziert;
-der Source-Generator ist als Analyzer (`PrivateAssets=all`) eingebunden und wird **nicht** als
-Paket-Abhängigkeit veröffentlicht.
+Both packages are pinned centrally in `Directory.Packages.props` (v3.0.2) and referenced in the core;
+the source generator is included as an analyzer (`PrivateAssets=all`) and is **not** published as a
+package dependency.
 
-## Registrierung
+## Registration
 
-Die öffentliche Extension `AddFlirty()` (Namespace `Microsoft.Extensions.DependencyInjection`,
-`FlirtyServiceCollectionExtensions`) verdrahtet alles:
+The public extension `AddFlirty()` (namespace `Microsoft.Extensions.DependencyInjection`,
+`FlirtyServiceCollectionExtensions`) wires everything up:
 
 ```csharp
 public static IServiceCollection AddFlirty(this IServiceCollection services)
@@ -35,57 +35,57 @@ public static IServiceCollection AddFlirty(this IServiceCollection services)
 }
 ```
 
-> **Hinweis:** `AddFlirty()` ist aktuell ein **#14-Stub**. Issue #34 erweitert die Methode zur
-> vollständigen `AddFlirty(o => …)`-Registrierung (DB-Provider, Auto-Migration, Webhooks,
-> austauschbarer Expression-Evaluator).
+> **Note:** `AddFlirty()` is currently a **#14 stub**. Issue #34 extends the method into the
+> full `AddFlirty(o => …)` registration (DB provider, auto-migration, webhooks,
+> a swappable expression evaluator).
 
-Nutzung (z. B. in einer Console-App – der Core ist ASP.NET-frei):
+Usage (e.g. in a console app – the core is ASP.NET-free):
 
 ```csharp
 var services = new ServiceCollection();
-services.AddLogging();     // die Basis-Behaviors nutzen ILogger<>
+services.AddLogging();     // the base behaviors use ILogger<>
 services.AddFlirty();
 var provider = services.BuildServiceProvider();
 
-using var scope = provider.CreateScope();  // Handler/Mediator sind Scoped
+using var scope = provider.CreateScope();  // handlers/mediator are Scoped
 var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 ```
 
-## Zwei zentrale Regeln von martinothamar/Mediator
+## Two central rules of martinothamar/Mediator
 
-1. **Der Source-Generator entdeckt Handler nur innerhalb derselben Compilation** und der
-   `AddMediator`-Aufruf **muss** im selben Projekt stehen, das den Generator referenziert.
-   → Deshalb liegen Generator, `AddMediator`-Aufruf **und** alle echten Commands/Queries/Handler
-   im **Core** (`Flirty`). Der Core ist die veröffentlichte Engine; Konsumenten rufen nur
-   `AddFlirty()` auf und brauchen den Source-Generator nicht selbst.
-2. **Pipeline-Behaviors werden nicht automatisch registriert.** Offen-generische Behaviors
-   müssen manuell via `AddSingleton(typeof(IPipelineBehavior<,>), typeof(MyBehavior<,>))`
-   registriert werden. Die Reihenfolge der Registrierung bestimmt die Verschachtelung der Pipeline.
+1. **The source generator only discovers handlers within the same compilation** and the
+   `AddMediator` call **must** live in the same project that references the generator.
+   → That is why the generator, the `AddMediator` call **and** all real commands/queries/handlers
+   live in the **core** (`Flirty`). The core is the published engine; consumers only call
+   `AddFlirty()` and do not need the source generator themselves.
+2. **Pipeline behaviors are not registered automatically.** Open-generic behaviors
+   must be registered manually via `AddSingleton(typeof(IPipelineBehavior<,>), typeof(MyBehavior<,>))`.
+   The order of registration determines the nesting of the pipeline.
 
-Beide Regeln sind keine Randnotiz, sondern **Architektur-Invariante** – Regel 1 ist der Grund, warum
-`Flirty.AspNetCore` eine reine Mapping-Schicht über `ISender` bleiben *muss*
-([ADR 0002](./adr/0002-mediator-als-in-process-bus.md), [ADR 0003](./adr/0003-aspnet-freier-core.md)).
+Both rules are not a footnote but an **architecture invariant** – rule 1 is the reason why
+`Flirty.AspNetCore` *must* remain a pure mapping layer over `ISender`
+([ADR 0002](./adr/0002-mediator-as-in-process-bus.md), [ADR 0003](./adr/0003-aspnet-free-core.md)).
 
-## Basis-Pipeline-Behaviors
+## Base pipeline behaviors
 
-Beide liegen im Namespace `Flirty.Pipeline` und werden von `AddFlirty()` registriert:
+Both live in the namespace `Flirty.Pipeline` and are registered by `AddFlirty()`:
 
-| Behavior | Zweck |
+| Behavior | Purpose |
 |---|---|
-| `LoggingPipelineBehavior<TMessage,TResponse>` | Protokolliert Beginn, Abschluss (inkl. Dauer) und Fehler jeder Nachricht via `ILogger<>`. |
-| `ValidationPipelineBehavior<TMessage,TResponse>` | Validiert die Nachricht **deklarativ** per `System.ComponentModel.DataAnnotations` (`[Required]`, …) und wirft bei Verstößen eine `ValidationException`. |
+| `LoggingPipelineBehavior<TMessage,TResponse>` | Logs the start, completion (incl. duration) and errors of each message via `ILogger<>`. |
+| `ValidationPipelineBehavior<TMessage,TResponse>` | Validates the message **declaratively** via `System.ComponentModel.DataAnnotations` (`[Required]`, …) and throws a `ValidationException` on violations. |
 
-Zusätzlich registriert `AddFlirty()` seit #30 ein **fachliches** Antwort-Validierungs-Behavior –
-bewusst **geschlossen je antworteinreichendem Command** (nicht offen-generisch) und **intern**, weil es
-den scoped `IDialogStore` benötigt:
+In addition, `AddFlirty()` has since #30 registered a **domain-level** answer-validation behavior –
+deliberately **closed per answer-submitting command** (not open-generic) and **internal**, because it
+needs the scoped `IDialogStore`:
 
-| Behavior | Zweck |
+| Behavior | Purpose |
 |---|---|
-| `AnswerValidationPipelineBehavior<TMessage,TResponse>` (intern, geschlossen für `SubmitAnswerCommand`/`EditAnswerCommand`) | Löst die Frage der gepinnten Dialogversion auf und validiert den Antwortwert (Typ + `ValidationRules`) per `IAnswerValidator` **vor** dem Handler; wirft bei Verstoß `AnswerValidationException`. Details in [VALIDATION.md](./VALIDATION.md). |
+| `AnswerValidationPipelineBehavior<TMessage,TResponse>` (internal, closed for `SubmitAnswerCommand`/`EditAnswerCommand`) | Resolves the question of the pinned dialog version and validates the answer value (type + `ValidationRules`) via `IAnswerValidator` **before** the handler; throws `AnswerValidationException` on violation. Details in [VALIDATION.md](./VALIDATION.md). |
 
-## Ein Command/Handler hinzufügen
+## Adding a command/handler
 
-Command und Handler gehören in den **Core** (damit der Generator sie sieht):
+Command and handler belong in the **core** (so that the generator sees them):
 
 ```csharp
 public sealed record CreateFooCommand(string Name) : ICommand<FooResult>;
@@ -97,59 +97,59 @@ internal sealed class CreateFooCommandHandler : ICommandHandler<CreateFooCommand
 }
 ```
 
-Senden: `await sender.Send(new CreateFooCommand("bar"));`
+Sending: `await sender.Send(new CreateFooCommand("bar"));`
 
-## Notifications (In-Process-Trigger)
+## Notifications (in-process triggers)
 
-Notifications sind der Rückkanal in die Host-App: Die Engine publiziert `INotification`-Contracts, die
-Host-Apps über eigene `INotificationHandler<T>` behandeln.
+Notifications are the back channel into the host app: the engine publishes `INotification` contracts,
+which host apps handle via their own `INotificationHandler<T>`.
 
 ```csharp
-public sealed record FooHappenedNotification(Guid Id) : INotification;   // Contract gehört in den Core
+public sealed record FooHappenedNotification(Guid Id) : INotification;   // the contract belongs in the core
 
-// Publizieren (in einem Command-Handler):
+// Publishing (in a command handler):
 await _publisher.Publish(new FooHappenedNotification(id), cancellationToken);
 
-// Behandeln (in der Host-App, per DI registriert):
+// Handling (in the host app, registered via DI):
 services.AddScoped<INotificationHandler<FooHappenedNotification>, MyHandler>();
 ```
 
-Für die Engine-Trigger gibt es dafür den Convenience-Helper
-`services.AddFlirtyHandler<DialogCompletedNotification, MyHandler>()` (seit #32, Default `Scoped`) – siehe
+For the engine triggers there is the convenience helper
+`services.AddFlirtyHandler<DialogCompletedNotification, MyHandler>()` (since #32, default `Scoped`) – see
 [TRIGGERS.md](./TRIGGERS.md).
 
-Zwei Besonderheiten von martinothamar/Mediator, die aus Regel 1 folgen:
+Two peculiarities of martinothamar/Mediator that follow from rule 1:
 
-- **Notification-Contracts müssen im Core liegen.** Nur so kennt der Source-Generator den Typ und
-  liefert `IPublisher.Publish` ihn an registrierte Handler (auch aus Host-Assemblies) aus. Ein im Sample
-  definierter Notification-Typ erreicht über `IPublisher` keinen Handler.
-- **MSG0005 (Nachricht ohne Handler).** Der Generator verlangt je Nachricht einen Handler in der
-  Core-Compilation. Trigger-Notifications werden aber bewusst erst von Host-Apps behandelt; daher ist
-  MSG0005 je Notification-Typ gezielt unterdrückt (`#pragma warning disable MSG0005`) statt projektweit,
-  damit ein echt fehlender Command-/Query-Handler weiterhin auffällt.
+- **Notification contracts must live in the core.** Only then does the source generator know the type and
+  does `IPublisher.Publish` deliver it to registered handlers (including those from host assemblies). A
+  notification type defined in the sample reaches no handler via `IPublisher`.
+- **MSG0005 (message without a handler).** The generator requires a handler per message in the
+  core compilation. Trigger notifications, however, are deliberately handled only by host apps; that is why
+  MSG0005 is suppressed per notification type on purpose (`#pragma warning disable MSG0005`) instead of
+  project-wide, so that a genuinely missing command/query handler still stands out.
 
-Die konkreten Engine-Trigger (`DialogStarted`/`AnswerSubmitted`/`QuestionAnswered`/`DialogCompleted`) und
-wann sie publiziert werden, beschreibt [TRIGGERS.md](./TRIGGERS.md).
+The concrete engine triggers (`DialogStarted`/`AnswerSubmitted`/`QuestionAnswered`/`DialogCompleted`) and
+when they are published are described in [TRIGGERS.md](./TRIGGERS.md).
 
-## Ein Pipeline-Behavior hinzufügen
+## Adding a pipeline behavior
 
-1. `IPipelineBehavior<TMessage, TResponse>` implementieren (Constraint `where TMessage : notnull, IMessage`),
-   in `Handle(...)` `next(message, cancellationToken)` aufrufen (oder bewusst abbrechen/werfen).
-2. In `AddFlirty()` offen-generisch registrieren:
+1. Implement `IPipelineBehavior<TMessage, TResponse>` (constraint `where TMessage : notnull, IMessage`),
+   call `next(message, cancellationToken)` in `Handle(...)` (or deliberately abort/throw).
+2. Register it open-generic in `AddFlirty()`:
    `services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(MyBehavior<,>));`
 
-## Verifikation / Smoke-Test
+## Verification / smoke test
 
-Der Core enthält einen **internen** Smoke-Seam (`Flirty.Diagnostics.PingCommand`/`Pong`/
-`PingCommandHandler`), der ausschließlich über `[assembly: InternalsVisibleTo("Flirty.Tests")]`
-für Tests sichtbar ist (kein Teil der öffentlichen API). Er ist **absichtlich geblieben**, obwohl es
-längst echte Commands gibt: Er prüft die Pipeline isoliert – ohne Persistenz, Dialog-Graph oder
-Expression-Engine –, sodass ein Verdrahtungsfehler hier auffällt und nicht erst als scheinbarer
-Runtime-Bug in einem Dialog-Test. Die Tests
-in `tests/Flirty.Tests/MediatorPipelineBehaviorTests.cs` belegen das Akzeptanzkriterium von #14:
+The core contains an **internal** smoke seam (`Flirty.Diagnostics.PingCommand`/`Pong`/
+`PingCommandHandler`) that is visible to tests exclusively via `[assembly: InternalsVisibleTo("Flirty.Tests")]`
+(no part of the public API). It has **deliberately stayed** even though there are real commands
+by now: it exercises the pipeline in isolation – without persistence, dialog graph or
+expression engine – so that a wiring error stands out here and not first as a seeming
+runtime bug in a dialog test. The tests
+in `tests/Flirty.Tests/MediatorPipelineBehaviorTests.cs` demonstrate the acceptance criterion of #14:
 
-- ein Dummy-Command läuft durch das `LoggingPipelineBehavior` (Log-Einträge werden erfasst),
-- ein ungültiger Command wird vom `ValidationPipelineBehavior` mit `ValidationException` abgewiesen.
+- a dummy command runs through the `LoggingPipelineBehavior` (log entries are captured),
+- an invalid command is rejected by the `ValidationPipelineBehavior` with a `ValidationException`.
 
 ```pwsh
 dotnet test tests/Flirty.Tests

@@ -1,42 +1,42 @@
-# Flirty – Domänenmodell
+# Flirty – Domain model
 
-> Referenz für die POCO-Entities und Enums im Core-Projekt `Flirty` (Namespace `Flirty.Domain`).
-> Diese Typen sind die Grundlage der Persistenz; die EF-Core-Konfiguration (Keys, Indizes,
-> JSON-Spalten, Beziehungen) erfolgt im `FlirtyDbContext` – siehe
-> [Persistenz-Konfiguration](#persistenz-konfiguration-flirtydbcontext). Konzeptioneller Überblick:
-> [ARCHITECTURE.md](./ARCHITECTURE.md) §5 (Konfiguration) und §6 (Runtime-/Session-State).
+> Reference for the POCO entities and enums in the core project `Flirty` (namespace `Flirty.Domain`).
+> These types are the basis of persistence; the EF Core configuration (keys, indexes,
+> JSON columns, relationships) happens in the `FlirtyDbContext` – see
+> [Persistence configuration](#persistence-configuration-flirtydbcontext). Conceptual overview:
+> [ARCHITECTURE.md](./ARCHITECTURE.md) §5 (configuration) and §6 (runtime/session state).
 
-## Aggregate & Navigationen
+## Aggregates & navigations
 
-Das Modell hat zwei Aggregate mit klaren Grenzen:
+The model has two aggregates with clear boundaries:
 
-- **Konfigurations-Aggregat** – Wurzel `Dialog`. Der Dialog bündelt seine `Question`s,
-  `Transition`s, `LoopDefinition`s, `TriggerDefinition`s und seine `DialogLayout`-Zeilen; eine
-  `Question` bündelt ihre `AnswerOption`s. Navigationen bilden diesen Baum ab (`Dialog.Questions`,
+- **Configuration aggregate** – root `Dialog`. The dialog bundles its `Question`s,
+  `Transition`s, `LoopDefinition`s, `TriggerDefinition`s and its `DialogLayout` rows; a
+  `Question` bundles its `AnswerOption`s. Navigations mirror this tree (`Dialog.Questions`,
   `Question.Options`, …).
-- **Runtime-Aggregat** – Wurzel `DialogSession`. Die Session bündelt ihre `SessionAnswer`s
+- **Runtime aggregate** – root `DialogSession`. The session bundles its `SessionAnswer`s
   (`DialogSession.Answers`).
 
-**Bewusst ohne Navigation** – als skalare `Guid` belassen, um mehrdeutige/über Aggregatgrenzen
-laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im DbContext):
+**Deliberately without a navigation** – left as a scalar `Guid` to avoid ambiguous relationships or
+ones that cross aggregate boundaries (explicit configuration happens in the DbContext where needed):
 
-- Mehrfach-Verweise auf dieselbe Entity: `Transition.FromQuestionId`/`TargetQuestionId`,
+- Multiple references to the same entity: `Transition.FromQuestionId`/`TargetQuestionId`,
   `LoopDefinition.EntryQuestionId`/`BreakingQuestionId`, `TriggerDefinition.QuestionId`,
   `Dialog.StartQuestionId`, `DialogSession.CurrentQuestionId`.
-- **Polymorpher Verweis**: `DialogLayout.ElementId` zeigt je `ElementKind` auf verschiedene Entities und
-  kann deshalb gar kein Fremdschlüssel sein.
-- **Runtime → Konfiguration**: `DialogSession.DialogId` und `SessionAnswer.QuestionId`. Sessions pinnen
-  über `DialogId`/`DialogVersion` genau die Version, auf der sie gestartet sind, und laufen dort zu Ende
-  (ARCHITECTURE.md §11.4). Getragen wird das durch die Unveränderlichkeit veröffentlichter Versionen:
-  Änderungen am Graphen sind dort gesperrt, weiterentwickelt wird über eine **neue Version**
-  (`CreateDialogVersionCommand`) – siehe [RUNTIME.md § Versions-Pinning](./RUNTIME.md#versions-pinning)
-  und [ADR 0005](./adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md). Ein **Löschen** der
-  Version bricht ihre Sessions dagegen weiterhin; deshalb lehnt `DeleteDialogCommand` es ab, solange
-  Sessions laufen.
+- **Polymorphic reference**: `DialogLayout.ElementId` points at different entities per `ElementKind` and
+  therefore cannot be a foreign key at all.
+- **Runtime → configuration**: `DialogSession.DialogId` and `SessionAnswer.QuestionId`. Sessions pin,
+  via `DialogId`/`DialogVersion`, exactly the version they started on and run to completion there
+  (ARCHITECTURE.md §11.4). This is upheld by the immutability of published versions:
+  graph changes are locked there, and evolution happens via a **new version**
+  (`CreateDialogVersionCommand`) – see [RUNTIME.md § Version pinning](./RUNTIME.md#version-pinning)
+  and [ADR 0005](./adr/0005-immutable-published-dialog-version.md). **Deleting** the
+  version, by contrast, still breaks its sessions; that is why `DeleteDialogCommand` refuses it as long as
+  sessions are running.
 
 ## Enums
 
-| Enum | Werte (Ordinal) |
+| Enum | Values (ordinal) |
 |---|---|
 | `QuestionType` | SingleChoice(0), MultiChoice(1), FreeText(2), Number(3), Date(4), Boolean(5) |
 | `TriggerScope` | OnDialogStarted(0), AfterAnswer(1), AfterQuestion(2), OnDialogCompleted(3) |
@@ -44,9 +44,9 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 | `LayoutElementKind` | Question(0) |
 | `SessionStatus` | InProgress(0), Completed(1), Abandoned(2) |
 
-## Konfigurations-Entities
+## Configuration entities
 
-| Entity | Properties | Navigationen |
+| Entity | Properties | Navigations |
 |---|---|---|
 | `Dialog` | `Id`, `Key`, `Name`, `Description?`, `Version`, `IsPublished`, `StartQuestionId?`, `CreatedAt`, `UpdatedAt` | `Questions`, `Transitions`, `Loops`, `Triggers`, `Layout` |
 | `Question` | `Id`, `DialogId`, `Key`, `Text`, `Type`, `Order`, `IsRequired`, `ValidationRules?` (JSON) | `Dialog`, `Options` |
@@ -56,80 +56,80 @@ laufende Beziehungen zu vermeiden (explizite Konfiguration erfolgt bei Bedarf im
 | `TriggerDefinition` | `Id`, `DialogId`, `Scope`, `QuestionId?`, `Kind`, `Config` (JSON), `Expression?` | `Dialog` |
 | `DialogLayout` | `Id`, `DialogId`, `ElementKind`, `ElementId`, `X`, `Y` | `Dialog` |
 
-`DialogLayout` (#102) hält die vom Autor gewählte Position eines Elements auf dem Graph-Canvas des
-Designers – **reine Anzeigedaten**, die die Laufzeit nie liest. Ohne Zeile ordnet dort das Auto-Layout
-an; das ist zugleich der Weg zurück (`ResetDialogLayoutCommand` löscht schlicht die Zeilen). Die Tabelle
-existiert statt zweier Spalten an `Question`, weil sie die Graph-Entities frei von Anzeigebelangen hält
-**und** weil ihr Schreibpfad damit strukturell außerhalb der Publish-Sperre liegt – Begründung samt
-verworfener Alternativen in [ADR 0007](./adr/0007-layout-als-eigene-tabelle.md).
+`DialogLayout` (#102) holds the position an author chose for an element on the designer's graph canvas –
+**pure display data** that the runtime never reads. Without a row, the auto-layout arranges it there;
+that is at the same time the way back (`ResetDialogLayoutCommand` simply deletes the rows). The table
+exists instead of two columns on `Question` because it keeps the graph entities free of display concerns
+**and** because its write path thereby lies structurally outside the publish lock – rationale together with
+the discarded alternatives in [ADR 0007](./adr/0007-layout-as-its-own-table.md).
 
-## Runtime-Entities
+## Runtime entities
 
-| Entity | Properties | Navigationen |
+| Entity | Properties | Navigations |
 |---|---|---|
 | `DialogSession` | `Id`, `DialogId`, `DialogVersion`, `ExternalUserKey`, `Status`, `CurrentQuestionId?`, `StartedAt`, `CompletedAt?` | `Answers` |
 | `SessionAnswer` | `Id`, `SessionId`, `QuestionId`, `Value` (JSON), `AnsweredAt`, `Sequence`, `LoopInstanceId?`, `IterationIndex?` | `Session` |
 
-`LoopInstanceId`/`IterationIndex` erlauben mehrere Antworten pro `QuestionId` (ein Eintrag je
-Loop-Iteration); außerhalb einer Schleife sind beide `null`.
+`LoopInstanceId`/`IterationIndex` allow several answers per `QuestionId` (one entry per
+loop iteration); outside a loop both are `null`.
 
-## Konventionen
+## Conventions
 
-- Ids: `Guid`. Zeitstempel: `DateTimeOffset`. Enum-Storage-Mapping erfolgt im DbContext.
-- Pflicht-Strings als `required string`, optionale als `string?`.
-- Navigations-Collections initialisiert (`= []`), Rückverweise als `= null!` (von EF gesetzt).
-- Alle Typen `sealed`; deutsche XML-Docs auf allen public Membern (CS1591 = Build-Fehler).
+- Ids: `Guid`. Timestamps: `DateTimeOffset`. Enum storage mapping happens in the DbContext.
+- Mandatory strings as `required string`, optional ones as `string?`.
+- Navigation collections initialized (`= []`), back references as `= null!` (set by EF).
+- All types `sealed`; English XML docs on all public members (CS1591 = build error).
 
-## Persistenz-Konfiguration (`FlirtyDbContext`)
+## Persistence configuration (`FlirtyDbContext`)
 
-Der `FlirtyDbContext` (Namespace `Flirty.Persistence`, Ordner `src/Flirty/Persistence/`) ist
-**provider-agnostisch**: er besitzt nur den Options-Konstruktor
-`FlirtyDbContext(DbContextOptions<FlirtyDbContext>)` und legt keinen Provider fest. Die
-Provider-Wahl (SQLite/PostgreSQL/SQL Server) und die Migrationen je Provider sind in Issue #19
-umgesetzt – Details in [PERSISTENCE.md](./PERSISTENCE.md) (vgl. [ARCHITECTURE.md](./ARCHITECTURE.md) §8).
+The `FlirtyDbContext` (namespace `Flirty.Persistence`, folder `src/Flirty/Persistence/`) is
+**provider-agnostic**: it has only the options constructor
+`FlirtyDbContext(DbContextOptions<FlirtyDbContext>)` and sets no provider. The
+provider choice (SQLite/PostgreSQL/SQL Server) and the migrations per provider are implemented in issue #19
+– details in [PERSISTENCE.md](./PERSISTENCE.md) (cf. [ARCHITECTURE.md](./ARCHITECTURE.md) §8).
 
-- **DbSets nur für die Aggregat-Roots** – `Dialogs` und `DialogSessions`. Die Kind-Entities werden
-  über ihre Navigationen bzw. `Set<T>()` erreicht (spiegelt die Aggregatgrenzen wider).
-- **Fluent-API-Konfiguration** – je Entity eine `internal sealed`
-  `IEntityTypeConfiguration<T>`-Klasse unter `Persistence/Configurations/`; angewendet über
-  `ApplyConfigurationsFromAssembly`. Die POCOs bleiben frei von Data Annotations.
-- **Enum-Storage als `int`** – `QuestionType`, `TriggerScope`, `TriggerKind`, `LayoutElementKind` und
-  `SessionStatus` werden explizit über `HasConversion<int>()` gemappt (Guard passend zum Ordinal-Pinning
-  der Domain-Tests).
-- **JSON-Spalten = einfache Textspalten** – `SessionAnswer.Value`, `TriggerDefinition.Config`
-  (Pflicht) und `Question.ValidationRules` (optional) tragen anwendungsseitig serialisiertes JSON und
-  werden als unbegrenzte Textspalten (ohne `MaxLength`) gespeichert. Provider-native `json`/`jsonb`-
-  Typen sind bewusst nicht gesetzt (kleinster gemeinsamer Nenner aller Provider; bestätigt in #19).
-  Das Schema von `Question.ValidationRules` (camelCase-Felder `minLength`/`maxLength`/`min`/`max`/
-  `pattern`, typ-skopiert) wertet seit #30 der `IAnswerValidator` aus – siehe [VALIDATION.md](./VALIDATION.md).
-  Das Schema von `TriggerDefinition.Config` beschreibt seit #42 der öffentliche Typ
-  `Flirty.Domain.TriggerConfig` (camelCase-Felder `url`/`name`; `url` ist bei `Kind = Webhook` Pflicht und
-  eine absolute http-/https-Adresse) – siehe [TRIGGERS.md](./TRIGGERS.md#trigger-definitionen-am-dialog-42).
-- **Skalare `Guid`-Verweise ohne Fremdschlüssel** – die oben unter *Bewusst ohne Navigation*
-  gelisteten Verweise bleiben einfache Spalten (keine Relationship, kein Shadow-FK).
-- **Kaskadierendes Löschen** – innerhalb beider Aggregate (`Dialog` → Questions/Options/Transitions/
-  Loops/Triggers/Layout; `DialogSession` → Answers) via `OnDelete(Cascade)` mit explizitem
+- **DbSets only for the aggregate roots** – `Dialogs` and `DialogSessions`. The child entities are
+  reached via their navigations or `Set<T>()` (mirrors the aggregate boundaries).
+- **Fluent API configuration** – one `internal sealed`
+  `IEntityTypeConfiguration<T>` class per entity under `Persistence/Configurations/`; applied via
+  `ApplyConfigurationsFromAssembly`. The POCOs stay free of data annotations.
+- **Enum storage as `int`** – `QuestionType`, `TriggerScope`, `TriggerKind`, `LayoutElementKind` and
+  `SessionStatus` are mapped explicitly via `HasConversion<int>()` (guard matching the ordinal pinning
+  of the domain tests).
+- **JSON columns = plain text columns** – `SessionAnswer.Value`, `TriggerDefinition.Config`
+  (mandatory) and `Question.ValidationRules` (optional) carry application-side serialized JSON and
+  are stored as unbounded text columns (without `MaxLength`). Provider-native `json`/`jsonb`
+  types are deliberately not set (the lowest common denominator of all providers; confirmed in #19).
+  The schema of `Question.ValidationRules` (camelCase fields `minLength`/`maxLength`/`min`/`max`/
+  `pattern`, type-scoped) has been evaluated since #30 by the `IAnswerValidator` – see [VALIDATION.md](./VALIDATION.md).
+  The schema of `TriggerDefinition.Config` has been described since #42 by the public type
+  `Flirty.Domain.TriggerConfig` (camelCase fields `url`/`name`; `url` is mandatory for `Kind = Webhook` and
+  an absolute http/https address) – see [TRIGGERS.md](./TRIGGERS.md#trigger-definitions-on-the-dialog-42).
+- **Scalar `Guid` references without a foreign key** – the references listed above under *Deliberately
+  without a navigation* stay plain columns (no relationship, no shadow FK).
+- **Cascading delete** – within both aggregates (`Dialog` → Questions/Options/Transitions/
+  Loops/Triggers/Layout; `DialogSession` → Answers) via `OnDelete(Cascade)` with explicit
   `HasForeignKey`.
 
-### Keys & Indizes
+### Keys & indexes
 
-| Entity | Schlüssel / Index | Art |
+| Entity | Key / index | Kind |
 |---|---|---|
-| `Dialog` | PK `Id`; `(Key, Version)` | **eindeutig** (mehrere Versionen je `Key` erlaubt) |
-| `Question` | PK `Id`; `(DialogId, Key)` | **eindeutig** |
-| `AnswerOption` | PK `Id`; `(QuestionId, Key)` | **eindeutig** |
-| `Transition` | PK `Id`; `(DialogId, FromQuestionId, Priority)` | nicht eindeutig (Auswertungsreihenfolge) |
+| `Dialog` | PK `Id`; `(Key, Version)` | **unique** (multiple versions per `Key` allowed) |
+| `Question` | PK `Id`; `(DialogId, Key)` | **unique** |
+| `AnswerOption` | PK `Id`; `(QuestionId, Key)` | **unique** |
+| `Transition` | PK `Id`; `(DialogId, FromQuestionId, Priority)` | not unique (evaluation order) |
 | `LoopDefinition` | PK `Id` | – |
 | `TriggerDefinition` | PK `Id` | – |
-| `DialogLayout` | PK `Id`; `(DialogId, ElementKind, ElementId)` | **eindeutig** (je Element eine Position) |
-| `DialogSession` | PK `Id`; `(DialogId, ExternalUserKey)` | nicht eindeutig (mehrere Sessions je Anwender) |
-| `SessionAnswer` | PK `Id`; `(SessionId, Sequence)` | nicht eindeutig |
+| `DialogLayout` | PK `Id`; `(DialogId, ElementKind, ElementId)` | **unique** (one position per element) |
+| `DialogSession` | PK `Id`; `(DialogId, ExternalUserKey)` | not unique (multiple sessions per user) |
+| `SessionAnswer` | PK `Id`; `(SessionId, Sequence)` | not unique |
 
-Indizierte fachliche Schlüssel (`Dialog.Key`, `Question.Key`, `AnswerOption.Key`,
-`DialogSession.ExternalUserKey`) sind auf 256 Zeichen begrenzt, damit sie über alle Provider
-indizierbar bleiben. **Kein** eindeutiger Index über `SessionAnswer(SessionId, QuestionId)`:
-Loop-Iterationen erlauben mehrere Antworten pro Frage. Eindeutige Indizes werden generell nicht über
-`null`-fähige Spalten gelegt (divergente Null-Semantik zwischen SQL Server und SQLite/PostgreSQL).
+Indexed business keys (`Dialog.Key`, `Question.Key`, `AnswerOption.Key`,
+`DialogSession.ExternalUserKey`) are limited to 256 characters so they stay indexable across all
+providers. **No** unique index over `SessionAnswer(SessionId, QuestionId)`:
+loop iterations allow several answers per question. Unique indexes are generally not placed over
+`null`-able columns (divergent null semantics between SQL Server and SQLite/PostgreSQL).
 
-> **Zeitstempel UTC-normalisiert speichern.** Der PostgreSQL-Provider (Npgsql) mappt
-> `DateTimeOffset` auf `timestamptz` und verlangt Offset == UTC. Zeitstempel daher als UTC ablegen.
+> **Store timestamps UTC-normalized.** The PostgreSQL provider (Npgsql) maps
+> `DateTimeOffset` to `timestamptz` and requires offset == UTC. Store timestamps as UTC accordingly.

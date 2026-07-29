@@ -72,15 +72,15 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   triggers = `INotification`, cross-cutting = `IPipelineBehavior`. **The source generator only discovers
   handlers in the core compilation** → all commands/queries/handlers/notification contracts **and**
   the `AddMediator` call live in `Flirty`. Open-generic behaviors are registered **manually**.
-  Reason: ADR `docs/adr/0002-mediator-als-in-process-bus.md`.
-- **ASP.NET-free in the core** (see above). Reason: ADR `docs/adr/0003-aspnet-freier-core.md`.
+  Reason: ADR `docs/adr/0002-mediator-as-in-process-bus.md`.
+- **ASP.NET-free in the core** (see above). Reason: ADR `docs/adr/0003-aspnet-free-core.md`.
 - **Expression engine sandboxed:** branching conditions run via `IExpressionEvaluator` (default
   `DynamicExpresso`, member whitelist) – **no** raw C# `eval`. In the designer, expressions are
   compiled/validated on save (`Validate`). Reason: ADR
-  `docs/adr/0004-gesandboxte-expression-engine.md`.
+  `docs/adr/0004-sandboxed-expression-engine.md`.
 - **Migrations per provider:** separate assemblies `Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`,
   chosen at runtime via `MigrationsAssembly(...)`. Reason: ADR
-  `docs/adr/0001-migrationen-pro-provider.md`.
+  `docs/adr/0001-migrations-per-provider.md`.
 - **Loops = branching + marker** (`LoopDefinition`), no runtime special path.
 - **Triggers from two sources:** outbound webhooks come from `o.AddWebhook(scope, url, expression?)`
   **and** (since #42) from the `TriggerDefinition`s configured on the dialog; both are served by the same
@@ -93,20 +93,20 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   commands). It is evolved via `CreateDialogVersionCommand` (clone as a draft, `Version`+1);
   `PublishDialogCommand` retires the previously productive version. Deletion happens only without running
   sessions (`AbandonDialogSessionsCommand` ends them first). Reason: ADR
-  `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`.
+  `docs/adr/0005-immutable-published-dialog-version.md`.
 - **Canvas positions live outside the graph:** `DialogLayout` (its own table, FK-free
   `ElementId`, unique over `(DialogId, ElementKind, ElementId)`) carries the designer's arrangement.
   `Set/ResetDialogLayoutCommand` run **deliberately without `DialogEditGuard`** – a published dialog
   must remain arrangeable, and coordinates do not touch session semantics. This is the only
   exception to the publish lock and not a gap, but its edge. The runtime never reads the table
   (`IDialogStore` does not load `Layout`). The price: cloning (`CreateDialogVersionCommand`) and cleanup
-  (`DeleteQuestionCommand`) are manual work. Reason: ADR `docs/adr/0007-layout-als-eigene-tabelle.md`.
+  (`DeleteQuestionCommand`) are manual work. Reason: ADR `docs/adr/0007-layout-as-its-own-table.md`.
 - **Canvas gestures write through the existing admin commands** (#103): a palette drop is
   `CreateQuestionCommand` + `SetDialogLayoutCommand`, a connection `CreateTransitionCommand` – all in
   **one** gateway call. No canvas CRUD, no new core command. After every graph mutation there is a
   **reload** (the warnings arise graph-wide); gestures are **not idempotent** and therefore locked in
   two stages (JS `send()` on the promise of `invokeMethodAsync` + early exit in
-  `RunGestureAsync`). Reason: ADR `docs/adr/0008-gesten-auf-dem-canvas.md`.
+  `RunGestureAsync`). Reason: ADR `docs/adr/0008-gestures-on-the-canvas.md`.
 
 ## Central entry points (with paths)
 
@@ -416,7 +416,7 @@ localized text); and the loop suggestion pluralized the English way (`belag` →
 `belag_liste`).
 
 **Canvas spike (#100) done** – stage 0 of **EPIC 11** (visual graph designer, #99). The result is
-no code, but ADR `docs/adr/0006-canvas-technik-im-designer.md`: the canvas is **built in-house**
+no code, but ADR `docs/adr/0006-canvas-technology-in-the-designer.md`: the canvas is **built in-house**
 (SVG in Razor + collocated `*.razor.js`), `Z.Blazor.Diagrams` drops out. Measured with two
 throwaway prototypes over the same graph (30 nodes / 45 edges) against a throttled circuit
 (2 × 75 ms); the code lives on the **never-merged** branch `spike/dz/100`. Numbers per drag gesture:
@@ -485,7 +485,7 @@ the dialog) plus migration `AddDialogLayout` in all three provider sets. New in 
 `LayoutElementKind`, `Dialog.Layout`, `IDialogAdminStore.GetLayoutAsync`/`GetLayoutsReferencingElementAsync`,
 `SetDialogLayoutCommand` (batch upsert) and `ResetDialogLayoutCommand`, `DialogLayoutDetail`/`DialogLayoutEntry`
 and `DialogDetail.Layout`; in `Flirty.AspNetCore` `PUT`/`DELETE .../dialogs/{id}/layout` plus `Layout` in
-`DialogDetailResponse`. Reason: ADR `docs/adr/0007-layout-als-eigene-tabelle.md`. Five things that tipped
+`DialogDetailResponse`. Reason: ADR `docs/adr/0007-layout-as-its-own-table.md`. Five things that tipped
 the scales:
 
 - **The table exists because of the write path, not because of extensibility.** Two columns
@@ -528,7 +528,7 @@ a source port per node (dragging connects, dragged into the void a question **an
 one drag), inspector panels for header fields, evaluation order, default toggle, condition, triggers
 and delete; a loop suggestion **at the cycle** instead of in a list; a published dialog ⇒ a real
 read mode in which moving still works. **No core code, no schema change** – rationale in ADR
-`docs/adr/0008-gesten-auf-dem-canvas.md`. Six things that tipped the scales:
+`docs/adr/0008-gestures-on-the-canvas.md`. Six things that tipped the scales:
 
 - **After a graph mutation there is a reload** – this restricts ADR 0007's "the commit does not reload"
   explicitly to the *layout* path. Not because of the entities, but because of the **warnings**:
@@ -721,8 +721,10 @@ switched from German to English (README, guides, ADRs, XML docs, comments, UI, t
 template and both workflow files (`ci.yml`/`release.yml`) are English, and the three rules above (§
 Conventions, its Definition of Done, § Test conventions) prescribe English comments, XML docs, commit
 messages and test names. As long as those said German, every following PR correctly produced *new* German
-text – flipping the rule first is what makes the rest a one-way street. **Open:** stage 2 (#114: README,
-`docs/` guides, ADRs – which also renames the ADR files, so the `docs/adr/000X-…md` paths here keep their
-current German slugs until #114 lands), stage 3 (#115: XML docs, comments and engine messages in the two
+text – flipping the rule first is what makes the rest a one-way street. **Stage 2 (#114) done** – README,
+the 17 `docs/` guides and the 9 ADRs are English; the 8 ADR files were renamed via `git mv` (numbers
+unchanged) and every referrer (this file, the skills, `docs/adr/README.md` and the guides) now points at
+the new English slugs (`docs/adr/0001-migrations-per-provider.md` … `0008-gestures-on-the-canvas.md`).
+**Open:** stage 3 (#115: XML docs, comments and engine messages in the two
 packages), stage 4 (#116: designer and sample UIs, incl. `DisplayCulture` and the English `ReconnectModal`
 handed off from #118) and stage 5 (#117: the 553 test names, last so the renames do not collide).

@@ -1,73 +1,73 @@
-# Trigger – In-Process-Notifications & Outbound-Webhooks
+# Triggers – in-process notifications & outbound webhooks
 
-> Stand: Issue #42. Dieser Guide beschreibt die **In-Process-Trigger** der Flirty-Engine:
-> Mediator-Notifications, die die Command-Handler beim Durchlaufen eines Dialogs publizieren, und wie
-> Host-Apps eigene Handler per `AddFlirtyHandler<T, THandler>()` „reinhängen". Die zweite Trigger-Spielart
-> – **Outbound-Webhooks** – baut auf genau diesen Notifications auf und ist seit #33 aktiv (siehe
-> [Abschnitt „Outbound-Webhooks"](#outbound-webhooks)); seit #42 lassen sich Webhooks außerdem **am
-> Dialog** konfigurieren (`TriggerDefinition`, gepflegt im [Designer](./DESIGNER.md#trigger-editor-42)).
+> Status: issue #42. This guide describes the **in-process triggers** of the Flirty engine:
+> Mediator notifications that the command handlers publish while running through a dialog, and how
+> host apps "plug in" their own handlers via `AddFlirtyHandler<T, THandler>()`. The second trigger flavor
+> – **outbound webhooks** – builds on exactly these notifications and has been active since #33 (see
+> [section "Outbound webhooks"](#outbound-webhooks)); since #42 webhooks can additionally be configured
+> **on the dialog** (`TriggerDefinition`, maintained in the [Designer](./DESIGNER.md#trigger-editor-42)).
 
-## Überblick
+## Overview
 
-Flirty kennt zwei Rückkanäle in die Host-App (siehe [ARCHITECTURE.md](./ARCHITECTURE.md) §7):
+Flirty knows two back channels into the host app (see [ARCHITECTURE.md](./ARCHITECTURE.md) §7):
 
-1. **In-Process-Notifications** (dieses Dokument): über den [Mediator](./MEDIATOR.md) (martinothamar)
-   publizierte `INotification`-Contracts. Die Engine ruft alle per DI registrierten
-   `INotificationHandler<T>` synchron im selben Scope auf.
-2. **Outbound-Webhooks** (seit #33): ein eingebauter `INotificationHandler`, der dieselben Notifications
-   empfängt und als HTTP-`POST` ausliefert (`IHttpClientFactory` + Standard-Resilience: Retry/Timeout).
-   Ziele kommen aus **zwei sich ergänzenden Quellen**: im Code per `o.AddWebhook(scope, url, expression?)`
-   registriert (#33/#34) **oder** am Dialog als `TriggerDefinition` konfiguriert (#42). Details unten unter
-   [Outbound-Webhooks](#outbound-webhooks) und
-   [Trigger-Definitionen am Dialog](#trigger-definitionen-am-dialog-42).
+1. **In-process notifications** (this document): `INotification` contracts published via the
+   [Mediator](./MEDIATOR.md) (martinothamar). The engine calls all `INotificationHandler<T>` registered
+   via DI synchronously in the same scope.
+2. **Outbound webhooks** (since #33): a built-in `INotificationHandler` that receives the same
+   notifications and delivers them as an HTTP `POST` (`IHttpClientFactory` + standard resilience: retry/timeout).
+   Targets come from **two complementary sources**: registered in code via `o.AddWebhook(scope, url, expression?)`
+   (#33/#34) **or** configured on the dialog as a `TriggerDefinition` (#42). Details below under
+   [Outbound webhooks](#outbound-webhooks) and
+   [Trigger definitions on the dialog](#trigger-definitions-on-the-dialog-42).
 
-## Die vier Notification-Contracts
+## The four notification contracts
 
-Alle liegen im Core (`src/Flirty/Runtime/Notifications/`), Namespace `Flirty.Runtime`, als
-`public sealed record ... : INotification`. Sie **müssen** im Core liegen, damit der Mediator-Source-
-Generator sie kennt und `IPublisher.Publish` sie an registrierte Handler (auch aus Host-Assemblies)
-ausliefert – siehe die zwei Mediator-Kernregeln in [MEDIATOR.md](./MEDIATOR.md).
+They all live in the core (`src/Flirty/Runtime/Notifications/`), namespace `Flirty.Runtime`, as
+`public sealed record ... : INotification`. They **must** live in the core so that the Mediator source
+generator knows them and `IPublisher.Publish` delivers them to registered handlers (including those from
+host assemblies) – see the two Mediator core rules in [MEDIATOR.md](./MEDIATOR.md).
 
-| Notification | `TriggerScope` | Publiziert von | Nutzlast |
+| Notification | `TriggerScope` | Published by | Payload |
 |---|---|---|---|
-| `DialogStartedNotification` | `OnDialogStarted` | `StartDialogCommandHandler` **und** (seit #43) `StartDialogVersionCommandHandler` – jeweils nur beim Neu-Start | `SessionId, DialogId, DialogKey, ExternalUserKey, CurrentQuestionId?, StartedAt` |
+| `DialogStartedNotification` | `OnDialogStarted` | `StartDialogCommandHandler` **and** (since #43) `StartDialogVersionCommandHandler` – each only on a fresh start | `SessionId, DialogId, DialogKey, ExternalUserKey, CurrentQuestionId?, StartedAt` |
 | `AnswerSubmittedNotification` | `AfterAnswer` | `SubmitAnswerCommandHandler` | `SessionId, DialogKey, QuestionId, Value, LoopInstanceId?, IterationIndex?` |
 | `QuestionAnsweredNotification` | `AfterQuestion` | `SubmitAnswerCommandHandler` | `SessionId, DialogKey, QuestionId, NextQuestionId?, IsCompleted` |
-| `DialogCompletedNotification` | `OnDialogCompleted` | `SubmitAnswerCommandHandler` **und** `EditAnswerCommandHandler` | `SessionId, DialogKey, Answers` (`IReadOnlyList<SessionAnswerView>`) |
+| `DialogCompletedNotification` | `OnDialogCompleted` | `SubmitAnswerCommandHandler` **and** `EditAnswerCommandHandler` | `SessionId, DialogKey, Answers` (`IReadOnlyList<SessionAnswerView>`) |
 
-Das Scope-Mapping deckt sich 1:1 mit `Flirty.Domain.TriggerScope`
+The scope mapping coincides 1:1 with `Flirty.Domain.TriggerScope`
 (`OnDialogStarted`/`AfterAnswer`/`AfterQuestion`/`OnDialogCompleted`).
 
-## Wann wird was publiziert?
+## When is what published?
 
-Publiziert wird stets **nach** `SaveChangesAsync`, damit ein Handler den persistierten Zustand sieht.
+Publication always happens **after** `SaveChangesAsync`, so that a handler sees the persisted state.
 
-- **Start (`StartDialogCommand`)**: Ein echter Neu-Start meldet `DialogStarted`. Ein **Resume** einer
-  bereits laufenden Session meldet bewusst **nichts** (nur der erste Start ist ein „Start"). Für
-  `StartDialogVersionCommand` (#43, Start einer konkreten Version ohne Veröffentlichung) gilt dasselbe:
-  Ein Testlauf im Designer feuert `OnDialogStarted` genauso wie ein produktiver Start – siehe den
-  Hinweis [Designer-Testläufe feuern echt](#hinweise--grenzen).
-- **Antwort (`SubmitAnswerCommand`)**: Nach dem Persistieren der Antwort wird `AnswerSubmitted` gemeldet,
-  danach das Übergangs-Ergebnis als `QuestionAnswered` (mit `NextQuestionId`/`IsCompleted`). Schließt die
-  Antwort den Dialog ab, folgt zusätzlich `DialogCompleted` (mit allen bisherigen Antworten).
-  Reihenfolge im Abschlussfall: `AnswerSubmitted` → `QuestionAnswered` → `DialogCompleted`.
-- **Editieren (`EditAnswerCommand`)**: Führt die Pfad-Neuberechnung nach einer Korrektur zum Abschluss,
-  wird `DialogCompleted` gemeldet. Ein bloßes **Wieder-Öffnen** (Reopen auf eine Folgefrage) sowie das
-  Überschreiben an sich lösen **keine** `AnswerSubmitted`/`QuestionAnswered` aus – nachträgliche
-  Korrekturen sollen keine doppelten „Nach-Antwort"-Trigger auslösen.
+- **Start (`StartDialogCommand`)**: A genuine fresh start reports `DialogStarted`. A **resume** of an
+  already running session deliberately reports **nothing** (only the first start is a "start"). For
+  `StartDialogVersionCommand` (#43, starting a specific version without publication) the same holds:
+  a test run in the designer fires `OnDialogStarted` just as a productive start does – see the
+  note [designer test runs fire for real](#notes--limits).
+- **Answer (`SubmitAnswerCommand`)**: After the answer has been persisted, `AnswerSubmitted` is reported,
+  followed by the transition result as `QuestionAnswered` (with `NextQuestionId`/`IsCompleted`). If the
+  answer completes the dialog, `DialogCompleted` follows in addition (with all answers so far).
+  Order in the completion case: `AnswerSubmitted` → `QuestionAnswered` → `DialogCompleted`.
+- **Editing (`EditAnswerCommand`)**: If the path recomputation after a correction leads to completion,
+  `DialogCompleted` is reported. A mere **reopen** (reopening a downstream question) as well as the
+  overwrite itself do **not** trigger `AnswerSubmitted`/`QuestionAnswered` – later corrections should not
+  raise duplicate "after-answer" triggers.
 
-## Eigenen Handler registrieren
+## Registering your own handler
 
-Ein Handler ist ein `Mediator.INotificationHandler<T>`; die Registrierung genügt, die Engine ruft ihn
-automatisch auf. Der Convenience-Helper `AddFlirtyHandler<TNotification, THandler>()` (seit #32) kapselt
-die Registrierung fluent:
+A handler is a `Mediator.INotificationHandler<T>`; registration is enough, the engine calls it
+automatically. The convenience helper `AddFlirtyHandler<TNotification, THandler>()` (since #32) wraps
+the registration fluently:
 
 ```csharp
 public sealed class OnDialogCompleted : INotificationHandler<DialogCompletedNotification>
 {
     public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
     {
-        // z. B. E-Mail versenden, Datensatz anlegen, Metrik erhöhen …
+        // e.g. send an email, create a record, increment a metric …
         return ValueTask.CompletedTask;
     }
 }
@@ -77,27 +77,27 @@ services
     .AddFlirtyHandler<DialogCompletedNotification, OnDialogCompleted>();
 ```
 
-`AddFlirtyHandler<T, THandler>()` registriert den Handler standardmäßig als `Scoped` – dieselbe
-Lebensdauer wie der Mediator; über den optionalen Parameter lässt sich z. B. `ServiceLifetime.Singleton`
-wählen. Er ist reine Bequemlichkeit für die rohe DI-Zeile und damit gleichwertig zu:
+`AddFlirtyHandler<T, THandler>()` registers the handler as `Scoped` by default – the same lifetime as
+the Mediator; via the optional parameter you can choose e.g. `ServiceLifetime.Singleton`. It is pure
+convenience for the raw DI line and thus equivalent to:
 
 ```csharp
 services.AddScoped<INotificationHandler<DialogCompletedNotification>, OnDialogCompleted>();
 ```
 
-Mehrere Handler je Notification sind erlaubt (alle werden aufgerufen) – der Helper nutzt bewusst
-`Add` (kein `TryAdd`/`Replace`). Ein durchgängiges Beispiel zeigt der
-[Console-Guide](./GETTING-STARTED-Console.md) und das lauffähige
+Multiple handlers per notification are allowed (all are called) – the helper deliberately uses
+`Add` (no `TryAdd`/`Replace`). A complete example is shown by the
+[Console guide](./GETTING-STARTED-Console.md) and the runnable
 [`src/Flirty.Samples`](../src/Flirty.Samples).
 
-## Outbound-Webhooks
+## Outbound webhooks
 
-Neben In-Process-Handlern liefert Flirty dieselben Notifications seit #33 auch als **ausgehende HTTP-`POST`**
-aus. Der eingebaute `WebhookNotificationHandler` (Core, `Flirty.Runtime`) wird – wie jeder Core-Handler –
-vom Mediator-Source-Generator automatisch je Notification registriert; es ist **keine** manuelle
-Registrierung nötig.
+Besides in-process handlers, Flirty has also delivered the same notifications as an **outbound HTTP `POST`**
+since #33. The built-in `WebhookNotificationHandler` (core, `Flirty.Runtime`) is – like every core handler –
+registered automatically per notification by the Mediator source generator; **no** manual registration is
+needed.
 
-### Ziele registrieren
+### Registering targets
 
 ```csharp
 services.AddFlirty(o =>
@@ -108,95 +108,95 @@ services.AddFlirty(o =>
 });
 ```
 
-`o.AddWebhook(TriggerScope scope, string url, string? expression = null)` legt fest, **zu welchem Zeitpunkt**
-(Scope) an **welche URL** ausgeliefert wird und optional **unter welcher Bedingung**. Der Scope mappt 1:1 auf
-die Notification (siehe Tabelle oben). Mehrere Registrierungen je Scope sind erlaubt (alle werden bedient).
+`o.AddWebhook(TriggerScope scope, string url, string? expression = null)` defines **at which point in time**
+(scope) delivery goes to **which URL** and optionally **under which condition**. The scope maps 1:1 onto
+the notification (see the table above). Multiple registrations per scope are allowed (all are served).
 
-> Der ältere String-Overload `o.AddWebhook(eventName, url)` (#34, ohne Scope) bleibt aus Kompatibilität
-> bestehen, wird vom eingebauten Handler aber **nicht** ausgeliefert.
+> The older string overload `o.AddWebhook(eventName, url)` (#34, without a scope) remains for compatibility,
+> but is **not** delivered by the built-in handler.
 
-### Was ausgeliefert wird
+### What is delivered
 
-- **Methode/Body:** HTTP-`POST` mit der als JSON serialisierten Notification (camelCase) als Body
+- **Method/body:** HTTP `POST` with the notification serialized as JSON (camelCase) as the body
   (`application/json`).
-- **Header:** `X-Flirty-Event` trägt den auslösenden `TriggerScope` (z. B. `OnDialogCompleted`); bei
-  Triggern mit gesetztem `name` kommt seit #42 zusätzlich `X-Flirty-Trigger` mit diesem Namen dazu.
+- **Header:** `X-Flirty-Event` carries the triggering `TriggerScope` (e.g. `OnDialogCompleted`); for
+  triggers with a set `name`, `X-Flirty-Trigger` with that name is added since #42.
 
-### Bedingtes Auslösen (`expression`)
+### Conditional firing (`expression`)
 
-Ist ein `expression` gesetzt, lädt der Handler Session und (gepinnte) Dialogversion über den `IDialogStore`
-nach, baut denselben `ExpressionContext` wie das Branching (Antworten nach `Question.Key`, Loop-Collections,
-Iterationsindex) und wertet die Bedingung über den `IExpressionEvaluator` aus – dieselbe Engine und Semantik
-wie bei `Transition.Expression` (siehe [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)). Nur bei
-`true` wird ausgeliefert; ein leerer/`null`-Ausdruck gilt als bedingungslos.
+If an `expression` is set, the handler loads the session and (pinned) dialog version via the `IDialogStore`,
+builds the same `ExpressionContext` as branching (answers by `Question.Key`, loop collections,
+iteration index) and evaluates the condition via the `IExpressionEvaluator` – the same engine and semantics
+as with `Transition.Expression` (see [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)). Only on
+`true` is delivery made; an empty/`null` expression counts as unconditional.
 
-Lässt sich eine Bedingung **nicht auswerten** – etwa weil sie eine Antwort referenziert, die es zum
-Auslösezeitpunkt noch gar nicht gibt (typisch bei `OnDialogStarted`) –, wird der Fehler protokolliert und
-das Ziel übersprungen. Der auslösende Command (Start/Submit/Edit) läuft weiter; die Bedingung gilt als
-nicht erfüllt. Der Designer prüft Ausdrücke deshalb schon beim Speichern (siehe
+If a condition **cannot be evaluated** – for instance because it references an answer that does not yet
+exist at the trigger time (typical with `OnDialogStarted`) – the error is logged and the target is
+skipped. The triggering command (start/submit/edit) continues; the condition counts as unmet. The
+designer therefore already checks expressions on save (see
 [DESIGNER.md](./DESIGNER.md#trigger-editor-42)).
 
-## Trigger-Definitionen am Dialog (#42)
+## Trigger definitions on the dialog (#42)
 
-Webhooks lassen sich nicht nur im Code registrieren, sondern auch **am Dialog konfigurieren** – als
-`TriggerDefinition`-Zeile, gepflegt über den [Designer](./DESIGNER.md#trigger-editor-42) oder die
-Admin-Endpunkte (`POST/PUT/DELETE {prefix}/dialogs/{dialogId}/triggers`). Beide Quellen gelten
-**additiv**: der eingebaute Handler bedient je Notification erst die Code-Registrierungen, dann die
-konfigurierten Trigger des Dialogs, zu dem die Session gehört.
+Webhooks can be registered not only in code but also **configured on the dialog** – as a
+`TriggerDefinition` row, maintained via the [Designer](./DESIGNER.md#trigger-editor-42) or the
+admin endpoints (`POST/PUT/DELETE {prefix}/dialogs/{dialogId}/triggers`). Both sources apply
+**additively**: the built-in handler serves, per notification, first the code registrations, then the
+configured triggers of the dialog to which the session belongs.
 
-| Feld | Bedeutung |
+| Field | Meaning |
 |---|---|
-| `Scope` | Der Auslösezeitpunkt – mappt 1:1 auf die Notification (Tabelle oben). |
-| `QuestionId` | **Pflicht** bei `AfterQuestion` (der Trigger feuert nur nach dieser Frage), sonst leer. |
-| `Kind` | `Webhook` (die Engine stellt zu) oder `InProcess` (siehe unten). |
-| `Config` | Kanal-Konfiguration als JSON, Schema: **`Flirty.Domain.TriggerConfig`**. |
-| `Expression` | Optionale Bedingung – dieselbe Engine/Semantik wie oben. |
+| `Scope` | The trigger point – maps 1:1 onto the notification (table above). |
+| `QuestionId` | **Required** for `AfterQuestion` (the trigger fires only after this question), empty otherwise. |
+| `Kind` | `Webhook` (the engine delivers) or `InProcess` (see below). |
+| `Config` | Channel configuration as JSON, schema: **`Flirty.Domain.TriggerConfig`**. |
+| `Expression` | Optional condition – the same engine/semantics as above. |
 
-Das `Config`-Schema ist bewusst klein:
+The `Config` schema is deliberately small:
 
 ```json
 { "url": "https://host.example/flirty/completed", "name": "order-created" }
 ```
 
-- **`url`** – Ziel des HTTP-`POST`. Bei `Kind = Webhook` **Pflicht** und eine absolute `http`-/`https`-Adresse.
-- **`name`** – optionaler fachlicher Ereignisname; wird als Header `X-Flirty-Trigger` mitgeliefert.
+- **`url`** – target of the HTTP `POST`. With `Kind = Webhook` **required** and an absolute `http`/`https` address.
+- **`name`** – optional business event name; delivered as the header `X-Flirty-Trigger`.
 
-`TriggerConfig` ist öffentliche Core-API (`TryParse`/`ToJson`/`TryValidate`) und die **eine** Quelle des
-Schemas – Admin-Commands, Webhook-Auslieferung und Designer hängen daran. Die Commands weisen unstimmige
-Anfragen mit HTTP 400 ab (kaputtes JSON, fehlende/relative URL, `AfterQuestion` ohne Frage bzw. ein
-Frage-Bezug bei einem anderen Zeitpunkt). Zur Laufzeit unbrauchbare Zeilen – etwa von Hand geschrieben –
-werden protokolliert und übersprungen, nie geworfen.
+`TriggerConfig` is a public core API (`TryParse`/`ToJson`/`TryValidate`) and the **one** source of the
+schema – admin commands, webhook delivery and the designer hang on it. The commands reject inconsistent
+requests with HTTP 400 (broken JSON, missing/relative URL, `AfterQuestion` without a question, or a
+question reference at another trigger point). Rows unusable at runtime – e.g. hand-written – are logged
+and skipped, never thrown.
 
-> **`Kind = InProcess` stellt nichts zu.** Die vier Notifications werden ohnehin publiziert; behandelt
-> werden sie von einem Handler der Host-App (`AddFlirtyHandler<T, THandler>()`). Eine `InProcess`-Zeile
-> dokumentiert also nur die Absicht und benennt sie – der Webhook-Handler ignoriert sie bewusst.
+> **`Kind = InProcess` delivers nothing.** The four notifications are published anyway; they are handled
+> by a handler in the host app (`AddFlirtyHandler<T, THandler>()`). An `InProcess` row therefore only
+> documents the intent and names it – the webhook handler deliberately ignores it.
 
-**Kosten:** Weil die Definitionen in der Datenbank stehen, führt der Handler je Notification **eine**
-schmale Abfrage aus (`IDialogStore.GetTriggersForSessionAsync`, gefiltert auf Session-Dialog und Scope,
-über den Fremdschlüssel-Index). Die frühere Zusage „ohne Ausdruck erfolgt kein DB-Zugriff" gilt seit #42
-nicht mehr. Der volle Dialog-Graph wird weiterhin nur geladen, wenn mindestens ein Ziel eine Bedingung trägt.
+**Cost:** Because the definitions sit in the database, the handler runs **one** slim query per
+notification (`IDialogStore.GetTriggersForSessionAsync`, filtered on the session dialog and scope,
+via the foreign-key index). The earlier promise "no DB access without an expression" no longer holds
+since #42. The full dialog graph is still loaded only if at least one target carries a condition.
 
-### Resilience & Fehlerverhalten
+### Resilience & error behavior
 
-- Die Zustellung läuft über einen `IHttpClientFactory`-Named-Client (`"Flirty.Webhooks"`) mit
-  `AddStandardResilienceHandler()` – **Retry** bei transienten Fehlern (5xx/408/429, Verbindungsfehler,
-  Timeouts) plus Attempt-/Total-**Timeout**.
-- **Best-effort:** Schlägt die Zustellung nach erschöpften Retries fehl (Statuscode ≥ 400 oder Ausnahme),
-  wird der Fehler **geloggt, aber nicht geworfen** – ein toter Webhook darf den auslösenden Command
-  (Start/Submit/Edit) nicht brechen. Dasselbe gilt für unbrauchbare Trigger-Konfiguration und nicht
-  auswertbare Bedingungen: protokollieren, Ziel überspringen, weitermachen.
+- Delivery runs through an `IHttpClientFactory` named client (`"Flirty.Webhooks"`) with
+  `AddStandardResilienceHandler()` – **retry** on transient errors (5xx/408/429, connection errors,
+  timeouts) plus attempt/total **timeout**.
+- **Best-effort:** If delivery fails after exhausted retries (status code ≥ 400 or an exception),
+  the error is **logged, but not thrown** – a dead webhook must not break the triggering command
+  (start/submit/edit). The same holds for unusable trigger configuration and non-evaluable
+  conditions: log, skip the target, carry on.
 
-## Hinweise & Grenzen
+## Notes & limits
 
-- **Synchron & In-Process**: `IPublisher.Publish` ruft die Handler synchron im Scope des auslösenden
-  Commands auf. Wirft ein Handler, propagiert die Ausnahme an den Aufrufer des Commands. Für lange oder
-  fehleranfällige Arbeit sollte der Handler entkoppeln (Queue/Hintergrunddienst).
-- **Persistierter Zustand**: Da nach `SaveChangesAsync` publiziert wird, spiegeln die mitgelieferten
-  Daten den gespeicherten Stand wider.
-- **MSG0005**: Der Mediator-Source-Generator verlangt je Nachricht einen Handler in der Core-Compilation.
-  Weil diese Trigger bewusst erst von Host-Apps behandelt werden, ist die Diagnose je Notification-Typ
-  gezielt unterdrückt (`#pragma warning disable MSG0005`).
-- **Designer-Testläufe feuern echt**: Der [Test-Runner](./DESIGNER.md#test-runner-43) des Designers (#43)
-  spielt Dialoge mit der echten Engine durch. Konfigurierte `Kind = Webhook`-Trigger werden dabei
-  tatsächlich per HTTP zugestellt – vor einem Testlauf gegen produktive Ziele also die URL prüfen. Der
-  Runner protokolliert, was publiziert wurde, und weist im UI darauf hin.
+- **Synchronous & in-process**: `IPublisher.Publish` calls the handlers synchronously in the scope of
+  the triggering command. If a handler throws, the exception propagates to the caller of the command. For
+  long or error-prone work the handler should decouple (queue/background service).
+- **Persisted state**: Since publication happens after `SaveChangesAsync`, the supplied data reflects
+  the saved state.
+- **MSG0005**: The Mediator source generator requires a handler in the core compilation per message.
+  Because these triggers are deliberately handled only by host apps, the diagnostic is suppressed
+  deliberately per notification type (`#pragma warning disable MSG0005`).
+- **Designer test runs fire for real**: The designer's [test runner](./DESIGNER.md#test-runner-43) (#43)
+  plays dialogs through with the real engine. Configured `Kind = Webhook` triggers are thereby actually
+  delivered over HTTP – so before a test run against productive targets, check the URL. The runner
+  logs what was published and points it out in the UI.
