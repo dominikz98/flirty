@@ -1,42 +1,42 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Definiert einen Rückkanal in die Host-Anwendung, der zu einem bestimmten Zeitpunkt
-/// (<see cref="Scope"/>) über einen Kanal (<see cref="Kind"/>) ausgelöst wird – als
-/// In-Process-Notification oder ausgehender Webhook.
+/// Defines a back channel into the host application that is fired at a specific point in time
+/// (<see cref="Scope"/>) over a channel (<see cref="Kind"/>) - as an
+/// in-process notification or an outgoing webhook.
 /// </summary>
 public sealed class TriggerDefinition
 {
-    /// <summary>Eindeutiger Primärschlüssel der Trigger-Definition.</summary>
+    /// <summary>Unique primary key of the trigger definition.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf den zugehörigen <see cref="Dialog"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Dialog"/>.</summary>
     public Guid DialogId { get; set; }
 
-    /// <summary>Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</summary>
+    /// <summary>The point in the dialog flow at which the trigger fires.</summary>
     public TriggerScope Scope { get; set; }
 
     /// <summary>
-    /// Verweis auf die Frage (<see cref="Question.Id"/>) bei <see cref="TriggerScope.AfterQuestion"/>;
-    /// andernfalls <see langword="null"/>.
+    /// Reference to the question (<see cref="Question.Id"/>) for <see cref="TriggerScope.AfterQuestion"/>;
+    /// otherwise <see langword="null"/>.
     /// </summary>
     public Guid? QuestionId { get; set; }
 
-    /// <summary>Der Kanal, über den der Trigger die Host-Anwendung benachrichtigt.</summary>
+    /// <summary>The channel over which the trigger notifies the host application.</summary>
     public TriggerKind Kind { get; set; }
 
     /// <summary>
-    /// Kanal-spezifische Konfiguration als JSON (z. B. Webhook-URL/Name oder
-    /// Notification-Parameter).
+    /// Channel-specific configuration as JSON (e.g. webhook URL/name or
+    /// notification parameters).
     /// </summary>
     public required string Config { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IExpressionEvaluator"/>
-    /// ausgewertet wird und über das Auslösen entscheidet.
+    /// Optional condition expression that is evaluated via <see cref="Flirty.Expressions.IExpressionEvaluator"/>
+    /// and decides whether to fire.
     /// </summary>
     public string? Expression { get; set; }
 
-    /// <summary>Der Dialog, zu dem diese Trigger-Definition gehört.</summary>
+    /// <summary>The dialog this trigger definition belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 }

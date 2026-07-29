@@ -3,91 +3,91 @@ using Flirty.Domain;
 namespace Flirty.Persistence;
 
 /// <summary>
-/// Repository über den <see cref="FlirtyDbContext"/>: kapselt die Lade- und Speicheroperationen,
-/// die die Runtime-Schicht (Start/Resume/Submit/Edit, Issue #25) benötigt, und hält den
-/// EF-Core-Kontext aus den Mediator-Handlern heraus. Die Konfigurationsebene (Dialog-Graph) wird
-/// bewusst <b>ungetrackt</b> geliefert (zur Laufzeit unveränderlich), die Runtime-Ebene
-/// (<see cref="DialogSession"/>) hingegen <b>getrackt</b>, damit Mutationen über
-/// <see cref="SaveChangesAsync"/> persistiert werden.
+/// Repository over the <see cref="FlirtyDbContext"/>: encapsulates the load and save operations
+/// that the runtime layer (start/resume/submit/edit, issue #25) needs, and keeps the
+/// EF Core context out of the Mediator handlers. The configuration layer (dialog graph) is
+/// deliberately delivered <b>untracked</b> (immutable at runtime), the runtime layer
+/// (<see cref="DialogSession"/>) however <b>tracked</b>, so that mutations are persisted via
+/// <see cref="SaveChangesAsync"/>.
 /// </summary>
 internal interface IDialogStore
 {
     /// <summary>
-    /// Lädt die höchste <b>veröffentlichte</b> Version des Dialogs mit dem fachlichen
-    /// <paramref name="key"/> samt vollständigem Konfigurationsgraphen (Fragen inkl. Optionen,
-    /// Übergänge, Schleifen, Trigger). Grundlage für <c>StartDialogCommand</c>.
+    /// Loads the highest <b>published</b> version of the dialog with the business
+    /// <paramref name="key"/> along with the full configuration graph (questions incl. options,
+    /// transitions, loops, triggers). Basis for <c>StartDialogCommand</c>.
     /// </summary>
-    /// <param name="key">Der fachliche, stabile Schlüssel des Dialogs.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Der veröffentlichte Dialog mit der höchsten Version oder
-    /// <see langword="null"/>, wenn kein veröffentlichter Dialog mit diesem Schlüssel existiert.</returns>
+    /// <param name="key">The business, stable key of the dialog.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The published dialog with the highest version or
+    /// <see langword="null"/> if no published dialog with this key exists.</returns>
     Task<Dialog?> GetPublishedDialogAsync(string key, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lädt den Dialog mit der angegebenen <paramref name="dialogId"/> – also die exakte, von einer
-    /// Session gepinnte Version – samt vollständigem Graphen, <b>unabhängig vom
-    /// Veröffentlichungsstatus</b>. Grundlage für Resume/Submit/Edit (gepinnte Dialogversion).
+    /// Loads the dialog with the given <paramref name="dialogId"/> - that is, the exact version pinned by
+    /// a session - along with the full graph, <b>regardless of the
+    /// publication status</b>. Basis for resume/submit/edit (pinned dialog version).
     /// </summary>
-    /// <param name="dialogId">Der Primärschlüssel der konkreten Dialogversion.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Der Dialog samt Graph oder <see langword="null"/>, wenn keine solche Id existiert.</returns>
+    /// <param name="dialogId">The primary key of the concrete dialog version.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The dialog along with its graph or <see langword="null"/> if no such id exists.</returns>
     Task<Dialog?> GetDialogAsync(Guid dialogId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lädt die Session mit der angegebenen <paramref name="sessionId"/> samt ihrer Antworten.
-    /// Die Session wird <b>getrackt</b> zurückgegeben, damit nachfolgende Mutationen (neue Antwort,
-    /// Statuswechsel, aktuelle Frage) über <see cref="SaveChangesAsync"/> gespeichert werden.
+    /// Loads the session with the given <paramref name="sessionId"/> along with its answers.
+    /// The session is returned <b>tracked</b> so that subsequent mutations (new answer,
+    /// status change, current question) are saved via <see cref="SaveChangesAsync"/>.
     /// </summary>
-    /// <param name="sessionId">Der Primärschlüssel der Session.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Die getrackte Session samt Antworten oder <see langword="null"/>,
-    /// wenn keine solche Session existiert.</returns>
+    /// <param name="sessionId">The primary key of the session.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The tracked session along with its answers or <see langword="null"/>
+    /// if no such session exists.</returns>
     Task<DialogSession?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sucht die zuletzt gestartete <b>laufende</b> (<see cref="SessionStatus.InProgress"/>) Session
-    /// eines Anwenders (<paramref name="externalUserKey"/>) für die angegebene
-    /// <paramref name="dialogId"/> samt Antworten – <b>getrackt</b>. Grundlage für den
-    /// Resume-oder-Neu-Entscheid in <c>StartDialogCommand</c>.
+    /// Finds the most recently started <b>running</b> (<see cref="SessionStatus.InProgress"/>) session
+    /// of a user (<paramref name="externalUserKey"/>) for the given
+    /// <paramref name="dialogId"/> along with its answers - <b>tracked</b>. Basis for the
+    /// resume-or-new decision in <c>StartDialogCommand</c>.
     /// </summary>
-    /// <param name="dialogId">Die Id der konkreten Dialogversion.</param>
-    /// <param name="externalUserKey">Der fachliche Anwenderschlüssel der Host-App.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Die getrackte laufende Session oder <see langword="null"/>, wenn keine existiert.</returns>
+    /// <param name="dialogId">The id of the concrete dialog version.</param>
+    /// <param name="externalUserKey">The business user key of the host app.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The tracked running session or <see langword="null"/> if none exists.</returns>
     Task<DialogSession?> FindActiveSessionAsync(
         Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lädt die Trigger-Definitionen des Dialogs, zu dem die Session <paramref name="sessionId"/>
-    /// gehört, gefiltert auf den angegebenen <paramref name="scope"/> – <b>ungetrackt</b>. Grundlage für
-    /// die Auslieferung der im Designer konfigurierten Trigger (<c>WebhookNotificationHandler</c>, #42).
+    /// Loads the trigger definitions of the dialog the session <paramref name="sessionId"/>
+    /// belongs to, filtered on the given <paramref name="scope"/> - <b>untracked</b>. Basis for
+    /// the delivery of the triggers configured in the designer (<c>WebhookNotificationHandler</c>, #42).
     /// </summary>
     /// <remarks>
-    /// Bewusst <b>eine</b> schmale Abfrage über den Fremdschlüssel-Index statt „erst Session laden, dann
-    /// Dialog-Graph": Der Handler läuft synchron im Scope des auslösenden Commands, und die
-    /// Notifications tragen (bis auf den Start) keine <c>DialogId</c>.
+    /// Deliberately <b>one</b> slim query over the foreign-key index instead of "first load the session, then
+    /// the dialog graph": the handler runs synchronously in the scope of the triggering command, and the
+    /// notifications (except the start) carry no <c>DialogId</c>.
     /// </remarks>
-    /// <param name="sessionId">Der Primärschlüssel der auslösenden Session.</param>
-    /// <param name="scope">Der Zeitpunkt, zu dem ausgelöst wurde.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Die passenden Trigger-Definitionen (leere Liste, wenn keine existieren).</returns>
+    /// <param name="sessionId">The primary key of the triggering session.</param>
+    /// <param name="scope">The point in time at which the trigger fired.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The matching trigger definitions (empty list if none exist).</returns>
     Task<IReadOnlyList<TriggerDefinition>> GetTriggersForSessionAsync(
         Guid sessionId, TriggerScope scope, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Nimmt eine neu erstellte <paramref name="session"/> (inklusive erster Antworten) in die
-    /// Nachverfolgung auf. Die Persistierung erfolgt erst mit <see cref="SaveChangesAsync"/>.
-    /// Bewusst synchron: alle Guid-Schlüssel werden anwendungsseitig vergeben (keine
-    /// DB-Wertgenerierung), daher ist <c>AddAsync</c> nicht erforderlich.
+    /// Takes a newly created <paramref name="session"/> (including its first answers) into
+    /// tracking. Persistence only happens with <see cref="SaveChangesAsync"/>.
+    /// Deliberately synchronous: all GUID keys are assigned application-side (no
+    /// DB value generation), so <c>AddAsync</c> is not required.
     /// </summary>
-    /// <param name="session">Die zu ergänzende Session.</param>
+    /// <param name="session">The session to add.</param>
     void AddSession(DialogSession session);
 
     /// <summary>
-    /// Schreibt alle in dieser Arbeitseinheit (Unit of Work) angesammelten Änderungen – neue Session
-    /// bzw. mutierte, getrackte Session samt Antworten – gebündelt in die Datenbank.
+    /// Writes all changes accumulated in this unit of work - new session
+    /// or mutated, tracked session along with answers - in a single bundle to the database.
     /// </summary>
-    /// <param name="cancellationToken">Token zum Abbrechen des Speichervorgangs.</param>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald gespeichert wurde.</returns>
+    /// <param name="cancellationToken">Token to cancel the save operation.</param>
+    /// <returns>A task that completes once the save has happened.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

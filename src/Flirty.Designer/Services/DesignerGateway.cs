@@ -1,51 +1,51 @@
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Ergebnis einer über ein <see cref="DesignerGateway"/> ausgeführten Engine-Operation. Bewusst
-/// ergebnis- statt ausnahmebasiert (analog <see cref="ConnectionProfileOperations"/>), damit die
-/// Blazor-Seiten Fehler als Meldung anzeigen können, statt den Circuit abstürzen zu lassen.
+/// Result of an engine operation executed via a <see cref="DesignerGateway"/>. Deliberately
+/// result-based rather than exception-based (analogous to <see cref="ConnectionProfileOperations"/>), so that the
+/// Blazor pages can show errors as a message, instead of letting the circuit crash.
 /// </summary>
-/// <typeparam name="TValue">Der Ergebnistyp der Operation.</typeparam>
-/// <param name="Success">Gibt an, ob die Operation erfolgreich war.</param>
-/// <param name="Value">Das Ergebnis bei Erfolg, sonst <c>default</c>.</param>
-/// <param name="Error">Die deutsche Fehlermeldung bei Misserfolg, sonst <c>null</c>.</param>
+/// <typeparam name="TValue">The result type of the operation.</typeparam>
+/// <param name="Success">Indicates whether the operation was successful.</param>
+/// <param name="Value">The result on success, otherwise <c>default</c>.</param>
+/// <param name="Error">The German error message on failure, otherwise <c>null</c>.</param>
 internal sealed record GatewayResult<TValue>(bool Success, TValue? Value, string? Error)
 {
-    /// <summary>Erzeugt ein Erfolgsergebnis.</summary>
-    /// <param name="value">Der Rückgabewert der Operation.</param>
+    /// <summary>Creates a success result.</summary>
+    /// <param name="value">The return value of the operation.</param>
     public static GatewayResult<TValue> Ok(TValue value) => new(true, value, null);
 
-    /// <summary>Erzeugt ein Fehlerergebnis.</summary>
-    /// <param name="error">Die anzuzeigende Fehlermeldung.</param>
+    /// <summary>Creates an error result.</summary>
+    /// <param name="error">The error message to display.</param>
     public static GatewayResult<TValue> Failed(string error) => new(false, default, error);
 }
 
 /// <summary>
-/// Gemeinsame Basis der Designer-Gateways (<see cref="FlirtyAdminGateway"/> für das Admin-CRUD,
-/// <see cref="FlirtyRuntimeGateway"/> für den Test-Runner): führt jede Engine-Operation in einem
-/// <b>eigenen, frischen DI-Scope</b> aus und bildet die von der Engine geworfenen Ausnahmen auf eine
-/// anzeigbare Meldung ab.
+/// Common base of the designer gateways (<see cref="FlirtyAdminGateway"/> for the admin CRUD,
+/// <see cref="FlirtyRuntimeGateway"/> for the test runner): runs every engine operation in its
+/// <b>own, fresh DI scope</b> and maps the exceptions thrown by the engine onto a
+/// displayable message.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Grund für den eigenen Scope (#38): In Blazor Server entspricht ein DI-Scope einem <i>Circuit</i>. Der in
-/// <c>Program.cs</c> scoped registrierte <c>FlirtyDbContext</c> würde damit für die gesamte Sitzung leben
-/// und wäre an dasjenige Connection-Profil gepinnt, das beim ersten Zugriff aktiv war – ein späterer
-/// Profilwechsel unter „Verbindungen“ bliebe wirkungslos. Zusätzlich sammelte der Change-Tracker über die
-/// ganze Sitzung Entities an und der Kontext (nicht threadsicher) würde von parallelen Renderpfaden geteilt.
-/// Pro Operation ein Scope löst alle drei Punkte.
+/// Reason for the own scope (#38): in Blazor Server a DI scope corresponds to a <i>circuit</i>. The
+/// <c>FlirtyDbContext</c> registered scoped in <c>Program.cs</c> would thus live for the entire session
+/// and would be pinned to whichever connection profile was active on first access – a later
+/// profile switch under "Verbindungen" would remain ineffective. Additionally the change tracker would accumulate
+/// entities over the whole session and the context (not thread-safe) would be shared by parallel render paths.
+/// One scope per operation solves all three points.
 /// </para>
 /// <para>
-/// Das aktive Profil des Circuits wird dabei per <see cref="ActiveConnectionProfile.Adopt"/> in den
-/// Kind-Scope durchgereicht; der Store-Default allein genügt nicht, weil mehrere Circuits unterschiedliche
-/// Profile aktiv haben können. Weitere Circuit-Zustände (etwa das Trigger-Protokoll des Test-Runners)
-/// reichen abgeleitete Gateways über <see cref="Prepare"/> nach.
+/// The active profile of the circuit is thereby passed via <see cref="ActiveConnectionProfile.Adopt"/> into the
+/// child scope; the store default alone does not suffice, because several circuits can have different
+/// profiles active. Further circuit states (such as the trigger log of the test runner)
+/// are supplied by derived gateways via <see cref="Prepare"/>.
 /// </para>
 /// <para>
-/// Das Fehler-Mapping der Ableitungen spiegelt bewusst den <c>FlirtyExceptionEndpointFilter</c> aus
-/// <c>Flirty.AspNetCore</c> (gleiche Reihenfolge der Zweige): Not-Found vor Validierung vor dem generischen
-/// Konflikt-Zweig. Was <see cref="Describe"/> mit <see langword="null"/> beantwortet, blubbert absichtlich
-/// weiter in die Blazor-Fehler-UI.
+/// The error mapping of the derivations deliberately mirrors the <c>FlirtyExceptionEndpointFilter</c> from
+/// <c>Flirty.AspNetCore</c> (same order of branches): not-found before validation before the generic
+/// conflict branch. What <see cref="Describe"/> answers with <see langword="null"/> deliberately bubbles
+/// on into the Blazor error UI.
 /// </para>
 /// </remarks>
 internal abstract class DesignerGateway
@@ -53,9 +53,9 @@ internal abstract class DesignerGateway
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ActiveConnectionProfile _active;
 
-    /// <summary>Erstellt das Gateway.</summary>
-    /// <param name="scopeFactory">Factory für den je Operation erzeugten Kind-Scope.</param>
-    /// <param name="active">Das aktive Connection-Profil des aufrufenden Circuits.</param>
+    /// <summary>Creates the gateway.</summary>
+    /// <param name="scopeFactory">Factory for the child scope created per operation.</param>
+    /// <param name="active">The active connection profile of the calling circuit.</param>
     protected DesignerGateway(IServiceScopeFactory scopeFactory, ActiveConnectionProfile active)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
@@ -66,13 +66,13 @@ internal abstract class DesignerGateway
     }
 
     /// <summary>
-    /// Führt die angegebene Operation in einem frischen DI-Scope aus und bildet bekannte Ausnahmen auf
-    /// eine anzeigbare Meldung ab.
+    /// Runs the given operation in a fresh DI scope and maps known exceptions onto
+    /// a displayable message.
     /// </summary>
-    /// <typeparam name="TValue">Der Ergebnistyp der Operation.</typeparam>
-    /// <param name="operation">Die Operation, die ihre Dienste aus dem Kind-Scope auflöst.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
-    /// <returns>Das Ergebnis der Operation oder eine deutsche Fehlermeldung.</returns>
+    /// <typeparam name="TValue">The result type of the operation.</typeparam>
+    /// <param name="operation">The operation that resolves its services from the child scope.</param>
+    /// <param name="cancellationToken">Token for cancelling the operation.</param>
+    /// <returns>The result of the operation or a German error message.</returns>
     protected async Task<GatewayResult<TValue>> ExecuteInScopeAsync<TValue>(
         Func<IServiceProvider, CancellationToken, ValueTask<TValue>> operation,
         CancellationToken cancellationToken)
@@ -81,8 +81,8 @@ internal abstract class DesignerGateway
 
         await using var scope = _scopeFactory.CreateAsyncScope();
 
-        // Profil des Circuits in den Kind-Scope übernehmen. Ist keins aktiv, wirft die
-        // FlirtyDesignerDbContextFactory unten ihre bereits formulierte Meldung -> nicht duplizieren.
+        // Take over the profile of the circuit into the child scope. If none is active, the
+        // FlirtyDesignerDbContextFactory below throws its already-formulated message -> do not duplicate.
         if (_active.Current is { } profile)
         {
             scope.ServiceProvider.GetRequiredService<ActiveConnectionProfile>().Adopt(profile);
@@ -101,30 +101,30 @@ internal abstract class DesignerGateway
     }
 
     /// <summary>
-    /// Hook, um weitere Zustände des aufrufenden Circuits in den frisch erzeugten Kind-Scope
-    /// durchzureichen. Die Basis reicht nur das aktive Connection-Profil durch.
+    /// Hook to pass further states of the calling circuit into the freshly created child scope.
+    /// The base only passes the active connection profile through.
     /// </summary>
-    /// <param name="scopedProvider">Der Service-Provider des Kind-Scopes.</param>
+    /// <param name="scopedProvider">The service provider of the child scope.</param>
     protected virtual void Prepare(IServiceProvider scopedProvider)
     {
     }
 
     /// <summary>
-    /// Formuliert die anzuzeigende Meldung zu einer von der Engine geworfenen Ausnahme.
+    /// Formulates the message to display for an exception thrown by the engine.
     /// </summary>
-    /// <param name="exception">Die aufgetretene Ausnahme.</param>
+    /// <param name="exception">The exception that occurred.</param>
     /// <returns>
-    /// Die deutsche Meldung oder <see langword="null"/>, wenn die Ausnahme nicht behandelt werden soll
-    /// (sie wird dann weitergereicht).
+    /// The German message or <see langword="null"/> if the exception should not be handled
+    /// (it is then passed on).
     /// </returns>
     protected abstract string? Describe(Exception exception);
 
     /// <summary>
-    /// Formuliert einen Datenbankfehler mit dem im Designer häufigsten Grund: die Datenbank des aktiven
-    /// Profils ist noch nicht migriert (frische SQLite-Datei &#8594; „no such table“).
+    /// Formulates a database error with the most common reason in the designer: the database of the active
+    /// profile is not yet migrated (fresh SQLite file &#8594; "no such table").
     /// </summary>
-    /// <param name="exception">Die aufgetretene Datenbank-Ausnahme.</param>
-    /// <returns>Die anzuzeigende Meldung.</returns>
+    /// <param name="exception">The database exception that occurred.</param>
+    /// <returns>The message to display.</returns>
     protected static string DescribeDatabaseError(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);

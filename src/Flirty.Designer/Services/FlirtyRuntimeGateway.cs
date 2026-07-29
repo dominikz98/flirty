@@ -7,24 +7,24 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Führt die Laufzeit-Operationen der Engine (<see cref="IFlirtyEngine"/>) für den Test-Runner (#43) aus –
-/// jede in einem eigenen, frischen DI-Scope. Begründung und Scope-Mechanik stehen in der Basis
-/// <see cref="DesignerGateway"/>; Pendant zum <see cref="FlirtyAdminGateway"/> des Admin-CRUD.
+/// Runs the runtime operations of the engine (<see cref="IFlirtyEngine"/>) for the test runner (#43) –
+/// each in its own, fresh DI scope. Rationale and scope mechanics are in the base
+/// <see cref="DesignerGateway"/>; counterpart to the <see cref="FlirtyAdminGateway"/> of the admin CRUD.
 /// </summary>
 /// <remarks>
-/// Das Fehler-Mapping deckt zusätzlich die Ausnahmen der Laufzeit ab, die im Admin-CRUD nicht vorkommen
+/// The error mapping additionally covers the exceptions of the runtime that do not occur in the admin CRUD
 /// (<see cref="DialogNotFoundException"/>, <see cref="SessionNotFoundException"/>,
-/// <see cref="AnswerValidationException"/>). Ohne sie risse eine schlicht falsch eingetippte Antwort den
-/// Blazor-Circuit – der Runner ist aber genau das Werkzeug, mit dem man solche Fälle provoziert.
+/// <see cref="AnswerValidationException"/>). Without them a simply mistyped answer would tear down the
+/// Blazor circuit – but the runner is exactly the tool with which one provokes such cases.
 /// </remarks>
 internal sealed class FlirtyRuntimeGateway : DesignerGateway
 {
     private readonly DesignerTriggerLog _log;
 
-    /// <summary>Erstellt das Gateway.</summary>
-    /// <param name="scopeFactory">Factory für den je Operation erzeugten Kind-Scope.</param>
-    /// <param name="active">Das aktive Connection-Profil des aufrufenden Circuits.</param>
-    /// <param name="log">Das Trigger-Protokoll des aufrufenden Circuits.</param>
+    /// <summary>Creates the gateway.</summary>
+    /// <param name="scopeFactory">Factory for the child scope created per operation.</param>
+    /// <param name="active">The active connection profile of the calling circuit.</param>
+    /// <param name="log">The trigger log of the calling circuit.</param>
     public FlirtyRuntimeGateway(
         IServiceScopeFactory scopeFactory, ActiveConnectionProfile active, DesignerTriggerLog log)
         : base(scopeFactory, active)
@@ -35,16 +35,16 @@ internal sealed class FlirtyRuntimeGateway : DesignerGateway
     }
 
     /// <summary>
-    /// Führt die angegebene Operation über eine frische <see cref="IFlirtyEngine"/> aus und bildet die von
-    /// der Engine geworfenen Ausnahmen auf eine anzeigbare Meldung ab.
+    /// Runs the given operation via a fresh <see cref="IFlirtyEngine"/> and maps the exceptions thrown by
+    /// the engine onto a displayable message.
     /// </summary>
-    /// <typeparam name="TValue">Der Ergebnistyp der Operation.</typeparam>
+    /// <typeparam name="TValue">The result type of the operation.</typeparam>
     /// <param name="operation">
-    /// Die auszuführende Operation, z. B.
+    /// The operation to run, e.g.
     /// <c>(engine, token) =&gt; engine.ResumeDialogAsync(sessionId, token)</c>.
     /// </param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
-    /// <returns>Das Ergebnis der Operation oder eine deutsche Fehlermeldung.</returns>
+    /// <param name="cancellationToken">Token for cancelling the operation.</param>
+    /// <returns>The result of the operation or a German error message.</returns>
     public Task<GatewayResult<TValue>> ExecuteAsync<TValue>(
         Func<IFlirtyEngine, CancellationToken, Task<TValue>> operation,
         CancellationToken cancellationToken = default)
@@ -57,10 +57,10 @@ internal sealed class FlirtyRuntimeGateway : DesignerGateway
     }
 
     /// <summary>
-    /// Reicht das Trigger-Protokoll des Circuits in den Kind-Scope durch – sonst schrieben die dort
-    /// konstruierten Notification-Handler in eine Wegwerf-Instanz.
+    /// Passes the trigger log of the circuit through into the child scope – otherwise the
+    /// notification handlers constructed there would write into a throwaway instance.
     /// </summary>
-    /// <param name="scopedProvider">Der Service-Provider des Kind-Scopes.</param>
+    /// <param name="scopedProvider">The service provider of the child scope.</param>
     protected override void Prepare(IServiceProvider scopedProvider)
     {
         ArgumentNullException.ThrowIfNull(scopedProvider);
@@ -76,22 +76,22 @@ internal sealed class FlirtyRuntimeGateway : DesignerGateway
             SessionNotFoundException => exception.Message,
             ConfigurationNotFoundException => exception.Message,
 
-            // Muss VOR ValidationException stehen (leitet davon ab). Bewusst die Einzelverstöße statt
-            // exception.Message: die Meldung führt die rohe Frage-GUID mit, die im UI nur stört.
+            // Must stand BEFORE ValidationException (derives from it). Deliberately the individual violations rather than
+            // exception.Message: the message carries the raw question GUID, which only disturbs in the UI.
             AnswerValidationException answerValidation => DescribeInvalidAnswer(answerValidation),
             ValidationException => exception.Message,
             DbUpdateException => DescribeDatabaseError(exception),
             DbException => DescribeDatabaseError(exception),
 
-            // Session nicht offen, Frage nicht die aktuelle, fehlkonfiguriertes Branching (kein
-            // greifender Übergang), überlappende Schleifen – oder kein aktives Connection-Profil.
+            // Session not open, question not the current one, misconfigured branching (no
+            // matching transition), overlapping loops – or no active connection profile.
             InvalidOperationException => exception.Message,
             _ => null,
         };
 
-    /// <summary>Formuliert die abgelehnte Antwort als Meldung ohne technische Bezeichner.</summary>
-    /// <param name="exception">Die Ausnahme der Antwort-Validierung.</param>
-    /// <returns>Die anzuzeigende Meldung.</returns>
+    /// <summary>Formulates the rejected answer as a message without technical identifiers.</summary>
+    /// <param name="exception">The exception of the answer validation.</param>
+    /// <returns>The message to display.</returns>
     private static string DescribeInvalidAnswer(AnswerValidationException exception)
         => exception.Errors.Count == 0
             ? "Antwort ungültig."

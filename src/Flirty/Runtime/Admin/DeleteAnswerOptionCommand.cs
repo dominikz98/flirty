@@ -4,22 +4,22 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Löscht die Antwortoption <see cref="OptionId"/> in der Frage <see cref="QuestionId"/>
-/// (Dialog <see cref="DialogId"/>).
+/// Deletes the answer option <see cref="OptionId"/> in the question <see cref="QuestionId"/>
+/// (dialog <see cref="DialogId"/>).
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem die Frage gehört.</param>
-/// <param name="QuestionId">Die Id der Frage, zu der die Option gehört.</param>
-/// <param name="OptionId">Der Primärschlüssel der zu löschenden Option.</param>
+/// <param name="DialogId">The id of the dialog the question belongs to.</param>
+/// <param name="QuestionId">The id of the question the option belongs to.</param>
+/// <param name="OptionId">The primary key of the option to delete.</param>
 public sealed record DeleteAnswerOptionCommand(Guid DialogId, Guid QuestionId, Guid OptionId) : ICommand<Unit>;
 
-/// <summary>Handler für <see cref="DeleteAnswerOptionCommand"/>.</summary>
+/// <summary>Handler for <see cref="DeleteAnswerOptionCommand"/>.</summary>
 internal sealed class DeleteAnswerOptionCommandHandler : ICommandHandler<DeleteAnswerOptionCommand, Unit>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public DeleteAnswerOptionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -28,14 +28,14 @@ internal sealed class DeleteAnswerOptionCommandHandler : ICommandHandler<DeleteA
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Die Frage (im Dialog) oder die Option (in der Frage) existiert nicht.
+    /// The question (in the dialog) or the option (in the question) does not exist.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<Unit> Handle(DeleteAnswerOptionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);

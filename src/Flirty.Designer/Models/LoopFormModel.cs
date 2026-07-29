@@ -5,37 +5,37 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Formular-Modell des Loop-Editors (#41) – für das Anlegen einer Schleife im Dialog-Editor und für
-/// ihre Detailseite. Bewusst veränderbar (settable Properties), damit die Blazor-<c>EditForm</c> direkt
-/// daran binden kann.
+/// Form model of the loop editor (#41) – for creating a loop in the dialog editor and for
+/// its detail page. Deliberately mutable (settable properties), so that the Blazor <c>EditForm</c> can bind
+/// directly to it.
 /// </summary>
 /// <remarks>
-/// Die Frage-Verweise sind <see cref="Guid"/>? statt <see cref="Guid"/>, damit ein <c>InputSelect</c>
-/// ohne Vorauswahl an sie binden kann und <see cref="RequiredAttribute"/> greift – bei
-/// <see cref="Guid.Empty"/> wäre die Pflichtprüfung wirkungslos (Muster aus
-/// <see cref="TransitionFormModel"/>). Der <see cref="CollectionKey"/> muss ein gültiger Bezeichner
-/// sein, weil er im Ausdruckskontext als Variable gebunden wird (<c>skills.Count &gt; 0</c>).
+/// The question references are <see cref="Guid"/>? instead of <see cref="Guid"/>, so that an <c>InputSelect</c>
+/// without a preselection can bind to them and <see cref="RequiredAttribute"/> takes effect – with
+/// <see cref="Guid.Empty"/> the required check would be ineffective (pattern from
+/// <see cref="TransitionFormModel"/>). The <see cref="CollectionKey"/> must be a valid identifier,
+/// because it is bound as a variable in the expression context (<c>skills.Count &gt; 0</c>).
 /// </remarks>
 internal sealed class LoopFormModel
 {
-    /// <summary>Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</summary>
+    /// <summary>Key under which the answers collected per iteration lie in the expression context.</summary>
     [Required(ErrorMessage = "Bitte einen Collection-Schlüssel angeben.")]
     [RegularExpression(
         "^[A-Za-z_][A-Za-z0-9_]*$",
         ErrorMessage = "Nur Buchstaben, Ziffern und Unterstrich, nicht mit einer Ziffer beginnend.")]
     public string CollectionKey { get; set; } = string.Empty;
 
-    /// <summary>Verweis auf die Einstiegsfrage der Schleife (Ziel des Rücksprungs).</summary>
+    /// <summary>Reference to the entry question of the loop (target of the back-jump).</summary>
     [Required(ErrorMessage = "Bitte eine Einstiegsfrage wählen.")]
     public Guid? EntryQuestionId { get; set; }
 
-    /// <summary>Verweis auf die Breaking Question (deren Exit-Übergang den Zyklus verlässt).</summary>
+    /// <summary>Reference to the breaking question (whose exit transition leaves the cycle).</summary>
     [Required(ErrorMessage = "Bitte eine Breaking Question wählen.")]
     public Guid? BreakingQuestionId { get; set; }
 
-    /// <summary>Erzeugt ein Formular-Modell aus einem bestehenden Schleifen-Marker.</summary>
-    /// <param name="loop">Die Schleifen-Sicht aus dem Admin-CRUD.</param>
-    /// <returns>Das befüllte Formular-Modell.</returns>
+    /// <summary>Creates a form model from an existing loop marker.</summary>
+    /// <param name="loop">The loop view from the admin CRUD.</param>
+    /// <returns>The filled form model.</returns>
     public static LoopFormModel From(LoopDetail loop)
     {
         ArgumentNullException.ThrowIfNull(loop);
@@ -49,17 +49,17 @@ internal sealed class LoopFormModel
     }
 
     /// <summary>
-    /// Schlägt zum Schlüssel der Einstiegsfrage einen Collection-Schlüssel vor: der Schlüssel mit dem
-    /// Zusatz <c>_liste</c> (<c>skill</c> → <c>skill_liste</c>, <c>belag</c> → <c>belag_liste</c>).
-    /// Bewusst <b>keine</b> Pluralbildung mit angehängtem „s": Die trifft nur für englische Schlüssel zu
-    /// und erzeugt in einem deutschsprachigen Dialog Wortmüll wie <c>belags</c>. Ist das Ergebnis kein
-    /// referenzierbarer Bezeichner oder bereits als Frage-/Collection-Schlüssel vergeben, wird bewusst
-    /// <b>nichts</b> vorgeschlagen – ein stiller Ausweichname wäre schwerer nachzuvollziehen als ein
-    /// leeres Pflichtfeld.
+    /// Suggests a collection key for the key of the entry question: the key with the
+    /// addition <c>_liste</c> (<c>skill</c> → <c>skill_liste</c>, <c>belag</c> → <c>belag_liste</c>).
+    /// Deliberately <b>no</b> plural formation with an appended "s": that only applies to English keys
+    /// and produces word garbage like <c>belags</c> in a German-language dialog. If the result is not a
+    /// referenceable identifier or already assigned as a question/collection key, deliberately
+    /// <b>nothing</b> is suggested – a silent fallback name would be harder to follow than an
+    /// empty required field.
     /// </summary>
-    /// <param name="entryQuestionKey">Der Schlüssel der Einstiegsfrage.</param>
-    /// <param name="detail">Der Dialog samt Graph, gegen den auf Kollisionen geprüft wird.</param>
-    /// <returns>Der Vorschlag oder eine leere Zeichenkette.</returns>
+    /// <param name="entryQuestionKey">The key of the entry question.</param>
+    /// <param name="detail">The dialog together with the graph against which collisions are checked.</param>
+    /// <returns>The suggestion or an empty string.</returns>
     public static string SuggestCollectionKey(string entryQuestionKey, DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);

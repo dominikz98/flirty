@@ -4,26 +4,24 @@ using Mediator;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Eigener In-Process-<see cref="INotificationHandler{TNotification}"/> des Console-Samples: reagiert
-/// auf die von der Engine publizierte <see cref="DialogCompletedNotification"/> und schreibt eine
-/// Abschluss-Zusammenfassung (Dialog-Schlüssel und alle gegebenen Antworten) in den injizierten
-/// <see cref="TextWriter"/>.
+/// The console sample's own in-process <see cref="INotificationHandler{TNotification}"/>: reacts to the
+/// <see cref="DialogCompletedNotification"/> published by the engine and writes a completion summary
+/// (dialog key and all given answers) to the injected <see cref="TextWriter"/>.
 /// </summary>
 /// <remarks>
-/// Demonstriert, wie eine Host-App eigene Reaktionen „in die Engine hängt": Der Handler wird lediglich
-/// per DI registriert und von der Engine beim Dialog-Abschluss automatisch über <see cref="IPublisher"/>
-/// aufgerufen (seit EPIC 4). Der <see cref="TextWriter"/> wird per DI bereitgestellt (in der App die
-/// Konsole, im Test ein <see cref="StringWriter"/>), sodass die Auslösung des Handlers beobachtbar und
-/// testbar ist.
+/// Demonstrates how a host app "hooks its own reactions into the engine": the handler is merely
+/// registered via DI and called automatically by the engine on dialog completion via <see cref="IPublisher"/>
+/// (since EPIC 4). The <see cref="TextWriter"/> is provided via DI (in the app the console, in the test a
+/// <see cref="StringWriter"/>), so that the triggering of the handler is observable and testable.
 /// </remarks>
 public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogCompletedNotification>
 {
     private readonly TextWriter _output;
 
     /// <summary>
-    /// Initialisiert den Handler mit dem Ziel-<see cref="TextWriter"/> für die Ausgabe.
+    /// Initializes the handler with the target <see cref="TextWriter"/> for the output.
     /// </summary>
-    /// <param name="output">Der Writer, in den die Abschluss-Zusammenfassung geschrieben wird.</param>
+    /// <param name="output">The writer to which the completion summary is written.</param>
     public ConsoleDialogCompletedHandler(TextWriter output)
     {
         ArgumentNullException.ThrowIfNull(output);
@@ -31,12 +29,12 @@ public sealed class ConsoleDialogCompletedHandler : INotificationHandler<DialogC
     }
 
     /// <summary>
-    /// Behandelt die <see cref="DialogCompletedNotification"/>, indem eine Zusammenfassung des
-    /// abgeschlossenen Dialogs samt Antworten ausgegeben wird.
+    /// Handles the <see cref="DialogCompletedNotification"/> by outputting a summary of the completed
+    /// dialog together with its answers.
     /// </summary>
-    /// <param name="notification">Die ausgelöste Abschluss-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs (hier nicht benötigt).</param>
-    /// <returns>Ein abgeschlossener <see cref="ValueTask"/>.</returns>
+    /// <param name="notification">The triggered completion notification.</param>
+    /// <param name="cancellationToken">Token to cancel the operation (not needed here).</param>
+    /// <returns>A completed <see cref="ValueTask"/>.</returns>
     public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(notification);

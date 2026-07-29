@@ -3,15 +3,15 @@ using Flirty.Runtime;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Liest die Antwort auf eine Frage interaktiv von der Konsole (<see cref="Console.ReadLine"/>) und
-/// kodiert die Eingabe abhängig vom Fragetyp als JSON.
+/// Reads the answer to a question interactively from the console (<see cref="Console.ReadLine"/>) and
+/// encodes the input as JSON depending on the question type.
 /// </summary>
 public sealed class ConsoleAnswerSource : IAnswerSource
 {
     /// <inheritdoc />
     /// <remarks>
-    /// Bei Auswahlfragen ist der Options-Schlüssel (bzw. -Wert) einzugeben; bei einer leeren Eingabe
-    /// wird der Anwender erneut gefragt, sofern die Frage Optionen hat.
+    /// For choice questions the option key (or value) is to be entered; on an empty input the user is
+    /// asked again, provided the question has options.
     /// </remarks>
     public string GetAnswer(QuestionView question)
     {

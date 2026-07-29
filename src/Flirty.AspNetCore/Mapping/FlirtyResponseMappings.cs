@@ -4,10 +4,10 @@ using Flirty.Runtime;
 namespace Flirty.AspNetCore.Mapping;
 
 /// <summary>
-/// Interne Abbildungen der navigationsfreien <c>Flirty.Runtime</c>-Ergebnis-Records auf die
-/// serialisierbaren HTTP-Response-DTOs des Pakets <c>Flirty.AspNetCore</c>. Bewusst intern gehalten:
-/// nur die DTOs selbst bilden den öffentlichen Contract, das Mapping ist Implementierungsdetail der
-/// Endpunkte.
+/// Internal mappings of the navigation-free <c>Flirty.Runtime</c> result records onto the
+/// serializable HTTP response DTOs of the package <c>Flirty.AspNetCore</c>. Deliberately kept internal:
+/// only the DTOs themselves form the public contract, the mapping is an implementation detail of the
+/// endpoints.
 /// </summary>
 internal static class FlirtyResponseMappings
 {

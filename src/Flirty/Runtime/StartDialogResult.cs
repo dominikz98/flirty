@@ -3,28 +3,28 @@ using Flirty.Domain;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Ergebnis von <see cref="StartDialogCommand"/> bzw. <see cref="IFlirtyEngine.StartDialogAsync"/>:
-/// die (neu angelegte oder wiederaufgenommene) Session samt der aktuell zu beantwortenden Frage.
+/// Result of <see cref="StartDialogCommand"/> or <see cref="IFlirtyEngine.StartDialogAsync"/>:
+/// the (newly created or resumed) session along with the question currently to be answered.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der laufenden <see cref="DialogSession"/>.</param>
+/// <param name="SessionId">The primary key of the running <see cref="DialogSession"/>.</param>
 /// <param name="IsResumed">
-/// <see langword="true"/>, wenn eine bereits laufende Session fortgesetzt wurde; <see langword="false"/>,
-/// wenn der Dialog neu gestartet wurde.
+/// <see langword="true"/> if an already running session was resumed; <see langword="false"/>
+/// if the dialog was started anew.
 /// </param>
-/// <param name="CurrentQuestion">Die aktuell offene Frage, die dem Anwender zu präsentieren ist.</param>
+/// <param name="CurrentQuestion">The currently open question to be presented to the user.</param>
 public sealed record StartDialogResult(Guid SessionId, bool IsResumed, QuestionView CurrentQuestion);
 
 /// <summary>
-/// Schlanke, unveränderliche Sicht auf eine <see cref="Question"/> für die Laufzeit-API – ohne
-/// EF-Core-Navigationen, damit Host-Apps die Frage darstellen können, ohne den Konfigurationsgraphen
-/// zu kennen.
+/// Lean, immutable view of a <see cref="Question"/> for the runtime API – without
+/// EF Core navigations, so that host apps can display the question without knowing the
+/// configuration graph.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Frage.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage.</param>
-/// <param name="Text">Der anzuzeigende Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
+/// <param name="Id">The primary key of the question.</param>
+/// <param name="Key">The business, stable key of the question.</param>
+/// <param name="Text">The question text to display.</param>
+/// <param name="Type">The answer type of the question.</param>
 /// <param name="Options">
-/// Die Antwortoptionen der Frage in Anzeigereihenfolge (leer bei Frei-Text-/Wert-Typen).
+/// The answer options of the question in display order (empty for free-text/value types).
 /// </param>
 public sealed record QuestionView(
     Guid Id,
@@ -34,10 +34,10 @@ public sealed record QuestionView(
     IReadOnlyList<AnswerOptionView> Options);
 
 /// <summary>
-/// Schlanke, unveränderliche Sicht auf eine <see cref="AnswerOption"/> für die Laufzeit-API.
+/// Lean, immutable view of an <see cref="AnswerOption"/> for the runtime API.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Antwortoption.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Option.</param>
-/// <param name="Label">Die anzuzeigende Beschriftung der Option.</param>
-/// <param name="Value">Der zu speichernde Wert der Option.</param>
+/// <param name="Id">The primary key of the answer option.</param>
+/// <param name="Key">The business, stable key of the option.</param>
+/// <param name="Label">The label of the option to display.</param>
+/// <param name="Value">The value of the option to store.</param>
 public sealed record AnswerOptionView(Guid Id, string Key, string Label, string Value);

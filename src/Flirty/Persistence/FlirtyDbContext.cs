@@ -4,27 +4,27 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Persistence;
 
 /// <summary>
-/// Der EF-Core-<see cref="DbContext"/> der Flirty-Engine. Bündelt das Konfigurations-Aggregat
-/// (Wurzel <see cref="Dialog"/>) und das Runtime-Aggregat (Wurzel <see cref="DialogSession"/>).
-/// Bewusst provider-agnostisch: die Provider-Wahl (SQLite/PostgreSQL/SQL Server) und die
-/// Migrationen erfolgen von außen über <see cref="DbContextOptions"/> bzw. in Folge-Issues.
+/// The EF Core <see cref="DbContext"/> of the Flirty engine. Bundles the configuration aggregate
+/// (root <see cref="Dialog"/>) and the runtime aggregate (root <see cref="DialogSession"/>).
+/// Deliberately provider-agnostic: the provider choice (SQLite/PostgreSQL/SQL Server) and the
+/// migrations are supplied from outside via <see cref="DbContextOptions"/> or in follow-up issues.
 /// </summary>
 public sealed class FlirtyDbContext : DbContext
 {
     /// <summary>
-    /// Erstellt den Context mit den von außen (z. B. per Dependency Injection) übergebenen
-    /// Optionen, die insbesondere den Datenbank-Provider und die Verbindung festlegen.
+    /// Creates the context with the options passed in from outside (e.g. via dependency injection),
+    /// which in particular set the database provider and the connection.
     /// </summary>
-    /// <param name="options">Die Context-Optionen inklusive Provider-Konfiguration.</param>
+    /// <param name="options">The context options including provider configuration.</param>
     public FlirtyDbContext(DbContextOptions<FlirtyDbContext> options)
         : base(options)
     {
     }
 
-    /// <summary>Die konfigurierten Dialoge (Aggregat-Root der Konfigurationsebene).</summary>
+    /// <summary>The configured dialogs (aggregate root of the configuration layer).</summary>
     public DbSet<Dialog> Dialogs => Set<Dialog>();
 
-    /// <summary>Die laufenden bzw. abgeschlossenen Sessions (Aggregat-Root der Runtime-Ebene).</summary>
+    /// <summary>The running or completed sessions (aggregate root of the runtime layer).</summary>
     public DbSet<DialogSession> DialogSessions => Set<DialogSession>();
 
     /// <inheritdoc />
@@ -32,7 +32,7 @@ public sealed class FlirtyDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Alle IEntityTypeConfiguration<T> dieser Assembly anwenden (Persistence/Configurations/*).
+        // Apply all IEntityTypeConfiguration<T> of this assembly (Persistence/Configurations/*).
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(FlirtyDbContext).Assembly);
     }
 }

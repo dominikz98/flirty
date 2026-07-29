@@ -1,34 +1,34 @@
 namespace Flirty.Validation;
 
 /// <summary>
-/// Deserialisiertes Modell der optionalen, je Frage konfigurierten Validierungsregeln
-/// (<see cref="Flirty.Domain.Question.ValidationRules"/>, als JSON gespeichert). Alle Felder sind
-/// optional; ein nicht gesetztes Feld bedeutet „keine Einschränkung". Die Regeln sind
-/// <b>typ-skopiert</b>: Längen- und Muster-Regeln greifen bei <see cref="Flirty.Domain.QuestionType.FreeText"/>,
-/// die numerischen Grenzen bei <see cref="Flirty.Domain.QuestionType.Number"/>; auf andere Fragetypen
-/// nicht anwendbare Regeln werden ignoriert.
+/// Deserialized model of the optional, per-question validation rules
+/// (<see cref="Flirty.Domain.Question.ValidationRules"/>, stored as JSON). All fields are
+/// optional; an unset field means "no restriction". The rules are
+/// <b>type-scoped</b>: length and pattern rules apply to <see cref="Flirty.Domain.QuestionType.FreeText"/>,
+/// the numeric bounds to <see cref="Flirty.Domain.QuestionType.Number"/>; rules not applicable to
+/// other question types are ignored.
 /// </summary>
 /// <remarks>
-/// Das JSON verwendet camelCase-Feldnamen (z. B. <c>{ "maxLength": 50 }</c>). Die Deserialisierung
-/// erfolgt case-insensitiv durch den <see cref="AnswerValidator"/>.
+/// The JSON uses camelCase field names (e.g. <c>{ "maxLength": 50 }</c>). The deserialization
+/// is case-insensitive by the <see cref="AnswerValidator"/>.
 /// </remarks>
 public sealed record ValidationRules
 {
-    /// <summary>Mindestlänge des Textes (Zeichen) für <see cref="Flirty.Domain.QuestionType.FreeText"/>.</summary>
+    /// <summary>Minimum length of the text (characters) for <see cref="Flirty.Domain.QuestionType.FreeText"/>.</summary>
     public int? MinLength { get; init; }
 
-    /// <summary>Maximallänge des Textes (Zeichen) für <see cref="Flirty.Domain.QuestionType.FreeText"/>.</summary>
+    /// <summary>Maximum length of the text (characters) for <see cref="Flirty.Domain.QuestionType.FreeText"/>.</summary>
     public int? MaxLength { get; init; }
 
-    /// <summary>Kleinster zulässiger Wert für <see cref="Flirty.Domain.QuestionType.Number"/> (inklusiv).</summary>
+    /// <summary>Smallest allowed value for <see cref="Flirty.Domain.QuestionType.Number"/> (inclusive).</summary>
     public decimal? Min { get; init; }
 
-    /// <summary>Größter zulässiger Wert für <see cref="Flirty.Domain.QuestionType.Number"/> (inklusiv).</summary>
+    /// <summary>Largest allowed value for <see cref="Flirty.Domain.QuestionType.Number"/> (inclusive).</summary>
     public decimal? Max { get; init; }
 
     /// <summary>
-    /// Regulärer Ausdruck, dem der Text bei <see cref="Flirty.Domain.QuestionType.FreeText"/> entsprechen
-    /// muss (Teiltreffer via <c>Regex.IsMatch</c>; für Vollprüfung im Muster verankern, z. B. <c>^…$</c>).
+    /// Regular expression the text must match for <see cref="Flirty.Domain.QuestionType.FreeText"/>
+    /// (partial match via <c>Regex.IsMatch</c>; anchor the pattern for a full check, e.g. <c>^…$</c>).
     /// </summary>
     public string? Pattern { get; init; }
 }

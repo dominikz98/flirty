@@ -3,19 +3,19 @@ using Flirty.Runtime;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Liefert die Antwort auf eine gestellte Frage. Die Abstraktion entkoppelt den
-/// <see cref="ConsoleDialogRunner"/> von der konkreten Eingabequelle, sodass die App interaktiv
-/// von der Konsole liest, ein Test hingegen ein festes Skript einspeist.
+/// Supplies the answer to an asked question. The abstraction decouples the
+/// <see cref="ConsoleDialogRunner"/> from the concrete input source, so that the app reads interactively
+/// from the console while a test feeds in a fixed script.
 /// </summary>
 public interface IAnswerSource
 {
     /// <summary>
-    /// Ermittelt die Antwort auf die übergebene Frage.
+    /// Determines the answer to the given question.
     /// </summary>
-    /// <param name="question">Die aktuell zu beantwortende Frage.</param>
+    /// <param name="question">The question currently to be answered.</param>
     /// <returns>
-    /// Der Antwortwert als roher JSON-Text im vom Fragetyp erwarteten Format (z. B. <c>"dev"</c> für
-    /// eine Auswahl-/Freitext-Antwort).
+    /// The answer value as raw JSON text in the format expected by the question type (e.g. <c>"dev"</c>
+    /// for a choice/free-text answer).
     /// </returns>
     string GetAnswer(QuestionView question);
 }

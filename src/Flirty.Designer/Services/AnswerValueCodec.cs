@@ -6,42 +6,42 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Übersetzt zwischen den Eingabefeldern des Designers und dem <b>rohen JSON-Text</b>, in dem die Engine
-/// Antwortwerte entgegennimmt und speichert (<c>SubmitAnswerCommand.Value</c>,
+/// Translates between the input fields of the designer and the <b>raw JSON text</b> in which the engine
+/// takes and stores answer values (<c>SubmitAnswerCommand.Value</c>,
 /// <c>SessionAnswer.Value</c>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Verbindlich ist der Core-<c>AnswerValidator</c> (<c>src/Flirty/Validation/AnswerValidator.cs</c>) –
-/// er entscheidet, welche JSON-Form je <see cref="QuestionType"/> durchgeht:
+/// Authoritative is the core <c>AnswerValidator</c> (<c>src/Flirty/Validation/AnswerValidator.cs</c>) –
+/// it decides which JSON form passes per <see cref="QuestionType"/>:
 /// </para>
 /// <list type="table">
 /// <item><term><see cref="QuestionType.FreeText"/>, <see cref="QuestionType.Date"/>,
-/// <see cref="QuestionType.SingleChoice"/></term><description>JSON-Zeichenkette</description></item>
-/// <item><term><see cref="QuestionType.Number"/></term><description>rohes Zahlliteral (invariant)</description></item>
+/// <see cref="QuestionType.SingleChoice"/></term><description>JSON string</description></item>
+/// <item><term><see cref="QuestionType.Number"/></term><description>raw number literal (invariant)</description></item>
 /// <item><term><see cref="QuestionType.Boolean"/></term><description><c>true</c> / <c>false</c></description></item>
-/// <item><term><see cref="QuestionType.MultiChoice"/></term><description>JSON-Array von Zeichenketten</description></item>
+/// <item><term><see cref="QuestionType.MultiChoice"/></term><description>JSON array of strings</description></item>
 /// </list>
 /// <para>
-/// Diese Klasse ist die <b>einzige</b> Stelle des Designers, die diesen Vertrag kennt: Der
-/// <see cref="DesignerExpressionContext"/> leitet seine Beispielwerte ebenfalls von hier ab, damit
-/// Ausdrucks-Validierung und Testlauf nicht auseinanderlaufen können.
+/// This class is the <b>only</b> place in the designer that knows this contract: the
+/// <see cref="DesignerExpressionContext"/> also derives its sample values from here, so that
+/// expression validation and test run cannot drift apart.
 /// </para>
 /// </remarks>
 internal static class AnswerValueCodec
 {
     /// <summary>
-    /// Kodiert eine Eingabe als rohen JSON-Antwortwert der angegebenen Frage.
+    /// Encodes an input as the raw JSON answer value of the given question.
     /// </summary>
-    /// <param name="type">Der Antworttyp der Frage.</param>
+    /// <param name="type">The answer type of the question.</param>
     /// <param name="text">
-    /// Der Text- bzw. Einzelwert (Freitext, Datum im ISO-Format, Zahl, gewählter Options-Wert,
-    /// <c>true</c>/<c>false</c>); bei <see cref="QuestionType.MultiChoice"/> ignoriert.
+    /// The text or single value (free text, date in ISO format, number, chosen option value,
+    /// <c>true</c>/<c>false</c>); ignored for <see cref="QuestionType.MultiChoice"/>.
     /// </param>
     /// <param name="selected">
-    /// Die gewählten Options-Werte einer <see cref="QuestionType.MultiChoice"/>-Frage; sonst ignoriert.
+    /// The chosen option values of a <see cref="QuestionType.MultiChoice"/> question; otherwise ignored.
     /// </param>
-    /// <returns>Der rohe JSON-Text für die Engine.</returns>
+    /// <returns>The raw JSON text for the engine.</returns>
     public static string Encode(QuestionType type, string? text, IReadOnlyList<string>? selected = null)
         => type switch
         {
@@ -52,15 +52,15 @@ internal static class AnswerValueCodec
         };
 
     /// <summary>
-    /// Beschreibt einen gespeicherten Antwortwert für die Anzeige: Optionen erscheinen mit ihrer
-    /// Beschriftung, Wahrheitswerte als „Ja“/„Nein“, Mehrfachauswahlen kommagetrennt.
+    /// Describes a stored answer value for the display: options appear with their
+    /// label, boolean values as "Ja"/"Nein", multi-choices comma-separated.
     /// </summary>
     /// <param name="question">
-    /// Die zugehörige Frage (für Typ und Options-Beschriftungen) oder <see langword="null"/>, wenn sie
-    /// nicht (mehr) zum Dialog gehört – dann wird der Rohwert bestmöglich gelesen.
+    /// The associated question (for type and option labels) or <see langword="null"/> if it
+    /// no longer belongs to the dialog – then the raw value is read as best as possible.
     /// </param>
-    /// <param name="value">Der gespeicherte rohe JSON-Antwortwert.</param>
-    /// <returns>Der anzuzeigende Text.</returns>
+    /// <param name="value">The stored raw JSON answer value.</param>
+    /// <returns>The text to display.</returns>
     public static string Describe(QuestionDetail? question, string value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -83,13 +83,13 @@ internal static class AnswerValueCodec
     }
 
     /// <summary>
-    /// Liest einen gespeicherten Antwortwert zurück in die Eingabefelder – das Gegenstück zu
-    /// <see cref="Encode"/> für den Editier-Modus des Test-Runners.
+    /// Reads a stored answer value back into the input fields – the counterpart to
+    /// <see cref="Encode"/> for the edit mode of the test runner.
     /// </summary>
-    /// <param name="type">Der Antworttyp der Frage.</param>
-    /// <param name="value">Der gespeicherte rohe JSON-Antwortwert.</param>
+    /// <param name="type">The answer type of the question.</param>
+    /// <param name="value">The stored raw JSON answer value.</param>
     /// <returns>
-    /// Der Einzelwert (leer bei <see cref="QuestionType.MultiChoice"/>) und die gewählten Options-Werte.
+    /// The single value (empty for <see cref="QuestionType.MultiChoice"/>) and the chosen option values.
     /// </returns>
     public static (string Text, IReadOnlyList<string> Selected) Decode(QuestionType type, string value)
     {
@@ -104,20 +104,20 @@ internal static class AnswerValueCodec
         return (type == QuestionType.Boolean ? (IsTrue(text) ? "true" : "false") : text, []);
     }
 
-    /// <summary>Die Beschriftung der Option mit diesem Wert; sonst der Rohwert.</summary>
-    /// <param name="question">Die Frage mit ihren Antwortoptionen.</param>
-    /// <param name="value">Der gespeicherte Options-Wert.</param>
-    /// <returns>Die Beschriftung oder der Rohwert.</returns>
+    /// <summary>The label of the option with this value; otherwise the raw value.</summary>
+    /// <param name="question">The question with its answer options.</param>
+    /// <param name="value">The stored option value.</param>
+    /// <returns>The label or the raw value.</returns>
     private static string LabelOf(QuestionDetail question, string value)
         => question.Options.FirstOrDefault(option => option.Value == value)?.Label ?? value;
 
     /// <summary>
-    /// Kodiert eine Zahleingabe als JSON-Zahl. Akzeptiert das deutsche Dezimalkomma und fällt bei
-    /// unlesbarer Eingabe auf eine JSON-Zeichenkette zurück – so lehnt die <b>Engine</b> den Wert ab
-    /// (mit ihrer Meldung), statt dass der Designer still etwas anderes einreicht.
+    /// Encodes a number input as a JSON number. Accepts the German decimal comma and falls back, on
+    /// unreadable input, to a JSON string – so the <b>engine</b> rejects the value
+    /// (with its message), instead of the designer silently submitting something else.
     /// </summary>
-    /// <param name="text">Die Eingabe.</param>
-    /// <returns>Der rohe JSON-Text.</returns>
+    /// <param name="text">The input.</param>
+    /// <returns>The raw JSON text.</returns>
     private static string EncodeNumber(string? text)
     {
         var trimmed = (text ?? string.Empty).Trim().Replace(',', '.');
@@ -130,10 +130,10 @@ internal static class AnswerValueCodec
     private static bool IsTrue(string? text)
         => bool.TryParse((text ?? string.Empty).Trim(), out var parsed) && parsed;
 
-    /// <summary>Liest den Wert als JSON-Zeichenkette (wie der Core-<c>AnswerValidator</c>).</summary>
-    /// <param name="value">Der rohe Wert.</param>
-    /// <param name="result">Der gelesene Text bei Erfolg.</param>
-    /// <returns><see langword="true"/>, wenn der Wurzelknoten eine JSON-Zeichenkette ist.</returns>
+    /// <summary>Reads the value as a JSON string (like the core <c>AnswerValidator</c>).</summary>
+    /// <param name="value">The raw value.</param>
+    /// <param name="result">The read text on success.</param>
+    /// <returns><see langword="true"/> if the root node is a JSON string.</returns>
     private static bool TryReadJsonString(string value, out string result)
     {
         result = string.Empty;
@@ -154,10 +154,10 @@ internal static class AnswerValueCodec
         }
     }
 
-    /// <summary>Liest den Wert als JSON-Array von Zeichenketten (wie der Core-<c>AnswerValidator</c>).</summary>
-    /// <param name="value">Der rohe Wert.</param>
-    /// <param name="items">Die gelesenen Einträge bei Erfolg.</param>
-    /// <returns><see langword="true"/>, wenn der Wurzelknoten ein Zeichenketten-Array ist.</returns>
+    /// <summary>Reads the value as a JSON array of strings (like the core <c>AnswerValidator</c>).</summary>
+    /// <param name="value">The raw value.</param>
+    /// <param name="items">The read entries on success.</param>
+    /// <returns><see langword="true"/> if the root node is a string array.</returns>
     private static bool TryReadStringArray(string value, out IReadOnlyList<string> items)
     {
         items = [];

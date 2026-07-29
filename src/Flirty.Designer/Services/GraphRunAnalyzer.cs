@@ -6,53 +6,53 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Leitet aus dem Zustand einer laufenden Test-Session (#43) den <b>Laufzustand über dem Graphen</b> ab
-/// (#104): besuchte Knoten, gegriffene Kanten, Iterationszahl je Schleife und die publizierten Trigger.
+/// Derives from the state of a running test session (#43) the <b>run state over the graph</b>
+/// (#104): visited nodes, taken edges, iteration count per loop and the published triggers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Die Engine protokolliert keinen Pfad.</b> Ein <c>SessionAnswer</c> trägt keine <c>TransitionId</c>,
-/// und auch <c>QuestionAnsweredNotification</c> nennt nur die nächste <i>Frage</i>. Abgeleitet wird der
-/// Weg deshalb aus der Antwortfolge: Zwei aufeinanderfolgende Antworten bilden das Paar
-/// <i>(von, nach)</i>, und die zuletzt gegebene Antwort bildet zusammen mit der offenen Frage das letzte
-/// Paar. Liegen zwischen denselben zwei Fragen <b>mehrere</b> Übergänge, ist nicht entscheidbar, welcher
-/// gegriffen hat – dann werden alle markiert und als mehrdeutig ausgewiesen
-/// (<see cref="GraphRunEdgeUse.IsAmbiguous"/>). Die Auswertung nachzustellen wäre eine weitere Spiegelung
-/// des Core-<c>TransitionResolver</c>, und zwar eine unmögliche: Sie bräuchte die Ausdruckswerte von
-/// <i>damals</i>, nicht die von jetzt.
+/// <b>The engine logs no path.</b> A <c>SessionAnswer</c> carries no <c>TransitionId</c>,
+/// and <c>QuestionAnsweredNotification</c> too names only the next <i>question</i>. The
+/// path is therefore derived from the answer sequence: two consecutive answers form the pair
+/// <i>(from, to)</i>, and the last given answer forms together with the open question the last
+/// pair. If <b>several</b> transitions lie between the same two questions, it is not decidable which one
+/// took effect – then all are marked and reported as ambiguous
+/// (<see cref="GraphRunEdgeUse.IsAmbiguous"/>). Recomputing the evaluation would be another mirror
+/// of the core <c>TransitionResolver</c>, and an impossible one at that: it would need the expression values from
+/// <i>back then</i>, not the ones from now.
 /// </para>
 /// <para>
-/// Was es schon gibt, wird nicht nachgebaut: Der Schleifen-Bereich kommt aus
-/// <see cref="LoopAnalyzer.ComputeBody"/>, die Auswahl der jüngsten Schleifen-Instanz folgt derselben
-/// Regel wie der Core-<c>LoopResolver</c> (und wie <see cref="RunExpressionContext"/>), die lesbaren
-/// Antwortwerte liefert <see cref="AnswerValueCodec.Describe"/>.
+/// What already exists is not rebuilt: the loop range comes from
+/// <see cref="LoopAnalyzer.ComputeBody"/>, the selection of the most recent loop instance follows the same
+/// rule as the core <c>LoopResolver</c> (and as <see cref="RunExpressionContext"/>), the readable
+/// answer values are delivered by <see cref="AnswerValueCodec.Describe"/>.
 /// </para>
 /// <para>
-/// Nach außen gehen ausschließlich <b>Listen</b> – wie beim Zeichenmodell (#101): Die
-/// Iterationsreihenfolge einer Menge oder eines Wörterbuchs ist nicht zugesichert, und ein Lauf wird
-/// gerendert.
+/// To the outside go exclusively <b>lists</b> – as with the drawing model (#101): the
+/// iteration order of a set or a dictionary is not guaranteed, and a run is
+/// rendered.
 /// </para>
 /// </remarks>
 internal static class GraphRunAnalyzer
 {
     /// <summary>
-    /// Der Laufzustand vor dem ersten Lauf: nichts besucht, nichts gegriffen. Damit zeigt die Ansicht
-    /// den Graphen schon vor dem Start, ohne dass Canvas und Inspector einen <see langword="null"/>-Fall
-    /// kennen müssen.
+    /// The run state before the first run: nothing visited, nothing taken. With that the view shows
+    /// the graph already before the start, without canvas and inspector having to know a <see langword="null"/>
+    /// case.
     /// </summary>
-    /// <returns>Der leere Laufzustand.</returns>
+    /// <returns>The empty run state.</returns>
     public static GraphRunOverlay NotStarted()
         => new(SessionStatus.InProgress, null, [], [], [], [], "Testlauf: noch nicht gestartet.");
 
-    /// <summary>Baut den Laufzustand.</summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <param name="state">Der Session-Zustand (aus <c>ResumeDialogQuery</c>).</param>
-    /// <param name="events">Die im Lauf beobachteten Trigger-Ereignisse (<see cref="DesignerTriggerLog"/>).</param>
+    /// <summary>Builds the run state.</summary>
+    /// <param name="detail">The dialog together with the graph (from <c>GetDialogQuery</c>).</param>
+    /// <param name="state">The session state (from <c>ResumeDialogQuery</c>).</param>
+    /// <param name="events">The trigger events observed during the run (<see cref="DesignerTriggerLog"/>).</param>
     /// <param name="freshFrom">
-    /// Der Index, ab dem die Ereignisse aus dem <b>letzten</b> Schritt stammen – alles davor ist älter.
-    /// Der Aufrufer merkt sich dafür den Stand des Protokolls, bevor er die Engine ruft.
+    /// The index from which the events stem from the <b>last</b> step – everything before is older.
+    /// The caller for this remembers the state of the log before it calls the engine.
     /// </param>
-    /// <returns>Der Laufzustand.</returns>
+    /// <returns>The run state.</returns>
     public static GraphRunOverlay Build(
         DialogDetail detail,
         ResumeDialogResult state,
@@ -81,16 +81,16 @@ internal static class GraphRunAnalyzer
             Summarize(state, answers.Count, loops));
     }
 
-    // ---- Besuchte Knoten ----------------------------------------------------------------------------
+    // ---- Visited nodes ----------------------------------------------------------------------------
 
     /// <summary>
-    /// Fasst die Antworten je Frage zusammen – in Schleifen also mehrere je Knoten, eine je Iteration.
+    /// Sums up the answers per question – in loops therefore several per node, one per iteration.
     /// </summary>
     /// <remarks>
-    /// Die offene Frage bekommt auch dann einen Eintrag, wenn sie noch nicht beantwortet wurde: Sie ist
-    /// der Punkt, an dem der Lauf steht, und ohne Eintrag wäre die Einstiegsfrage direkt nach dem Start
-    /// nicht als offen markierbar. Antworten auf Fragen, die nicht (mehr) zum Dialog gehören, fallen
-    /// heraus – gezeichnet werden kann nur, was es im Graphen gibt.
+    /// The open question also gets an entry when it has not yet been answered: it is
+    /// the point at which the run stands, and without an entry the entry question directly after the start
+    /// could not be marked as open. Answers to questions that no longer belong to the dialog fall
+    /// out – only what exists in the graph can be drawn.
     /// </remarks>
     private static IReadOnlyList<GraphRunVisit> BuildVisits(
         IReadOnlyDictionary<Guid, QuestionDetail> questions,
@@ -131,11 +131,11 @@ internal static class GraphRunAnalyzer
         return [.. order.Select(id => new GraphRunVisit(id, grouped[id], id == currentQuestionId))];
     }
 
-    // ---- Gegriffene Kanten --------------------------------------------------------------------------
+    // ---- Taken edges --------------------------------------------------------------------------------
 
     /// <summary>
-    /// Bildet die Schrittfolge auf die Kanten des Graphen ab. Siehe Klassenkommentar zur Mehrdeutigkeit
-    /// paralleler Übergänge.
+    /// Maps the step sequence onto the edges of the graph. See class comment on the ambiguity
+    /// of parallel transitions.
     /// </summary>
     private static IReadOnlyList<GraphRunEdgeUse> BuildEdges(
         DialogDetail detail, IReadOnlyList<SessionAnswerView> answers, Guid? currentQuestionId)
@@ -170,12 +170,12 @@ internal static class GraphRunAnalyzer
         return uses;
     }
 
-    // ---- Schleifen ----------------------------------------------------------------------------------
+    // ---- Loops ----------------------------------------------------------------------------------
 
     /// <summary>
-    /// Zählt die Iterationen je Marker: die Antworten der <b>jüngsten</b> Schleifen-Instanz, deren
-    /// höchster Iterationsindex plus eins. Dieselbe Auswahl trifft der Core-<c>LoopResolver</c>, wenn er
-    /// die Collection für den Ausdruckskontext füllt.
+    /// Counts the iterations per marker: the answers of the <b>most recent</b> loop instance, their
+    /// highest iteration index plus one. The same selection is made by the core <c>LoopResolver</c> when it
+    /// fills the collection for the expression context.
     /// </summary>
     private static IReadOnlyList<GraphRunLoopState> BuildLoops(
         DialogDetail detail, IReadOnlyList<SessionAnswerView> answers, Guid? currentQuestionId)
@@ -205,20 +205,20 @@ internal static class GraphRunAnalyzer
                 iterations,
                 currentQuestionId is { } current && body.Contains(current),
 
-                // Die Menge kommt sortiert nach der Dialog-Reihenfolge nach außen: Ihre eigene
-                // Iterationsreihenfolge ist nicht zugesichert, und der Inspector listet sie.
+                // The set comes out sorted by dialog order: its own
+                // iteration order is not guaranteed, and the inspector lists it.
                 [.. detail.Questions.Where(question => body.Contains(question.Id)).Select(question => question.Id)]));
         }
 
         return states;
     }
 
-    // ---- Trigger ------------------------------------------------------------------------------------
+    // ---- Triggers ------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Übersetzt die Protokolleinträge in Chips. Ein Eintrag zu einer Frage, die es im Dialog nicht
-    /// (mehr) gibt, verliert seinen Ortsbezug und wird dialogweit gezeigt – verschweigen wäre falsch,
-    /// gefeuert hat er ja.
+    /// Translates the log entries into chips. An entry for a question that no longer exists in the dialog
+    /// loses its location reference and is shown dialog-wide – concealing would be wrong,
+    /// it did fire after all.
     /// </summary>
     private static IReadOnlyList<GraphRunTrigger> BuildTriggers(
         IReadOnlyDictionary<Guid, QuestionDetail> questions,
@@ -246,12 +246,12 @@ internal static class GraphRunAnalyzer
     }
 
     /// <summary>
-    /// Die kurze Beschriftung eines Ereignis-Chips. Bewusst nicht <see cref="TriggerLabels.Describe(TriggerScope)"/>:
-    /// dessen Text nennt zusätzlich den technischen Namen und sprengt einen Chip auf der Knotenkarte. Der
-    /// vollständige Text steht im <c>title</c>.
+    /// The short label of an event chip. Deliberately not <see cref="TriggerLabels.Describe(TriggerScope)"/>:
+    /// its text additionally names the technical name and bursts a chip on the node card. The
+    /// full text stands in the <c>title</c>.
     /// </summary>
-    /// <param name="scope">Der Auslöse-Zeitpunkt.</param>
-    /// <returns>Die Beschriftung.</returns>
+    /// <param name="scope">The triggering point in time.</param>
+    /// <returns>The label.</returns>
     private static string ShortLabel(TriggerScope scope) => scope switch
     {
         TriggerScope.OnDialogStarted => "Start",
@@ -261,11 +261,11 @@ internal static class GraphRunAnalyzer
         _ => scope.ToString(),
     };
 
-    // ---- Zusammenfassung ----------------------------------------------------------------------------
+    // ---- Summary ----------------------------------------------------------------------------
 
     /// <summary>
-    /// Fasst den Lauf in einem Satz zusammen – für Screenreader die Alternative zur Hervorhebung, die
-    /// sonst nur als Farbe und Strichstärke vorliegt.
+    /// Sums up the run in one sentence – for screen readers the alternative to the highlighting, which
+    /// otherwise is present only as color and stroke width.
     /// </summary>
     private static string Summarize(
         ResumeDialogResult state, int answers, IReadOnlyList<GraphRunLoopState> loops)

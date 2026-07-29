@@ -1,25 +1,25 @@
 namespace Flirty.Persistence;
 
 /// <summary>
-/// Die von Flirty unterstützten EF-Core-Datenbank-Provider. Jeder Wert ist über
-/// <see cref="Microsoft.EntityFrameworkCore.FlirtyDatabaseProviderExtensions"/> (<c>UseFlirtyProvider</c>)
-/// eindeutig einer EF-Core-Provider-Registrierung und der passenden <c>MigrationsAssembly</c>
-/// (<c>Flirty.Migrations.Sqlite</c>/<c>PostgreSql</c>/<c>SqlServer</c>) zugeordnet.
+/// The EF Core database providers supported by Flirty. Each value is, via
+/// <see cref="Microsoft.EntityFrameworkCore.FlirtyDatabaseProviderExtensions"/> (<c>UseFlirtyProvider</c>),
+/// uniquely mapped to an EF Core provider registration and the matching <c>MigrationsAssembly</c>
+/// (<c>Flirty.Migrations.Sqlite</c>/<c>PostgreSql</c>/<c>SqlServer</c>).
 /// </summary>
 /// <remarks>
-/// Eingeführt in Issue #37: erlaubt die Provider-Wahl als <b>Wert</b> (statt über getrennte
-/// <c>Use*</c>-Methoden) und damit die Auswahl des Providers erst <b>zur Laufzeit</b> – die Grundlage
-/// für die Connection-Profil-Verwaltung des Blazor-Designers (Multi-DB via
+/// Introduced in issue #37: allows choosing the provider as a <b>value</b> (instead of via separate
+/// <c>Use*</c> methods) and thereby selecting the provider only <b>at runtime</b> - the basis
+/// for the connection-profile management of the Blazor designer (multi-DB via
 /// <see cref="Microsoft.EntityFrameworkCore.IDbContextFactory{TContext}"/>).
 /// </remarks>
 public enum FlirtyDatabaseProvider
 {
-    /// <summary>SQLite (Migrations-Assembly <c>Flirty.Migrations.Sqlite</c>).</summary>
+    /// <summary>SQLite (migrations assembly <c>Flirty.Migrations.Sqlite</c>).</summary>
     Sqlite,
 
-    /// <summary>PostgreSQL via Npgsql (Migrations-Assembly <c>Flirty.Migrations.PostgreSql</c>).</summary>
+    /// <summary>PostgreSQL via Npgsql (migrations assembly <c>Flirty.Migrations.PostgreSql</c>).</summary>
     PostgreSql,
 
-    /// <summary>Microsoft SQL Server (Migrations-Assembly <c>Flirty.Migrations.SqlServer</c>).</summary>
+    /// <summary>Microsoft SQL Server (migrations assembly <c>Flirty.Migrations.SqlServer</c>).</summary>
     SqlServer,
 }

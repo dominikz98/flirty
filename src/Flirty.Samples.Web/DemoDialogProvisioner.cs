@@ -7,30 +7,30 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Samples.Web;
 
 /// <summary>
-/// Baut den veröffentlichten Demo-Dialog idempotent auf – bewusst <b>über die Admin-CRUD-API</b>
-/// (HTTP-Aufrufe gegen <c>/flirty/admin/...</c>), damit die Sample das Anlegen von Dialogen/Fragen/
-/// Optionen/Übergängen über die öffentliche Endpunkt-Fläche demonstriert.
+/// Builds the published demo dialog idempotently – deliberately <b>via the admin CRUD API</b>
+/// (HTTP calls against <c>/flirty/admin/...</c>), so that the sample demonstrates the creation of
+/// dialogs/questions/options/transitions over the public endpoint surface.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Bewusste Ausnahme:</b> Der Loop-Marker (<see cref="LoopDefinition"/>) lässt sich <em>nicht</em> über
-/// die Admin-CRUD-API erzeugen – das Endpunkt-Set deckt kein Loop-CRUD ab (siehe
-/// <c>docs/GETTING-STARTED-WebApi.md</c>). Der Zyklus entsteht über eine Loop-Back-<see cref="Transition"/>
-/// (via Admin-API), die <see cref="LoopDefinition"/> (Sammlung je Iteration unter
-/// <see cref="LoopDefinition.CollectionKey"/>) wird jedoch einmalig direkt über den
-/// <see cref="FlirtyDbContext"/> angehängt.
+/// <b>Deliberate exception:</b> the loop marker (<see cref="LoopDefinition"/>) <em>cannot</em> be created
+/// via the admin CRUD API – the endpoint set covers no loop CRUD (see
+/// <c>docs/GETTING-STARTED-WebApi.md</c>). The cycle arises via a loop-back <see cref="Transition"/>
+/// (via the admin API), but the <see cref="LoopDefinition"/> (collection per iteration under
+/// <see cref="LoopDefinition.CollectionKey"/>) is attached once directly via the
+/// <see cref="FlirtyDbContext"/>.
 /// </para>
 /// </remarks>
 public static class DemoDialogProvisioner
 {
     /// <summary>
-    /// Stellt sicher, dass der Demo-Dialog existiert und veröffentlicht ist. Ist er bereits vorhanden
-    /// (Wiederanlauf gegen eine persistente DB), passiert nichts.
+    /// Ensures that the demo dialog exists and is published. If it is already present
+    /// (restart against a persistent DB), nothing happens.
     /// </summary>
-    /// <param name="client">HTTP-Client, dessen Basis-Adresse auf diese App zeigt (Admin-Endpunkte).</param>
-    /// <param name="services">Service-Provider für einen <see cref="FlirtyDbContext"/>-Scope (Loop-Marker).</param>
-    /// <param name="logger">Logger für das Ergebnis.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <param name="client">HTTP client whose base address points to this app (admin endpoints).</param>
+    /// <param name="services">Service provider for a <see cref="FlirtyDbContext"/> scope (loop marker).</param>
+    /// <param name="logger">Logger for the result.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     public static async Task EnsureProvisionedAsync(
         HttpClient client, IServiceProvider services, ILogger logger, CancellationToken cancellationToken = default)
     {
@@ -46,14 +46,14 @@ public static class DemoDialogProvisioner
             return;
         }
 
-        // 1) Dialog anlegen (Version 1, unveröffentlicht).
+        // 1) Create the dialog (version 1, unpublished).
         var dialog = await PostAsync<CreateDialogRequest, DialogResponse>(
             client, "/flirty/admin/dialogs",
             new CreateDialogRequest(DemoDialog.DialogKey, DemoDialog.DialogName, "Web-Sample: Branching + Loop über Liste."),
             cancellationToken);
         var dialogId = dialog.Id;
 
-        // 2) Fragen (+ Optionen) anlegen.
+        // 2) Create questions (+ options).
         var roleId = await CreateQuestionAsync(client, dialogId, DemoDialog.RoleKey, "Welche Rolle hast du?", QuestionType.SingleChoice, 0, cancellationToken);
         await CreateOptionAsync(client, dialogId, roleId, "dev", "Entwickler", "dev", 0, cancellationToken);
         await CreateOptionAsync(client, dialogId, roleId, "pm", "Product Manager", "pm", 1, cancellationToken);
@@ -68,21 +68,21 @@ public static class DemoDialogProvisioner
 
         var summaryId = await CreateQuestionAsync(client, dialogId, DemoDialog.SummaryKey, "Passt alles so?", QuestionType.Boolean, 5, cancellationToken);
 
-        // 3) Einstiegsfrage setzen.
+        // 3) Set the entry question.
         await PutAsync(client, $"/flirty/admin/dialogs/{dialogId}",
             new UpdateDialogRequest(DemoDialog.DialogKey, DemoDialog.DialogName, dialog.Description, roleId),
             cancellationToken);
 
-        // 4) Übergänge (Branching + Loop-Zyklus) anlegen.
-        await CreateTransitionAsync(client, dialogId, roleId, languageId, "role == \"dev\"", 0, false, cancellationToken); // dev-Zweig
-        await CreateTransitionAsync(client, dialogId, roleId, productId, null, 1, true, cancellationToken);               // Default-Zweig
-        await CreateTransitionAsync(client, dialogId, languageId, skillId, null, 0, true, cancellationToken);             // -> Loop-Entry
-        await CreateTransitionAsync(client, dialogId, productId, skillId, null, 0, true, cancellationToken);              // -> Loop-Entry
-        await CreateTransitionAsync(client, dialogId, skillId, moreId, null, 0, true, cancellationToken);                 // Entry -> Breaking
-        await CreateTransitionAsync(client, dialogId, moreId, skillId, "more == \"yes\"", 0, false, cancellationToken);   // Loop-Back
-        await CreateTransitionAsync(client, dialogId, moreId, summaryId, null, 1, true, cancellationToken);               // Exit -> Abschlussfrage
+        // 4) Create transitions (branching + loop cycle).
+        await CreateTransitionAsync(client, dialogId, roleId, languageId, "role == \"dev\"", 0, false, cancellationToken); // dev branch
+        await CreateTransitionAsync(client, dialogId, roleId, productId, null, 1, true, cancellationToken);               // default branch
+        await CreateTransitionAsync(client, dialogId, languageId, skillId, null, 0, true, cancellationToken);             // -> loop entry
+        await CreateTransitionAsync(client, dialogId, productId, skillId, null, 0, true, cancellationToken);              // -> loop entry
+        await CreateTransitionAsync(client, dialogId, skillId, moreId, null, 0, true, cancellationToken);                 // entry -> breaking
+        await CreateTransitionAsync(client, dialogId, moreId, skillId, "more == \"yes\"", 0, false, cancellationToken);   // loop-back
+        await CreateTransitionAsync(client, dialogId, moreId, summaryId, null, 1, true, cancellationToken);               // exit -> completion question
 
-        // 5) Loop-Marker anhängen (NICHT über Admin-CRUD möglich -> direkt über den DbContext).
+        // 5) Attach the loop marker (NOT possible via admin CRUD -> directly via the DbContext).
         using (var scope = services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
@@ -97,7 +97,7 @@ public static class DemoDialogProvisioner
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        // 6) Veröffentlichen -> ab jetzt über POST /flirty/sessions startbar.
+        // 6) Publish -> from now on startable via POST /flirty/sessions.
         var publish = await client.PostAsync($"/flirty/admin/dialogs/{dialogId}/publish", content: null, cancellationToken);
         publish.EnsureSuccessStatusCode();
 

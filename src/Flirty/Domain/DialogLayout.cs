@@ -1,46 +1,46 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Die vom Autor gewählte Position eines Elements auf dem Graph-Canvas des Designers. Reine
-/// Anzeigedaten: Ohne Zeile ordnet das Auto-Layout an, und die Laufzeit liest die Tabelle nie.
+/// The author-chosen position of an element on the designer's graph canvas. Pure display data:
+/// without a row the auto-layout arranges the element, and the runtime never reads the table.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Bewusst eine eigene Entity statt zweier Spalten an <see cref="Question"/> (ADR 0007). Das hält die
-/// Graph-Entities frei von Anzeigebelangen und trägt später auch Positionen für Elemente, die keine
-/// Frage sind (siehe <see cref="LayoutElementKind"/>).
+/// Deliberately its own entity instead of two columns on <see cref="Question"/> (ADR 0007). This keeps
+/// the graph entities free of display concerns and later also carries positions for elements that are
+/// not a question (see <see cref="LayoutElementKind"/>).
 /// </para>
 /// <para>
-/// Der Gegenwert ist mehr als Erweiterbarkeit: Weil die Tabelle nicht zum Graphen gehört, fällt das
-/// Schreiben von Koordinaten nicht unter die Publish-Sperre (<c>DialogEditGuard</c>) – ein
-/// veröffentlichter Dialog lässt sich also übersichtlich anordnen, ohne dass die Sperre aufweicht.
-/// Sessions pinnen <c>DialogId</c>/<c>DialogVersion</c> und folgen Guids, nicht Pixeln.
+/// The payoff is more than extensibility: because the table does not belong to the graph, writing
+/// coordinates does not fall under the publish lock (<c>DialogEditGuard</c>) - a published dialog can
+/// therefore be arranged clearly without the lock softening. Sessions pin
+/// <c>DialogId</c>/<c>DialogVersion</c> and follow GUIDs, not pixels.
 /// </para>
 /// </remarks>
 public sealed class DialogLayout
 {
-    /// <summary>Eindeutiger Primärschlüssel der Layout-Zeile.</summary>
+    /// <summary>Unique primary key of the layout row.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf den zugehörigen <see cref="Dialog"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Dialog"/>.</summary>
     public Guid DialogId { get; set; }
 
-    /// <summary>Die Art des Elements, dessen Position hier festgehalten ist.</summary>
+    /// <summary>The kind of element whose position is recorded here.</summary>
     public LayoutElementKind ElementKind { get; set; }
 
     /// <summary>
-    /// Verweis auf das Element – bei <see cref="LayoutElementKind.Question"/> eine
-    /// <see cref="Question.Id"/>. Bewusst ohne Fremdschlüssel, wie die Frage-Verweise in
-    /// <see cref="LoopDefinition"/>; verwaiste Zeilen räumt <c>DeleteQuestionCommand</c> ab.
+    /// Reference to the element - for <see cref="LayoutElementKind.Question"/> a
+    /// <see cref="Question.Id"/>. Deliberately without a foreign key, like the question references in
+    /// <see cref="LoopDefinition"/>; orphaned rows are cleaned up by <c>DeleteQuestionCommand</c>.
     /// </summary>
     public Guid ElementId { get; set; }
 
-    /// <summary>Die waagerechte Canvas-Koordinate der linken oberen Ecke in px (nie negativ).</summary>
+    /// <summary>The horizontal canvas coordinate of the top-left corner in px (never negative).</summary>
     public int X { get; set; }
 
-    /// <summary>Die senkrechte Canvas-Koordinate der linken oberen Ecke in px (nie negativ).</summary>
+    /// <summary>The vertical canvas coordinate of the top-left corner in px (never negative).</summary>
     public int Y { get; set; }
 
-    /// <summary>Der Dialog, zu dem diese Layout-Zeile gehört.</summary>
+    /// <summary>The dialog this layout row belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 }

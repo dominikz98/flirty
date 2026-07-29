@@ -4,9 +4,9 @@ using Flirty.Samples;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
-// Reines Console-Single-Project-Setup: nur der Flirty-Core, KEIN ASP.NET.
-// Persistenz: SQLite in-memory (Shared-Cache). Solange die keep-alive-Verbindung offen ist, teilen
-// sich alle DI-erzeugten FlirtyDbContext-Instanzen dieselbe in-memory-Datenbank.
+// Pure console single-project setup: only the Flirty core, NO ASP.NET.
+// Persistence: SQLite in-memory (shared cache). As long as the keep-alive connection is open, all
+// DI-created FlirtyDbContext instances share the same in-memory database.
 const string connectionString = "Data Source=FlirtySampleConsole;Mode=Memory;Cache=Shared";
 
 using var keepAlive = new SqliteConnection(connectionString);
@@ -15,13 +15,13 @@ keepAlive.Open();
 using var provider = new ServiceCollection()
     .AddLogging()
     .AddFlirty(options => options.UseSqlite(connectionString))
-    // Ziel-Writer für den eigenen Notification-Handler (in der App: die Konsole).
+    // Target writer for the custom notification handler (in the app: the console).
     .AddSingleton<TextWriter>(Console.Out)
-    // Eigener In-Process-Handler: reagiert auf die von der Engine publizierte Abschluss-Notification.
+    // Custom in-process handler: reacts to the completion notification published by the engine.
     .AddFlirtyHandler<DialogCompletedNotification, ConsoleDialogCompletedHandler>()
     .BuildServiceProvider();
 
-// Beispiel-Dialog seeden – programmatisch über den DbContext (ohne Designer).
+// Seed the sample dialog – programmatically via the DbContext (without the designer).
 using (var seedScope = provider.CreateScope())
 {
     var context = seedScope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
@@ -34,8 +34,8 @@ Console.WriteLine("=== Flirty Console-Sample ===");
 Console.WriteLine("Beantworte die Fragen. Bei Auswahlfragen den Schlüssel in [] eingeben.");
 Console.WriteLine();
 
-// Dialog über die Facade durchspielen; die Engine publiziert beim Abschluss selbst die Notification,
-// wodurch der oben registrierte eigene Handler ausgelöst wird.
+// Play the dialog through via the facade; on completion the engine itself publishes the notification,
+// which triggers the custom handler registered above.
 using (var runScope = provider.CreateScope())
 {
     var engine = runScope.ServiceProvider.GetRequiredService<IFlirtyEngine>();

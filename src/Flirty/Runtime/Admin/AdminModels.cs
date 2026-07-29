@@ -3,18 +3,18 @@ using Flirty.Domain;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Navigationsfreie Sicht auf einen <see cref="Dialog"/> (nur die Metadaten, ohne den
-/// Konfigurationsgraphen). Ergebnis der Dialog-CRUD-Commands und der Dialog-Liste.
+/// Navigation-free view of a <see cref="Dialog"/> (only the metadata, without the
+/// configuration graph). Result of the dialog CRUD commands and the dialog list.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel des Dialogs.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel des Dialogs.</param>
-/// <param name="Name">Der Anzeigename des Dialogs.</param>
-/// <param name="Description">Die optionale Beschreibung des Dialogs.</param>
-/// <param name="Version">Die Versionsnummer des Dialogs.</param>
-/// <param name="IsPublished">Gibt an, ob der Dialog veröffentlicht (produktiv startbar) ist.</param>
-/// <param name="StartQuestionId">Verweis auf die Einstiegsfrage oder <see langword="null"/>.</param>
-/// <param name="CreatedAt">Zeitpunkt der Erstellung.</param>
-/// <param name="UpdatedAt">Zeitpunkt der letzten Änderung.</param>
+/// <param name="Id">The primary key of the dialog.</param>
+/// <param name="Key">The business, stable key of the dialog.</param>
+/// <param name="Name">The display name of the dialog.</param>
+/// <param name="Description">The optional description of the dialog.</param>
+/// <param name="Version">The version number of the dialog.</param>
+/// <param name="IsPublished">Indicates whether the dialog is published (startable in production).</param>
+/// <param name="StartQuestionId">Reference to the entry question, or <see langword="null"/>.</param>
+/// <param name="CreatedAt">Point in time of creation.</param>
+/// <param name="UpdatedAt">Point in time of the last change.</param>
 public sealed record DialogSummary(
     Guid Id,
     string Key,
@@ -27,22 +27,21 @@ public sealed record DialogSummary(
     DateTimeOffset UpdatedAt);
 
 /// <summary>
-/// Navigationsfreie Sicht auf einen <see cref="Dialog"/> samt seinem im Rahmen des Admin-CRUD
-/// verwalteten Graphen (Fragen inkl. Optionen, Übergänge, Schleifen-Marker und Trigger). Ergebnis von
+/// Navigation-free view of a <see cref="Dialog"/> along with its graph managed as part of the admin CRUD
+/// (questions incl. options, transitions, loop markers and triggers). Result of
 /// <c>GetDialogQuery</c>.
 /// </summary>
-/// <param name="Dialog">Die Dialog-Metadaten.</param>
-/// <param name="Questions">Die Fragen des Dialogs (inklusive ihrer Antwortoptionen), nach <c>Order</c> sortiert.</param>
-/// <param name="Transitions">Die bedingten Übergänge des Dialogs, nach <c>Priority</c> sortiert.</param>
-/// <param name="Loops">Die Schleifen-Marker des Dialogs, nach <c>CollectionKey</c> sortiert.</param>
+/// <param name="Dialog">The dialog metadata.</param>
+/// <param name="Questions">The questions of the dialog (including their answer options), sorted by <c>Order</c>.</param>
+/// <param name="Transitions">The conditional transitions of the dialog, sorted by <c>Priority</c>.</param>
+/// <param name="Loops">The loop markers of the dialog, sorted by <c>CollectionKey</c>.</param>
 /// <param name="Triggers">
-/// Die Trigger-Definitionen des Dialogs, nach <c>Scope</c>, <c>Kind</c> und Konfiguration sortiert
-/// (die Entity kennt keine eigene Reihenfolge).
+/// The trigger definitions of the dialog, sorted by <c>Scope</c>, <c>Kind</c> and configuration
+/// (the entity has no order of its own).
 /// </param>
 /// <param name="Layout">
-/// Die gespeicherten Canvas-Positionen des Dialogs, nach <c>ElementKind</c> und <c>ElementId</c>
-/// sortiert. Reine Anzeigedaten des Designers; ist für ein Element keine Zeile vorhanden, ordnet dort
-/// das Auto-Layout an.
+/// The stored canvas positions of the dialog, sorted by <c>ElementKind</c> and <c>ElementId</c>.
+/// Pure display data of the designer; if no row exists for an element, the auto-layout arranges it there.
 /// </param>
 public sealed record DialogDetail(
     DialogSummary Dialog,
@@ -53,18 +52,18 @@ public sealed record DialogDetail(
     IReadOnlyList<DialogLayoutDetail> Layout);
 
 /// <summary>
-/// Navigationsfreie Sicht auf eine <see cref="Question"/> für das Admin-CRUD (mit allen
-/// konfigurierbaren Feldern, anders als die schlanke Laufzeit-Sicht <see cref="QuestionView"/>).
+/// Navigation-free view of a <see cref="Question"/> for the admin CRUD (with all
+/// configurable fields, unlike the lean runtime view <see cref="QuestionView"/>).
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Frage.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage.</param>
-/// <param name="Text">Der angezeigte Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
-/// <param name="Order">Der Reihenfolge-Index der Frage innerhalb des Dialogs.</param>
-/// <param name="IsRequired">Gibt an, ob eine Antwort erforderlich ist.</param>
-/// <param name="ValidationRules">Optionale Validierungsregeln als JSON.</param>
-/// <param name="Options">Die Antwortoptionen der Frage, nach <c>Order</c> sortiert.</param>
+/// <param name="Id">The primary key of the question.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="Key">The business, stable key of the question.</param>
+/// <param name="Text">The displayed question text.</param>
+/// <param name="Type">The answer type of the question.</param>
+/// <param name="Order">The order index of the question within the dialog.</param>
+/// <param name="IsRequired">Indicates whether an answer is required.</param>
+/// <param name="ValidationRules">Optional validation rules as JSON.</param>
+/// <param name="Options">The answer options of the question, sorted by <c>Order</c>.</param>
 public sealed record QuestionDetail(
     Guid Id,
     Guid DialogId,
@@ -77,14 +76,14 @@ public sealed record QuestionDetail(
     IReadOnlyList<AnswerOptionDetail> Options);
 
 /// <summary>
-/// Navigationsfreie Sicht auf eine <see cref="AnswerOption"/> für das Admin-CRUD.
+/// Navigation-free view of an <see cref="AnswerOption"/> for the admin CRUD.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Antwortoption.</param>
-/// <param name="QuestionId">Der Fremdschlüssel auf die zugehörige Frage.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Option.</param>
-/// <param name="Label">Der angezeigte Beschriftungstext der Option.</param>
-/// <param name="Value">Der bei Auswahl gespeicherte Wert der Option.</param>
-/// <param name="Order">Der Reihenfolge-Index der Option innerhalb der Frage.</param>
+/// <param name="Id">The primary key of the answer option.</param>
+/// <param name="QuestionId">The foreign key to the associated question.</param>
+/// <param name="Key">The business, stable key of the option.</param>
+/// <param name="Label">The displayed label text of the option.</param>
+/// <param name="Value">The value of the option stored on selection.</param>
+/// <param name="Order">The order index of the option within the question.</param>
 public sealed record AnswerOptionDetail(
     Guid Id,
     Guid QuestionId,
@@ -94,15 +93,15 @@ public sealed record AnswerOptionDetail(
     int Order);
 
 /// <summary>
-/// Navigationsfreie Sicht auf einen <see cref="Transition"/> (Branching-Übergang) für das Admin-CRUD.
+/// Navigation-free view of a <see cref="Transition"/> (branching transition) for the admin CRUD.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel des Übergangs.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="Id">The primary key of the transition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record TransitionDetail(
     Guid Id,
     Guid DialogId,
@@ -113,13 +112,13 @@ public sealed record TransitionDetail(
     bool IsDefault);
 
 /// <summary>
-/// Navigationsfreie Sicht auf eine <see cref="LoopDefinition"/> (Schleifen-Marker) für das Admin-CRUD.
+/// Navigation-free view of a <see cref="LoopDefinition"/> (loop marker) for the admin CRUD.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Schleifen-Definition.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
-/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife.</param>
-/// <param name="BreakingQuestionId">Verweis auf die Breaking Question (deren Exit-Übergang den Zyklus verlässt).</param>
+/// <param name="Id">The primary key of the loop definition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="CollectionKey">Key under which the answers gathered per iteration lie in the expression context.</param>
+/// <param name="EntryQuestionId">Reference to the entry question of the loop.</param>
+/// <param name="BreakingQuestionId">Reference to the breaking question (whose exit transition leaves the cycle).</param>
 public sealed record LoopDetail(
     Guid Id,
     Guid DialogId,
@@ -128,19 +127,19 @@ public sealed record LoopDetail(
     Guid BreakingQuestionId);
 
 /// <summary>
-/// Navigationsfreie Sicht auf eine <see cref="TriggerDefinition"/> (Rückkanal in die Host-Anwendung)
-/// für das Admin-CRUD.
+/// Navigation-free view of a <see cref="TriggerDefinition"/> (back channel into the host application)
+/// for the admin CRUD.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Trigger-Definition.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
+/// <param name="Id">The primary key of the trigger definition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
 /// <param name="QuestionId">
-/// Die Frage, auf die der Trigger bei <see cref="TriggerScope.AfterQuestion"/> hört; sonst
+/// The question the trigger listens to for <see cref="TriggerScope.AfterQuestion"/>; otherwise
 /// <see langword="null"/>.
 /// </param>
-/// <param name="Kind">Der Kanal (<see cref="TriggerKind.Webhook"/> oder <see cref="TriggerKind.InProcess"/>).</param>
-/// <param name="Config">Die kanal-spezifische Konfiguration als JSON (Schema: <see cref="TriggerConfig"/>).</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+/// <param name="Kind">The channel (<see cref="TriggerKind.Webhook"/> or <see cref="TriggerKind.InProcess"/>).</param>
+/// <param name="Config">The channel-specific configuration as JSON (schema: <see cref="TriggerConfig"/>).</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
 public sealed record TriggerDetail(
     Guid Id,
     Guid DialogId,
@@ -151,15 +150,15 @@ public sealed record TriggerDetail(
     string? Expression);
 
 /// <summary>
-/// Navigationsfreie Sicht auf eine <see cref="DialogLayout"/>-Zeile (gespeicherte Canvas-Position) für
-/// das Admin-CRUD.
+/// Navigation-free view of a <see cref="DialogLayout"/> row (stored canvas position) for
+/// the admin CRUD.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Layout-Zeile.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="ElementKind">Die Art des positionierten Elements.</param>
-/// <param name="ElementId">Verweis auf das Element (heute stets eine <see cref="Question.Id"/>).</param>
-/// <param name="X">Die waagerechte Canvas-Koordinate in px.</param>
-/// <param name="Y">Die senkrechte Canvas-Koordinate in px.</param>
+/// <param name="Id">The primary key of the layout row.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="ElementKind">The kind of the positioned element.</param>
+/// <param name="ElementId">Reference to the element (today always a <see cref="Question.Id"/>).</param>
+/// <param name="X">The horizontal canvas coordinate in px.</param>
+/// <param name="Y">The vertical canvas coordinate in px.</param>
 public sealed record DialogLayoutDetail(
     Guid Id,
     Guid DialogId,
@@ -169,17 +168,17 @@ public sealed record DialogLayoutDetail(
     int Y);
 
 /// <summary>
-/// Eine zu setzende Canvas-Position – die Eingabeform eines Eintrags im Batch von
+/// A canvas position to set – the input form of an entry in the batch of
 /// <c>SetDialogLayoutCommand</c>.
 /// </summary>
 /// <remarks>
-/// Ohne <c>Id</c>: Identifiziert wird über (<see cref="ElementKind"/>, <see cref="ElementId"/>), weil
-/// der Aufrufer eine Position setzt und nicht wissen muss, ob dafür schon eine Zeile existiert.
+/// Without an <c>Id</c>: identified via (<see cref="ElementKind"/>, <see cref="ElementId"/>), because
+/// the caller sets a position and does not need to know whether a row already exists for it.
 /// </remarks>
-/// <param name="ElementKind">Die Art des positionierten Elements.</param>
-/// <param name="ElementId">Verweis auf das Element (heute stets eine <see cref="Question.Id"/>).</param>
-/// <param name="X">Die waagerechte Canvas-Koordinate in px; darf nicht negativ sein.</param>
-/// <param name="Y">Die senkrechte Canvas-Koordinate in px; darf nicht negativ sein.</param>
+/// <param name="ElementKind">The kind of the positioned element.</param>
+/// <param name="ElementId">Reference to the element (today always a <see cref="Question.Id"/>).</param>
+/// <param name="X">The horizontal canvas coordinate in px; must not be negative.</param>
+/// <param name="Y">The vertical canvas coordinate in px; must not be negative.</param>
 public sealed record DialogLayoutEntry(
     LayoutElementKind ElementKind,
     Guid ElementId,

@@ -3,23 +3,23 @@ using Flirty.Domain;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Ergebnis von <see cref="ResumeDialogQuery"/> bzw. <see cref="IFlirtyEngine.ResumeDialogAsync"/>:
-/// der aktuelle Zustand einer <see cref="DialogSession"/> – Status, die (ggf.) aktuell offene Frage und
-/// die bisher gegebenen Antworten – zum Wiederherstellen einer Befragung (z. B. nach einem Reload der
-/// Host-App).
+/// Result of <see cref="ResumeDialogQuery"/> or <see cref="IFlirtyEngine.ResumeDialogAsync"/>:
+/// the current state of a <see cref="DialogSession"/> – status, the (possibly) currently open question and
+/// the answers given so far – for restoring a survey (e.g. after a reload of the
+/// host app).
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der abgefragten <see cref="DialogSession"/>.</param>
+/// <param name="SessionId">The primary key of the queried <see cref="DialogSession"/>.</param>
 /// <param name="Status">
-/// Der aktuelle Status der Session (<see cref="SessionStatus.InProgress"/>,
-/// <see cref="SessionStatus.Completed"/> oder <see cref="SessionStatus.Abandoned"/>).
+/// The current status of the session (<see cref="SessionStatus.InProgress"/>,
+/// <see cref="SessionStatus.Completed"/> or <see cref="SessionStatus.Abandoned"/>).
 /// </param>
 /// <param name="CurrentQuestion">
-/// Die aktuell offene Frage, die dem Anwender zu präsentieren ist, oder <see langword="null"/>, wenn die
-/// Session keine offene Frage mehr hat (abgeschlossen bzw. abgebrochen).
+/// The currently open question to be presented to the user, or <see langword="null"/> if the
+/// session no longer has an open question (completed or abandoned).
 /// </param>
 /// <param name="Answers">
-/// Die bisher gegebenen Antworten der Session in aufsteigender <see cref="SessionAnswer.Sequence"/>
-/// (chronologische Reihenfolge); leer, wenn noch keine Antwort erfasst wurde.
+/// The answers given so far in the session in ascending <see cref="SessionAnswer.Sequence"/>
+/// (chronological order); empty if no answer has been recorded yet.
 /// </param>
 public sealed record ResumeDialogResult(
     Guid SessionId,
@@ -28,24 +28,24 @@ public sealed record ResumeDialogResult(
     IReadOnlyList<SessionAnswerView> Answers);
 
 /// <summary>
-/// Schlanke, unveränderliche Sicht auf einen <see cref="SessionAnswer"/> für die Laufzeit-API – ohne
-/// EF-Core-Navigationen, damit Host-Apps bereits gegebene Antworten anzeigen können, ohne den
-/// Konfigurationsgraphen zu kennen.
+/// Lean, immutable view of a <see cref="SessionAnswer"/> for the runtime API – without
+/// EF Core navigations, so that host apps can display answers already given without knowing the
+/// configuration graph.
 /// </summary>
-/// <param name="QuestionId">Der Primärschlüssel der beantworteten Frage.</param>
+/// <param name="QuestionId">The primary key of the answered question.</param>
 /// <param name="QuestionKey">
-/// Der fachliche, stabile Schlüssel der beantworteten Frage (aus der gepinnten Dialogversion aufgelöst).
+/// The business, stable key of the answered question (resolved from the pinned dialog version).
 /// </param>
-/// <param name="Value">Der gespeicherte Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
-/// <param name="Sequence">Die fortlaufende Position der Antwort innerhalb der Session (beginnend bei 0).</param>
-/// <param name="AnsweredAt">Der Zeitpunkt, zu dem die Antwort erfasst wurde.</param>
+/// <param name="Value">The stored answer value as raw JSON text (format depends on the question type).</param>
+/// <param name="Sequence">The running position of the answer within the session (starting at 0).</param>
+/// <param name="AnsweredAt">The point in time at which the answer was recorded.</param>
 /// <param name="LoopInstanceId">
-/// Die Instanz-Id der Schleife, zu der die Antwort gehört, oder <see langword="null"/>, wenn die Antwort
-/// außerhalb einer Schleife gegeben wurde.
+/// The instance id of the loop the answer belongs to, or <see langword="null"/> if the answer
+/// was given outside a loop.
 /// </param>
 /// <param name="IterationIndex">
-/// Der nullbasierte Iterationsindex innerhalb der Schleife oder <see langword="null"/> außerhalb einer
-/// Schleife.
+/// The zero-based iteration index within the loop, or <see langword="null"/> outside a
+/// loop.
 /// </param>
 public sealed record SessionAnswerView(
     Guid QuestionId,

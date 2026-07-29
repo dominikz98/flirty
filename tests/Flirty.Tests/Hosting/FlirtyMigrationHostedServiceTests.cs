@@ -58,8 +58,8 @@ public sealed class FlirtyMigrationHostedServiceTests
             context.Database.GetAppliedMigrations(),
             migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
 
-        Assert.Contains(spy.Messages, message => message.Contains("wendet ausstehende", StringComparison.Ordinal));
-        Assert.Contains(spy.Messages, message => message.Contains("abgeschlossen", StringComparison.Ordinal));
+        Assert.Contains(spy.Messages, message => message.Contains("applies pending", StringComparison.Ordinal));
+        Assert.Contains(spy.Messages, message => message.Contains("completed", StringComparison.Ordinal));
     }
 
     /// <summary>Ein zweiter Lauf findet keine Pending-Migrationen und wirft nicht (Idempotenz).</summary>

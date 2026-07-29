@@ -316,7 +316,7 @@ public sealed class DialogVersioningTests : IDisposable
             async () => await new UpdateDialogCommandHandler(store).Handle(
                 new UpdateDialogCommand(dialogId, "anders", "Onboarding", null, questionId), default));
 
-        Assert.Contains("mehrere Versionen", exception.Message);
+        Assert.Contains("multiple versions", exception.Message);
     }
 
     /// <summary>Ein einzelner Dialog lässt sich weiterhin umbenennen.</summary>
@@ -457,7 +457,7 @@ public sealed class DialogVersioningTests : IDisposable
             async () => await new DeleteDialogCommandHandler(new DialogAdminStore(act))
                 .Handle(new DeleteDialogCommand(dialogId), default));
 
-        Assert.Contains("1 Session(s)", exception.Message);
+        Assert.Contains("1 session(s)", exception.Message);
     }
 
     /// <summary>Abgeschlossene und abgebrochene Sessions blockieren das Löschen nicht.</summary>
@@ -577,6 +577,6 @@ public sealed class DialogVersioningTests : IDisposable
     private static async Task AssertPublishedAsync<TResult>(Func<ValueTask<TResult>> operation)
     {
         var exception = await Assert.ThrowsAsync<DialogPublishedException>(async () => await operation());
-        Assert.Contains("veröffentlicht", exception.Message);
+        Assert.Contains("published", exception.Message);
     }
 }

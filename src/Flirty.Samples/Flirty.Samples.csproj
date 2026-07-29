@@ -1,20 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- TFM, Nullable, ImplicitUsings, WarnAsError kommen zentral aus Directory.Build.props.
-       Hier nur, was diesem Sample eigen ist. -->
+  <!-- TFM, Nullable, ImplicitUsings, WarnAsError come centrally from Directory.Build.props.
+       Only what is specific to this sample is here. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
-  <!-- Nur der Core (KEIN ASP.NET): EF Core, SQLite-Provider, Mediator.Abstractions und
-       DynamicExpresso kommen transitiv über diese eine Referenz. -->
+  <!-- Core only (NO ASP.NET): EF Core, the SQLite provider, Mediator.Abstractions and
+       DynamicExpresso come transitively through this single reference. -->
   <ItemGroup>
     <ProjectReference Include="..\Flirty\Flirty.csproj" />
   </ItemGroup>
 
-  <!-- Der Core liefert nur Microsoft.Extensions.*.Abstractions. Für den konkreten
-       ServiceCollection-Aufbau (AddFlirty) und AddLogging() werden die Implementierungs-Pakete
-       benötigt. Versionen zentral in Directory.Packages.props. -->
+  <!-- The core only ships Microsoft.Extensions.*.Abstractions. For the concrete ServiceCollection
+       setup (AddFlirty) and AddLogging() the implementation packages are needed. Versions are pinned
+       centrally in Directory.Packages.props. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />

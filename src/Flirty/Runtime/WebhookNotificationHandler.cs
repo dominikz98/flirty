@@ -10,40 +10,40 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Eingebauter Outbound-Webhook-Handler (Issue #33, seit #42 auch <see cref="TriggerDefinition"/>-getrieben):
-/// empfängt die vier In-Process-Trigger-Notifications (<see cref="DialogStartedNotification"/>/
+/// Built-in outbound webhook handler (issue #33, since #42 also <see cref="TriggerDefinition"/>-driven):
+/// receives the four in-process trigger notifications (<see cref="DialogStartedNotification"/>/
 /// <see cref="AnswerSubmittedNotification"/>/<see cref="QuestionAnsweredNotification"/>/
-/// <see cref="DialogCompletedNotification"/>) und liefert sie als HTTP-POST aus – über
-/// <see cref="IHttpClientFactory"/> mit der Standard-Resilience-Pipeline (Retry/Timeout).
+/// <see cref="DialogCompletedNotification"/>) and delivers them as HTTP POST – via
+/// <see cref="IHttpClientFactory"/> with the standard resilience pipeline (retry/timeout).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Der Handler liegt im Core, weil ihn der martinothamar-Source-Generator dort entdeckt und automatisch
-/// je implementiertem <see cref="INotificationHandler{TNotification}"/> registriert (dieselbe
-/// Scoped-Lebensdauer wie der Mediator). Die Ziele kommen aus <b>zwei</b> Quellen, die sich ergänzen:
+/// The handler lives in the core because the martinothamar source generator discovers it there and
+/// automatically registers it per implemented <see cref="INotificationHandler{TNotification}"/> (the same
+/// scoped lifetime as the Mediator). The targets come from <b>two</b> sources that complement each other:
 /// </para>
 /// <list type="number">
 /// <item><description>
-/// den im Code registrierten <see cref="FlirtyWebhookRegistration"/> (<c>o.AddWebhook(scope, url, expression?)</c>);
-/// nur Registrierungen mit gesetztem <see cref="FlirtyWebhookRegistration.Scope"/> werden ausgeliefert.
+/// the <see cref="FlirtyWebhookRegistration"/> registered in code (<c>o.AddWebhook(scope, url, expression?)</c>);
+/// only registrations with <see cref="FlirtyWebhookRegistration.Scope"/> set are delivered.
 /// </description></item>
 /// <item><description>
-/// den am Dialog konfigurierten <see cref="TriggerDefinition"/> mit <see cref="TriggerKind.Webhook"/>
-/// (Designer, #42) – gefiltert über <see cref="IDialogStore.GetTriggersForSessionAsync"/> nach dem
-/// <see cref="TriggerScope"/> und bei <see cref="TriggerScope.AfterQuestion"/> zusätzlich nach der Frage.
-/// Ziel-URL und Ereignisname stehen als JSON in <see cref="TriggerDefinition.Config"/> (Schema:
-/// <see cref="TriggerConfig"/>). Definitionen mit <see cref="TriggerKind.InProcess"/> werden bewusst
-/// <b>nicht</b> zugestellt: dort reagiert die Host-App über einen eigenen
+/// the <see cref="TriggerDefinition"/> configured on the dialog with <see cref="TriggerKind.Webhook"/>
+/// (designer, #42) – filtered via <see cref="IDialogStore.GetTriggersForSessionAsync"/> by the
+/// <see cref="TriggerScope"/> and, for <see cref="TriggerScope.AfterQuestion"/>, additionally by the question.
+/// Target URL and event name are stored as JSON in <see cref="TriggerDefinition.Config"/> (schema:
+/// <see cref="TriggerConfig"/>). Definitions with <see cref="TriggerKind.InProcess"/> are deliberately
+/// <b>not</b> delivered: there the host app reacts via its own
 /// <see cref="INotificationHandler{TNotification}"/>.
 /// </description></item>
 /// </list>
 /// <para>
-/// Trägt ein Ziel eine Bedingung, lädt der Handler Session und Dialog über den <see cref="IDialogStore"/>
-/// nach, baut den <see cref="ExpressionContext"/> und wertet sie via <see cref="IExpressionEvaluator"/> aus.
-/// Alles ist <b>best-effort</b>: unlesbare Konfiguration, nicht auswertbare Bedingungen und Zustellfehler
-/// (Statuscode ≥ 400 nach erschöpften Retries oder Ausnahmen) werden protokolliert, aber <b>nicht</b>
-/// weitergeworfen – ein toter Webhook oder ein Tippfehler im Designer darf den auslösenden Command
-/// (Start/Submit/Edit) nicht brechen.
+/// If a target carries a condition, the handler loads session and dialog via the <see cref="IDialogStore"/>,
+/// builds the <see cref="ExpressionContext"/> and evaluates it via <see cref="IExpressionEvaluator"/>.
+/// Everything is <b>best-effort</b>: unreadable configuration, non-evaluable conditions and delivery errors
+/// (status code ≥ 400 after exhausted retries or exceptions) are logged, but <b>not</b>
+/// rethrown – a dead webhook or a typo in the designer must not break the triggering command
+/// (start/submit/edit).
 /// </para>
 /// </remarks>
 internal sealed class WebhookNotificationHandler :
@@ -52,15 +52,15 @@ internal sealed class WebhookNotificationHandler :
     INotificationHandler<QuestionAnsweredNotification>,
     INotificationHandler<DialogCompletedNotification>
 {
-    /// <summary>Name des über <c>AddHttpClient</c> registrierten Named-Clients samt Resilience-Pipeline.</summary>
+    /// <summary>Name of the named client registered via <c>AddHttpClient</c> along with its resilience pipeline.</summary>
     internal const string HttpClientName = "Flirty.Webhooks";
 
-    /// <summary>HTTP-Header, der den auslösenden <see cref="TriggerScope"/> an den Empfänger mitgibt.</summary>
+    /// <summary>HTTP header that passes the triggering <see cref="TriggerScope"/> to the receiver.</summary>
     internal const string EventHeaderName = "X-Flirty-Event";
 
     /// <summary>
-    /// HTTP-Header mit dem fachlichen Ereignisnamen aus <see cref="TriggerConfig.Name"/> – nur gesetzt,
-    /// wenn die Trigger-Definition einen Namen trägt.
+    /// HTTP header with the business event name from <see cref="TriggerConfig.Name"/> – only set
+    /// if the trigger definition carries a name.
     /// </summary>
     internal const string TriggerHeaderName = "X-Flirty-Trigger";
 
@@ -72,13 +72,13 @@ internal sealed class WebhookNotificationHandler :
     private readonly IDialogStore _dialogStore;
     private readonly ILogger<WebhookNotificationHandler> _logger;
 
-    /// <summary>Erstellt den Handler mit seinen Abhängigkeiten.</summary>
-    /// <param name="httpClientFactory">Factory für den resilient konfigurierten Webhook-<c>HttpClient</c>.</param>
-    /// <param name="registrations">Die registrierten Webhook-Ziele (aus <c>o.AddWebhook(...)</c>).</param>
-    /// <param name="evaluator">Engine zur Auswertung optionaler Bedingungsausdrücke.</param>
-    /// <param name="dialogStore">Store zum Nachladen von Session/Dialog für die Ausdrucksauswertung.</param>
-    /// <param name="logger">Logger für Zustellfehler (best-effort).</param>
-    /// <exception cref="ArgumentNullException">Ein Argument ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler with its dependencies.</summary>
+    /// <param name="httpClientFactory">Factory for the resiliently configured webhook <c>HttpClient</c>.</param>
+    /// <param name="registrations">The registered webhook targets (from <c>o.AddWebhook(...)</c>).</param>
+    /// <param name="evaluator">Engine for evaluating optional condition expressions.</param>
+    /// <param name="dialogStore">Store for reloading session/dialog for the expression evaluation.</param>
+    /// <param name="logger">Logger for delivery errors (best-effort).</param>
+    /// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
     public WebhookNotificationHandler(
         IHttpClientFactory httpClientFactory,
         IReadOnlyList<FlirtyWebhookRegistration> registrations,
@@ -99,34 +99,34 @@ internal sealed class WebhookNotificationHandler :
         _logger = logger;
     }
 
-    /// <summary>Liefert Webhooks des Scopes <see cref="TriggerScope.OnDialogStarted"/> aus.</summary>
-    /// <param name="notification">Die Start-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Auslieferung.</param>
-    /// <returns>Ein <see cref="ValueTask"/>, der mit Abschluss der Auslieferung abgeschlossen ist.</returns>
+    /// <summary>Delivers webhooks of the scope <see cref="TriggerScope.OnDialogStarted"/>.</summary>
+    /// <param name="notification">The start notification.</param>
+    /// <param name="cancellationToken">Token to cancel the delivery.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the delivery is finished.</returns>
     public ValueTask Handle(DialogStartedNotification notification, CancellationToken cancellationToken)
         => DispatchAsync(
             TriggerScope.OnDialogStarted, notification.SessionId, notification.CurrentQuestionId, notification, cancellationToken);
 
-    /// <summary>Liefert Webhooks des Scopes <see cref="TriggerScope.AfterAnswer"/> aus.</summary>
-    /// <param name="notification">Die Antwort-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Auslieferung.</param>
-    /// <returns>Ein <see cref="ValueTask"/>, der mit Abschluss der Auslieferung abgeschlossen ist.</returns>
+    /// <summary>Delivers webhooks of the scope <see cref="TriggerScope.AfterAnswer"/>.</summary>
+    /// <param name="notification">The answer notification.</param>
+    /// <param name="cancellationToken">Token to cancel the delivery.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the delivery is finished.</returns>
     public ValueTask Handle(AnswerSubmittedNotification notification, CancellationToken cancellationToken)
         => DispatchAsync(
             TriggerScope.AfterAnswer, notification.SessionId, notification.QuestionId, notification, cancellationToken);
 
-    /// <summary>Liefert Webhooks des Scopes <see cref="TriggerScope.AfterQuestion"/> aus.</summary>
-    /// <param name="notification">Die Übergangs-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Auslieferung.</param>
-    /// <returns>Ein <see cref="ValueTask"/>, der mit Abschluss der Auslieferung abgeschlossen ist.</returns>
+    /// <summary>Delivers webhooks of the scope <see cref="TriggerScope.AfterQuestion"/>.</summary>
+    /// <param name="notification">The transition notification.</param>
+    /// <param name="cancellationToken">Token to cancel the delivery.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the delivery is finished.</returns>
     public ValueTask Handle(QuestionAnsweredNotification notification, CancellationToken cancellationToken)
         => DispatchAsync(
             TriggerScope.AfterQuestion, notification.SessionId, notification.QuestionId, notification, cancellationToken);
 
-    /// <summary>Liefert Webhooks des Scopes <see cref="TriggerScope.OnDialogCompleted"/> aus.</summary>
-    /// <param name="notification">Die Abschluss-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Auslieferung.</param>
-    /// <returns>Ein <see cref="ValueTask"/>, der mit Abschluss der Auslieferung abgeschlossen ist.</returns>
+    /// <summary>Delivers webhooks of the scope <see cref="TriggerScope.OnDialogCompleted"/>.</summary>
+    /// <param name="notification">The completion notification.</param>
+    /// <param name="cancellationToken">Token to cancel the delivery.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the delivery is finished.</returns>
     public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
         => DispatchAsync(
             TriggerScope.OnDialogCompleted, notification.SessionId, currentQuestionId: null, notification, cancellationToken);
@@ -153,7 +153,7 @@ internal sealed class WebhookNotificationHandler :
             return;
         }
 
-        // Session/Dialog nur nachladen, wenn mindestens ein Ziel eine Bedingung trägt.
+        // Only reload session/dialog if at least one target carries a condition.
         ExpressionContext? context = null;
         if (targets.Exists(target => !string.IsNullOrWhiteSpace(target.Expression)))
         {
@@ -174,10 +174,10 @@ internal sealed class WebhookNotificationHandler :
     }
 
     /// <summary>
-    /// Liest die am Dialog konfigurierten Webhook-Trigger der Session und bildet sie auf Zustellziele ab.
-    /// Unbrauchbare Definitionen (kein lesbares JSON, keine Ziel-URL) werden protokolliert und
-    /// übersprungen – die Admin-Commands verhindern sie beim Speichern, von Hand geschriebene Zeilen
-    /// dürfen den auslösenden Command aber trotzdem nicht brechen.
+    /// Reads the webhook triggers configured on the session's dialog and maps them to delivery targets.
+    /// Unusable definitions (no readable JSON, no target URL) are logged and
+    /// skipped – the admin commands prevent them on save, but hand-written rows
+    /// must still not break the triggering command.
     /// </summary>
     private async ValueTask<IReadOnlyList<WebhookTarget>> LoadConfiguredTargetsAsync(
         TriggerScope scope, Guid sessionId, Guid? currentQuestionId, CancellationToken cancellationToken)
@@ -194,14 +194,14 @@ internal sealed class WebhookNotificationHandler :
         var targets = new List<WebhookTarget>(triggers.Count);
         foreach (var trigger in triggers)
         {
-            // In-Process-Trigger sind reine Marker: die Notification wird ohnehin publiziert, behandelt
-            // wird sie von einem Handler der Host-App.
+            // In-process triggers are pure markers: the notification is published anyway, and it is
+            // handled by a handler of the host app.
             if (trigger.Kind != TriggerKind.Webhook)
             {
                 continue;
             }
 
-            // Der Frage-Bezug gilt nur für AfterQuestion; ein leerer Verweis meint dort „jede Frage".
+            // The question reference applies only to AfterQuestion; an empty reference there means "any question".
             if (scope == TriggerScope.AfterQuestion
                 && trigger.QuestionId is { } questionId
                 && questionId != currentQuestionId)
@@ -212,7 +212,7 @@ internal sealed class WebhookNotificationHandler :
             if (!TriggerConfig.TryParse(trigger.Config, out var config, out var error))
             {
                 _logger.LogError(
-                    "Trigger {TriggerId} ({Scope}) hat eine unlesbare Konfiguration und wird übersprungen: {Error}",
+                    "Trigger {TriggerId} ({Scope}) has an unreadable configuration and is skipped: {Error}",
                     trigger.Id, scope, error);
                 continue;
             }
@@ -220,7 +220,7 @@ internal sealed class WebhookNotificationHandler :
             if (string.IsNullOrWhiteSpace(config.Url))
             {
                 _logger.LogError(
-                    "Trigger {TriggerId} ({Scope}) ist als Webhook konfiguriert, hat aber keine Ziel-URL – übersprungen.",
+                    "Trigger {TriggerId} ({Scope}) is configured as a webhook but has no target URL – skipped.",
                     trigger.Id, scope);
                 continue;
             }
@@ -232,15 +232,15 @@ internal sealed class WebhookNotificationHandler :
     }
 
     /// <summary>
-    /// Wertet die Bedingung eines Ziels aus. Fehler (unbekannter Bezeichner – z. B. eine Antwort, die es
-    /// beim Dialogstart noch gar nicht gibt – oder ein nicht-boolesches Ergebnis) führen zum Überspringen
-    /// des Ziels, nicht zum Abbruch des auslösenden Commands.
+    /// Evaluates the condition of a target. Errors (unknown identifier – e.g. an answer that does not yet
+    /// exist at dialog start – or a non-boolean result) lead to skipping
+    /// the target, not to aborting the triggering command.
     /// </summary>
     private bool ConditionHolds(WebhookTarget target, ExpressionContext? context)
     {
         if (context is null)
         {
-            // Session/Dialog nicht ladbar – bereits in BuildContextAsync protokolliert.
+            // Session/dialog not loadable – already logged in BuildContextAsync.
             return false;
         }
 
@@ -252,7 +252,7 @@ internal sealed class WebhookNotificationHandler :
         {
             _logger.LogError(
                 exception,
-                "Die Bedingung '{Expression}' des Webhooks an {Url} konnte nicht ausgewertet werden – keine Zustellung.",
+                "The condition '{Expression}' of the webhook to {Url} could not be evaluated – no delivery.",
                 target.Expression, target.Url);
             return false;
         }
@@ -265,7 +265,7 @@ internal sealed class WebhookNotificationHandler :
         if (session is null)
         {
             _logger.LogWarning(
-                "Webhook: Session {SessionId} für die Ausdrucksauswertung nicht gefunden – bedingte Webhooks werden übersprungen.",
+                "Webhook: session {SessionId} for the expression evaluation not found – conditional webhooks are skipped.",
                 sessionId);
             return null;
         }
@@ -274,7 +274,7 @@ internal sealed class WebhookNotificationHandler :
         if (dialog is null)
         {
             _logger.LogWarning(
-                "Webhook: Dialog {DialogId} für die Ausdrucksauswertung nicht gefunden – bedingte Webhooks werden übersprungen.",
+                "Webhook: dialog {DialogId} for the expression evaluation not found – conditional webhooks are skipped.",
                 session.DialogId);
             return null;
         }
@@ -302,24 +302,24 @@ internal sealed class WebhookNotificationHandler :
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError(
-                    "Webhook an {Url} ({Scope}) endete nach Retries mit HTTP {StatusCode}.",
+                    "Webhook to {Url} ({Scope}) ended after retries with HTTP {StatusCode}.",
                     target.Url, scope, (int)response.StatusCode);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // Best-effort: ein fehlerhafter Webhook darf den auslösenden Command nicht brechen.
-            _logger.LogError(exception, "Webhook an {Url} ({Scope}) fehlgeschlagen.", target.Url, scope);
+            // Best-effort: a faulty webhook must not break the triggering command.
+            _logger.LogError(exception, "Webhook to {Url} ({Scope}) failed.", target.Url, scope);
         }
     }
 
     /// <summary>
-    /// Ein aufgelöstes Zustellziel – aus einer Code-Registrierung (<see cref="FlirtyWebhookRegistration"/>)
-    /// oder aus einer <see cref="TriggerDefinition"/>. Vereinheitlicht beide Quellen, damit Bedingung und
-    /// Zustellung nur einmal existieren.
+    /// A resolved delivery target – from a code registration (<see cref="FlirtyWebhookRegistration"/>)
+    /// or from a <see cref="TriggerDefinition"/>. Unifies both sources so that condition and
+    /// delivery exist only once.
     /// </summary>
-    /// <param name="Url">Die Ziel-URL des HTTP-POST.</param>
-    /// <param name="Expression">Optionaler Bedingungsausdruck.</param>
-    /// <param name="Name">Optionaler Ereignisname für den <see cref="TriggerHeaderName"/>-Header.</param>
+    /// <param name="Url">The target URL of the HTTP POST.</param>
+    /// <param name="Expression">Optional condition expression.</param>
+    /// <param name="Name">Optional event name for the <see cref="TriggerHeaderName"/> header.</param>
     private sealed record WebhookTarget(string Url, string? Expression, string? Name);
 }

@@ -8,49 +8,49 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Baut den <b>Musterkontext</b> für die Ausdrucks-Validierung im Designer (#40) – das Gegenstück zum
-/// Core-internen <c>SessionExpressionContextBuilder</c>, nur ohne laufende Session: Statt echter
-/// Antworten werden je Frage <b>typrichtige Beispielwerte</b> gebunden, damit
-/// <see cref="IExpressionEvaluator.Validate(string, ExpressionContext)"/> denselben Compile-Check
-/// durchführt, den die Laufzeit später gegen echte Antworten macht.
+/// Builds the <b>sample context</b> for the expression validation in the designer (#40) – the counterpart to the
+/// core-internal <c>SessionExpressionContextBuilder</c>, only without a running session: instead of real
+/// answers, <b>type-correct sample values</b> are bound per question, so that
+/// <see cref="IExpressionEvaluator.Validate(string, ExpressionContext)"/> performs the same compile check
+/// that the runtime later makes against real answers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Maßgeblich sind die <b>Typen</b>, nicht die Werte: Der Evaluator deserialisiert den rohen
-/// JSON-Text einer Antwort typisiert (JSON-Zahl → <c>long</c>/<c>double</c>, JSON-String →
-/// <c>string</c>, <c>true</c>/<c>false</c> → <c>bool</c>, Array → Liste). Die Beispielwerte hier
-/// spiegeln diese Bindung exakt – sonst würde der Designer Ausdrücke durchwinken, die zur Laufzeit
-/// scheitern (oder umgekehrt). Insbesondere ist eine Datumsantwort auch zur Laufzeit eine
-/// <b>Zeichenkette</b>, kein <c>DateTimeOffset</c>.
+/// Authoritative are the <b>types</b>, not the values: the evaluator deserializes the raw
+/// JSON text of an answer typed (JSON number → <c>long</c>/<c>double</c>, JSON string →
+/// <c>string</c>, <c>true</c>/<c>false</c> → <c>bool</c>, array → list). The sample values here
+/// mirror this binding exactly – otherwise the designer would wave through expressions that fail at
+/// runtime (or vice versa). In particular, a date answer is also at runtime a
+/// <b>string</b>, not a <c>DateTimeOffset</c>.
 /// </para>
 /// <para>
-/// Loop-Collections werden – wie vom <c>LoopResolver</c> zur Laufzeit – <b>stets</b> gebunden, vor der
-/// ersten Iteration eben als leere Liste. Nur so ist <c>skills.Count &gt; 0</c> überhaupt prüfbar.
+/// Loop collections are – as by the <c>LoopResolver</c> at runtime – <b>always</b> bound, before the
+/// first iteration just as an empty list. Only so is <c>skills.Count &gt; 0</c> checkable at all.
 /// </para>
 /// </remarks>
 internal static class DesignerExpressionContext
 {
-    /// <summary>Baustein-Operator: Mengenprüfung auf einer Liste (<c>skills.Count &gt; 0</c>).</summary>
+    /// <summary>Snippet operator: count check on a list (<c>skills.Count &gt; 0</c>).</summary>
     public const string CountGreaterOperator = "Anzahl >";
 
-    /// <summary>Baustein-Operator: exakte Anzahl einer Liste (<c>skills.Count == 3</c>).</summary>
+    /// <summary>Snippet operator: exact count of a list (<c>skills.Count == 3</c>).</summary>
     public const string CountEqualsOperator = "Anzahl ==";
 
-    /// <summary>Baustein-Operator: Enthaltensein (<c>skills.Contains("csharp")</c>).</summary>
+    /// <summary>Snippet operator: containment (<c>skills.Contains("csharp")</c>).</summary>
     public const string ContainsOperator = "enthält";
 
     /// <summary>
-    /// Die reservierten Kontext-Variablen. Der Evaluator setzt sie <b>zuletzt</b>; gleichnamige
-    /// Frage-/Collection-Schlüssel werden dadurch verdeckt und sind im Ausdruck nicht erreichbar.
+    /// The reserved context variables. The evaluator sets them <b>last</b>; question/collection keys
+    /// of the same name are thereby shadowed and are not reachable in the expression.
     /// </summary>
     private static readonly string[] ReservedNames = ["now", "iterationIndex", "session"];
 
     /// <summary>
-    /// Baut den Musterkontext des Dialogs: je Frage ein typrichtiger Beispielwert, je Loop-Collection
-    /// eine (leere) Liste, dazu eine Attrappen-Session.
+    /// Builds the sample context of the dialog: per question a type-correct sample value, per loop collection
+    /// a (empty) list, plus a dummy session.
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <returns>Der Kontext, gegen den Bedingungsausdrücke validiert werden.</returns>
+    /// <param name="detail">The dialog together with the graph (from <c>GetDialogQuery</c>).</param>
+    /// <returns>The context against which condition expressions are validated.</returns>
     public static ExpressionContext Build(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -77,17 +77,17 @@ internal static class DesignerExpressionContext
             StartedAt = DateTimeOffset.UtcNow,
         };
 
-        // iterationIndex wird vom Evaluator immer als int? gebunden – für den Compile-Check zählt nur
-        // dieser Typ, nicht der Wert.
+        // iterationIndex is always bound by the evaluator as int? – for the compile check only
+        // this type counts, not the value.
         return new ExpressionContext(session, DateTimeOffset.UtcNow, answers, collections, iterationIndex: 0);
     }
 
     /// <summary>
-    /// Beschreibt alle im Musterkontext verfügbaren Bezeichner – Grundlage für die Referenztabelle und
-    /// den Baustein-Einfüger.
+    /// Describes all identifiers available in the sample context – basis for the reference table and
+    /// the snippet inserter.
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <returns>Fragen, Loop-Collections und reservierte Kontext-Variablen in Anzeigereihenfolge.</returns>
+    /// <param name="detail">The dialog together with the graph.</param>
+    /// <returns>Questions, loop collections and reserved context variables in display order.</returns>
     public static IReadOnlyList<ExpressionVariable> Describe(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -137,13 +137,13 @@ internal static class DesignerExpressionContext
     }
 
     /// <summary>
-    /// Führt den Compile-Check aus und fängt dabei auch unerwartete Ausnahmen ab – ein Tippfehler im
-    /// Editor darf niemals den Blazor-Circuit reißen.
+    /// Runs the compile check and catches unexpected exceptions along the way – a typo in the
+    /// editor must never tear down the Blazor circuit.
     /// </summary>
-    /// <param name="evaluator">Die Ausdrucks-Engine (Singleton aus <c>AddFlirty()</c>).</param>
-    /// <param name="expression">Der zu prüfende Ausdruck; <see langword="null"/>/leer gilt als gültig.</param>
-    /// <param name="context">Der Musterkontext aus <see cref="Build"/>.</param>
-    /// <returns>Das Prüfergebnis.</returns>
+    /// <param name="evaluator">The expression engine (singleton from <c>AddFlirty()</c>).</param>
+    /// <param name="expression">The expression to check; <see langword="null"/>/empty counts as valid.</param>
+    /// <param name="context">The sample context from <see cref="Build"/>.</param>
+    /// <returns>The check result.</returns>
     public static ExpressionValidationResult Validate(
         IExpressionEvaluator evaluator, string? expression, ExpressionContext context)
     {
@@ -161,9 +161,9 @@ internal static class DesignerExpressionContext
         }
     }
 
-    /// <summary>Liefert die im Baustein-Einfüger angebotenen Operatoren zur Wertart.</summary>
-    /// <param name="kind">Die Wertart der gewählten Variable.</param>
-    /// <returns>Die passenden Operatoren.</returns>
+    /// <summary>Returns the operators offered in the snippet inserter for the value kind.</summary>
+    /// <param name="kind">The value kind of the chosen variable.</param>
+    /// <returns>The matching operators.</returns>
     public static IReadOnlyList<string> OperatorsFor(ExpressionValueKind kind)
         => kind switch
         {
@@ -174,13 +174,13 @@ internal static class DesignerExpressionContext
         };
 
     /// <summary>
-    /// Setzt aus Variable, Operator und Wert einen Bedingungs-Baustein zusammen. Zeichenketten werden
-    /// quotiert und escaped, Zahlen/Wahrheitswerte roh übernommen.
+    /// Assembles a condition snippet from variable, operator and value. Strings are
+    /// quoted and escaped, numbers/boolean values taken raw.
     /// </summary>
-    /// <param name="variable">Die gewählte Variable.</param>
-    /// <param name="operatorToken">Der gewählte Operator (siehe <see cref="OperatorsFor"/>).</param>
-    /// <param name="value">Der eingegebene Vergleichswert.</param>
-    /// <returns>Der einfügefertige Ausdrucks-Baustein.</returns>
+    /// <param name="variable">The chosen variable.</param>
+    /// <param name="operatorToken">The chosen operator (see <see cref="OperatorsFor"/>).</param>
+    /// <param name="value">The entered comparison value.</param>
+    /// <returns>The ready-to-insert expression snippet.</returns>
     public static string BuildCondition(ExpressionVariable variable, string operatorToken, string? value)
     {
         ArgumentNullException.ThrowIfNull(variable);
@@ -196,29 +196,29 @@ internal static class DesignerExpressionContext
     }
 
     /// <summary>
-    /// Verknüpft einen bestehenden Ausdruck mit einem neuen Baustein. Ist der Ausdruck leer, steht der
-    /// Baustein allein; sonst wird er per <c>&amp;&amp;</c>/<c>||</c> angehängt (bestehende ODER-Teile
-    /// bleiben dabei unangetastet – die Klammerung liegt beim Nutzer).
+    /// Links an existing expression with a new snippet. If the expression is empty, the
+    /// snippet stands alone; otherwise it is appended via <c>&amp;&amp;</c>/<c>||</c> (existing OR parts
+    /// stay untouched thereby – the parenthesization is up to the user).
     /// </summary>
-    /// <param name="expression">Der bisherige Ausdruck.</param>
-    /// <param name="condition">Der anzuhängende Baustein.</param>
-    /// <param name="conjunction">Die Verknüpfung (<c>&amp;&amp;</c> oder <c>||</c>).</param>
-    /// <returns>Der zusammengesetzte Ausdruck.</returns>
+    /// <param name="expression">The previous expression.</param>
+    /// <param name="condition">The snippet to append.</param>
+    /// <param name="conjunction">The linkage (<c>&amp;&amp;</c> or <c>||</c>).</param>
+    /// <returns>The composed expression.</returns>
     public static string Append(string? expression, string condition, string conjunction)
         => string.IsNullOrWhiteSpace(expression)
             ? condition
             : $"{expression.Trim()} {conjunction} {condition}";
 
-    // ---- Beispielwerte ----------------------------------------------------------------------------
+    // ---- Sample values ----------------------------------------------------------------------------
 
     /// <summary>
-    /// Liefert den Beispielwert einer Frage als rohen JSON-Text – im selben Format, in dem
-    /// <c>SessionAnswer.Value</c> zur Laufzeit gespeichert wird. Die Kodierung stammt bewusst aus dem
-    /// <see cref="AnswerValueCodec"/> (einzige Quelle des Vertrags), damit der Musterkontext nicht anders
-    /// bindet, als der Test-Runner tatsächlich einreicht.
+    /// Returns the sample value of a question as raw JSON text – in the same format in which
+    /// <c>SessionAnswer.Value</c> is stored at runtime. The encoding deliberately stems from the
+    /// <see cref="AnswerValueCodec"/> (single source of the contract), so that the sample context does not bind
+    /// differently than the test runner actually submits.
     /// </summary>
-    /// <param name="question">Die Frage, für die ein Beispielwert gebraucht wird.</param>
-    /// <returns>Der Beispielwert als JSON.</returns>
+    /// <param name="question">The question for which a sample value is needed.</param>
+    /// <returns>The sample value as JSON.</returns>
     private static string SampleJson(QuestionDetail question)
         => question.Type switch
         {
@@ -228,7 +228,7 @@ internal static class DesignerExpressionContext
             _ => AnswerValueCodec.Encode(question.Type, SampleText(question)),
         };
 
-    /// <summary>Der Beispielwert einer zeichenkettenwertigen Frage – unescaped, für Beispiel-Ausdrücke.</summary>
+    /// <summary>The sample value of a string-valued question – unescaped, for example expressions.</summary>
     private static string SampleText(QuestionDetail question)
         => question.Type switch
         {
@@ -240,18 +240,18 @@ internal static class DesignerExpressionContext
     private static string? FirstOptionValue(QuestionDetail question)
         => question.Options.Count == 0 ? null : question.Options[0].Value;
 
-    // ---- Bezeichner -------------------------------------------------------------------------------
+    // ---- Identifiers -------------------------------------------------------------------------------
 
     /// <summary>
-    /// Gibt an, ob ein Schlüssel als Ausdrucks-Variable gebunden werden kann: gültiger Bezeichner und
-    /// nicht von einer reservierten Kontext-Variable belegt.
+    /// Indicates whether a key can be bound as an expression variable: valid identifier and
+    /// not occupied by a reserved context variable.
     /// </summary>
-    /// <param name="key">Der zu prüfende Schlüssel.</param>
-    /// <returns><see langword="true"/>, wenn der Schlüssel referenzierbar ist.</returns>
+    /// <param name="key">The key to check.</param>
+    /// <returns><see langword="true"/> if the key is referenceable.</returns>
     internal static bool IsBindable(string key)
         => IsIdentifier(key) && !ReservedNames.Contains(key, StringComparer.Ordinal);
 
-    /// <summary>Prüft, ob der Schlüssel die Form eines Bezeichners hat (<c>[A-Za-z_][A-Za-z0-9_]*</c>).</summary>
+    /// <summary>Checks whether the key has the form of an identifier (<c>[A-Za-z_][A-Za-z0-9_]*</c>).</summary>
     private static bool IsIdentifier(string key)
     {
         if (string.IsNullOrEmpty(key) || (!char.IsAsciiLetter(key[0]) && key[0] != '_'))
@@ -288,12 +288,12 @@ internal static class DesignerExpressionContext
     }
 
     /// <summary>
-    /// Begründet, warum ein Schlüssel nicht als Ausdrucks-Variable taugt. Auch vom
-    /// <see cref="LoopAnalyzer"/> genutzt, damit der Loop-Editor denselben Wortlaut meldet wie die
-    /// Bezeichner-Referenz des Branching-Editors.
+    /// Explains why a key does not qualify as an expression variable. Also used by the
+    /// <see cref="LoopAnalyzer"/>, so that the loop editor reports the same wording as the
+    /// identifier reference of the branching editor.
     /// </summary>
-    /// <param name="key">Der nicht bindbare Schlüssel.</param>
-    /// <returns>Die deutsche Begründung.</returns>
+    /// <param name="key">The non-bindable key.</param>
+    /// <returns>The German explanation.</returns>
     internal static string IdentifierNote(string key)
         => ReservedNames.Contains(key, StringComparer.Ordinal)
             ? $"Wird von der reservierten Kontext-Variable „{key}\" verdeckt – Schlüssel umbenennen."
@@ -329,7 +329,7 @@ internal static class DesignerExpressionContext
             _ => $"{name} == {TextLiteral(SampleText(question))}",
         };
 
-    // ---- Literale ---------------------------------------------------------------------------------
+    // ---- Literals ---------------------------------------------------------------------------------
 
     private static string Literal(ExpressionValueKind kind, string? value)
         => kind switch
@@ -340,13 +340,13 @@ internal static class DesignerExpressionContext
         };
 
     /// <summary>
-    /// Quotiert einen Text als Ausdrucks-Literal. Bewusst <b>nicht</b> über
-    /// <see cref="JsonSerializer"/>: dessen <c>\u00XX</c>-Escapes versteht der Parser der Ausdrucks-Engine
-    /// nicht („Invalid character escape sequence"). Erlaubt sind nur die C#-Escapes, die DynamicExpresso
-    /// kennt; sonstige Steuerzeichen fallen weg, statt einen unparsbaren Ausdruck zu erzeugen.
+    /// Quotes a text as an expression literal. Deliberately <b>not</b> via
+    /// <see cref="JsonSerializer"/>: its <c>\u00XX</c> escapes are not understood by the parser of the expression engine
+    /// ("Invalid character escape sequence"). Allowed are only the C# escapes that DynamicExpresso
+    /// knows; other control characters are dropped, instead of producing an unparsable expression.
     /// </summary>
-    /// <param name="value">Der zu quotierende Text.</param>
-    /// <returns>Das einfügefertige Zeichenketten-Literal inklusive Anführungszeichen.</returns>
+    /// <param name="value">The text to quote.</param>
+    /// <returns>The ready-to-insert string literal including quotation marks.</returns>
     private static string TextLiteral(string? value)
     {
         var literal = new StringBuilder("\"");

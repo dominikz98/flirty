@@ -1,14 +1,14 @@
 namespace Flirty.AspNetCore.Dtos.Admin;
 
 /// <summary>
-/// Anfrage-Körper zum Anlegen eines bedingten Übergangs
+/// Request body for creating a conditional transition
 /// (<c>POST {prefix}/dialogs/{dialogId}/transitions</c>).
 /// </summary>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record CreateTransitionRequest(
     Guid FromQuestionId,
     Guid TargetQuestionId,
@@ -17,14 +17,14 @@ public sealed record CreateTransitionRequest(
     bool IsDefault);
 
 /// <summary>
-/// Anfrage-Körper zum Ändern eines bedingten Übergangs
+/// Request body for changing a conditional transition
 /// (<c>PUT {prefix}/dialogs/{dialogId}/transitions/{transitionId}</c>).
 /// </summary>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record UpdateTransitionRequest(
     Guid FromQuestionId,
     Guid TargetQuestionId,
@@ -33,15 +33,15 @@ public sealed record UpdateTransitionRequest(
     bool IsDefault);
 
 /// <summary>
-/// Antwort mit einem bedingten Übergang (Branching).
+/// Response with a conditional transition (branching).
 /// </summary>
-/// <param name="Id">Der Primärschlüssel des Übergangs.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="Id">The primary key of the transition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record TransitionResponse(
     Guid Id,
     Guid DialogId,

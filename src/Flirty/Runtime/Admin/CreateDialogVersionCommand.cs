@@ -5,40 +5,40 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Legt eine <b>neue Version</b> des Dialogs <see cref="SourceDialogId"/> an: eine vollständige Kopie
-/// des Konfigurationsgraphen (Fragen inklusive Antwortoptionen, Übergänge, Schleifen-Marker, Trigger)
-/// samt der gespeicherten Canvas-Positionen als <b>Entwurf</b> mit derselben <c>Key</c>-Kennung und der
-/// nächsten freien Versionsnummer.
+/// Creates a <b>new version</b> of the dialog <see cref="SourceDialogId"/>: a full copy
+/// of the configuration graph (questions including answer options, transitions, loop markers, triggers)
+/// along with the stored canvas positions as a <b>draft</b> with the same <c>Key</c> identifier and the
+/// next free version number.
 /// </summary>
 /// <remarks>
-/// Das ist der vorgesehene Weg, einen veröffentlichten Dialog weiterzuentwickeln: Die veröffentlichte
-/// Version bleibt unverändert, sodass laufende Sessions über ihre gepinnte
-/// <see cref="DialogSession.DialogVersion"/> stabil zu Ende laufen. Die Kopie erhält durchgängig
-/// <b>neue Guids</b>; alle Frage-Verweise (Einstiegsfrage, Übergänge, Schleifen-Marker, Trigger) werden
-/// dabei auf die Kopien umgeschrieben. Verweise auf Fragen, die nicht (mehr) zum Dialog gehören –
-/// die Admin-API prüft Frage-Verweise bewusst nicht –, werden unverändert übernommen; sie sind in der
-/// Quelle schon unwirksam und der Designer weist sie als verwaist aus. Einzige Ausnahme sind die
-/// <see cref="DialogLayout"/>-Zeilen: Eine Position ohne Element ist reine Anzeigedaten ohne Ziel und
-/// wird beim Klonen <b>verworfen</b> statt mitgeschleppt.
+/// This is the intended way to evolve a published dialog: the published
+/// version stays unchanged, so that running sessions run to completion stably via their pinned
+/// <see cref="DialogSession.DialogVersion"/>. The copy receives throughout
+/// <b>new Guids</b>; all question references (entry question, transitions, loop markers, triggers) are
+/// rewritten to the copies. References to questions that do not (any longer) belong to the dialog –
+/// the admin API deliberately does not check question references – are taken over unchanged; they are
+/// already ineffective in the source and the designer flags them as orphaned. The only exception are the
+/// <see cref="DialogLayout"/> rows: a position without an element is pure display data with no target and
+/// is <b>discarded</b> on cloning instead of dragged along.
 /// <para>
-/// Veröffentlicht wird die Kopie <b>nicht</b> (<c>IsPublished = false</c>): Zwei veröffentlichte
-/// Versionen desselben Schlüssels wären für <c>StartDialogCommand</c> nicht eindeutig. Die Freigabe ist
-/// ein eigener Schritt (<c>PublishDialogCommand</c>) – bis dahin startet die Laufzeit weiterhin die
-/// bisherige Version.
+/// The copy is <b>not</b> published (<c>IsPublished = false</c>): two published
+/// versions of the same key would not be unambiguous for <c>StartDialogCommand</c>. The release is
+/// a separate step (<c>PublishDialogCommand</c>) – until then the runtime continues to start
+/// the previous version.
 /// </para>
 /// </remarks>
-/// <param name="SourceDialogId">Der Primärschlüssel der Dialogversion, die kopiert wird.</param>
+/// <param name="SourceDialogId">The primary key of the dialog version that is copied.</param>
 public sealed record CreateDialogVersionCommand(Guid SourceDialogId) : ICommand<DialogDetail>;
 
-/// <summary>Handler für <see cref="CreateDialogVersionCommand"/>.</summary>
+/// <summary>Handler for <see cref="CreateDialogVersionCommand"/>.</summary>
 internal sealed class CreateDialogVersionCommandHandler
     : ICommandHandler<CreateDialogVersionCommand, DialogDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public CreateDialogVersionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -46,7 +46,7 @@ internal sealed class CreateDialogVersionCommandHandler
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     public async ValueTask<DialogDetail> Handle(
         CreateDialogVersionCommand command, CancellationToken cancellationToken)
     {
@@ -70,7 +70,7 @@ internal sealed class CreateDialogVersionCommandHandler
             UpdatedAt = now,
         };
 
-        // Alte auf neue Frage-Id: jeder Verweis im Graphen wird darüber umgeschrieben.
+        // Old to new question id: every reference in the graph is rewritten through it.
         var questionIdMap = new Dictionary<Guid, Guid>();
 
         foreach (var question in source.Questions)
@@ -172,19 +172,19 @@ internal sealed class CreateDialogVersionCommandHandler
     }
 
     /// <summary>
-    /// Übersetzt den Elementverweis einer Layout-Zeile auf die Kopie.
+    /// Translates the element reference of a layout row onto the copy.
     /// </summary>
     /// <remarks>
-    /// Bewusst <b>kind-bewusst</b> und mit Rückgabewert statt über <c>MapQuestion</c>: Erstens fällt ein
-    /// künftiger zweiter <see cref="LayoutElementKind"/> hier als nicht behandelter Zweig auf, statt
-    /// still auf eine Frage-Abbildung zu laufen. Zweitens wird eine nicht abbildbare Zeile
-    /// <b>verworfen</b> statt unverändert übernommen: Eine Position ohne zugehöriges Element ist reine
-    /// Anzeigedaten ohne Ziel und trüge sich sonst durch jede Folgeversion.
+    /// Deliberately <b>kind-aware</b> and with a return value instead of via <c>MapQuestion</c>: firstly, a
+    /// future second <see cref="LayoutElementKind"/> stands out here as an unhandled branch, instead of
+    /// silently running onto a question mapping. Secondly, a non-mappable row is
+    /// <b>discarded</b> instead of taken over unchanged: a position without an associated element is pure
+    /// display data with no target and would otherwise carry through every follow-up version.
     /// </remarks>
-    /// <param name="map">Die Abbildung alter auf neue Frage-Ids.</param>
-    /// <param name="layout">Die zu klonende Layout-Zeile.</param>
-    /// <param name="elementId">Der übersetzte Verweis, wenn die Abbildung gelingt.</param>
-    /// <returns><see langword="true"/>, wenn die Zeile geklont werden kann.</returns>
+    /// <param name="map">The mapping of old to new question ids.</param>
+    /// <param name="layout">The layout row to clone.</param>
+    /// <param name="elementId">The translated reference if the mapping succeeds.</param>
+    /// <returns><see langword="true"/> if the row can be cloned.</returns>
     private static bool TryMapLayoutElement(
         IReadOnlyDictionary<Guid, Guid> map, DialogLayout layout, out Guid elementId)
     {
@@ -199,17 +199,17 @@ internal sealed class CreateDialogVersionCommandHandler
         }
     }
 
-    /// <summary>Schreibt einen Frage-Verweis auf die Kopie um (unbekannte Verweise bleiben unverändert).</summary>
-    /// <param name="map">Die Abbildung alter auf neue Frage-Ids.</param>
-    /// <param name="questionId">Der zu übersetzende Verweis.</param>
-    /// <returns>Die Id der Kopie oder der unveränderte Wert.</returns>
+    /// <summary>Rewrites a question reference onto the copy (unknown references stay unchanged).</summary>
+    /// <param name="map">The mapping of old to new question ids.</param>
+    /// <param name="questionId">The reference to translate.</param>
+    /// <returns>The id of the copy, or the unchanged value.</returns>
     private static Guid MapQuestion(IReadOnlyDictionary<Guid, Guid> map, Guid questionId)
         => map.TryGetValue(questionId, out var mapped) ? mapped : questionId;
 
-    /// <summary>Nullbare Variante von <see cref="MapQuestion(IReadOnlyDictionary{Guid, Guid}, Guid)"/>.</summary>
-    /// <param name="map">Die Abbildung alter auf neue Frage-Ids.</param>
-    /// <param name="questionId">Der zu übersetzende Verweis oder <see langword="null"/>.</param>
-    /// <returns>Die Id der Kopie, der unveränderte Wert oder <see langword="null"/>.</returns>
+    /// <summary>Nullable variant of <see cref="MapQuestion(IReadOnlyDictionary{Guid, Guid}, Guid)"/>.</summary>
+    /// <param name="map">The mapping of old to new question ids.</param>
+    /// <param name="questionId">The reference to translate, or <see langword="null"/>.</param>
+    /// <returns>The id of the copy, the unchanged value, or <see langword="null"/>.</returns>
     private static Guid? MapQuestion(IReadOnlyDictionary<Guid, Guid> map, Guid? questionId)
         => questionId is null ? null : MapQuestion(map, questionId.Value);
 }

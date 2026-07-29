@@ -7,22 +7,22 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Hosting;
 
 /// <summary>
-/// <see cref="IHostedService"/>, das beim Host-Start alle ausstehenden EF-Core-Migrationen auf den
-/// registrierten <see cref="FlirtyDbContext"/> anwendet (<c>Database.MigrateAsync()</c>).
+/// <see cref="IHostedService"/> that, on host start, applies all pending EF Core migrations to the
+/// registered <see cref="FlirtyDbContext"/> (<c>Database.MigrateAsync()</c>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Aktiviert wird der Service über <c>services.AddFlirty(o =&gt; o.ApplyMigrations())</c> (Issue #20).
-/// Er setzt voraus, dass ein <see cref="FlirtyDbContext"/> inklusive Provider und
-/// <c>MigrationsAssembly</c> bereits im Container registriert ist (die komfortable Provider-Wahl
-/// <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c> folgt in #34).
+/// The service is enabled via <c>services.AddFlirty(o =&gt; o.ApplyMigrations())</c> (issue #20).
+/// It requires that a <see cref="FlirtyDbContext"/> including provider and
+/// <c>MigrationsAssembly</c> is already registered in the container (the convenient provider choice
+/// <c>o.UseSqlite/UsePostgreSql/UseSqlServer</c> follows in #34).
 /// </para>
 /// <para>
-/// Bewusst <see cref="IHostedService"/> und nicht <c>BackgroundService</c>: der Host awaited alle
-/// <see cref="StartAsync"/>-Aufrufe, bevor er als gestartet gilt (bei ASP.NET Core, bevor Requests
-/// angenommen werden). So ist das Schema garantiert migriert, bevor die App Arbeit annimmt, und ein
-/// Migrationsfehler bricht den Start fail-fast ab. Wird der Service als Erstes registriert, läuft seine
-/// Migration vor den <see cref="StartAsync"/>-Aufrufen der übrigen Hosted Services.
+/// Deliberately <see cref="IHostedService"/> and not <c>BackgroundService</c>: the host awaits all
+/// <see cref="StartAsync"/> calls before it counts as started (with ASP.NET Core, before requests
+/// are accepted). This guarantees the schema is migrated before the app takes on work, and a
+/// migration error aborts the start fail-fast. If the service is registered first, its
+/// migration runs before the <see cref="StartAsync"/> calls of the other hosted services.
 /// </para>
 /// </remarks>
 public sealed class FlirtyMigrationHostedService : IHostedService
@@ -31,13 +31,13 @@ public sealed class FlirtyMigrationHostedService : IHostedService
     private readonly ILogger<FlirtyMigrationHostedService> _logger;
 
     /// <summary>
-    /// Initialisiert eine neue Instanz der <see cref="FlirtyMigrationHostedService"/>-Klasse.
+    /// Initializes a new instance of the <see cref="FlirtyMigrationHostedService"/> class.
     /// </summary>
     /// <param name="scopeFactory">
-    /// Factory für einen DI-Scope. Erforderlich, weil dieser Service als Singleton läuft, der
-    /// <see cref="FlirtyDbContext"/> aber scoped registriert ist (keine Captive Dependency).
+    /// Factory for a DI scope. Required because this service runs as a singleton, while the
+    /// <see cref="FlirtyDbContext"/> is registered scoped (no captive dependency).
     /// </param>
-    /// <param name="logger">Der Logger für Start und Abschluss der Migration.</param>
+    /// <param name="logger">The logger for start and completion of the migration.</param>
     public FlirtyMigrationHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<FlirtyMigrationHostedService> logger)
@@ -50,24 +50,24 @@ public sealed class FlirtyMigrationHostedService : IHostedService
     }
 
     /// <summary>
-    /// Öffnet einen eigenen DI-Scope, löst den <see cref="FlirtyDbContext"/> auf und wendet alle
-    /// ausstehenden Migrationen an. <c>MigrateAsync</c> ist idempotent (nur Pending-Migrationen werden
-    /// angewandt) und honoriert den <paramref name="cancellationToken"/>.
+    /// Opens its own DI scope, resolves the <see cref="FlirtyDbContext"/> and applies all
+    /// pending migrations. <c>MigrateAsync</c> is idempotent (only pending migrations are
+    /// applied) and honors the <paramref name="cancellationToken"/>.
     /// </summary>
-    /// <param name="cancellationToken">Token, das den Host-Start-Vorgang abbricht.</param>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald die Migration angewandt wurde.</returns>
+    /// <param name="cancellationToken">Token that aborts the host start operation.</param>
+    /// <returns>A task that completes once the migration has been applied.</returns>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<FlirtyDbContext>();
 
-        _logger.LogInformation("Flirty wendet ausstehende EF-Core-Migrationen an");
+        _logger.LogInformation("Flirty applies pending EF Core migrations");
         await context.Database.MigrateAsync(cancellationToken);
-        _logger.LogInformation("Flirty-Migrationen abgeschlossen");
+        _logger.LogInformation("Flirty migrations completed");
     }
 
-    /// <summary>Kein Aufräumbedarf beim Herunterfahren – gibt einen abgeschlossenen Task zurück.</summary>
-    /// <param name="cancellationToken">Wird nicht verwendet.</param>
-    /// <returns>Ein bereits abgeschlossener Task.</returns>
+    /// <summary>No cleanup needed on shutdown – returns a completed task.</summary>
+    /// <param name="cancellationToken">Not used.</param>
+    /// <returns>An already completed task.</returns>
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -7,20 +7,20 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Reicht die Antwort <see cref="Value"/> auf die aktuell offene Frage <see cref="QuestionId"/> der
-/// laufenden Session <see cref="SessionId"/> ein: Die Antwort wird persistiert, anschließend werden die
-/// ausgehenden Übergänge der Frage ausgewertet und die Session auf die nächste Frage weitergeschaltet
-/// bzw. abgeschlossen, wenn kein Übergang mehr greift.
+/// Submits the answer <see cref="Value"/> to the currently open question <see cref="QuestionId"/> of the
+/// running session <see cref="SessionId"/>: the answer is persisted, then the
+/// outgoing transitions of the question are evaluated and the session is advanced to the next question
+/// or completed if no transition applies anymore.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der laufenden <see cref="DialogSession"/>.</param>
+/// <param name="SessionId">The primary key of the running <see cref="DialogSession"/>.</param>
 /// <param name="QuestionId">
-/// Die Id der zu beantwortenden Frage. Sie muss der aktuell offenen Frage der Session
-/// (<see cref="DialogSession.CurrentQuestionId"/>) entsprechen; das Bearbeiten früherer Antworten ist
-/// dem <c>EditAnswerCommand</c> (#28) vorbehalten.
+/// The id of the question to be answered. It must correspond to the currently open question of the session
+/// (<see cref="DialogSession.CurrentQuestionId"/>); editing earlier answers is
+/// reserved for the <c>EditAnswerCommand</c> (#28).
 /// </param>
 /// <param name="Value">
-/// Der abgegebene Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp, z. B. der
-/// <see cref="AnswerOption.Value"/> einer Auswahl).
+/// The submitted answer value as raw JSON text (format depends on the question type, e.g. the
+/// <see cref="AnswerOption.Value"/> of a choice).
 /// </param>
 public sealed record SubmitAnswerCommand(
     [property: Required] Guid SessionId,
@@ -28,9 +28,9 @@ public sealed record SubmitAnswerCommand(
     [property: Required] string Value) : ICommand<SubmitAnswerResult>, IAnswerCommand;
 
 /// <summary>
-/// Handler für <see cref="SubmitAnswerCommand"/>: validiert Session und Frage, persistiert die Antwort,
-/// wertet die Übergänge (Branching) über den <see cref="IExpressionEvaluator"/> aus und schaltet die
-/// Session weiter oder schließt sie ab.
+/// Handler for <see cref="SubmitAnswerCommand"/>: validates session and question, persists the answer,
+/// evaluates the transitions (branching) via the <see cref="IExpressionEvaluator"/> and advances the
+/// session or completes it.
 /// </summary>
 internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerCommand, SubmitAnswerResult>
 {
@@ -39,14 +39,14 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
     private readonly IPublisher _publisher;
 
     /// <summary>
-    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/>,
-    /// <see cref="IExpressionEvaluator"/> und <see cref="IPublisher"/>.
+    /// Creates the handler over the given <see cref="IDialogStore"/>,
+    /// <see cref="IExpressionEvaluator"/> and <see cref="IPublisher"/>.
     /// </summary>
-    /// <param name="store">Das Repository für Dialoge und Sessions.</param>
-    /// <param name="evaluator">Die Engine zur Auswertung der Übergangs-Bedingungsausdrücke.</param>
-    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
+    /// <param name="store">The repository for dialogs and sessions.</param>
+    /// <param name="evaluator">The engine for evaluating the transition condition expressions.</param>
+    /// <param name="publisher">The Mediator publisher for the in-process trigger notifications.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/>, <paramref name="evaluator"/> oder <paramref name="publisher"/> ist
+    /// <paramref name="store"/>, <paramref name="evaluator"/> or <paramref name="publisher"/> is
     /// <see langword="null"/>.
     /// </exception>
     public SubmitAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher)
@@ -61,12 +61,12 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
 
     /// <inheritdoc />
     /// <exception cref="SessionNotFoundException">
-    /// Keine Session mit der angegebenen <see cref="SubmitAnswerCommand.SessionId"/> existiert.
+    /// No session with the given <see cref="SubmitAnswerCommand.SessionId"/> exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Session ist nicht mehr offen (<see cref="SessionStatus.InProgress"/>), die angegebene Frage
-    /// ist nicht die aktuell offene, die gepinnte Dialogversion fehlt, oder das Branching ist
-    /// fehlkonfiguriert (kein passender Übergang und kein Default bzw. unbekannte Zielfrage).
+    /// The session is no longer open (<see cref="SessionStatus.InProgress"/>), the given question
+    /// is not the currently open one, the pinned dialog version is missing, or the branching is
+    /// misconfigured (no matching transition and no default, or an unknown target question).
     /// </exception>
     public async ValueTask<SubmitAnswerResult> Handle(
         SubmitAnswerCommand command, CancellationToken cancellationToken)
@@ -79,25 +79,25 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
         if (session.Status != SessionStatus.InProgress)
         {
             throw new InvalidOperationException(
-                $"Die Session '{session.Id}' ist nicht offen (Status: {session.Status}) und nimmt keine Antworten an.");
+                $"The session '{session.Id}' is not open (status: {session.Status}) and does not accept answers.");
         }
 
         if (command.QuestionId != session.CurrentQuestionId)
         {
             throw new InvalidOperationException(
-                $"Die Frage '{command.QuestionId}' ist nicht die aktuell offene Frage "
-                + $"('{session.CurrentQuestionId}') der Session '{session.Id}'.");
+                $"The question '{command.QuestionId}' is not the currently open question "
+                + $"('{session.CurrentQuestionId}') of session '{session.Id}'.");
         }
 
-        // Die von der Session gepinnte Dialogversion laden (unabhängig vom Veröffentlichungsstatus).
+        // Load the dialog version pinned by the session (regardless of the publication status).
         var dialog = await _store.GetDialogAsync(session.DialogId, cancellationToken)
             ?? throw new InvalidOperationException(
-                $"Die von Session '{session.Id}' gepinnte Dialogversion '{session.DialogId}' existiert nicht.");
+                $"The dialog version '{session.DialogId}' pinned by session '{session.Id}' does not exist.");
 
         if (dialog.Questions.All(question => question.Id != command.QuestionId))
         {
             throw new InvalidOperationException(
-                $"Die Frage '{command.QuestionId}' gehört nicht zum Dialog '{dialog.Key}'.");
+                $"The question '{command.QuestionId}' does not belong to dialog '{dialog.Key}'.");
         }
 
         var answer = PersistAnswer(dialog, session, command);
@@ -108,8 +108,8 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             Complete(session);
             await _store.SaveChangesAsync(cancellationToken);
 
-            // In-Process-Trigger (EPIC 4): erst die Antwort melden, dann das Übergangs-Ergebnis (Abschluss),
-            // schließlich den Dialog-Abschluss samt der gegebenen Antworten.
+            // In-process trigger (EPIC 4): first report the answer, then the transition result (completion),
+            // finally the dialog completion along with the answers given.
             await PublishAnswerAsync(session, dialog, answer, cancellationToken);
             await _publisher.Publish(
                 new QuestionAnsweredNotification(
@@ -126,7 +126,7 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
         session.CurrentQuestionId = target;
         await _store.SaveChangesAsync(cancellationToken);
 
-        // In-Process-Trigger (EPIC 4): Antwort melden, dann das Übergangs-Ergebnis mit der Folgefrage.
+        // In-process trigger (EPIC 4): report the answer, then the transition result with the follow-up question.
         await PublishAnswerAsync(session, dialog, answer, cancellationToken);
         await _publisher.Publish(
             new QuestionAnsweredNotification(
@@ -138,8 +138,8 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
     }
 
     /// <summary>
-    /// Publiziert die <see cref="AnswerSubmittedNotification"/> für die soeben persistierte Antwort
-    /// (inkl. etwaiger Schleifen-Zuordnung).
+    /// Publishes the <see cref="AnswerSubmittedNotification"/> for the just-persisted answer
+    /// (incl. any loop assignment).
     /// </summary>
     private ValueTask PublishAnswerAsync(
         DialogSession session, Dialog dialog, SessionAnswer answer, CancellationToken cancellationToken)
@@ -154,15 +154,15 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             cancellationToken);
 
     /// <summary>
-    /// Hängt die eingereichte Antwort als neuen <see cref="SessionAnswer"/> an die getrackte Session an.
-    /// Der Guid-Schlüssel wird bewusst nicht vorbelegt (store-generiert beim Speichern); die
-    /// <see cref="SessionAnswer.Sequence"/> setzt die Reihenfolge innerhalb der Session fort. Liegt die
-    /// Frage in einem Schleifen-Bereich, werden zusätzlich <see cref="SessionAnswer.LoopInstanceId"/> und
-    /// <see cref="SessionAnswer.IterationIndex"/> über den <see cref="LoopResolver"/> gesetzt (die
-    /// Zuordnung rechnet auf dem Vor-Zustand und muss daher vor dem Anhängen erfolgen); außerhalb einer
-    /// Schleife bleiben beide <see langword="null"/>.
+    /// Appends the submitted answer as a new <see cref="SessionAnswer"/> to the tracked session.
+    /// The Guid key is deliberately not pre-populated (store-generated on save); the
+    /// <see cref="SessionAnswer.Sequence"/> continues the order within the session. If the
+    /// question lies within a loop range, <see cref="SessionAnswer.LoopInstanceId"/> and
+    /// <see cref="SessionAnswer.IterationIndex"/> are additionally set via the <see cref="LoopResolver"/> (the
+    /// assignment computes on the prior state and must therefore happen before appending); outside a
+    /// loop both stay <see langword="null"/>.
     /// </summary>
-    /// <returns>Die neu angehängte <see cref="SessionAnswer"/> (u. a. für die Trigger-Notification).</returns>
+    /// <returns>The newly appended <see cref="SessionAnswer"/> (among other things for the trigger notification).</returns>
     private static SessionAnswer PersistAnswer(Dialog dialog, DialogSession session, SubmitAnswerCommand command)
     {
         var nextSequence = session.Answers.Count == 0
@@ -186,7 +186,7 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
         return answer;
     }
 
-    /// <summary>Schließt die Session ab: Status, Abschlusszeitpunkt und Löschen der offenen Frage.</summary>
+    /// <summary>Completes the session: status, completion timestamp and clearing the open question.</summary>
     private static void Complete(DialogSession session)
     {
         session.Status = SessionStatus.Completed;

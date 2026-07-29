@@ -1,17 +1,17 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Legt fest, über welchen Kanal eine <see cref="TriggerDefinition"/> die Host-Anwendung
-/// benachrichtigt.
+/// Defines over which channel a <see cref="TriggerDefinition"/> notifies the host
+/// application.
 /// </summary>
 public enum TriggerKind
 {
     /// <summary>
-    /// In-Process-Benachrichtigung über eine Mediator-Notification; die Host-App reagiert
-    /// mit einem eigenen <c>INotificationHandler&lt;T&gt;</c>.
+    /// In-process notification via a Mediator notification; the host app reacts
+    /// with its own <c>INotificationHandler&lt;T&gt;</c>.
     /// </summary>
     InProcess = 0,
 
-    /// <summary>Ausgehender HTTP-Webhook an eine konfigurierte URL.</summary>
+    /// <summary>Outgoing HTTP webhook to a configured URL.</summary>
     Webhook = 1,
 }

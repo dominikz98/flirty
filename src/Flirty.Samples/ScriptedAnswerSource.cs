@@ -3,19 +3,19 @@ using Flirty.Runtime;
 namespace Flirty.Samples;
 
 /// <summary>
-/// Deterministische <see cref="IAnswerSource"/> für nicht-interaktive Durchläufe (z. B. Tests): liefert
-/// vordefinierte Roh-Antworten je <c>Question.Key</c> und kodiert sie – wie die interaktive Quelle –
-/// abhängig vom Fragetyp als JSON.
+/// Deterministic <see cref="IAnswerSource"/> for non-interactive runs (e.g. tests): supplies predefined
+/// raw answers per <c>Question.Key</c> and encodes them – like the interactive source – as JSON depending
+/// on the question type.
 /// </summary>
 public sealed class ScriptedAnswerSource : IAnswerSource
 {
     private readonly IReadOnlyDictionary<string, string> _answersByQuestionKey;
 
     /// <summary>
-    /// Initialisiert die Quelle mit den Roh-Antworten je Frage-Schlüssel.
+    /// Initializes the source with the raw answers per question key.
     /// </summary>
     /// <param name="answersByQuestionKey">
-    /// Zuordnung von <c>Question.Key</c> auf die rohe (unkodierte) Antwort, z. B.
+    /// Mapping from <c>Question.Key</c> to the raw (unencoded) answer, e.g.
     /// <c>["role"] = "dev"</c>.
     /// </param>
     public ScriptedAnswerSource(IReadOnlyDictionary<string, string> answersByQuestionKey)
@@ -26,7 +26,7 @@ public sealed class ScriptedAnswerSource : IAnswerSource
 
     /// <inheritdoc />
     /// <exception cref="KeyNotFoundException">
-    /// Für den Schlüssel der Frage wurde keine Antwort hinterlegt.
+    /// No answer was registered for the question's key.
     /// </exception>
     public string GetAnswer(QuestionView question)
     {

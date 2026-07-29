@@ -4,25 +4,25 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// In-Process-Notification (Trigger-Scope <see cref="TriggerScope.OnDialogStarted"/>): wird publiziert,
-/// nachdem der <see cref="StartDialogCommandHandler"/> eine <b>neu angelegte</b> Session persistiert hat.
-/// Ein Resume (Fortsetzen einer bereits laufenden Session) löst die Notification bewusst <b>nicht</b> aus.
+/// In-process notification (trigger scope <see cref="TriggerScope.OnDialogStarted"/>): published
+/// after the <see cref="StartDialogCommandHandler"/> has persisted a <b>newly created</b> session.
+/// A resume (continuing an already running session) deliberately does <b>not</b> trigger the notification.
 /// </summary>
 /// <remarks>
-/// Host-Apps hängen eigene Reaktionen ein, indem sie einen <see cref="INotificationHandler{TNotification}"/>
-/// für diesen Typ registrieren; die Engine ruft ihn beim Start automatisch auf.
+/// Host apps hook in their own reactions by registering an <see cref="INotificationHandler{TNotification}"/>
+/// for this type; the engine invokes it automatically on start.
 /// </remarks>
-/// <param name="SessionId">Der Primärschlüssel der neu angelegten <see cref="DialogSession"/>.</param>
-/// <param name="DialogId">Die Id der gestarteten (gepinnten) Dialogversion.</param>
-/// <param name="DialogKey">Der fachliche, stabile Schlüssel des gestarteten Dialogs.</param>
-/// <param name="ExternalUserKey">Der fachliche Anwenderschlüssel der Host-App, für den gestartet wurde.</param>
+/// <param name="SessionId">The primary key of the newly created <see cref="DialogSession"/>.</param>
+/// <param name="DialogId">The id of the started (pinned) dialog version.</param>
+/// <param name="DialogKey">The business, stable key of the started dialog.</param>
+/// <param name="ExternalUserKey">The business user key of the host app for which the dialog was started.</param>
 /// <param name="CurrentQuestionId">
-/// Die Id der ersten offenen Frage der Session, oder <see langword="null"/>, wenn keine Frage offen ist.
+/// The id of the first open question of the session, or <see langword="null"/> if no question is open.
 /// </param>
-/// <param name="StartedAt">Der Zeitpunkt, zu dem die Session gestartet wurde.</param>
-// MSG0005: Der Mediator-Source-Generator (martinothamar) verlangt je Nachricht einen Handler in der
-// Core-Compilation. In-Process-Trigger werden bewusst erst von Host-Apps über eigene
-// INotificationHandler<T> behandelt (siehe docs/TRIGGERS.md) – daher hier gezielt unterdrückt.
+/// <param name="StartedAt">The point in time at which the session was started.</param>
+// MSG0005: The Mediator source generator (martinothamar) requires a handler per message in the
+// core compilation. In-process triggers are deliberately handled only by host apps via their own
+// INotificationHandler<T> (see docs/TRIGGERS.md) – therefore suppressed here on purpose.
 #pragma warning disable MSG0005
 public sealed record DialogStartedNotification(
     Guid SessionId,

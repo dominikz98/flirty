@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="TriggerDefinition"/>. Legt Schlüssel und das Enum-Mapping
-/// für <see cref="TriggerScope"/> und <see cref="TriggerKind"/> fest. Die Beziehung zum
-/// <see cref="Dialog"/> wird in <see cref="DialogConfiguration"/> konfiguriert;
-/// <see cref="TriggerDefinition.QuestionId"/> bleibt ein bewusst navigationsloser Guid-Verweis.
+/// EF Core configuration for <see cref="TriggerDefinition"/>. Sets the key and the enum mapping
+/// for <see cref="TriggerScope"/> and <see cref="TriggerKind"/>. The relationship to the
+/// <see cref="Dialog"/> is configured in <see cref="DialogConfiguration"/>;
+/// <see cref="TriggerDefinition.QuestionId"/> stays a deliberately navigation-less GUID reference.
 /// </summary>
 internal sealed class TriggerDefinitionConfiguration : IEntityTypeConfiguration<TriggerDefinition>
 {
@@ -22,7 +22,7 @@ internal sealed class TriggerDefinitionConfiguration : IEntityTypeConfiguration<
         builder.Property(trigger => trigger.Kind)
             .HasConversion<int>();
 
-        // Config trägt anwendungsseitig serialisiertes JSON -> unbegrenzte, erforderliche Textspalte,
-        // bewusst ohne MaxLength. (Erforderlich wird bereits aus der Non-Nullable-Property abgeleitet.)
+        // Config carries application-side serialized JSON -> unbounded, required text column,
+        // deliberately without MaxLength. (Being required is already derived from the non-nullable property.)
     }
 }

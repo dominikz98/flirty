@@ -5,42 +5,42 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Baut aus dem geladenen Dialog das fertige Zeichenmodell der Graph-Ansicht (#101): Knoten mit ihren
-/// Markern, Kanten mit ihren Beschriftungen, Schleifen als Bereichsrahmen, Trigger als Anhängsel – und
-/// jede Warnung an dem Element, das sie verursacht.
+/// Builds from the loaded dialog the finished drawing model of the graph view (#101): nodes with their
+/// markers, edges with their labels, loops as range frames, triggers as appendages – and
+/// each warning at the element that causes it.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Der Builder erfindet keine Regel: Die Übergangs-Befunde kommen aus dem
-/// <see cref="TransitionWarningAnalyzer"/> (derselbe, den die Listenansicht nutzt), die Schleifen-Befunde
-/// und der Body aus dem <see cref="LoopAnalyzer"/>, die Geometrie aus <see cref="GraphLayout"/>. Eigene
-/// Befunde sind nur die beiden, die es erst im Graphen gibt: die fehlende Einstiegsfrage und die von
-/// dort nicht erreichbaren Fragen.
+/// The builder invents no rule: the transition findings come from the
+/// <see cref="TransitionWarningAnalyzer"/> (the same one that the list view uses), the loop findings
+/// and the body from the <see cref="LoopAnalyzer"/>, the geometry from <see cref="GraphLayout"/>. Its own
+/// findings are only the two that first arise in the graph: the missing entry question and the questions
+/// unreachable from there.
 /// </para>
 /// <para>
-/// <b>Es gibt keine impliziten Kanten.</b> Hat eine Frage keinen ausgehenden Übergang, endet der Dialog
-/// dort – <c>TransitionResolver.ResolveTransitionTarget</c> liefert <see langword="null"/>, es gibt kein
-/// „weiter mit der nächsten Frage nach <c>Order</c>“. Was auf dem Canvas zu sehen ist, ist damit der
-/// vollständige Ablauf; <c>Order</c> bleibt reine Sortierung der Listenansicht.
+/// <b>There are no implicit edges.</b> If a question has no outgoing transition, the dialog ends
+/// there – <c>TransitionResolver.ResolveTransitionTarget</c> returns <see langword="null"/>, there is no
+/// "continue with the next question by <c>Order</c>". What is seen on the canvas is thus the
+/// complete flow; <c>Order</c> stays pure sorting of the list view.
 /// </para>
 /// </remarks>
 internal static class DialogGraphBuilder
 {
-    /// <summary>Höchstlänge des Fragetexts auf einer Knotenkarte.</summary>
+    /// <summary>Maximum length of the question text on a node card.</summary>
     private const int NodeTextLength = 64;
 
-    /// <summary>Höchstlänge einer Kantenbeschriftung.</summary>
+    /// <summary>Maximum length of an edge label.</summary>
     private const int EdgeLabelLength = 30;
 
-    /// <summary>Höchstlänge der Zielangabe eines Trigger-Chips.</summary>
+    /// <summary>Maximum length of the target specification of a trigger chip.</summary>
     private const int ChipTargetLength = 28;
 
-    /// <summary>Höhe eines Scope-Markers samt Abstand zum Graphen in px.</summary>
+    /// <summary>Height of a scope marker together with spacing to the graph in px.</summary>
     private const double MarkerBand = 64;
 
-    /// <summary>Baut das Zeichenmodell.</summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <returns>Das fertige Modell.</returns>
+    /// <summary>Builds the drawing model.</summary>
+    /// <param name="detail">The dialog together with the graph (from <c>GetDialogQuery</c>).</param>
+    /// <returns>The finished model.</returns>
     public static DialogGraphModel Build(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -94,7 +94,7 @@ internal static class DialogGraphBuilder
             height);
     }
 
-    // ---- Knoten -------------------------------------------------------------------------------------
+    // ---- Nodes -------------------------------------------------------------------------------------
 
     private static IReadOnlyList<GraphNode> BuildNodes(
         DialogDetail detail,
@@ -114,9 +114,9 @@ internal static class DialogGraphBuilder
 
         var nodes = new List<GraphNode>(layout.Nodes.Count);
 
-        // layout.Nodes ist nach Schicht und Spalte sortiert – die Reihenfolge wird unverändert
-        // übernommen, weil sie zugleich die Tab-Reihenfolge im Browser ist: Tabben läuft den Dialog von
-        // oben nach unten durch.
+        // layout.Nodes is sorted by layer and column – the order is taken over unchanged,
+        // because it is at the same time the tab order in the browser: tabbing runs the dialog from
+        // top to bottom.
         foreach (var position in layout.Nodes)
         {
             var question = questions[position.QuestionId];
@@ -128,10 +128,10 @@ internal static class DialogGraphBuilder
                     && warning.ElementId == question.Id)
                 .ToList();
 
-            // Unerreichbarkeit entsteht erst aus der Anordnung ab der Einstiegsfrage, also hier und nicht
-            // im TransitionWarningAnalyzer. Seit #118 schöpft auch die Listenansicht daraus: Ihre
-            // Publish-Rückfrage liest den ganzen Graphen (GraphWarningList), damit dieser Befund nicht
-            // ausgerechnet vor dem Veröffentlichen fehlt.
+            // Unreachability first arises from the arrangement starting at the entry question, so here and not
+            // in the TransitionWarningAnalyzer. Since #118 the list view also draws from this: its
+            // publish confirmation reads the whole graph (GraphWarningList), so that this finding is not
+            // missing of all times right before publishing.
             if (position is { IsReachable: false })
             {
                 nodeWarnings.Add(GraphWarning.ForQuestion(
@@ -177,7 +177,7 @@ internal static class DialogGraphBuilder
                     nodeWarnings.Count)));
         }
 
-        // Sonderfall: keine Fragen, aber eine Einstiegsfrage-Warnung wäre irreführend detailliert.
+        // Special case: no questions, but an entry-question warning would be misleadingly detailed.
         if (detail.Questions.Count == 0)
         {
             dialogWarnings.Clear();
@@ -187,8 +187,8 @@ internal static class DialogGraphBuilder
     }
 
     /// <summary>
-    /// Beschreibt einen Knoten vollständig in Worten. Nicht dekorativ: Für Screenreader ist das die
-    /// einzige Fassung des Knotens, und alles, was nur als Farbe oder Position vorliegt, fehlte sonst.
+    /// Describes a node fully in words. Not decorative: for screen readers this is the
+    /// only version of the node, and everything that is present only as color or position would otherwise be missing.
     /// </summary>
     private static string DescribeNode(
         QuestionDetail question,
@@ -244,7 +244,7 @@ internal static class DialogGraphBuilder
         return string.Join(", ", parts) + ".";
     }
 
-    // ---- Kanten -------------------------------------------------------------------------------------
+    // ---- Edges -------------------------------------------------------------------------------------
 
     private static IReadOnlyList<GraphEdge> BuildEdges(
         DialogDetail detail,
@@ -254,8 +254,8 @@ internal static class DialogGraphBuilder
     {
         var transitions = detail.Transitions.ToDictionary(transition => transition.Id);
 
-        // Die Auswertungsposition ist 1-basiert je Ausgangsfrage – dieselbe Zählung, die die
-        // Listenansicht in ihrer Spalte „#“ zeigt und auf die sich die Warntexte beziehen.
+        // The evaluation position is 1-based per source question – the same count that the
+        // list view shows in its column "#" and that the warning texts refer to.
         var positions = new Dictionary<Guid, int>();
         foreach (var group in detail.Transitions.GroupBy(transition => transition.FromQuestionId))
         {
@@ -312,7 +312,7 @@ internal static class DialogGraphBuilder
         return $"Übergang {position} von {from.Key} nach {target.Key}, {condition}.";
     }
 
-    // ---- Schleifen ----------------------------------------------------------------------------------
+    // ---- Loops ----------------------------------------------------------------------------------
 
     private static IReadOnlyList<GraphLoopFrame> BuildLoops(
         IReadOnlyList<LoopInsight> insights, GraphLayoutResult layout)
@@ -324,8 +324,8 @@ internal static class DialogGraphBuilder
         {
             var insight = insights[index];
 
-            // insight.Body ist bereits in Dialog-Reihenfolge – bewusst nicht über die Menge aus
-            // LoopAnalyzer.ComputeBody iterieren, deren Reihenfolge nicht zugesichert ist.
+            // insight.Body is already in dialog order – deliberately do not iterate over the set from
+            // LoopAnalyzer.ComputeBody, whose order is not guaranteed.
             var boxes = insight.Body
                 .Where(question => positions.ContainsKey(question.Id))
                 .Select(question => positions[question.Id])
@@ -333,8 +333,8 @@ internal static class DialogGraphBuilder
 
             if (boxes.Length == 0)
             {
-                // Kaputter Marker: kein Rahmen, nur die Warnung. Ein Rahmen um nichts wäre schlimmer
-                // als keiner.
+                // Broken marker: no frame, only the warning. A frame around nothing would be worse
+                // than none.
                 frames.Add(new GraphLoopFrame(
                     insight.Loop.Id, insight.Loop.CollectionKey, 0, 0, 0, 0,
                     insight.EntryQuestion?.Key ?? string.Empty,
@@ -364,16 +364,16 @@ internal static class DialogGraphBuilder
         return frames;
     }
 
-    // ---- Scope-Marker -------------------------------------------------------------------------------
+    // ---- Scope markers -------------------------------------------------------------------------------
 
     /// <summary>
-    /// Legt die Marker für die Trigger an, die an keiner einzelnen Frage hängen.
+    /// Creates the markers for the triggers that hang on no single question.
     /// </summary>
     /// <remarks>
-    /// <c>AfterAnswer</c> hat keinen natürlichen Ort im Graphen – der Trigger feuert nach <b>jeder</b>
-    /// Antwort, gehört also an keinen Knoten. Er landet zusammen mit <c>OnDialogStarted</c> am
-    /// Start-Marker, unterscheidbar über die Beschriftung des Chips. Die Alternative, ihn an jeden
-    /// einzelnen Knoten zu hängen, würde den Canvas zumüllen und dieselbe Konfiguration vielfach zeigen.
+    /// <c>AfterAnswer</c> has no natural place in the graph – the trigger fires after <b>every</b>
+    /// answer, so it belongs to no node. It lands together with <c>OnDialogStarted</c> at the
+    /// start marker, distinguishable via the label of the chip. The alternative, to hang it on each
+    /// single node, would clutter the canvas and show the same configuration many times over.
     /// </remarks>
     private static (GraphScopeMarker? Start, GraphScopeMarker? End, double MinY, double Height) BuildMarkers(
         DialogDetail detail, GraphLayoutResult layout, IReadOnlyList<GraphNode> nodes)
@@ -388,9 +388,9 @@ internal static class DialogGraphBuilder
             .Select(Chip)
             .ToArray();
 
-        // Die Marker liegen außerhalb der vom Layout berechneten Fläche – oben darüber, unten darunter.
-        // Statt die Knoten zu verschieben, wächst die Zeichenfläche: Das hält die Koordinaten des
-        // Layouts unangetastet und damit die Determinismus-Zusage einfach nachvollziehbar.
+        // The markers lie outside the area computed by the layout – at the top above, at the bottom below.
+        // Instead of shifting the nodes, the canvas grows: this keeps the coordinates of the
+        // layout untouched and thereby the determinism promise easy to follow.
         GraphScopeMarker? start = startTriggers.Length == 0
             ? null
             : new GraphScopeMarker(
@@ -432,11 +432,11 @@ internal static class DialogGraphBuilder
             trigger.Kind);
     }
 
-    // ---- Zusammenfassung ----------------------------------------------------------------------------
+    // ---- Summary ----------------------------------------------------------------------------
 
     /// <summary>
-    /// Fasst den Graphen in einem Satz zusammen. Steht als versteckter Text vor dem Canvas, damit ein
-    /// Screenreader nicht erst 30 Knoten durchlaufen muss, um zu wissen, worum es geht.
+    /// Sums up the graph in one sentence. Stands as hidden text before the canvas, so that a
+    /// screen reader does not have to walk through 30 nodes first to know what it is about.
     /// </summary>
     private static string Summarize(
         DialogDetail detail,
@@ -474,7 +474,7 @@ internal static class DialogGraphBuilder
     private static string Count(int value, string singular, string plural)
         => $"{value} {(value == 1 ? singular : plural)}";
 
-    /// <summary>Kürzt einen Text auf die Anzeigelänge; der vollständige Text bleibt im Tooltip.</summary>
+    /// <summary>Shortens a text to the display length; the full text stays in the tooltip.</summary>
     private static string Shorten(string? text, int max)
     {
         if (string.IsNullOrWhiteSpace(text))

@@ -4,9 +4,9 @@ using Flirty.Runtime.Admin;
 namespace Flirty.AspNetCore.Mapping;
 
 /// <summary>
-/// Interne Abbildungen der navigationsfreien <c>Flirty.Runtime.Admin</c>-Ergebnis-Records auf die
-/// serialisierbaren Admin-Response-DTOs. Wie bei den Laufzeit-Mappings bewusst intern gehalten: nur die
-/// DTOs bilden den öffentlichen Contract, das Mapping ist Implementierungsdetail der Endpunkte.
+/// Internal mappings of the navigation-free <c>Flirty.Runtime.Admin</c> result records onto the
+/// serializable admin response DTOs. As with the runtime mappings, deliberately kept internal: only the
+/// DTOs form the public contract, the mapping is an implementation detail of the endpoints.
 /// </summary>
 internal static class FlirtyAdminResponseMappings
 {

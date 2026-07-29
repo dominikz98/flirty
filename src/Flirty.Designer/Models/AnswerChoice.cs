@@ -4,29 +4,29 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Eine auswählbare Antwortoption für die Eingabe im Test-Runner (#43) – reduziert auf Wert und
-/// Beschriftung.
+/// A selectable answer option for the input in the test runner (#43) – reduced to value and
+/// label.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Nötig, weil dieselbe Eingabe zwei Quellen bedient: die aktuell offene Frage liefert ihre Optionen als
-/// <see cref="AnswerOptionView"/> (Laufzeit-Sicht), das Editieren einer früheren Antwort greift auf
-/// <see cref="AnswerOptionDetail"/> aus dem Dialog-Graphen zurück.
+/// Needed because the same input serves two sources: the currently open question delivers its options as
+/// <see cref="AnswerOptionView"/> (runtime view), editing an earlier answer falls back to
+/// <see cref="AnswerOptionDetail"/> from the dialog graph.
 /// </para>
 /// <para>
-/// Abweichend von den übrigen Designer-Modellen <c>public</c>: Der Typ wird als
-/// <c>[Parameter]</c> der Komponente <c>AnswerInput</c> übergeben, und Razor erzeugt Komponenten als
-/// <c>public</c> Klassen – ein <c>internal</c> Parametertyp wäre nicht zugänglich (CS0053). Der Designer
-/// ist <c>IsPackable=false</c>, es entsteht dadurch keine Paket-API.
+/// Deviating from the other designer models it is <c>public</c>: the type is passed as
+/// <c>[Parameter]</c> of the component <c>AnswerInput</c>, and Razor generates components as
+/// <c>public</c> classes – an <c>internal</c> parameter type would not be accessible (CS0053). The designer
+/// is <c>IsPackable=false</c>, so no package API arises from it.
 /// </para>
 /// </remarks>
-/// <param name="Value">Der bei Auswahl einzureichende Wert.</param>
-/// <param name="Label">Die anzuzeigende Beschriftung.</param>
+/// <param name="Value">The value to be submitted on selection.</param>
+/// <param name="Label">The label to display.</param>
 public sealed record AnswerChoice(string Value, string Label)
 {
-    /// <summary>Bildet die Optionen der Laufzeit-Sicht ab.</summary>
-    /// <param name="options">Die Optionen der aktuell offenen Frage.</param>
-    /// <returns>Die Auswahlmöglichkeiten in Anzeigereihenfolge.</returns>
+    /// <summary>Maps the options of the runtime view.</summary>
+    /// <param name="options">The options of the currently open question.</param>
+    /// <returns>The choices in display order.</returns>
     public static IReadOnlyList<AnswerChoice> From(IReadOnlyList<AnswerOptionView> options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -34,9 +34,9 @@ public sealed record AnswerChoice(string Value, string Label)
         return [.. options.Select(option => new AnswerChoice(option.Value, option.Label))];
     }
 
-    /// <summary>Bildet die Optionen aus dem Dialog-Graphen ab.</summary>
-    /// <param name="options">Die Optionen der Frage aus dem Admin-CRUD.</param>
-    /// <returns>Die Auswahlmöglichkeiten in Anzeigereihenfolge.</returns>
+    /// <summary>Maps the options from the dialog graph.</summary>
+    /// <param name="options">The options of the question from the admin CRUD.</param>
+    /// <returns>The choices in display order.</returns>
     public static IReadOnlyList<AnswerChoice> From(IReadOnlyList<AnswerOptionDetail> options)
     {
         ArgumentNullException.ThrowIfNull(options);

@@ -3,29 +3,29 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Das Analyseergebnis zu einem Schleifen-Marker (#41): der aus dem Übergangs-Graphen abgeleitete
-/// Schleifen-Bereich, seine Rücksprung- und Exit-Übergänge sowie die Warnungen, die der Loop-Editor
-/// anzeigt. Erzeugt von <see cref="Flirty.Designer.Services.LoopAnalyzer"/>.
+/// The analysis result for a loop marker (#41): the loop range derived from the transition graph,
+/// its back-jump and exit transitions as well as the warnings that the loop editor
+/// shows. Produced by <see cref="Flirty.Designer.Services.LoopAnalyzer"/>.
 /// </summary>
-/// <param name="Loop">Der analysierte Schleifen-Marker.</param>
+/// <param name="Loop">The analyzed loop marker.</param>
 /// <param name="Body">
-/// Die Fragen des Schleifenbereichs in Dialog-Reihenfolge (leer, wenn Einstiegs- oder Breaking Question
-/// nicht mehr zum Dialog gehören).
+/// The questions of the loop range in dialog order (empty if the entry or breaking question
+/// no longer belong to the dialog).
 /// </param>
-/// <param name="EntryQuestion">Die Einstiegsfrage oder <see langword="null"/>, wenn sie nicht (mehr) existiert.</param>
-/// <param name="BreakingQuestion">Die Breaking Question oder <see langword="null"/>, wenn sie nicht (mehr) existiert.</param>
+/// <param name="EntryQuestion">The entry question or <see langword="null"/> if it no longer exists.</param>
+/// <param name="BreakingQuestion">The breaking question or <see langword="null"/> if it no longer exists.</param>
 /// <param name="LoopBackTransitions">
-/// Die Übergänge der Breaking Question, deren Ziel <b>innerhalb</b> des Bereichs liegt (Rücksprünge),
-/// in Auswertungsreihenfolge.
+/// The transitions of the breaking question whose target lies <b>within</b> the range (back-jumps),
+/// in evaluation order.
 /// </param>
 /// <param name="ExitTransitions">
-/// Die Übergänge der Breaking Question, deren Ziel <b>außerhalb</b> des Bereichs liegt (Ausstiege),
-/// in Auswertungsreihenfolge.
+/// The transitions of the breaking question whose target lies <b>outside</b> the range (exits),
+/// in evaluation order.
 /// </param>
 /// <param name="TargetedWarnings">
-/// Die gefundenen Warnungen samt Ortsangabe (leer, wenn die Schleife stimmig konfiguriert ist). Seit
-/// #101 tragen sie einen Elementbezug, damit die Graph-Ansicht sie am Rahmen, am Knoten oder an der
-/// Kante zeigen kann; der Loop-Editor liest weiterhin nur <see cref="Warnings"/>.
+/// The found warnings together with a location (empty if the loop is coherently configured). Since
+/// #101 they carry an element reference, so that the graph view can show them at the frame, at the node or at the
+/// edge; the loop editor still reads only <see cref="Warnings"/>.
 /// </param>
 internal sealed record LoopInsight(
     LoopDetail Loop,
@@ -37,8 +37,8 @@ internal sealed record LoopInsight(
     IReadOnlyList<GraphWarning> TargetedWarnings)
 {
     /// <summary>
-    /// Die Warntexte in unveränderter Reihenfolge – die Sicht, die Loop- und Dialog-Editor seit #41
-    /// anzeigen.
+    /// The warning texts in unchanged order – the view that loop and dialog editor have shown since
+    /// #41.
     /// </summary>
     public IReadOnlyList<string> Warnings => [.. TargetedWarnings.Select(warning => warning.Text)];
 }

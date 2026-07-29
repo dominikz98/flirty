@@ -3,49 +3,48 @@ using Flirty.Domain;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Wird geworfen, wenn der Konfigurationsgraph eines <b>veröffentlichten</b> Dialogs verändert werden
-/// soll (Fragen, Antwortoptionen, Übergänge, Schleifen-Marker, Trigger oder die Einstiegsfrage). Eine
-/// veröffentlichte Version ist unveränderlich, damit laufende Sessions über ihre gepinnte
-/// <see cref="DialogSession.DialogVersion"/> stabil bleiben – Änderungen laufen über eine <b>neue
-/// Version</b> (<c>CreateDialogVersionCommand</c>) oder nach dem Zurückziehen des Dialogs
-/// (<c>UnpublishDialogCommand</c>).
+/// Thrown when the configuration graph of a <b>published</b> dialog is about to be changed (questions,
+/// answer options, transitions, loop markers, triggers or the entry question). A published version is
+/// immutable so that running sessions stay stable via their pinned
+/// <see cref="DialogSession.DialogVersion"/> – changes go through a <b>new version</b>
+/// (<c>CreateDialogVersionCommand</c>) or after unpublishing the dialog (<c>UnpublishDialogCommand</c>).
 /// </summary>
 /// <remarks>
-/// Leitet von <see cref="InvalidOperationException"/> ab, damit der Endpunkt-Filter des Pakets
-/// <c>Flirty.AspNetCore</c> sie – wie alle Zustands-Konflikte – auf <c>409 Conflict</c> abbildet. Rein
-/// beschreibende Metadaten (Name, Beschreibung) bleiben auch an einer veröffentlichten Version
-/// änderbar; nur der Graph ist gesperrt.
+/// Derives from <see cref="InvalidOperationException"/> so that the endpoint filter of the
+/// <c>Flirty.AspNetCore</c> package maps it – like all state conflicts – to <c>409 Conflict</c>. Purely
+/// descriptive metadata (name, description) stays editable even on a published version; only the graph
+/// is locked.
 /// </remarks>
 public sealed class DialogPublishedException : InvalidOperationException
 {
-    /// <summary>Erstellt die Ausnahme ohne weitere Angaben.</summary>
+    /// <summary>Creates the exception without further details.</summary>
     public DialogPublishedException()
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit der angegebenen Meldung.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
+    /// <summary>Creates the exception with the given message.</summary>
+    /// <param name="message">The error message describing the cause.</param>
     public DialogPublishedException(string message)
         : base(message)
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit Meldung und auslösender Ausnahme.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
-    /// <param name="innerException">Die Ausnahme, die diese Ausnahme ausgelöst hat.</param>
+    /// <summary>Creates the exception with a message and a triggering exception.</summary>
+    /// <param name="message">The error message describing the cause.</param>
+    /// <param name="innerException">The exception that triggered this exception.</param>
     public DialogPublishedException(string message, Exception innerException)
         : base(message, innerException)
     {
     }
 
     /// <summary>
-    /// Erstellt eine <see cref="DialogPublishedException"/> für den Versuch, den Graphen der
-    /// angegebenen veröffentlichten Dialogversion zu ändern.
+    /// Creates a <see cref="DialogPublishedException"/> for the attempt to change the graph of the
+    /// given published dialog version.
     /// </summary>
-    /// <param name="dialogKey">Der fachliche Schlüssel des Dialogs.</param>
-    /// <param name="version">Die Versionsnummer des veröffentlichten Dialogs.</param>
-    /// <returns>Die vorbereitete Ausnahme.</returns>
+    /// <param name="dialogKey">The business key of the dialog.</param>
+    /// <param name="version">The version number of the published dialog.</param>
+    /// <returns>The prepared exception.</returns>
     public static DialogPublishedException ForGraphChange(string dialogKey, int version)
-        => new($"Der Dialog '{dialogKey}' ist in Version {version} veröffentlicht und deshalb nicht "
-             + "änderbar. Lege eine neue Version an oder zieh den Dialog zurück.");
+        => new($"The dialog '{dialogKey}' is published in version {version} and therefore cannot be "
+             + "changed. Create a new version or unpublish the dialog.");
 }

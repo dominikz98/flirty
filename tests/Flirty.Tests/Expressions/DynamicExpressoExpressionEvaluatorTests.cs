@@ -260,7 +260,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
         var result = Evaluator.Validate(expression, Context());
 
         Assert.False(result.IsValid);
-        Assert.Contains("Reflexion", result.Error!, StringComparison.Ordinal);
+        Assert.Contains("reflection", result.Error!, StringComparison.Ordinal);
         Assert.DoesNotContain("EnableReflection", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -271,7 +271,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
         var exception = Assert.Throws<ExpressionEvaluationException>(
             () => Evaluator.Evaluate("session.GetType().Assembly != null", Context()));
 
-        Assert.Contains("Reflexion", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("reflection", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("EnableReflection", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -302,7 +302,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
         var result = Evaluator.Validate(expression, ValidationContext());
 
         Assert.False(result.IsValid);
-        Assert.Contains("boolesch", result.Error!);
+        Assert.Contains("boolean", result.Error!);
     }
 
     [Fact]

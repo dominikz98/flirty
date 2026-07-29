@@ -1,29 +1,29 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Eine vorgegebene Antwortoption einer <see cref="Question"/> (relevant für
-/// <see cref="QuestionType.SingleChoice"/> und <see cref="QuestionType.MultiChoice"/>).
+/// A predefined answer option of a <see cref="Question"/> (relevant for
+/// <see cref="QuestionType.SingleChoice"/> and <see cref="QuestionType.MultiChoice"/>).
 /// </summary>
 public sealed class AnswerOption
 {
-    /// <summary>Eindeutiger Primärschlüssel der Antwortoption.</summary>
+    /// <summary>Unique primary key of the answer option.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf die zugehörige <see cref="Question"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Question"/>.</summary>
     public Guid QuestionId { get; set; }
 
-    /// <summary>Fachlicher, stabiler Schlüssel der Option.</summary>
+    /// <summary>Business, stable key of the option.</summary>
     public required string Key { get; set; }
 
-    /// <summary>Der angezeigte Beschriftungstext der Option.</summary>
+    /// <summary>The displayed label text of the option.</summary>
     public required string Label { get; set; }
 
-    /// <summary>Der bei Auswahl gespeicherte Wert der Option.</summary>
+    /// <summary>The value stored when the option is selected.</summary>
     public required string Value { get; set; }
 
-    /// <summary>Reihenfolge-Index der Option innerhalb der Frage.</summary>
+    /// <summary>Order index of the option within the question.</summary>
     public int Order { get; set; }
 
-    /// <summary>Die Frage, zu der diese Antwortoption gehört.</summary>
+    /// <summary>The question this answer option belongs to.</summary>
     public Question Question { get; set; } = null!;
 }

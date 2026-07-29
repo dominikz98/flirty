@@ -5,19 +5,19 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Samples.Web;
 
 /// <summary>
-/// Beispiel-In-Process-Handler der Web-Sample: reagiert auf die von der Engine publizierte
-/// <see cref="DialogCompletedNotification"/> und protokolliert den Abschluss in den <see cref="TriggerLog"/>,
-/// den die Chat-UI über <c>GET /demo/triggers</c> anzeigt. Demonstriert den In-Process-Trigger-Rückkanal
-/// (Registrierung per <c>AddFlirtyHandler&lt;DialogCompletedNotification, DemoDialogCompletedHandler&gt;()</c>).
+/// The web sample's sample in-process handler: reacts to the <see cref="DialogCompletedNotification"/>
+/// published by the engine and records the completion in the <see cref="TriggerLog"/>,
+/// which the chat UI displays via <c>GET /demo/triggers</c>. Demonstrates the in-process trigger back-channel
+/// (registration via <c>AddFlirtyHandler&lt;DialogCompletedNotification, DemoDialogCompletedHandler&gt;()</c>).
 /// </summary>
 public sealed class DemoDialogCompletedHandler : INotificationHandler<DialogCompletedNotification>
 {
     private readonly TriggerLog _triggerLog;
     private readonly ILogger<DemoDialogCompletedHandler> _logger;
 
-    /// <summary>Initialisiert den Handler mit der Trigger-Senke und dem Logger.</summary>
-    /// <param name="triggerLog">Die In-Memory-Senke für die Anzeige in der Chat-UI.</param>
-    /// <param name="logger">Der Logger für eine zusätzliche Server-Ausgabe.</param>
+    /// <summary>Initializes the handler with the trigger sink and the logger.</summary>
+    /// <param name="triggerLog">The in-memory sink for the display in the chat UI.</param>
+    /// <param name="logger">The logger for an additional server output.</param>
     public DemoDialogCompletedHandler(TriggerLog triggerLog, ILogger<DemoDialogCompletedHandler> logger)
     {
         ArgumentNullException.ThrowIfNull(triggerLog);
@@ -26,10 +26,10 @@ public sealed class DemoDialogCompletedHandler : INotificationHandler<DialogComp
         _logger = logger;
     }
 
-    /// <summary>Verarbeitet die Abschluss-Notification, indem ein Trigger-Eintrag aufgezeichnet wird.</summary>
-    /// <param name="notification">Die ausgelöste Abschluss-Notification.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen (hier nicht benötigt).</param>
-    /// <returns>Ein abgeschlossener <see cref="ValueTask"/>.</returns>
+    /// <summary>Processes the completion notification by recording a trigger entry.</summary>
+    /// <param name="notification">The triggered completion notification.</param>
+    /// <param name="cancellationToken">Token to cancel (not needed here).</param>
+    /// <returns>A completed <see cref="ValueTask"/>.</returns>
     public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(notification);

@@ -1,15 +1,15 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Legt fest, auf welche Art von Element sich eine <see cref="DialogLayout"/>-Zeile bezieht.
+/// Defines what kind of element a <see cref="DialogLayout"/> row refers to.
 /// </summary>
 /// <remarks>
-/// Zunächst gibt es nur <see cref="Question"/> – genau dieser Aufzählungstyp ist aber der Grund, warum
-/// das Layout in einer eigenen Tabelle liegt statt als zwei Spalten an der Frage: Kanten-Wegpunkte,
-/// Notizknoten oder ein Viewport kommen später ohne Schema-Umbau dazu (ADR 0007).
+/// For now there is only <see cref="Question"/> - but this very enumeration type is the reason why the
+/// layout lives in its own table instead of as two columns on the question: edge waypoints, note nodes
+/// or a viewport can be added later without a schema rebuild (ADR 0007).
 /// </remarks>
 public enum LayoutElementKind
 {
-    /// <summary>Die Position einer Frage (<see cref="Domain.Question.Id"/>) auf dem Canvas.</summary>
+    /// <summary>The position of a question (<see cref="Domain.Question.Id"/>) on the canvas.</summary>
     Question = 0,
 }

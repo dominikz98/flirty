@@ -6,17 +6,17 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Aktualisiert die Frage <see cref="QuestionId"/> im Dialog <see cref="DialogId"/> (In-Place). Der
-/// fachliche Schlüssel muss innerhalb des Dialogs eindeutig bleiben.
+/// Updates the question <see cref="QuestionId"/> in the dialog <see cref="DialogId"/> (in place). The
+/// business key must remain unique within the dialog.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem die Frage gehört.</param>
-/// <param name="QuestionId">Der Primärschlüssel der zu ändernden Frage.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage.</param>
-/// <param name="Text">Der angezeigte Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
-/// <param name="Order">Der Reihenfolge-Index der Frage innerhalb des Dialogs.</param>
-/// <param name="IsRequired">Gibt an, ob eine Antwort erforderlich ist.</param>
-/// <param name="ValidationRules">Optionale Validierungsregeln als JSON.</param>
+/// <param name="DialogId">The id of the dialog the question belongs to.</param>
+/// <param name="QuestionId">The primary key of the question to change.</param>
+/// <param name="Key">The business, stable key of the question.</param>
+/// <param name="Text">The displayed question text.</param>
+/// <param name="Type">The answer type of the question.</param>
+/// <param name="Order">The order index of the question within the dialog.</param>
+/// <param name="IsRequired">Indicates whether an answer is required.</param>
+/// <param name="ValidationRules">Optional validation rules as JSON.</param>
 public sealed record UpdateQuestionCommand(
     Guid DialogId,
     Guid QuestionId,
@@ -27,14 +27,14 @@ public sealed record UpdateQuestionCommand(
     bool IsRequired,
     string? ValidationRules) : ICommand<QuestionDetail>;
 
-/// <summary>Handler für <see cref="UpdateQuestionCommand"/>.</summary>
+/// <summary>Handler for <see cref="UpdateQuestionCommand"/>.</summary>
 internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuestionCommand, QuestionDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public UpdateQuestionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -43,15 +43,15 @@ internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuest
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Keine Frage mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No question with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="InvalidOperationException">Im Dialog existiert bereits eine andere Frage mit diesem Schlüssel.</exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="InvalidOperationException">Another question with this key already exists in the dialog.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<QuestionDetail> Handle(UpdateQuestionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var question = await _store.GetQuestionAsync(command.QuestionId, cancellationToken);
@@ -64,7 +64,7 @@ internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuest
                 command.DialogId, command.Key, command.QuestionId, cancellationToken))
         {
             throw new InvalidOperationException(
-                $"Im Dialog '{command.DialogId}' existiert bereits eine andere Frage mit dem Schlüssel '{command.Key}'.");
+                $"Another question with the key '{command.Key}' already exists in the dialog '{command.DialogId}'.");
         }
 
         question.Key = command.Key;

@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für das Runtime-Aggregat-Root <see cref="DialogSession"/>. Legt Schlüssel,
-/// das Enum-Mapping für <see cref="SessionStatus"/>, einen Lookup-Index über
-/// <c>(DialogId, ExternalUserKey)</c> und die kaskadierende Beziehung zu den Antworten fest.
+/// EF Core configuration for the runtime aggregate root <see cref="DialogSession"/>. Sets the key,
+/// the enum mapping for <see cref="SessionStatus"/>, a lookup index over
+/// <c>(DialogId, ExternalUserKey)</c> and the cascading relationship to the answers.
 /// </summary>
 internal sealed class DialogSessionConfiguration : IEntityTypeConfiguration<DialogSession>
 {
@@ -18,14 +18,14 @@ internal sealed class DialogSessionConfiguration : IEntityTypeConfiguration<Dial
         builder.Property(session => session.ExternalUserKey)
             .HasMaxLength(PersistenceConstants.KeyMaxLength);
 
-        // Status explizit als int speichern (EF-Default, aber als Guard festgehalten).
+        // Store the status explicitly as int (EF default, but recorded as a guard).
         builder.Property(session => session.Status)
             .HasConversion<int>();
 
-        // Sessions eines Anwenders je Dialog auffindbar (nicht eindeutig: mehrere Sessions möglich).
+        // A user's sessions discoverable per dialog (not unique: multiple sessions possible).
         builder.HasIndex(session => new { session.DialogId, session.ExternalUserKey });
 
-        // DialogId ist ein bewusst navigationsloser Verweis über die Aggregatgrenze (kein FK).
+        // DialogId is a deliberately navigation-less reference across the aggregate boundary (no FK).
         builder.HasMany(session => session.Answers)
             .WithOne(answer => answer.Session)
             .HasForeignKey(answer => answer.SessionId)

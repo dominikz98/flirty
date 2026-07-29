@@ -1,16 +1,16 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Beschreibt den Lebenszyklus-Status einer <see cref="DialogSession"/>.
+/// Describes the lifecycle status of a <see cref="DialogSession"/>.
 /// </summary>
 public enum SessionStatus
 {
-    /// <summary>Der Dialog läuft und kann fortgesetzt (resumed) werden.</summary>
+    /// <summary>The dialog is running and can be resumed.</summary>
     InProgress = 0,
 
-    /// <summary>Der Dialog wurde vollständig abgeschlossen.</summary>
+    /// <summary>The dialog was fully completed.</summary>
     Completed = 1,
 
-    /// <summary>Der Dialog wurde abgebrochen und nicht abgeschlossen.</summary>
+    /// <summary>The dialog was abandoned and not completed.</summary>
     Abandoned = 2,
 }

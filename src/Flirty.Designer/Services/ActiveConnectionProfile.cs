@@ -3,9 +3,9 @@ using Flirty.Designer.Models;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Hält das aktuell aktive Connection-Profil des Designers. Als <c>Scoped</c> registriert entspricht das
-/// im server-interaktiven Blazor einer Lebensdauer pro Circuit. Das aktive Profil bestimmt, gegen welche
-/// Datenbank die <see cref="FlirtyDesignerDbContextFactory"/> (und damit die Admin-Commands seit #38) arbeiten.
+/// Holds the currently active connection profile of the designer. Registered as <c>Scoped</c> this corresponds
+/// in server-interactive Blazor to a lifetime per circuit. The active profile determines against which
+/// database the <see cref="FlirtyDesignerDbContextFactory"/> (and thus the admin commands since #38) work.
 /// </summary>
 internal sealed class ActiveConnectionProfile
 {
@@ -13,14 +13,14 @@ internal sealed class ActiveConnectionProfile
     private ConnectionProfile? _current;
     private bool _initialized;
 
-    /// <summary>Erstellt den Zustand; das Startprofil wird verzögert aus dem Store-Default gelesen.</summary>
-    /// <param name="store">Der Profil-Store, aus dem das Standardprofil stammt.</param>
+    /// <summary>Creates the state; the start profile is read lazily from the store default.</summary>
+    /// <param name="store">The profile store from which the default profile stems.</param>
     public ActiveConnectionProfile(IConnectionProfileStore store)
     {
         _store = store;
     }
 
-    /// <summary>Das aktive Profil oder <c>null</c>, wenn (noch) keins aktiviert wurde.</summary>
+    /// <summary>The active profile or <c>null</c> if none has (yet) been activated.</summary>
     public ConnectionProfile? Current
     {
         get
@@ -36,8 +36,8 @@ internal sealed class ActiveConnectionProfile
         }
     }
 
-    /// <summary>Aktiviert das angegebene Profil und merkt es als Store-Default.</summary>
-    /// <param name="profile">Das zu aktivierende Profil.</param>
+    /// <summary>Activates the given profile and remembers it as the store default.</summary>
+    /// <param name="profile">The profile to activate.</param>
     public void Activate(ConnectionProfile profile)
     {
         Adopt(profile);
@@ -45,12 +45,12 @@ internal sealed class ActiveConnectionProfile
     }
 
     /// <summary>
-    /// Übernimmt das angegebene Profil in <b>diesen</b> Scope, <b>ohne</b> den Store-Default zu ändern.
-    /// Gedacht für den <see cref="FlirtyAdminGateway"/>, der jede Admin-Operation in einem frischen
-    /// DI-Scope ausführt und dorthin das Profil des aufrufenden Circuits durchreichen muss (der Default
-    /// im Store taugt dafür nicht: mehrere Circuits können unterschiedliche Profile aktiv haben).
+    /// Takes over the given profile into <b>this</b> scope, <b>without</b> changing the store default.
+    /// Intended for the <see cref="FlirtyAdminGateway"/>, which runs every admin operation in a fresh
+    /// DI scope and must pass the profile of the calling circuit through into it (the default
+    /// in the store is not suitable for that: several circuits can have different profiles active).
     /// </summary>
-    /// <param name="profile">Das zu übernehmende Profil.</param>
+    /// <param name="profile">The profile to take over.</param>
     public void Adopt(ConnectionProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
@@ -60,13 +60,13 @@ internal sealed class ActiveConnectionProfile
     }
 
     /// <summary>
-    /// Gibt das aktive Profil in <b>diesem</b> Scope frei – gedacht für das Löschen des aktiven Profils.
-    /// Ohne diesen Schritt hielte der Circuit das gelöschte Profil weiter und die Admin-Operationen
-    /// liefen gegen eine Verbindung, die in der Verwaltung nicht mehr existiert.
+    /// Releases the active profile in <b>this</b> scope – intended for deleting the active profile.
+    /// Without this step the circuit would keep the deleted profile and the admin operations
+    /// would run against a connection that no longer exists in the management.
     /// </summary>
     /// <remarks>
-    /// Setzt bewusst <c>_initialized</c>, damit <see cref="Current"/> nicht erneut den (inzwischen
-    /// entfernten) Store-Default liest, sondern <see langword="null"/> bleibt.
+    /// Deliberately sets <c>_initialized</c>, so that <see cref="Current"/> does not read the (by now
+    /// removed) store default again, but stays <see langword="null"/>.
     /// </remarks>
     public void Clear()
     {

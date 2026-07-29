@@ -6,51 +6,50 @@ using Microsoft.EntityFrameworkCore;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Konfigurationsobjekt für <see cref="FlirtyServiceCollectionExtensions.AddFlirty(IServiceCollection, System.Action{FlirtyOptions})"/>.
+/// Configuration object for <see cref="FlirtyServiceCollectionExtensions.AddFlirty(IServiceCollection, System.Action{FlirtyOptions})"/>.
 /// </summary>
 /// <remarks>
-/// In Issue #20 bewusst minimal (<see cref="ApplyMigrations"/>). Issue #34 erweitert dieselbe Klasse
-/// <b>additiv</b> und ohne Bruch der bestehenden Oberfläche um: die Provider-Wahl
+/// Deliberately minimal in issue #20 (<see cref="ApplyMigrations"/>). Issue #34 extends the same class
+/// <b>additively</b> and without breaking the existing surface with: the provider choice
 /// (<see cref="UseSqlite(string)"/>/<see cref="UsePostgreSql(string)"/>/<see cref="UseSqlServer(string)"/>
-/// inkl. automatischer <see cref="Flirty.Persistence.FlirtyDbContext"/>-Registrierung mit der korrekten
-/// <c>MigrationsAssembly</c>), einen austauschbaren Expression-Evaluator
-/// (<see cref="UseExpressionEvaluator{TEvaluator}"/>) und die Registrierung von Outbound-Webhooks
-/// (<see cref="AddWebhook(string, string)"/>). Alle Setzer sammeln nur Konfigurationszustand; die
-/// eigentlichen Registrierungen nimmt der <c>AddFlirty(Action&lt;FlirtyOptions&gt;)</c>-Overload nach der
-/// Auswertung dieses Objekts vor.
+/// incl. automatic <see cref="Flirty.Persistence.FlirtyDbContext"/> registration with the correct
+/// <c>MigrationsAssembly</c>), an interchangeable expression evaluator
+/// (<see cref="UseExpressionEvaluator{TEvaluator}"/>) and the registration of outbound webhooks
+/// (<see cref="AddWebhook(string, string)"/>). All setters only collect configuration state; the
+/// actual registrations are performed by the <c>AddFlirty(Action&lt;FlirtyOptions&gt;)</c> overload after
+/// evaluating this object.
 /// </remarks>
 public sealed class FlirtyOptions
 {
     /// <summary>
-    /// Gibt an, ob beim Host-Start automatisch migriert werden soll. Wird über
-    /// <see cref="ApplyMigrations"/> gesetzt und von
-    /// <see cref="FlirtyServiceCollectionExtensions.AddFlirty(IServiceCollection, System.Action{FlirtyOptions})"/>
-    /// ausgewertet.
+    /// Indicates whether the host should migrate automatically on start. Set via
+    /// <see cref="ApplyMigrations"/> and evaluated by
+    /// <see cref="FlirtyServiceCollectionExtensions.AddFlirty(IServiceCollection, System.Action{FlirtyOptions})"/>.
     /// </summary>
     internal bool MigrationsEnabled { get; private set; }
 
     /// <summary>
-    /// Konfiguration des <see cref="Flirty.Persistence.FlirtyDbContext"/> (Provider + Verbindung +
-    /// <c>MigrationsAssembly</c>), gesetzt durch eine der <c>Use*</c>-Provider-Methoden. <c>null</c>,
-    /// solange kein Provider gewählt wurde (dann muss der Kontext extern per <c>AddDbContext</c> kommen).
+    /// Configuration of the <see cref="Flirty.Persistence.FlirtyDbContext"/> (provider + connection +
+    /// <c>MigrationsAssembly</c>), set by one of the <c>Use*</c> provider methods. <c>null</c>
+    /// as long as no provider has been chosen (then the context must come externally via <c>AddDbContext</c>).
     /// </summary>
     internal Action<DbContextOptionsBuilder>? ConfigureDbContext { get; private set; }
 
     /// <summary>
-    /// Typ eines benutzerdefinierten <see cref="IExpressionEvaluator"/>, der die Default-Registrierung
-    /// ersetzt. <c>null</c>, solange <see cref="UseExpressionEvaluator{TEvaluator}"/> nicht aufgerufen wurde.
+    /// Type of a custom <see cref="IExpressionEvaluator"/> that replaces the default registration.
+    /// <c>null</c> as long as <see cref="UseExpressionEvaluator{TEvaluator}"/> has not been called.
     /// </summary>
     internal Type? ExpressionEvaluatorType { get; private set; }
 
-    /// <summary>Die über <see cref="AddWebhook(string, string)"/> gesammelten Outbound-Webhooks.</summary>
+    /// <summary>The outbound webhooks gathered via <see cref="AddWebhook(string, string)"/>.</summary>
     internal List<FlirtyWebhookRegistration> Webhooks { get; } = [];
 
     /// <summary>
-    /// Aktiviert die Auto-Migration: registriert den
-    /// <see cref="Flirty.Hosting.FlirtyMigrationHostedService"/>, der beim Host-Start alle ausstehenden
-    /// EF-Core-Migrationen auf den registrierten <see cref="Flirty.Persistence.FlirtyDbContext"/> anwendet.
+    /// Enables auto-migration: registers the
+    /// <see cref="Flirty.Hosting.FlirtyMigrationHostedService"/>, which on host start applies all pending
+    /// EF Core migrations to the registered <see cref="Flirty.Persistence.FlirtyDbContext"/>.
     /// </summary>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
     public FlirtyOptions ApplyMigrations()
     {
         MigrationsEnabled = true;
@@ -58,48 +57,49 @@ public sealed class FlirtyOptions
     }
 
     /// <summary>
-    /// Wählt SQLite als Datenbank-Provider und registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/>
-    /// mit der Migrations-Assembly <c>Flirty.Migrations.Sqlite</c>.
+    /// Chooses SQLite as the database provider and registers the <see cref="Flirty.Persistence.FlirtyDbContext"/>
+    /// with the migrations assembly <c>Flirty.Migrations.Sqlite</c>.
     /// </summary>
-    /// <param name="connectionString">Die SQLite-Verbindungszeichenfolge (z. B. <c>Data Source=flirty.db</c>).</param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
-    /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
+    /// <param name="connectionString">The SQLite connection string (e.g. <c>Data Source=flirty.db</c>).</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <remarks>Another call to a <c>Use*</c> provider method overrides the previous choice.</remarks>
     public FlirtyOptions UseSqlite(string connectionString)
         => UseProvider(FlirtyDatabaseProvider.Sqlite, connectionString);
 
     /// <summary>
-    /// Wählt PostgreSQL als Datenbank-Provider und registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/>
-    /// mit der Migrations-Assembly <c>Flirty.Migrations.PostgreSql</c>.
+    /// Chooses PostgreSQL as the database provider and registers the <see cref="Flirty.Persistence.FlirtyDbContext"/>
+    /// with the migrations assembly <c>Flirty.Migrations.PostgreSql</c>.
     /// </summary>
-    /// <param name="connectionString">Die PostgreSQL-Verbindungszeichenfolge.</param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
-    /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
+    /// <param name="connectionString">The PostgreSQL connection string.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <remarks>Another call to a <c>Use*</c> provider method overrides the previous choice.</remarks>
     public FlirtyOptions UsePostgreSql(string connectionString)
         => UseProvider(FlirtyDatabaseProvider.PostgreSql, connectionString);
 
     /// <summary>
-    /// Wählt SQL Server als Datenbank-Provider und registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/>
-    /// mit der Migrations-Assembly <c>Flirty.Migrations.SqlServer</c>.
+    /// Chooses SQL Server as the database provider and registers the <see cref="Flirty.Persistence.FlirtyDbContext"/>
+    /// with the migrations assembly <c>Flirty.Migrations.SqlServer</c>.
     /// </summary>
-    /// <param name="connectionString">Die SQL-Server-Verbindungszeichenfolge.</param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
-    /// <remarks>Ein erneuter Aufruf einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.</remarks>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <remarks>Another call to a <c>Use*</c> provider method overrides the previous choice.</remarks>
     public FlirtyOptions UseSqlServer(string connectionString)
         => UseProvider(FlirtyDatabaseProvider.SqlServer, connectionString);
 
     /// <summary>
-    /// Wählt den Datenbank-Provider anhand des übergebenen <see cref="FlirtyDatabaseProvider"/>-Werts und
-    /// registriert den <see cref="Flirty.Persistence.FlirtyDbContext"/> mit der zum Provider passenden
-    /// <c>MigrationsAssembly</c>. Die typspezifischen <c>Use*</c>-Methoden delegieren auf diese Methode.
+    /// Chooses the database provider based on the given <see cref="FlirtyDatabaseProvider"/> value and
+    /// registers the <see cref="Flirty.Persistence.FlirtyDbContext"/> with the
+    /// <c>MigrationsAssembly</c> matching the provider. The type-specific <c>Use*</c> methods delegate to this
+    /// method.
     /// </summary>
-    /// <param name="provider">Der zu verwendende Datenbank-Provider.</param>
-    /// <param name="connectionString">Die Verbindungszeichenfolge für den gewählten Provider.</param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <param name="provider">The database provider to use.</param>
+    /// <param name="connectionString">The connection string for the chosen provider.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
     /// <remarks>
-    /// Seit Issue #37: erlaubt die Provider-Wahl als <b>Wert</b> und teilt sich mit der Laufzeit-Profilwahl
-    /// des Designers dieselbe Abbildung
-    /// (<see cref="Microsoft.EntityFrameworkCore.FlirtyDatabaseProviderExtensions"/>). Ein erneuter Aufruf
-    /// einer <c>Use*</c>-Provider-Methode überschreibt die vorige Wahl.
+    /// Since issue #37: allows the provider choice as a <b>value</b> and shares the same mapping with the
+    /// designer's runtime profile choice
+    /// (<see cref="Microsoft.EntityFrameworkCore.FlirtyDatabaseProviderExtensions"/>). Another call to
+    /// a <c>Use*</c> provider method overrides the previous choice.
     /// </remarks>
     public FlirtyOptions UseProvider(FlirtyDatabaseProvider provider, string connectionString)
     {
@@ -110,12 +110,12 @@ public sealed class FlirtyOptions
     }
 
     /// <summary>
-    /// Ersetzt den Default-<see cref="IExpressionEvaluator"/> (<c>DynamicExpressoExpressionEvaluator</c>)
-    /// durch eine eigene Implementierung. Der Typ wird als <see cref="ServiceLifetime.Singleton"/>
-    /// registriert (wie der Default; die Engine ist zustandslos).
+    /// Replaces the default <see cref="IExpressionEvaluator"/> (<c>DynamicExpressoExpressionEvaluator</c>)
+    /// with a custom implementation. The type is registered as a <see cref="ServiceLifetime.Singleton"/>
+    /// (like the default; the engine is stateless).
     /// </summary>
-    /// <typeparam name="TEvaluator">Der zu registrierende Evaluator-Typ.</typeparam>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <typeparam name="TEvaluator">The evaluator type to register.</typeparam>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
     public FlirtyOptions UseExpressionEvaluator<TEvaluator>()
         where TEvaluator : class, IExpressionEvaluator
     {
@@ -124,15 +124,14 @@ public sealed class FlirtyOptions
     }
 
     /// <summary>
-    /// Registriert einen Outbound-Webhook, der beim Eintreten des angegebenen Ereignisses an die Ziel-URL
-    /// ausgeliefert werden soll.
+    /// Registers an outbound webhook to be delivered to the target URL when the given event occurs.
     /// </summary>
-    /// <param name="eventName">Der fachliche Ereignisname, der den Webhook auslöst (z. B. <c>order-created</c>).</param>
-    /// <param name="url">Die Ziel-URL, an die der Webhook per HTTP ausgeliefert wird.</param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <param name="eventName">The domain event name that triggers the webhook (e.g. <c>order-created</c>).</param>
+    /// <param name="url">The target URL to which the webhook is delivered via HTTP.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
     /// <remarks>
-    /// Stub aus Issue #34: die Registrierung wird gesammelt und im Container bereitgestellt; die aktive
-    /// Auslieferung folgt in EPIC 4 (M2). Siehe <see cref="FlirtyWebhookRegistration"/>.
+    /// Stub from issue #34: the registration is gathered and provided in the container; the active
+    /// delivery follows in EPIC 4 (M2). See <see cref="FlirtyWebhookRegistration"/>.
     /// </remarks>
     public FlirtyOptions AddWebhook(string eventName, string url)
     {
@@ -144,23 +143,23 @@ public sealed class FlirtyOptions
     }
 
     /// <summary>
-    /// Registriert einen Outbound-Webhook, der beim angegebenen Trigger-Zeitpunkt (<paramref name="scope"/>)
-    /// an die Ziel-URL ausgeliefert wird – optional gefiltert durch einen Bedingungsausdruck.
+    /// Registers an outbound webhook to be delivered to the target URL at the given trigger point
+    /// (<paramref name="scope"/>) – optionally filtered by a condition expression.
     /// </summary>
     /// <param name="scope">
-    /// Der Zeitpunkt im Dialogablauf (siehe <see cref="TriggerScope"/>), zu dem der Webhook auslöst; mappt
-    /// 1:1 auf die vom Core publizierte Notification.
+    /// The point in the dialog flow (see <see cref="TriggerScope"/>) at which the webhook fires; maps
+    /// 1:1 to the notification published by the core.
     /// </param>
-    /// <param name="url">Die Ziel-URL, an die der Webhook per HTTP POST ausgeliefert wird.</param>
+    /// <param name="url">The target URL to which the webhook is delivered via HTTP POST.</param>
     /// <param name="expression">
-    /// Optionaler Bedingungsausdruck, der über <see cref="IExpressionEvaluator"/> ausgewertet wird und über
-    /// das Auslösen entscheidet (z. B. <c>age &gt; 18</c>). <see langword="null"/>/leer ⇒ bedingungslos.
+    /// Optional condition expression that is evaluated via <see cref="IExpressionEvaluator"/> and decides
+    /// about firing (e.g. <c>age &gt; 18</c>). <see langword="null"/>/empty ⇒ unconditional.
     /// </param>
-    /// <returns>Dieselbe <see cref="FlirtyOptions"/>-Instanz, um Aufrufe verketten zu können.</returns>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
     /// <remarks>
-    /// Seit Issue #33: Diese Registrierungen werden vom eingebauten <c>WebhookNotificationHandler</c> aktiv
-    /// über <c>IHttpClientFactory</c> (Retry/Timeout) ausgeliefert. Ist <paramref name="expression"/> gesetzt,
-    /// lädt der Handler zur Auswertung Session und Dialog nach. Siehe <see cref="FlirtyWebhookRegistration"/>.
+    /// Since issue #33: these registrations are actively delivered by the built-in <c>WebhookNotificationHandler</c>
+    /// via <c>IHttpClientFactory</c> (retry/timeout). If <paramref name="expression"/> is set,
+    /// the handler loads session and dialog for evaluation. See <see cref="FlirtyWebhookRegistration"/>.
     /// </remarks>
     public FlirtyOptions AddWebhook(TriggerScope scope, string url, string? expression = null)
     {
