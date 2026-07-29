@@ -1,25 +1,25 @@
 ---
 name: flirty-runtime-command
-description: Neue Engine-Operation (Mediator-Command/Query) in der Flirty-Runtime hinzufügen – inkl. Handler, DI-Registrierung, Test und optionalem ASP.NET-Endpunkt. Verwenden bei "neuer Command", "neue Query", "neue Runtime-Operation", "IFlirtyEngine erweitern", "neuen Endpunkt für eine Engine-Aktion".
+description: Add a new engine operation (Mediator command/query) to the Flirty runtime – incl. handler, DI registration, test and optional ASP.NET endpoint. Use for "new command", "new query", "new runtime operation", "extend IFlirtyEngine", "new endpoint for an engine action".
 ---
 
-# Neuen Runtime-Command/Query hinzufügen
+# Add a new runtime command/query
 
-Kanonischer Erweiterungspfad der Engine. Alle Engine-Operationen sind **Mediator-Commands/Queries**
-und liegen im **Core** (`src/Flirty`), weil der Mediator-Source-Generator (martinothamar) Handler nur
-in derselben Compilation entdeckt. Referenz: `docs/RUNTIME.md`, `docs/MEDIATOR.md`.
+Canonical extension path of the engine. All engine operations are **Mediator commands/queries** and
+live in the **core** (`src/Flirty`), because the Mediator source generator (martinothamar) only
+discovers handlers in the same compilation. Reference: `docs/RUNTIME.md`, `docs/MEDIATOR.md`.
 
-## Vorbilder (vor dem Schreiben lesen)
+## Prior art (read before writing)
 
-- `src/Flirty/Runtime/SubmitAnswerCommand.cs` – Command mit Ergebnis-Record, Persistenz + Branching.
-- `src/Flirty/Runtime/ResumeDialogQuery.cs` – rein lesende Query (kein `SaveChangesAsync`).
-- `src/Flirty/Runtime/TransitionResolver.cs` – geteilte Branching-Logik (nicht duplizieren).
-- `src/Flirty/Runtime/IFlirtyEngine.cs` + `FlirtyEngine.cs` – Facade über `ISender`.
-- `src/Flirty/DependencyInjection/FlirtyServiceCollectionExtensions.cs` – DI-Verdrahtung.
+- `src/Flirty/Runtime/SubmitAnswerCommand.cs` – command with a result record, persistence + branching.
+- `src/Flirty/Runtime/ResumeDialogQuery.cs` – purely reading query (no `SaveChangesAsync`).
+- `src/Flirty/Runtime/TransitionResolver.cs` – shared branching logic (do not duplicate).
+- `src/Flirty/Runtime/IFlirtyEngine.cs` + `FlirtyEngine.cs` – facade over `ISender`.
+- `src/Flirty/DependencyInjection/FlirtyServiceCollectionExtensions.cs` – DI wiring.
 
-## Schritte
+## Steps
 
-1. **Command/Query + Ergebnis** in `src/Flirty/Runtime/` anlegen:
+1. **Command/query + result** in `src/Flirty/Runtime/`:
    ```csharp
    public sealed record DoThingCommand(
        [property: Required] Guid SessionId,
@@ -27,11 +27,11 @@ in derselben Compilation entdeckt. Referenz: `docs/RUNTIME.md`, `docs/MEDIATOR.m
 
    public sealed record DoThingResult(Guid SessionId, bool IsCompleted);
    ```
-   - `[Required]` greift über das `ValidationPipelineBehavior` gegen `null`/leere Strings, **nicht**
-     gegen `Guid.Empty` (Werttyp) – leere Ids fachlich im Handler behandeln.
-   - Rückgabe- und Frage-Sichten schlank halten (siehe `QuestionView`/`SessionAnswerView` in `RUNTIME.md`).
+   - `[Required]` takes effect via the `ValidationPipelineBehavior` against `null`/empty strings, **not**
+     against `Guid.Empty` (value type) – handle empty ids in the handler instead.
+   - Keep return and question views lean (see `QuestionView`/`SessionAnswerView` in `RUNTIME.md`).
 
-2. **Handler** (`internal sealed`, im selben Ordner):
+2. **Handler** (`internal sealed`, in the same folder):
    ```csharp
    internal sealed class DoThingCommandHandler(IDialogStore store, IExpressionEvaluator evaluator)
        : ICommandHandler<DoThingCommand, DoThingResult>
@@ -39,54 +39,56 @@ in derselben Compilation entdeckt. Referenz: `docs/RUNTIME.md`, `docs/MEDIATOR.m
        public async ValueTask<DoThingResult> Handle(DoThingCommand cmd, CancellationToken ct) { … }
    }
    ```
-   - Persistenz **ausschließlich** über `IDialogStore` (nie `FlirtyDbContext` direkt im Handler).
-   - Branching über den geteilten `TransitionResolver` auswerten, nicht neu implementieren.
-   - Bekannte Fehlertypen wiederverwenden: `SessionNotFoundException`, `DialogNotFoundException`,
-     `ConfigurationNotFoundException`, sonst `InvalidOperationException` bei Fehlkonfiguration.
-   - Schreibende Handler: am Ende `SaveChangesAsync()`; Notifications **nach** dem Speichern publizieren
-     (siehe Skill `flirty-trigger-notification`).
+   - Persistence **exclusively** via `IDialogStore` (never `FlirtyDbContext` directly in the handler).
+   - Evaluate branching via the shared `TransitionResolver`, do not reimplement it.
+   - Reuse known error types: `SessionNotFoundException`, `DialogNotFoundException`,
+     `ConfigurationNotFoundException`, otherwise `InvalidOperationException` on misconfiguration.
+   - Writing handlers: `SaveChangesAsync()` at the end; publish notifications **after** saving
+     (see skill `flirty-trigger-notification`).
 
-3. **Facade** (optional, wenn die Operation typisiert erreichbar sein soll): Methode in
-   `IFlirtyEngine.cs` ergänzen und in `FlirtyEngine.cs` als dünnen `ISender.Send(...)`-Aufruf umsetzen.
+3. **Facade** (optional, if the operation should be reachable in a typed way): add a method in
+   `IFlirtyEngine.cs` and implement it in `FlirtyEngine.cs` as a thin `ISender.Send(...)` call.
 
-4. **DI:** In der Regel **nichts** zu tun – Command-/Query-Handler registriert der Source-Generator
-   automatisch. Nur ein neues **Pipeline-Behavior** oder eine **geschlossene** Behavior-Registrierung
-   (wie `AnswerValidationPipelineBehavior` für Submit/Edit) muss manuell in
-   `FlirtyServiceCollectionExtensions.cs` ergänzt werden.
+4. **DI:** usually **nothing** to do – command/query handlers are registered automatically by the
+   source generator. Only a new **pipeline behavior** or a **closed** behavior registration (like
+   `AnswerValidationPipelineBehavior` for submit/edit) must be added manually in
+   `FlirtyServiceCollectionExtensions.cs`.
 
-5. **Test** in `tests/Flirty.Tests/Runtime/`: gegen SQLite in-memory durch die volle Pipeline via
-   `IFlirtyEngine`. Deutsche, snake_case-artige Testnamen. Erfolgs- **und** Fehlerfälle abdecken.
+5. **Test** in `tests/Flirty.Tests/Runtime/`: against SQLite in-memory through the full pipeline via
+   `IFlirtyEngine`. English, snake_case-ish test names. Cover success **and** failure cases.
 
-6. **Endpunkt** (optional, nur wenn HTTP nötig): siehe Abschnitt unten.
+6. **Endpoint** (optional, only if HTTP is needed): see the section below.
 
-> **Ändert der Command den Konfigurationsgraphen eines Dialogs** (Fragen, Antwortoptionen, Übergänge,
-> Schleifen-Marker, Trigger, Einstiegsfrage)? Dann gehört als **erste** Vorbedingung im Handler
+> **Does the command change the configuration graph of a dialog** (questions, answer options,
+> transitions, loop markers, triggers, entry question)? Then it belongs as the **first** precondition in
+> the handler:
 > ```csharp
 > await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 > ```
-> hinein – bzw. `DialogEditGuard.EnsureEditable(dialog)`, wenn der Dialog schon geladen ist. Eine
-> veröffentlichte Version ist unveränderlich, weil laufende Sessions ihren Graphen aus derselben Zeile
-> laden (ADR `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`). Der Guard steht **vor**
-> dem Auflösen der Kind-Elemente, damit die verständliche Konflikt-Meldung gewinnt und nicht ein
-> Not-Found aus einer Folgeprüfung. Im Test: der Fall „veröffentlicht → `DialogPublishedException`"
-> gehört dazu (Muster: `tests/Flirty.Tests/Runtime/DialogVersioningTests.cs`).
+> – or `DialogEditGuard.EnsureEditable(dialog)` if the dialog is already loaded. A published version is
+> immutable, because running sessions load their graph from the same row (ADR
+> `docs/adr/0005-unveraenderliche-veroeffentlichte-dialogversion.md`). The guard sits **before**
+> resolving the child elements, so the understandable conflict message wins and not a not-found from a
+> follow-up check. In the test: the case "published → `DialogPublishedException`" belongs there (pattern:
+> `tests/Flirty.Tests/Runtime/DialogVersioningTests.cs`).
 
-## Optionaler ASP.NET-Endpunkt (`Flirty.AspNetCore`)
+## Optional ASP.NET endpoint (`Flirty.AspNetCore`)
 
-- Request-/Response-**DTO** in `src/Flirty.AspNetCore/Dtos/` (Admin: `Dtos/Admin/`).
-- Route in `FlirtyEndpointRouteBuilderExtensions.cs` (Admin: `FlirtyAdminEndpointRouteBuilderExtensions.cs`)
-  ergänzen: DTO → Command mappen, `ISender.Send(...)`, Ergebnis → Response mappen.
-- Mapping in `src/Flirty.AspNetCore/Mapping/` (kein Auto-Mapper – Handmapping wie im Bestand).
-- Engine-Ausnahmen werden vom `FlirtyExceptionEndpointFilter` auf `ProblemDetails` (404/400/409)
-  abgebildet – neue Ausnahmetypen dort ergänzen, falls ein anderer Statuscode gewünscht ist.
-- Endpunkt-Test in `tests/Flirty.Tests/AspNetCore/` über `FlirtyTestHost`.
+- Request/response **DTO** in `src/Flirty.AspNetCore/Dtos/` (admin: `Dtos/Admin/`).
+- Add the route in `FlirtyEndpointRouteBuilderExtensions.cs` (admin:
+  `FlirtyAdminEndpointRouteBuilderExtensions.cs`): map DTO → command, `ISender.Send(...)`, map result →
+  response.
+- Mapping in `src/Flirty.AspNetCore/Mapping/` (no auto-mapper – hand mapping as in the existing code).
+- Engine exceptions are mapped by the `FlirtyExceptionEndpointFilter` to `ProblemDetails` (404/400/409) –
+  add new exception types there if a different status code is wanted.
+- Endpoint test in `tests/Flirty.Tests/AspNetCore/` via `FlirtyTestHost`.
 
 ## Definition of Done
 
-Deutsche XML-Docs auf aller neuen public API (CS1591 ist Fehler in den packbaren Projekten) · Tests grün
-· `docs/RUNTIME.md` (und ggf. `docs/GETTING-STARTED-WebApi.md`) aktualisiert.
+English XML docs on all new public API (CS1591 is an error in the packable projects) · tests green
+· `docs/RUNTIME.md` (and possibly `docs/GETTING-STARTED-WebApi.md`) updated.
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet build Flirty.sln

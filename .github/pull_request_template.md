@@ -1,30 +1,30 @@
-<!-- Titel im Format: <typ>: <kurzbeschreibung> – #<issue>  (typ = feat|fix|chore|docs|test) -->
+<!-- Title format: <type>: <short description> – #<issue>  (type = feat|fix|chore|docs|test) -->
 
-## Überblick
+## Overview
 
-<!-- Was ändert dieser PR und warum? 1–3 Sätze. -->
+<!-- What does this PR change and why? 1–3 sentences. -->
 
-Schließt #<issue>
+Closes #<issue>
 
-## Art der Änderung
+## Type of change
 
 - [ ] Feature
 - [ ] Bugfix
-- [ ] Chore / Infrastruktur
-- [ ] Doku
+- [ ] Chore / infrastructure
+- [ ] Docs
 - [ ] Test
 
-## Checkliste
+## Checklist
 
-- [ ] Baut sauber: `dotnet build Flirty.sln` (keine Warnungen – `TreatWarningsAsErrors`)
-- [ ] Tests grün: `dotnet test` (neue Logik durch Tests abgedeckt)
-- [ ] Deutsche XML-Docs auf neuer/geänderter public API (CS1591 ist Fehler in den packbaren Projekten)
-- [ ] Bei Domain-/Schema-Änderung: Migration für **alle drei** Provider erzeugt (SQLite/PostgreSQL/SQL Server)
-- [ ] **Doku mitgepflegt:** betroffener `docs/`-Guide aktualisiert
-- [ ] **Kontext/Skills mitgepflegt:** `CLAUDE.md` und die betroffenen `.claude/skills/` sind noch korrekt
-      (siehe Abschnitt „Kontext & Doku mitpflegen" in `CLAUDE.md`)
-- [ ] Projektstatus nachgezogen, falls ein Feature abgeschlossen wurde (Abschnitt „Stand & offene Baustellen")
+- [ ] Builds clean: `dotnet build Flirty.sln` (no warnings – `TreatWarningsAsErrors`)
+- [ ] Tests green: `dotnet test` (new logic covered by tests)
+- [ ] English XML docs on new/changed public API (CS1591 is an error in the packable projects)
+- [ ] On a domain/schema change: migration generated for **all three** providers (SQLite/PostgreSQL/SQL Server)
+- [ ] **Docs kept in sync:** affected `docs/` guide updated
+- [ ] **Context/skills kept in sync:** `CLAUDE.md` and the affected `.claude/skills/` are still correct
+      (see section "Keeping context & docs in sync" in `CLAUDE.md`)
+- [ ] Project status updated if a feature was completed (section "Status & open work")
 
-## Hinweise für Reviewer
+## Notes for reviewers
 
-<!-- Optional: Besonderheiten, offene Punkte, Testanweisungen. -->
+<!-- Optional: specifics, open points, testing instructions. -->

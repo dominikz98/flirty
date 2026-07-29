@@ -1,60 +1,60 @@
 ---
 name: flirty-ef-migration
-description: EF-Core-Migration für Flirty erzeugen oder eine Domain-/Persistenz-Änderung durchführen – über alle drei Provider (SQLite, PostgreSQL, SQL Server) synchron. Verwenden bei "neue Migration", "dotnet ef", "Entity ändern", "Spalte hinzufügen", "DbContext/Konfiguration ändern", "Schema anpassen".
+description: Create an EF Core migration for Flirty or make a domain/persistence change – synchronized across all three providers (SQLite, PostgreSQL, SQL Server). Use for "new migration", "dotnet ef", "change entity", "add column", "change DbContext/configuration", "adjust schema".
 ---
 
-# EF-Migration pro Provider / Domain-Änderung
+# EF migration per provider / domain change
 
-Flirty hält jede Provider-Migration in einem **eigenen Assembly**
-(`src/Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`), weil EF Core Migrationen provider-unabhängig
-dem Context zuordnet und beim Anwenden das ganze Assembly scannt. **Nach jeder Modelländerung müssen
-alle drei Sets mit gleichem Namen neu erzeugt werden.** Referenz: `docs/PERSISTENCE.md`,
+Flirty keeps each provider migration in its **own assembly**
+(`src/Flirty.Migrations.{Sqlite,PostgreSql,SqlServer}`), because EF Core assigns migrations to the
+context in a provider-independent way and scans the whole assembly when applying them. **After every
+model change all three sets must be regenerated with the same name.** Reference: `docs/PERSISTENCE.md`,
 `docs/DOMAIN-MODEL.md`, ADR `docs/adr/0001-migrationen-pro-provider.md`.
 
-## Provider-Zuordnung
+## Provider mapping
 
-| Provider | Migrations-Assembly / `--project` |
+| Provider | Migrations assembly / `--project` |
 |---|---|
 | SQLite | `src/Flirty.Migrations.Sqlite` |
 | PostgreSQL | `src/Flirty.Migrations.PostgreSql` |
 | SQL Server | `src/Flirty.Migrations.SqlServer` |
 
-Jedes Migrations-Projekt hat eine `internal sealed IDesignTimeDbContextFactory<FlirtyDbContext>`, die den
-Provider samt `MigrationsAssembly` setzt (Connection-String ist ein Platzhalter – `migrations add`
-verbindet nicht).
+Each migrations project has an `internal sealed IDesignTimeDbContextFactory<FlirtyDbContext>` that sets
+the provider together with `MigrationsAssembly` (the connection string is a placeholder – `migrations
+add` does not connect).
 
-## Schritt A – Domain-/Persistenz-Änderung (falls Modell betroffen)
+## Step A – domain/persistence change (if the model is affected)
 
-1. Entity in `src/Flirty/Domain/` anlegen/ändern (`sealed`, Timestamps als **UTC** `DateTimeOffset`).
-2. EF-Konfiguration in `src/Flirty/Persistence/Configurations/<Entity>Configuration.cs` (Keys, Indizes,
-   Beziehungen). Neue Entity zusätzlich im `FlirtyDbContext` (`src/Flirty/Persistence/FlirtyDbContext.cs`)
-   verdrahten.
-3. **Provider-Fallstricke** (aus `docs/PERSISTENCE.md`) beachten:
-   - Fachliche Schlüssel als **Text mit Länge 256** (SQL Server erlaubt `nvarchar(max)` nicht als
-     Indexschlüssel) – Konstante in `PersistenceConstants.cs`.
-   - JSON (`Value`/`Config`/`ValidationRules`) als **unbegrenzte Textspalten**, **nicht** native
+1. Create/change the entity in `src/Flirty/Domain/` (`sealed`, timestamps as **UTC** `DateTimeOffset`).
+2. EF configuration in `src/Flirty/Persistence/Configurations/<Entity>Configuration.cs` (keys, indexes,
+   relationships). Also wire a new entity into the `FlirtyDbContext`
+   (`src/Flirty/Persistence/FlirtyDbContext.cs`).
+3. Mind the **provider pitfalls** (from `docs/PERSISTENCE.md`):
+   - Business keys as **text with length 256** (SQL Server does not allow `nvarchar(max)` as an index
+     key) – constant in `PersistenceConstants.cs`.
+   - JSON (`Value`/`Config`/`ValidationRules`) as **unbounded text columns**, **not** native
      `json`/`jsonb`.
-   - Enums als `int` speichern.
-   - **Keine** Unique-Indizes über `null`-fähige Spalten (divergente Null-Semantik).
-   - Timestamps UTC-normalisiert (Npgsql `timestamptz` verlangt Offset == UTC).
+   - Store enums as `int`.
+   - **No** unique indexes over `null`-able columns (divergent null semantics).
+   - Timestamps UTC-normalized (Npgsql `timestamptz` requires offset == UTC).
 
-## Schritt B – Migration je Provider erzeugen
+## Step B – generate a migration per provider
 
-Einmalig `dotnet tool restore` (dotnet-ef ist lokales Tool, `.config/dotnet-tools.json`). Dann **für
-jeden Provider** mit **demselben Migrationsnamen**:
+Once `dotnet tool restore` (dotnet-ef is a local tool, `.config/dotnet-tools.json`). Then **for each
+provider** with the **same migration name**:
 
 ```pwsh
 dotnet ef migrations add <Name> `
   --project src/Flirty.Migrations.Sqlite `
   --startup-project src/Flirty.Migrations.Sqlite `
   --context FlirtyDbContext --output-dir Migrations
-# analog: Flirty.Migrations.PostgreSql und Flirty.Migrations.SqlServer
+# likewise: Flirty.Migrations.PostgreSql and Flirty.Migrations.SqlServer
 ```
 
-`--project` und `--startup-project` zeigen beide auf **dasselbe** Migrations-Projekt (dessen
-Design-Time-Factory liefert Provider + `MigrationsAssembly`).
+`--project` and `--startup-project` both point at the **same** migrations project (whose design-time
+factory supplies the provider + `MigrationsAssembly`).
 
-## Schritt C – SQL prüfen (ohne Datenbank)
+## Step C – check SQL (without a database)
 
 ```pwsh
 dotnet ef migrations script `
@@ -62,22 +62,23 @@ dotnet ef migrations script `
   --startup-project src/Flirty.Migrations.PostgreSql --idempotent
 ```
 
-Hinweis: **SQLite unterstützt `--idempotent` nicht** – dort ohne das Flag scripten.
+Note: **SQLite does not support `--idempotent`** – script there without the flag.
 
-## Schritt D – Tests
+## Step D – tests
 
-`tests/Flirty.Tests/Persistence/` wendet je Provider `InitialCreate`/Migrationen via
-`Database.Migrate()` an und prüft einen Aggregat-Round-Trip (`ProviderMigrationAssertions`,
-`TestDialogFactory`). PostgreSQL/SQL Server laufen über Testcontainers (Docker); ohne Docker per
-`[SkippableFact]` übersprungen. SQLite läuft immer (in-memory).
+`tests/Flirty.Tests/Persistence/` applies `InitialCreate`/migrations per provider via
+`Database.Migrate()` and checks an aggregate round-trip (`ProviderMigrationAssertions`,
+`TestDialogFactory`). PostgreSQL/SQL Server run via Testcontainers (Docker); without Docker they are
+skipped via `[SkippableFact]`. SQLite always runs (in-memory).
 
 ## Definition of Done
 
-Alle **drei** Migrations-Sets aktuell und namensgleich · deutsche XML-Docs auf neuer public Domain-API ·
-Tests grün (mit Docker auch PostgreSQL/SQL Server) · `docs/PERSISTENCE.md`/`docs/DOMAIN-MODEL.md`
-aktualisiert · bei Grundsatzentscheidung ggf. neuer ADR in `docs/adr/`.
+All **three** migration sets up to date and identically named · English XML docs on new public domain
+API · tests green (with Docker also PostgreSQL/SQL Server) ·
+`docs/PERSISTENCE.md`/`docs/DOMAIN-MODEL.md` updated · on a fundamental decision possibly a new ADR in
+`docs/adr/`.
 
-## Verifikation
+## Verification
 
 ```pwsh
 dotnet build Flirty.sln

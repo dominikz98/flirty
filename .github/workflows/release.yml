@@ -1,35 +1,35 @@
 name: Release
 
-# Veröffentlichung der beiden NuGet-Pakete (#49). BEWUSST manuell: ein Push auf NuGet.org ist
-# unwiderruflich (Versionen lassen sich nur unlisten, nicht löschen). Deshalb kein Tag-/Push-Trigger,
-# sondern workflow_dispatch + Freigabe-Gate über die Environment "nuget". Details: docs/NUGET-PACKAGING.md.
+# Publishing of the two NuGet packages (#49). DELIBERATELY manual: a push to NuGet.org is
+# irreversible (versions can only be unlisted, not deleted). Hence no tag/push trigger, but
+# workflow_dispatch + an approval gate via the "nuget" environment. Details: docs/NUGET-PACKAGING.md.
 on:
   workflow_dispatch:
     inputs:
       revision:
-        description: 'Paket-Revision. Version = JJJJMM.<Revision>.0 (NuGet ergänzt die 3. Stelle). Leer = Run-Nummer dieses Workflows.'
+        description: 'Package revision. Version = YYYYMM.<revision>.0 (NuGet appends the 3rd segment). Empty = run number of this workflow.'
         required: false
         type: string
       dry_run:
-        description: 'Nur bauen, testen, packen und verifizieren – nicht veröffentlichen.'
+        description: 'Only build, test, pack and verify – do not publish.'
         required: false
         default: false
         type: boolean
 
-# Der Push braucht keinerlei GitHub-Rechte, nur das Secret aus der Environment.
+# The push needs no GitHub permissions at all, only the secret from the environment.
 permissions:
   contents: read
 
 concurrency:
-  # Bewusst OHNE cancel-in-progress: einen laufenden Push nicht mitten im Upload abschneiden.
+  # Deliberately WITHOUT cancel-in-progress: do not cut off a running push mid-upload.
   group: release
 
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  # MSBuild liest Env-Variablen als Properties -> überschreibt die Default-Revision (1) aus
-  # Directory.Build.targets konsistent für build UND pack. Ohne Input zählt die Run-Nummer dieses
-  # Workflows (eigener, monoton steigender Release-Zähler; die CI pusht ja nie).
+  # MSBuild reads env variables as properties -> overrides the default revision (1) from
+  # Directory.Build.targets consistently for build AND pack. Without an input, the run number of this
+  # workflow is used (its own, monotonically increasing release counter; CI never pushes anyway).
   BuildRevision: ${{ inputs.revision || github.run_number }}
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET SDK (aus global.json)
+      - name: Setup .NET SDK (from global.json)
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -51,35 +51,35 @@ jobs:
       - name: Build (Release)
         run: dotnet build Flirty.sln -c Release --no-restore
 
-      # Nur die Unit-/Integrationssuite, bewusst ohne Coverage und ohne die Playwright-E2E:
-      # Dieser Lauf baut die Binaries NEU (anderer Versionsstempel), deshalb müssen genau diese
-      # getestet werden – die Unit-Suite deckt beide Pakete zu 95,7 % (Zeilen) ab. Die E2E hob in #48
-      # gemessen genau einen Zweig (368 -> 369 von 430), kostet aber Browser-Installation und ist der
-      # Lauf, der auf den zwei Kernen des Runners am ehesten in Timeouts kippt. Siehe docs/CI.md.
-      - name: Test (Unit/Integration)
+      # Only the unit/integration suite, deliberately without coverage and without the Playwright E2E:
+      # This run builds the binaries ANEW (different version stamp), so exactly these must be tested –
+      # the unit suite covers both packages to 95.7 % (lines). In #48 the E2E was measured to add exactly
+      # one branch (368 -> 369 of 430), but it costs a browser install and is the run most likely to tip
+      # into timeouts on the runner's two cores. See docs/CI.md.
+      - name: Test (unit/integration)
         run: dotnet test tests/Flirty.Tests -c Release --no-build
 
-      - name: Pack (beide NuGet-Pakete)
+      - name: Pack (both NuGet packages)
         run: dotnet pack Flirty.sln -c Release --no-build -o artifacts
 
-      # Harter Guard vor dem Push: prüft das Akzeptanzkriterium des Issues ("beide Packages inkl.
-      # Symbols") an den realen Dateien – plus die vier DLLs aus IncludeFlirtyMigrationAssemblies
-      # (src/Flirty/Flirty.csproj), ohne die Paket-Konsumenten nicht auto-migrieren können.
-      - name: Pakete verifizieren
+      # Hard guard before the push: checks the issue's acceptance criterion ("both packages incl.
+      # symbols") against the real files – plus the four DLLs from IncludeFlirtyMigrationAssemblies
+      # (src/Flirty/Flirty.csproj), without which package consumers cannot auto-migrate.
+      - name: Verify packages
         run: |
           set -euo pipefail
 
           fail() { echo "::error::$1"; exit 1; }
 
-          # Vorsicht: "Flirty.*.nupkg" matcht auch Flirty.AspNetCore.*.nupkg. Die Version beginnt
-          # immer mit einer Ziffer, deshalb trennt "Flirty.[0-9]*" das Core-Paket sauber ab.
+          # Careful: "Flirty.*.nupkg" also matches Flirty.AspNetCore.*.nupkg. The version always
+          # starts with a digit, so "Flirty.[0-9]*" cleanly separates out the core package.
           for expected in \
             "artifacts/Flirty.[0-9]*.nupkg" \
             "artifacts/Flirty.[0-9]*.snupkg" \
             "artifacts/Flirty.AspNetCore.[0-9]*.nupkg" \
             "artifacts/Flirty.AspNetCore.[0-9]*.snupkg"
           do
-            compgen -G "$expected" > /dev/null || fail "Erwartete Datei fehlt: $expected"
+            compgen -G "$expected" > /dev/null || fail "Expected file missing: $expected"
           done
 
           core=$(compgen -G "artifacts/Flirty.[0-9]*.nupkg" | head -n1)
@@ -90,18 +90,18 @@ jobs:
                      Flirty.Migrations.SqlServer.dll
           do
             unzip -l "$core" | grep -q "lib/net10.0/$dll" \
-              || fail "$dll fehlt unter lib/net10.0/ in $core"
+              || fail "$dll missing under lib/net10.0/ in $core"
           done
 
           {
-            echo "### Pakete (Revision \`$BuildRevision\`)"
+            echo "### Packages (revision \`$BuildRevision\`)"
             echo
             echo '```'
             ls -1 artifacts/*.nupkg artifacts/*.snupkg
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload NuGet-Artefakte
+      - name: Upload NuGet artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nupkg
@@ -115,43 +115,43 @@ jobs:
     needs: build
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
-    # Trägt das Secret NUGET_API_KEY und (optional) die "Required reviewers" – das eigentliche
-    # Freigabe-Gate. Es sitzt bewusst ZWISCHEN Bauen und Pushen, damit das Artefakt vor der
-    # Freigabe eingesehen werden kann.
+    # Carries the NUGET_API_KEY secret and (optionally) the "Required reviewers" – the actual
+    # approval gate. It sits deliberately BETWEEN build and push, so the artifact can be inspected
+    # before approval.
     environment: nuget
     steps:
-      # Hier bewusst NICHT global.json: dieser Job checkt das Repo nicht aus (er lädt nur das
-      # Artefakt). Gebaut wird nichts mehr – die CLI schiebt nur noch fertige Dateien hoch.
+      # Deliberately NOT global.json here: this job does not check out the repo (it only downloads the
+      # artifact). Nothing is built anymore – the CLI merely pushes the finished files.
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: NuGet-Artefakte holen
+      - name: Fetch NuGet artifacts
         uses: actions/download-artifact@v4
         with:
           name: nupkg
           path: artifacts
 
-      # Das Glob bleibt GEQUOTET: dotnet löst es selbst auf. Die passenden .snupkg werden dabei
-      # automatisch mitgeschoben (sie liegen neben den .nupkg und NuGet.org hat einen Symbol-Server)
-      # -> kein zweiter Push nötig. --skip-duplicate macht einen Wiederholungslauf zum No-op.
+      # The glob stays QUOTED: dotnet resolves it itself. The matching .snupkg are pushed along
+      # automatically (they sit next to the .nupkg and NuGet.org has a symbol server)
+      # -> no second push needed. --skip-duplicate makes a re-run a no-op.
       - name: Push (nupkg + snupkg)
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           [ -n "${NUGET_API_KEY:-}" ] \
-            || { echo "::error::Secret NUGET_API_KEY fehlt in der Environment 'nuget'."; exit 1; }
+            || { echo "::error::Secret NUGET_API_KEY missing in the 'nuget' environment."; exit 1; }
           dotnet nuget push "artifacts/*.nupkg" \
             --source https://api.nuget.org/v3/index.json \
             --api-key "$NUGET_API_KEY" \
             --skip-duplicate
 
-      - name: Zusammenfassung
+      - name: Summary
         run: |
           {
-            echo "### Auf nuget.org veröffentlicht"
+            echo "### Published to nuget.org"
             echo
             for f in artifacts/*.nupkg; do
               echo "- \`$(basename "$f" .nupkg)\`"
