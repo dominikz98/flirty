@@ -480,6 +480,10 @@ Dialog-Editor oder direkt unter `/dialogs/{dialogId}/test` (`DialogTestRunner.ra
 Abnahme-Feature von EPIC 7: Fragen, Branching, Schleifen und Trigger lassen sich damit ausprobieren,
 ohne eine Host-App zu bauen.
 
+Seit #104 hat er **zwei Ansichten desselben Laufs**: die hier beschriebene Verlaufsliste und den Graphen
+mit dem gelaufenen Pfad (§ [Testlauf im Graphen](#testlauf-im-graphen-104)). Alles unter dieser
+Überschrift gilt für beide – die Ansicht wechselt nur, was aus dem Lauf gezeigt wird.
+
 ### Entwürfe durchspielen
 
 Der Runner startet über das Core-API **`IFlirtyEngine.StartDialogVersionAsync(dialogId, …)`** (#43,
@@ -560,14 +564,17 @@ Zwei Fallen, die beim Bau aufgeschlagen sind und beim Erweitern gelten:
 
 Die Seite `/dialogs/{id}/graph` (`Components/Pages/DialogGraph.razor`) zeigt denselben Dialog als
 **Graphen** statt als Formularstapel – verlinkt aus der Dialogliste und aus dem Kopf des Dialog-Editors.
-Am **Graphen** wird hier nichts geändert: Das übernehmen die bestehenden Editoren, die eine Auswahl im
-Inspector öffnet. Verschiebbar sind die Knoten aber (#102, siehe § Layout-Persistenz) – eine Position
-gehört nicht zum Graphen. Stufe 1 und 2 von **EPIC 11** (#99); Technik-Entscheidung in
-[ADR 0006](./adr/0006-canvas-technik-im-designer.md), Layout-Entscheidung in
-[ADR 0007](./adr/0007-layout-als-eigene-tabelle.md).
+Knoten sind verschiebbar (#102, § Layout-Persistenz), seit #103 ist der Canvas auch ein **Editor**
+(§ Editieren auf dem Canvas), und der Test-Runner zeigt seinen Lauf seit #104 auf demselben Bild
+(§ Testlauf im Graphen). Stufen 1–4 von **EPIC 11** (#99); Entscheidungen in
+[ADR 0006](./adr/0006-canvas-technik-im-designer.md) (Canvas-Technik),
+[ADR 0007](./adr/0007-layout-als-eigene-tabelle.md) (Layout als eigene Tabelle) und
+[ADR 0008](./adr/0008-gesten-auf-dem-canvas.md) (Gesten auf dem Canvas).
 
-Datenquelle ist der vorhandene `GetDialogQuery` über den `FlirtyAdminGateway`; geschrieben wird nur über
-`SetDialogLayoutCommand`/`ResetDialogLayoutCommand`.
+Datenquelle ist der vorhandene `GetDialogQuery` über den `FlirtyAdminGateway`; geschrieben wird
+ausschließlich über die bestehenden Admin-Commands – Positionen über
+`Set`/`ResetDialogLayoutCommand`, Graph-Änderungen über dieselben `Create`/`Update`/`Delete`-Commands, die
+auch die Listenansicht ruft. Es gibt kein Canvas-CRUD.
 
 | Baustein | Ort | Aufgabe |
 |---|---|---|
@@ -841,6 +848,88 @@ die ebenfalls vor dem Command laufen. Der Command prüft ohnehin erneut. Ein `@k
 die Instanz an das bearbeitete Element, damit ein begonnener Entwurf jeden Re-Render derselben Auswahl
 überlebt und beim Wechsel bewusst verworfen wird.
 
+### Testlauf im Graphen (#104)
+
+Stufe 4 macht aus der Verlaufsliste des Runners ein Bild: Der Test-Runner (§ Test-Runner) hat unter
+`/dialogs/{id}/test` **zwei Ansichten desselben Laufs** – „Verlauf" (die Liste, unverändert) und „Graph"
+(der Canvas mit dem gelaufenen Pfad). Der Umschalter steht über der Karte „Aktuelle Frage"; ein Deep-Link
+`?view=graph` öffnet direkt die Graph-Ansicht (so verlinkt der Graph-Editor „Durchspielen").
+
+**Es ist kein zweiter Runner.** Start, Antwort, Editieren und `ResumeDialogAsync` liegen unverändert in
+`DialogTestRunner.razor`; die Karte „Aktuelle Frage/Ergebnis" steht **außerhalb** des Umschalters und wird
+in beiden Ansichten gerendert. Damit ist „der listenbasierte Runner bleibt gleichwertig bedienbar"
+strukturell wahr statt zugesagt – es gibt nur eine Choreografie, und ein Wechsel der Ansicht berührt den
+Lauf nicht (auch eine begonnene Bearbeitung bleibt dieselbe). Der Hinweis **„Der Lauf ist echt"** steht
+ebenfalls über dem Umschalter: Die grafische Aufbereitung darf nicht harmloser aussehen, als der Lauf ist.
+
+| Baustein | Ort | Aufgabe |
+|---|---|---|
+| `GraphRunAnalyzer` | `Services/` | Leitet den Laufzustand aus `DialogDetail` + `ResumeDialogResult` + Trigger-Protokoll ab. |
+| `GraphRunOverlay` & Co. | `Models/GraphRunModel.cs` | Besuche, gegriffene Kanten, Schleifen-Zustand, Ereignisse. |
+| `GraphRunCanvas` | `Components/` | Der Canvas der Laufansicht (bindet auch das JS-Modul). |
+| `GraphRunInspector` | `Components/` | Antworten je Iteration, Bindungen und Ereignisse **am gewählten Knoten**. |
+
+#### Der Pfad ist abgeleitet, nicht protokolliert
+
+Die Engine hält **nicht** fest, welcher Übergang gegriffen hat: `SessionAnswer` trägt keine
+`TransitionId`, und `QuestionAnsweredNotification` nennt nur die nächste *Frage*. Der Pfad entsteht deshalb
+aus der Antwortfolge – zwei aufeinanderfolgende Antworten bilden das Paar *(von, nach)*, die letzte Antwort
+zusammen mit der offenen Frage das letzte Paar.
+
+Daraus folgt eine Grenze, die die Oberfläche benennt statt sie zu verdecken: **Liegen zwischen denselben
+zwei Fragen mehrere Übergänge, ist nicht entscheidbar, welcher gegriffen hat.** Dann sind alle markiert
+(gestrichelt statt durchgezogen), der Inspector sagt „mehrdeutig", und das `aria-label` nennt den Grund.
+Die Auswertung nachzustellen wäre nicht nur eine weitere Spiegelung des Core-`TransitionResolver`, sondern
+eine unmögliche: Sie bräuchte die Ausdruckswerte von *damals*.
+
+Der angenehme Nebeneffekt: **Ein Edit rechnet den Pfad ohne eigenen Code neu.** `EditAnswerCommand`
+verwirft die nachgelagerten Antworten, die Ableitung schrumpft mit – auch wenn der neue Pfad einen anderen
+Zweig nimmt.
+
+#### Was am Knoten steht
+
+- **Besucht** heißt: in diesem Lauf beantwortet. Die Karte zeigt dann statt der Konfigurationszeile
+  (Typ/Pflicht/Optionen) den **Wert der letzten Antwort**; der Typ steht im Inspector. Grund ist die feste
+  Kartenhöhe – sie schneidet Überlauf ab, beides nebeneinander verlöre eine der beiden Angaben.
+- **Offen** trägt das Badge „▶ offen". Ein Knoten kann offen *und* besucht sein: In einer Schleife wird
+  dieselbe Frage erneut gestellt.
+- **Iteration n** kommt aus dem Iterationsindex der letzten Antwort. Ein Zyklus **ohne** Schleifen-Marker
+  erzeugt keinen Index – dort steht „n× beantwortet", weil „Iteration" dort schlicht falsch wäre.
+- **Publizierte Trigger** hängen als `⚡`-Chip am auslösenden Knoten (Quelle: `DesignerTriggerLog`, wie im
+  Protokoll der Liste) und **blitzen einmal auf**. Gebündelt wird je Zeitpunkt („⚡ Antwort 2×"): Eine
+  Schleifenfrage sammelt zwei Ereignisse *pro* Iteration, ungebündelt sprengt die Chip-Reihe die Karte.
+  Die Einzelereignisse samt Zeit stehen im Inspector. Ereignisse ohne Frage-Bezug (Abschluss) – und solche
+  zu einer inzwischen gelöschten Frage – zeigt der Inspector dialogweit.
+- Das Aufblitzen läuft über `@keyframes` beim **Entstehen** des Chip-Elements; deshalb tragen die Chips
+  bewusst **kein** `@key` (ein neues Ereignis soll ein neues Element sein), und `prefers-reduced-motion`
+  bekommt dieselbe Aussage statisch.
+
+#### Iterationszahl und Bindungen
+
+Der Schleifenrahmen trägt die Zahl der Iterationen der **jüngsten** Schleifen-Instanz – dieselbe Auswahl,
+die der Core-`LoopResolver` für die Collection trifft – und wird durchgezogen gezeichnet, solange die
+offene Frage in seinem Bereich liegt.
+
+Die Ausdrucks-Bindungen (`RunExpressionContext`, § Ausdruckskontext) bleiben einsehbar, aber **am
+gewählten Knoten** statt nur global: seine eigene Antwort, die Collection jeder umschließenden Schleife –
+und `iterationIndex` **nur an der offenen Frage**. Er meint den Index der zuletzt gegebenen Antwort auf
+*genau diese* Frage; an einem anderen Knoten gezeigt behauptete er etwas Falsches. Für das Editieren je
+Iteration listet der Inspector die Antworten des Knotens mit ihrem Badge und je einer Schaltfläche
+„Bearbeiten" – dieselbe `EditAnswerAsync`-Operation wie in der Liste, inklusive Iterationsindex.
+
+#### Der Graph ist hier nicht bearbeitbar – Verschieben schon
+
+Eine laufende Session arbeitet auf genau diesem Graphen; ihn unter ihr wegzuändern ist die Falle, die #95
+teuer gemacht hat. Die Laufansicht rendert deshalb keine Palette und keine Ports und setzt
+`data-editable="false"` am `<svg>`. **Verschieben bleibt erlaubt** (`SetDialogLayoutCommand`, guard-frei,
+ADR 0007) und ist der einzige schreibende Weg dieser Ansicht.
+
+Anders als die Editor-Seite bindet hier die **Komponente** `GraphRunCanvas` das JS-Modul (dasselbe
+`DialogGraph.razor.js`) und reicht den beendeten Zug als `NodeMove` nach oben: Der Canvas gehört ihr, und
+der Rückkanal wäre sonst ein `ElementReference`, den die Seite durchreichen müsste. Ohne Palette im DOM und
+ohne gerenderte Ports laufen im Modul nur Verschieben, Zoomen und Panning an – `MoveNodeAsync` ist damit
+die einzige Nachricht, die von dort kommt.
+
 ### Inspector und Barrierefreiheit
 
 Der Inspector war in Stufe 1 eine reine Lesesicht mit Sprung; seit #103 bearbeitet er das gewählte
@@ -972,6 +1061,12 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   Trigger an Frage bzw. Scope-Marker, getrennt ausgewiesene verwaiste Übergänge und die
   `aria-label`-Beschreibung jedes Knotens; dazu (#102) der Schleifen-Rahmen über einer verschobenen
   Frage.
+- `Designer/GraphRunAnalyzerTests` – der Laufzustand über dem Graphen (#104), gespielt mit der **echten
+  Engine**: besuchte Knoten, offene Frage und gegriffene Kanten (samt der Gegenprobe, dass Rücksprung und
+  Ausstieg unmarkiert bleiben), die Iterationszahl der Schleife und ihr Verlassen, parallele Übergänge als
+  **mehrdeutig** – und als Kernprobe des Akzeptanzkriteriums, dass ein `EditAnswerCommand` den Pfad neu
+  rechnet und dabei den Zweig wechselt. Dazu die Trigger-Zuordnung (Knoten, dialogweit, `freshFrom`) ohne
+  Engine, weil sie am Protokoll hängt.
 - `Designer/DesignerTestHost` – kein Test, sondern der gemeinsame DI-Stack (Spiegel von `DesignerApp`)
   und die SQLite-Temp-Datenbank für die Gateway-Tests. Ändert sich `DesignerApp.ConfigureServices`, ist
   das die eine Stelle, die nachzuziehen ist.
@@ -1011,8 +1106,19 @@ Chat-UI der Web-Sample (#45/#47):
   Position aus der Datenbank), „Layout zurücksetzen" – danach liegt der Knoten wieder auf seiner
   Auto-Layout-Position. Dass der Dialog veröffentlicht ist, belegt zugleich die Guard-Ausnahme aus
   ADR 0007: Es erscheint keine Fehlermeldung.
+- `DesignerE2ETests.Graph_Palette_und_Port_legen_Fragen_und_Uebergang_an`,
+  `…Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade` und
+  `…Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` – die Gesten und der Lesemodus aus #103
+  (siehe den letzten Punkt unten: was davon im Browser belegt ist und was #105 bleibt).
+- `DesignerE2ETests.Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor` – der Testlauf im Graphen (#104)
+  auf demselben (unveröffentlichten) Dialog: umschalten, Lauf starten, zwei Iterationen; geprüft werden
+  besuchte Knoten mit ihrem Antwortwert, die offene Frage, die Zahl der gegriffenen Kanten nach jedem
+  Schritt, „2 Iterationen" am Schleifenrahmen und der `⚡`-Chip am Knoten. Danach der Inspector-Pfad
+  (Bindungen und Antworten je Iteration am gewählten Knoten), ein **Edit**, der den Pfad sichtbar schrumpfen
+  lässt – und zum Schluss zweimal umschalten: „Verlauf" zeigt denselben Lauf, „Graph" bindet den Canvas
+  neu. Das Zurückschalten ist zugleich die Probe, dass das Lösen der JS-Bindung den Circuit nicht reißt.
 
-Vier Punkte, die beim Erweitern der Suite Zeit sparen:
+Ein paar Punkte, die beim Erweitern der Suite Zeit sparen:
 
 - **Der Host braucht `ApplicationName = "Flirty.Designer"` und `EnvironmentName = "Development"`.**
   Nur so findet der `StaticWebAssetsLoader` die `*.staticwebassets.runtime.json` (er lädt sie über
@@ -1076,5 +1182,5 @@ dotnet test tests/Flirty.E2E
 
 **EPIC 11 – Visueller Graph-Designer (#99):** #100 Spike Canvas-Technik ✅ (ADR 0006) →
 #101 Graph-Ansicht (lesend) ✅ → #102 Layout-Persistenz + Verschieben ✅ (ADR 0007) →
-#103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen →
+#103 Editieren auf dem Canvas ✅ (ADR 0008) → #104 Testlauf im Graphen ✅ →
 #105 Playwright-E2E des Canvas.

@@ -17,13 +17,33 @@
     <foreignObject width="@SvgFormat.N(GraphMetrics.NodeWidth)" height="@SvgFormat.N(GraphMetrics.NodeHeight)">
         <button type="button"
                 class="graph-node-card"
-                aria-label="@Node.AriaLabel"
+                aria-label="@(Node.AriaLabel + RunLabel)"
                 aria-pressed="@(Selected ? "true" : "false")"
                 title="@Node.FullText"
                 @onclick="OnSelect">
             <span class="graph-node-head">
                 <span class="graph-node-key">@Node.Key</span>
 
+                @if (Run is { IsCurrent: true })
+                {
+                    <span class="badge badge-current" title="Diese Frage ist im Testlauf gerade offen">
+                        ▶ offen
+                    </span>
+                }
+                @if (LoopIteration is { } iteration)
+                {
+                    <span class="badge badge-loop" title="Iteration, in der diese Frage zuletzt beantwortet wurde">
+                        Iteration @iteration
+                    </span>
+                }
+                else if (AnswerCount > 1)
+                {
+                    @* Ein Zyklus OHNE Schleifen-Marker: Die Engine vergibt dann keinen Iterationsindex,
+                       beantwortet wurde die Frage trotzdem mehrfach. „Iteration“ zu behaupten wäre falsch. *@
+                    <span class="badge badge-loop" title="So oft wurde diese Frage im Lauf beantwortet">
+                        @AnswerCount× beantwortet
+                    </span>
+                }
                 @if (Node.IsStart)
                 {
                     <span class="badge badge-start">Einstieg</span>
@@ -50,25 +70,52 @@
 
             <span class="graph-node-text">@Node.Text</span>
 
-            <span class="graph-node-meta">
-                <span>@Node.TypeLabel</span>
-                @if (Node.IsRequired)
-                {
-                    <span class="graph-node-required">Pflicht</span>
-                }
-                @if (Node.UsesOptions)
-                {
-                    <span>@Node.OptionCount Option(en)</span>
-                }
-            </span>
+            @* Im Lauf ersetzt die gegebene Antwort die Konfigurationszeile (#104): Die Karte ist auf
+               ihre Höhe bemessen und schneidet Überlauf ab – beides passte nicht nebeneinander. Der Typ
+               ist in einem Lauf ohnehin die uninteressantere Angabe und steht weiterhin im Inspector. *@
+            @if (LastAnswer is { } answer)
+            {
+                <span class="graph-node-answer" title="@answer.Display">@answer.Display</span>
+            }
+            else
+            {
+                <span class="graph-node-meta">
+                    <span>@Node.TypeLabel</span>
+                    @if (Node.IsRequired)
+                    {
+                        <span class="graph-node-required">Pflicht</span>
+                    }
+                    @if (Node.UsesOptions)
+                    {
+                        <span>@Node.OptionCount Option(en)</span>
+                    }
+                </span>
+            }
 
-            @if (Node.Triggers.Count > 0)
+            @if (Node.Triggers.Count > 0 || Fired.Count > 0)
             {
                 <span class="graph-chips">
                     @foreach (var trigger in Node.Triggers)
                     {
                         <span class="chip @(trigger.Kind == TriggerKind.Webhook ? "chip-webhook" : "chip-inprocess")"
                               title="@trigger.Title">@trigger.Label</span>
+                    }
+                    @* Die im Lauf publizierten Ereignisse: Sie blitzen einmal auf und bleiben danach als
+                       Chip stehen.
+
+                       Zusammengefasst je Zeitpunkt und nicht je Ereignis: Eine Schleifenfrage sammelt
+                       zwei Einträge PRO Iteration (AfterAnswer und AfterQuestion), und ungebündelt sprengt
+                       die Chip-Reihe nach wenigen Runden die Karte – die schneidet Überlauf ab, der Wert
+                       der Antwort verschwände also. Die Einzelereignisse samt Zeit stehen im Inspector.
+
+                       Bewusst OHNE @key: Blazor gleicht dann über die Position ab, ein neuer Zeitpunkt
+                       wird ein neues Element, und dessen Entstehen startet die Animation. Ein Schlüssel
+                       über die Zeit wäre zudem nicht eindeutig – zwei Notifications desselben Schritts
+                       tragen denselben Zeitstempel. *@
+                    @foreach (var group in FiredGroups)
+                    {
+                        <span class="chip chip-fired @(group.IsFresh ? "is-fresh" : "")"
+                              title="@group.Title">⚡ @group.Label@(group.Count > 1 ? $" {group.Count}×" : "")</span>
                     }
                 </span>
             }
@@ -128,6 +175,51 @@
     [Parameter]
     public EventCallback<Guid> StartLink { get; set; }
 
+    /// <summary>
+    /// Der Laufzustand dieses Knotens im Testlauf (#104) oder <see langword="null"/> – letzteres sowohl
+    /// außerhalb eines Laufs als auch für Fragen, die der Lauf nicht berührt hat.
+    /// </summary>
+    [Parameter]
+    public GraphRunVisit? Run { get; set; }
+
+    /// <summary>Die an dieser Frage im Lauf publizierten Trigger-Ereignisse.</summary>
+    [Parameter]
+    public IReadOnlyList<GraphRunTrigger> Fired { get; set; } = [];
+
+    /// <summary>Eine Gruppe gleichartiger Ereignisse am selben Knoten.</summary>
+    /// <param name="Label">Der Zeitpunkt (kurz).</param>
+    /// <param name="Count">Wie oft er im Lauf ausgelöst hat.</param>
+    /// <param name="IsFresh">Ob darunter ein Ereignis des letzten Schritts ist.</param>
+    /// <param name="Title">Die vollständige Beschreibung für Tooltip und Screenreader.</param>
+    private sealed record FiredGroup(string Label, int Count, bool IsFresh, string Title);
+
+    /// <summary>Die Ereignisse dieses Knotens, je Zeitpunkt gebündelt.</summary>
+    private IReadOnlyList<FiredGroup> FiredGroups
+        =>
+        [
+            .. Fired
+                .GroupBy(trigger => trigger.Label, StringComparer.Ordinal)
+                .Select(group => new FiredGroup(
+                    group.Key,
+                    group.Count(),
+                    group.Any(trigger => trigger.IsFresh),
+                    group.Count() == 1
+                        ? group.First().Title
+                        : $"{group.Key}: {group.Count()}× ausgelöst, zuletzt {group.Last().Detail}")),
+        ];
+
+    /// <summary>Die zuletzt auf diese Frage gegebene Antwort des Laufs.</summary>
+    private GraphRunAnswer? LastAnswer => Run?.Answers.Count > 0 ? Run.Answers[^1] : null;
+
+    /// <summary>Wie oft die Frage im Lauf beantwortet wurde.</summary>
+    private int AnswerCount => Run?.Answers.Count ?? 0;
+
+    /// <summary>
+    /// Die 1-basierte Iteration der letzten Antwort – <see langword="null"/> außerhalb einer Schleife.
+    /// </summary>
+    private int? LoopIteration
+        => LastAnswer?.IterationIndex is { } index ? index + 1 : null;
+
     private string StateClasses
     {
         get
@@ -174,7 +266,54 @@
                 classes.Add("has-warning");
             }
 
+            if (AnswerCount > 0)
+            {
+                classes.Add("is-visited");
+            }
+
+            if (Run is { IsCurrent: true })
+            {
+                classes.Add("is-current");
+            }
+
             return string.Join(" ", classes);
+        }
+    }
+
+    /// <summary>
+    /// Der Zusatz zum <c>aria-label</c> im Testlauf. Ohne ihn läge der ganze Laufzustand nur als Farbe
+    /// und Strichform vor – für Screenreader also gar nicht (Zusage aus #101: Das Label ist die einzige
+    /// Fassung des Knotens).
+    /// </summary>
+    private string RunLabel
+    {
+        get
+        {
+            if (Run is null)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>(3);
+
+            if (Run.IsCurrent)
+            {
+                parts.Add("im Testlauf gerade offen");
+            }
+
+            if (LastAnswer is { } answer)
+            {
+                parts.Add(LoopIteration is { } iteration
+                    ? $"zuletzt beantwortet in Iteration {iteration} mit {answer.Display}"
+                    : $"beantwortet mit {answer.Display}");
+            }
+
+            if (Fired.Count > 0)
+            {
+                parts.Add($"{Fired.Count} ausgelöste(r) Trigger");
+            }
+
+            return parts.Count == 0 ? string.Empty : " Testlauf: " + string.Join(", ", parts) + ".";
         }
     }
 

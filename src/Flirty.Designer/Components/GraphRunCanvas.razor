@@ -1,0 +1,299 @@
+@*
+    Der Canvas der Laufansicht (#104): derselbe Graph wie im Editor, aber mit dem gelaufenen Pfad
+    darüber – besuchte Knoten, gegriffene Kanten, Iterationszahl am Schleifenrahmen.
+
+    Der Graph selbst ist hier NICHT bearbeitbar: Eine laufende Session arbeitet auf genau diesem
+    Graphen, und ihn unter ihr wegzuändern ist die Falle, die #95 teuer gemacht hat. Verschieben bleibt
+    erlaubt – eine Position gehört nicht zum Graphen (ADR 0007) – und ist der einzige schreibende Weg
+    von hier.
+
+    Anders als die Editor-Seite bindet diese Komponente das JS-Modul selbst: Der Canvas gehört ihr, und
+    der Rückkanal für den Zug wäre sonst ein ElementReference, den die Seite durchreichen müsste. Das
+    Modul ist unverändert das aus #101–#103; ohne Palette im DOM und ohne gerenderte Ports laufen dort
+    nur Verschieben, Zoomen und Panning an.
+*@
+@implements IAsyncDisposable
+@using Flirty.Domain
+@inject IJSRuntime JS
+
+<div class="graph-canvas-host">
+    @* Erst die Worte, dann das Bild: Ein Screenreader soll den Stand des Laufs erfahren, ohne 30 Knoten
+       abzulaufen. Der Text ist zweiteilig – Aufbau des Graphen (#101) und Stand des Laufs (#104). *@
+    <p class="visually-hidden" aria-live="polite">@Model.Summary @Run.Summary</p>
+
+    <svg @ref="_canvas"
+         class="graph-canvas is-run"
+         role="group"
+         aria-label="@($"{Model.Summary} {Run.Summary}")"
+         data-editable="false"
+         data-busy="@(Busy ? "true" : "false")"
+         viewBox="0 @SvgFormat.N(Model.MinY) @SvgFormat.N(Model.Width) @SvgFormat.N(Model.Height)">
+        <defs>
+            <marker id="graph-run-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="graph-arrow-head" />
+            </marker>
+            <marker id="graph-run-arrow-taken" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="graph-arrow-head is-taken" />
+            </marker>
+        </defs>
+
+        @* Das transform dieser Gruppe gehört dem JS-Modul – C# rendert es nie (ADR 0006). *@
+        <g class="graph-viewport">
+            @* Reihenfolge wie im Editor: Rahmen, dann Kanten, dann Knoten. Läge eine Kante über einem
+               Knoten, verschluckte ihr Trefferpfad den Klick auf die Knotenmitte. *@
+            @foreach (var loop in Model.Loops.Where(frame => frame.Width > 0))
+            {
+                var state = Run.Loop(loop.LoopId);
+
+                <g class="graph-loop @(state is { Iterations: > 0 } ? "is-run" : "") @(state is { IsActive: true } ? "is-active" : "") @(IsSelected(GraphElementKind.Loop, loop.LoopId) ? "is-selected" : "")"
+                   @key="loop.LoopId">
+                    <rect class="graph-loop-frame"
+                          x="@SvgFormat.N(loop.X)" y="@SvgFormat.N(loop.Y)"
+                          width="@SvgFormat.N(loop.Width)" height="@SvgFormat.N(loop.Height)"
+                          rx="14" />
+                    <foreignObject x="@SvgFormat.N(loop.X)" y="@SvgFormat.N(loop.Y - 26)"
+                                   width="@SvgFormat.N(Math.Max(loop.Width, 220))" height="26">
+                        <button type="button" class="graph-loop-label"
+                                aria-label="@LoopLabel(loop, state)"
+                                @onclick="() => Select.InvokeAsync(new GraphSelection(GraphElementKind.Loop, loop.LoopId))">
+                            ↻ @loop.CollectionKey
+                            @if (state is { Iterations: > 0 } running)
+                            {
+                                <span class="graph-loop-iterations">
+                                    @running.Iterations @(running.Iterations == 1 ? "Iteration" : "Iterationen")
+                                </span>
+                            }
+                        </button>
+                    </foreignObject>
+                </g>
+            }
+
+            @* data-from/data-to bleiben: Das JS-Modul dimmt darüber die anliegenden Kanten, während ein
+               Knoten gezogen wird, statt ihren Verlauf im Browser nachzurechnen. *@
+            @foreach (var edge in Model.Edges)
+            {
+                var use = Run.Edge(edge.TransitionId);
+
+                <g class="graph-edge @EdgeClasses(edge, use)" @key="edge.TransitionId"
+                   data-from="@edge.FromQuestionId" data-to="@edge.TargetQuestionId">
+                    <path class="graph-edge-line" d="@edge.Path"
+                          marker-end="@(use is null ? "url(#graph-run-arrow)" : "url(#graph-run-arrow-taken)")" />
+                    <path class="graph-edge-hit" d="@edge.Path"
+                          role="img" aria-label="@($"{edge.AriaLabel} {EdgeRunLabel(use)}")" tabindex="-1"
+                          @onclick="() => Select.InvokeAsync(new GraphSelection(GraphElementKind.Transition, edge.TransitionId))" />
+                    <text class="graph-edge-label" aria-hidden="true"
+                          x="@SvgFormat.N(edge.LabelX)" y="@SvgFormat.N(edge.LabelY)">@edge.Label</text>
+                </g>
+            }
+
+            @foreach (var node in Model.Nodes)
+            {
+                <GraphNodeCard @key="node.QuestionId"
+                               Node="node"
+                               Selected="IsSelected(GraphElementKind.Question, node.QuestionId)"
+                               Editable="false"
+                               Run="Run.Visit(node.QuestionId)"
+                               Fired="Run.TriggersOf(node.QuestionId)"
+                               Select="OnSelectQuestion" />
+            }
+
+            @if (Model.StartMarker is { } start)
+            {
+                @ScopeMarker(start)
+            }
+            @if (Model.EndMarker is { } end)
+            {
+                @ScopeMarker(end)
+            }
+        </g>
+    </svg>
+</div>
+
+@code {
+    /// <summary>Das Zeichenmodell des Graphen – unverändert das der Editor-Ansicht (#101).</summary>
+    [Parameter, EditorRequired]
+    public required DialogGraphModel Model { get; set; }
+
+    /// <summary>Der Laufzustand darüber.</summary>
+    [Parameter, EditorRequired]
+    public required GraphRunOverlay Run { get; set; }
+
+    /// <summary>Das gewählte Element oder <see langword="null"/>.</summary>
+    [Parameter]
+    public GraphSelection? Selection { get; set; }
+
+    /// <summary>Ob gerade ein Engine-Schritt oder ein Layout-Schreibvorgang läuft.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Meldet die neue Auswahl.</summary>
+    [Parameter]
+    public EventCallback<GraphSelection> Select { get; set; }
+
+    /// <summary>Meldet die neue Position eines gezogenen Knotens.</summary>
+    [Parameter]
+    public EventCallback<NodeMove> Move { get; set; }
+
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<GraphRunCanvas>? _self;
+
+    /// <summary>
+    /// Nimmt den beendeten Zug eines Knotens entgegen – die <b>einzige</b> Nachricht, die das JS-Modul
+    /// aus dieser Ansicht schickt (die übrigen Gesten setzen Palette bzw. Port voraus, und beide werden
+    /// hier nicht gerendert).
+    /// </summary>
+    /// <param name="questionId">Die verschobene Frage.</param>
+    /// <param name="x">Die neue waagerechte Canvas-Koordinate in px.</param>
+    /// <param name="y">Die neue senkrechte Canvas-Koordinate in px.</param>
+    [JSInvokable]
+    public Task MoveNodeAsync(Guid questionId, int x, int y)
+        => Move.InvokeAsync(new NodeMove(questionId, x, y));
+
+    /// <summary>Zoomt um die Mitte der Ansicht – der Weg der Werkzeugleiste.</summary>
+    /// <param name="factor">Der Faktor (&gt; 1 vergrößert).</param>
+    public async Task ZoomAsync(double factor)
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("zoomBy", _canvas, factor);
+        }
+    }
+
+    /// <summary>Setzt Verschiebung und Zoom zurück.</summary>
+    public async Task ResetViewAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("resetViewport", _canvas);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Das Modul selbst ist die Wahrheit darüber, ob gebunden ist – ein zusätzliches Flag müsste an
+        // jedem Ansichtswechsel mit zurückgesetzt werden.
+        if (_module is not null)
+        {
+            return;
+        }
+
+        _module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./Components/Pages/DialogGraph.razor.js");
+        _self = DotNetObjectReference.Create(this);
+
+        await _module.InvokeVoidAsync(
+            "attach",
+            _canvas,
+            _self,
+            new
+            {
+                minZoom = GraphMetrics.MinZoom,
+                maxZoom = GraphMetrics.MaxZoom,
+                zoomStep = GraphMetrics.ZoomStep,
+                nodeWidth = GraphMetrics.NodeWidth,
+                nodeHeight = GraphMetrics.NodeHeight,
+            });
+    }
+
+    private bool IsSelected(GraphElementKind kind, Guid id)
+        => Selection is { } selection && selection.Kind == kind && selection.Id == id;
+
+    private Task OnSelectQuestion(Guid questionId)
+        => Select.InvokeAsync(new GraphSelection(GraphElementKind.Question, questionId));
+
+    /// <summary>
+    /// Die Zustandsklassen einer Kante. Eine gegriffene Kante ist nicht nur farbig, sondern auch dicker
+    /// und durchgezogen – keine Aussage darf allein an der Farbe hängen (Befund #95).
+    /// </summary>
+    private string EdgeClasses(GraphEdge edge, GraphRunEdgeUse? use)
+    {
+        var classes = new List<string>(5) { $"shape-{edge.Shape.ToString().ToLowerInvariant()}" };
+
+        if (edge.IsDefault)
+        {
+            classes.Add("is-default");
+        }
+
+        if (edge.IsBackJump)
+        {
+            classes.Add("is-backjump");
+        }
+
+        if (use is not null)
+        {
+            classes.Add("is-taken");
+        }
+
+        if (use is { IsAmbiguous: true })
+        {
+            classes.Add("is-ambiguous");
+        }
+
+        return string.Join(" ", classes);
+    }
+
+    /// <summary>Der Laufzustand einer Kante in Worten – Teil ihres <c>aria-label</c>.</summary>
+    private static string EdgeRunLabel(GraphRunEdgeUse? use)
+        => use switch
+        {
+            null => "Im Testlauf nicht gegriffen.",
+            { IsAmbiguous: true } => $"Im Testlauf {use.Count}-mal durchlaufen – welcher der parallelen "
+                + "Übergänge gegriffen hat, hält die Engine nicht fest.",
+            { Count: 1 } => "Im Testlauf gegriffen.",
+            _ => $"Im Testlauf {use.Count}-mal gegriffen.",
+        };
+
+    private static string LoopLabel(GraphLoopFrame loop, GraphRunLoopState? state)
+    {
+        var label = $"Schleife {loop.CollectionKey}, Einstieg {loop.EntryKey}, Breaking Question {loop.BreakingKey}";
+
+        return state is { Iterations: > 0 }
+            ? $"{label}, im Testlauf {state.Iterations} Iteration(en){(state.IsActive ? ", läuft gerade" : string.Empty)}."
+            : $"{label}, im Testlauf nicht betreten.";
+    }
+
+    /// <summary>
+    /// Ein Scope-Marker mit den dort <b>konfigurierten</b> Triggern. Anders als im Editor sind die Chips
+    /// keine Schaltflächen: Ein Sprung in den Trigger-Editor verließe die Seite und damit den Lauf.
+    /// </summary>
+    private RenderFragment ScopeMarker(GraphScopeMarker marker) => @<g class="graph-scope-marker">
+        <foreignObject x="@SvgFormat.N(marker.X)" y="@SvgFormat.N(marker.Y)"
+                       width="@SvgFormat.N(Math.Max(GraphMetrics.NodeWidth, 260))" height="48">
+            <div class="graph-scope">
+                <span class="graph-scope-title">@marker.Title</span>
+                <span class="graph-chips">
+                    @foreach (var trigger in marker.Triggers)
+                    {
+                        <span class="chip @(trigger.Kind == TriggerKind.Webhook ? "chip-webhook" : "chip-inprocess")"
+                              title="@trigger.Title">@trigger.Label</span>
+                    }
+                </span>
+            </div>
+        </foreignObject>
+    </g>;
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("detach", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit schon weg (Reload oder Schließen) – es gibt nichts mehr aufzuräumen.
+            }
+
+            _module = null;
+        }
+
+        _self?.Dispose();
+        _self = null;
+    }
+}

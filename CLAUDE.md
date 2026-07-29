@@ -27,8 +27,9 @@ src/
 │                               Verwaltung (Multi-DB, #37), Dialog-CRUD (#38), Frage-Editor (#39),
 │                               Branching-Editor (#40), Loop-Editor (#41), Trigger-Editor (#42),
 │                               Test-Runner (#43) und Playwright-E2E der UI (#46). Dazu aus EPIC 11
-│                               der Graph-Canvas (SVG): lesend (#101), Layout-Persistenz (#102) und
-│                               Editieren per Geste (#103). Komposition in
+│                               der Graph-Canvas (SVG): lesend (#101), Layout-Persistenz (#102),
+│                               Editieren per Geste (#103) und der Testlauf im Graphen (#104).
+│                               Komposition in
 │                               `DesignerApp.cs` (Program.cs ruft nur ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF-Migrationen pro Provider. IsPackable=false, DLLs ins Flirty-Paket gebündelt.
@@ -583,3 +584,42 @@ zusätzlich die Klick-Frage an, zwei Fragen aus einer Geste. Nebenbefund der Zus
 Ausdrucks-Editors zu `Components/ExpressionField.razor`: `.expr-status`/`.expr-caret` lagen scoped im
 `TransitionEditor`, wurden vom `TriggerEditor` seit #42 aber mitbenutzt – dort war der Live-Status
 **unstyled**.
+
+**Testlauf im Graphen (#104) fertig** – Stufe 4 von EPIC 11. Der Test-Runner (`/dialogs/{id}/test`) hat
+jetzt **zwei Ansichten desselben Laufs**: „Verlauf" (die Liste aus #43, unverändert) und „Graph" – Canvas
+mit hervorgehobenem Pfad, Iterationszahl am Schleifenrahmen, publizierten Triggern am auslösenden Knoten
+und den Ausdrucks-Bindungen samt Antwort-Editieren je Iteration **am gewählten Knoten**. Deep-Link
+`?view=graph`. **Kein Core-Code, keine Schema-Änderung, kein neuer Command**; kein ADR (es wurde keine
+naheliegende Alternative ausgeschieden – die Ableitung unten ist die einzig mögliche). Neu im Designer:
+`Services/GraphRunAnalyzer.cs`, `Models/GraphRunModel.cs`, `Components/GraphRunCanvas.razor`,
+`Components/GraphRunInspector.razor`; `GraphNodeCard` kennt einen optionalen Laufzustand,
+`RunExpressionSnapshot` wurde `public` (CS0053 an einem `[Parameter]`). Fünf Punkte, die den Ausschlag
+gaben:
+
+- **Die Engine protokolliert keinen Pfad.** `SessionAnswer` trägt keine `TransitionId`,
+  `QuestionAnsweredNotification` nur die nächste *Frage*. Abgeleitet wird er aus der Antwortfolge: zwei
+  aufeinanderfolgende Antworten = ein Paar *(von, nach)*, die letzte Antwort plus die offene Frage das
+  letzte Paar. Daraus folgt eine **prinzipielle** Grenze: Liegen zwischen denselben zwei Fragen mehrere
+  Übergänge, ist nicht entscheidbar, welcher gegriffen hat – dann sind alle markiert und als *mehrdeutig*
+  ausgewiesen. Die Auswertung nachzustellen wäre nicht nur eine weitere Spiegelung des
+  `TransitionResolver`, sondern eine unmögliche: Sie bräuchte die Ausdruckswerte von damals.
+- **Der Edit-Pfad brauchte deshalb keinen eigenen Code.** `EditAnswerCommand` verwirft die nachgelagerten
+  Antworten, die Ableitung schrumpft mit – auch über einen Zweigwechsel hinweg. Genau das ist der
+  Kernprobe-Test.
+- **Ein Umschalter statt einer zweiten Seite.** Beide Ansichten teilen Start/Submit/Edit; die Karte
+  „Aktuelle Frage" steht außerhalb des Umschalters. Damit ist „der listenbasierte Runner bleibt
+  gleichwertig bedienbar" strukturell wahr, statt zugesagt – und die E2E-Helfer der Liste tragen im
+  Graph-Modus unverändert.
+- **Der Graph ist in der Laufansicht nicht editierbar** (keine Palette, keine Ports,
+  `data-editable="false"`) – eine laufende Session arbeitet auf genau diesem Graphen, und ihn darunter
+  wegzuändern ist die Falle aus #95. Verschieben bleibt erlaubt (guard-frei, ADR 0007) und ist der einzige
+  schreibende Weg. Das JS-Modul bindet hier die **Komponente** (`GraphRunCanvas`), nicht die Seite: Der
+  Canvas gehört ihr, sonst müsste die Seite einen `ElementReference` durchreichen.
+- **Der Screenshot hat einen Mangel gezeigt, den kein Test gesucht hat** (dieselbe Lehre wie beim
+  Determinismus-Test in #101): Die Ereignis-Chips wuchsen mit jedem Schritt – eine Schleifenfrage sammelt
+  zwei pro Iteration – und sprengten die Karte, die Überlauf abschneidet. Sie sind jetzt je Zeitpunkt
+  gebündelt („⚡ Antwort 2×"), die Einzelereignisse stehen im Inspector.
+
+**Merksatz:** Wo eine feste Fläche mit dem Fortschritt gefüllt wird, ist die Anzahl das Problem, nicht die
+Darstellung – und ein Test, der Struktur prüft, sieht eine überlaufende Karte nicht. Ein Blick auf das
+gerenderte Bild (hier per Playwright-Screenshot im vorhandenen E2E-Lauf) kostet Minuten.

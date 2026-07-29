@@ -51,6 +51,16 @@ public sealed record TransitionMove(Guid FromQuestionId, int From, int To);
 /// <param name="BreakingQuestionId">Die Breaking Question (die Ausgangsfrage des Rücksprungs).</param>
 public sealed record LoopDraft(string CollectionKey, Guid EntryQuestionId, Guid BreakingQuestionId);
 
+/// <summary>Die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde (#104).</summary>
+/// <remarks>
+/// Auf der Editor-Seite (#102) meldet das JS-Modul den Zug direkt an die Seite; die Laufansicht bindet
+/// das Modul dagegen in der Canvas-Komponente, und die reicht ihn als ein Stück weiter.
+/// </remarks>
+/// <param name="QuestionId">Die verschobene Frage.</param>
+/// <param name="X">Die neue waagerechte Canvas-Koordinate in px.</param>
+/// <param name="Y">Die neue senkrechte Canvas-Koordinate in px.</param>
+public sealed record NodeMove(Guid QuestionId, int X, int Y);
+
 /// <summary>Ein neuer Trigger.</summary>
 /// <param name="Scope">Der Zeitpunkt.</param>
 /// <param name="QuestionId">Die Bezugsfrage bei <see cref="TriggerScope.AfterQuestion"/>, sonst <see langword="null"/>.</param>
