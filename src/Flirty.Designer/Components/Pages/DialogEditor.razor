@@ -861,6 +861,14 @@ else
 
     private DialogDetail? _detail;
     private IReadOnlyList<LoopInsight> _loops = [];
+
+    /// <summary>
+    /// Das Zeichenmodell des Graphen – hier nicht zum Zeichnen, sondern als <b>vollständige</b> Quelle
+    /// der Warnungen (#118). Liegt bewusst in einem Feld: aus dem Markup gerufen liefe die ganze
+    /// Anordnung bei jedem Render, also bei jedem Klick (siehe <see cref="DialogGraphModel"/>).
+    /// </summary>
+    private DialogGraphModel? _graph;
+
     private DialogFormModel _form = new();
     private QuestionFormModel? _newQuestion;
     private TransitionFormModel? _newTransition;
@@ -924,6 +932,11 @@ else
         _error = result.Error;
         _loops = _detail is null ? [] : LoopAnalyzer.Analyze(_detail);
 
+        // Der Graph wird hier nicht gezeichnet, aber gebaut: Er ist die einzige Stelle, die alle
+        // Warnungsarten kennt – die Erreichbarkeit entsteht erst aus der Anordnung ab der
+        // Einstiegsfrage. Einmal pro Laden, nie pro Render.
+        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
+
         // Laufende Sessions sperren das Löschen (DeleteDialogCommand) – die Zahl gehört an den
         // Löschen-Abschnitt, damit sie vor dem Klick sichtbar ist und nicht erst als Fehlermeldung.
         if (_detail is not null)
@@ -965,17 +978,23 @@ else
             "Änderungen gespeichert.");
 
     /// <summary>
-    /// Sammelt die Übergangs-Warnungen des gesamten Graphen, jeweils mit dem Schlüssel der
-    /// Ausgangsfrage davor. Die Regeln liegen im <see cref="TransitionWarningAnalyzer"/> – dieselbe
-    /// Quelle speist die Graph-Ansicht (#101), die die Befunde am betroffenen Element statt als Liste
-    /// zeigt.
+    /// Sammelt <b>alle</b> Warnungen des Graphen, jeweils mit dem Schlüssel ihres Verursachers davor:
+    /// Übergänge (<see cref="TransitionWarningAnalyzer"/>), Schleifen (<see cref="LoopAnalyzer"/>), die
+    /// fehlende Einstiegsfrage und die Erreichbarkeit der Fragen. Quelle ist deshalb der
+    /// <see cref="DialogGraphBuilder"/> und nicht ein einzelner Analyzer – dieselbe Quelle speist die
+    /// Graph-Ansicht (#101), die die Befunde am betroffenen Element statt als Liste zeigt.
     /// </summary>
+    /// <remarks>
+    /// Bis #118 stand hier nur <see cref="TransitionWarningAnalyzer"/>. Eine <b>unerreichbare</b> Frage
+    /// ließ sich damit ohne Rückfrage veröffentlichen, obwohl der Graph sie deutlich auswies. Die
+    /// Auswahl handverlesen zu halten war der Defekt: Jede weitere Warnungsart wäre wieder
+    /// herausgefallen.
+    /// </remarks>
     /// <returns>Die offenen Warnungen; leer, wenn der Graph stimmig ist.</returns>
     private IReadOnlyList<string> GraphWarnings()
-        => _detail is null
+        => _detail is null || _graph is null
             ? []
-            : [.. TransitionWarningAnalyzer.Analyze(_detail)
-                .Select(warning => $"{QuestionLabel(warning.QuestionId!.Value)}: {warning.Text}")];
+            : GraphWarningList.Describe(_detail, _graph);
 
     /// <summary>
     /// Startet das Veröffentlichen. Bei offenen Graph-Warnungen wird erst rückgefragt – veröffentlicht
