@@ -665,3 +665,49 @@ damit 17 Tests und lief dreimal hintereinander grün. Vier Punkte, die den Aussc
 **Merksatz:** Wer einen Ablauf zum ersten Mal *vollständig* nachspielt, findet, was an ihm fehlt – nicht
 nur, was an ihm kaputt ist. Die fehlende Einstiegsfrage-Affordanz stand in keinem Issue und hätte kein
 Unit-Test zeigen können; sichtbar wurde sie erst, als der Test den Weg gehen musste, den ein Anwender geht.
+
+**Abnahme-Befunde (#118) behoben** – ein manueller Durchgang durch die laufende Anwendung zum Abschluss
+von EPIC 11 (Muster von #95/#97), gegen einen Dialog, der **ausschließlich über Canvas-Gesten** gebaut
+wurde. Die Stufen #100–#105 selbst waren nicht zu beanstanden; drei Befunde, davon einer bewusst
+abgegeben. **Kein Core-Code, keine Schema-Änderung, kein neuer Command, kein ADR.**
+
+- **Befund 1 (englisches `ReconnectModal`) wurde an #112 abgegeben**, nicht behoben: Der Sprachwechsel des
+  Repos auf Englisch überholt ihn, eine deutsche Übersetzung wäre doppelte Arbeit in die Gegenrichtung.
+- **Die Publish-Rückfrage war handverlesen – das war der Defekt, nicht die eine fehlende Warnung.**
+  `GraphWarnings()` im `DialogEditor` las ausschließlich `TransitionWarningAnalyzer.Analyze`; ein Dialog
+  mit einer **unerreichbaren** Frage ließ sich also ohne Rückfrage veröffentlichen, obwohl der Graph sie
+  deutlich auswies (gestrichelter Rahmen, Badge „Unerreichbar", ⚠-Marker). Erreichbarkeit entsteht nämlich
+  gar nicht im Analyzer, sondern erst aus der Anordnung ab der Einstiegsfrage (`GraphLayout.AssignLayers`
+  → `GraphNodePosition.IsReachable` → `DialogGraphBuilder`). Sie im `DialogEditor` nachzurechnen wäre eine
+  zweite Wahrheit gewesen; stattdessen hält er jetzt ein `DialogGraphBuilder`-Modell in einem Feld
+  (`_graph`, **einmal je Laden** – aus dem Markup gerufen liefe die ganze Anordnung bei jedem Klick) und
+  die Rückfrage schöpft aus `DialogGraphModel.AllWarnings`. Damit ist sie **strukturell geschlossen**:
+  Übergänge, Schleifen, fehlende Einstiegsfrage und Erreichbarkeit sind drin, und eine künftige
+  Warnungsart fällt nicht wieder heraus. Die Textfassung liegt in `Services/GraphWarningList.cs` und
+  nicht im `@code`-Block, weil dort nichts prüfbar ist; sie setzt **nur** das Präfix – Frage bzw.
+  Ausgangsfrage über ihren Schlüssel, Schleifen-Marker über seinen `CollectionKey`, Dialog-Warnung
+  **ohne** Präfix. Genau der war die Falle: Der alte Code griff hart auf `warning.QuestionId!.Value` zu,
+  und `ForDialog`/`ForLoop` liefern dort `null`. Wortlaute unverändert, `GraphWarningListTests` nagelt
+  Texte *und* Reihenfolge fest (Knoten vor Kanten).
+- **Der Canvas hing an der Lesebreite.** `main.flirty-content` deckelt auf 1100 px – für Textspalten
+  richtig, für einen Graph-Editor der begrenzende Faktor: Palette (12 rem) + Canvas (Basis 640 px) +
+  Inspector (340 px) brauchen **1204 px**, darunter rutscht der Inspector per `flex-wrap` unter die
+  Palette, während auf 2560 px rechts über 1400 px leer bleiben. Behoben mit **einer** Regel in
+  `wwwroot/app.css`: `main.flirty-content:has(.graph-layout) { max-width: none; }`. Bewusst so und nicht
+  über ein zweites Layout: `.graph-layout` rendert der Test-Runner **nur** im Graph-Zweig seines
+  Umschalters, seine Verlaufsliste bleibt damit schmal und lesbar – ein `@layout` an der Seite könnte das
+  nicht unterscheiden. Aufwärts (Kind → Vorfahr) gibt es in Blazor keinen Cascade; die Regel muss
+  **global** stehen (CSS-Isolation reicht nicht in Kindkomponenten) und braucht `main` davor, damit ihre
+  Spezifität `(0,2,1)` die scoped Regel `.flirty-content[b-…]` mit `(0,2,0)` schlägt.
+- **Zwei Beobachtungsfehler des Durchgangs sind im Issue dokumentiert**, damit sie nicht erneut Zeit
+  kosten: „Layout zurücksetzen" wirkt sehr wohl – die Aktion **ersetzt ihren eigenen Knopf** durch die
+  Rückfrage, ein Selektor auf den alten Knopftext hält sie für verschwunden; und bei der verkleinerten
+  Canvas-Schrift ist das typografische Schlusszeichen in „auswahl“ leicht als `auswahl1` zu lesen.
+  **Lehre:** Beim Canvas ist der DOM die Wahrheit (`aria-label`, `is-taken`/`is-visited`/`is-pinned`),
+  Überlappungen gehören per `getBoundingClientRect` gemessen, die Gegenprobe steht im Server-Log
+  (`Mediator verarbeitet …Command`) – ein Screenshot allein trägt die Beweislast nicht.
+
+**Merksatz:** Eine Liste, die aufzählt statt abzuleiten, ist der Fehler – nicht ihr fehlender Eintrag.
+Die Rückfrage nannte drei von vier Warnungsarten, und das war kein Versehen an einer Stelle, sondern eine
+Auswahl, die jede weitere Art wieder verloren hätte. Und: Ein Lesebreiten-Deckel ist eine Aussage über
+**Text**; wo eine Zeichenfläche steht, ist er eine Fehlannahme, die erst am großen Fenster auffällt.

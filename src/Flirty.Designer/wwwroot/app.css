@@ -337,6 +337,25 @@ h1 .badge {
    und Unerreichbarkeit tragen zusätzlich ein Schriftzeichen bzw. eine eigene Konturform.
    ------------------------------------------------------------------------------------------------ */
 
+/* Der Canvas ist die Ausnahme von der Lesebreite (#118). main.flirty-content deckelt auf 1100px, was
+   für Textspalten richtig ist – für einen Graph-Editor ist es der begrenzende Faktor: Bei 1100px
+   Innenbreite passen Palette (12rem) + Canvas (Basis 640px) + Inspector (340px) samt Abständen nicht
+   nebeneinander (Schwelle 1204px), der Inspector rutscht unter die Palette, und rechts bleibt das
+   Fenster leer. Der Deckel fällt deshalb genau dann, wenn im Inhalt ein Graph-Canvas steht.
+
+   Drei Punkte, die nicht offensichtlich sind:
+   - Warum :has() und kein zweites Layout an der Seite: Der Test-Runner rendert .graph-layout NUR im
+     Graph-Zweig seines Umschalters. So bleibt seine Verlaufsliste bei 1100px lesbar und nur die
+     Graph-Ansicht wird breit – ein @layout an der Seite könnte das nicht unterscheiden. Aufwärts
+     (Kind -> Vorfahr) gibt es in Blazor keinen Cascade; :has() ist hier das passende Werkzeug.
+   - Warum global und nicht in MainLayout.razor.css: CSS-Isolation reicht ihr Scope-Attribut nicht an
+     Kindkomponenten weiter, .graph-layout entsteht in einer anderen Komponente (dieselbe Begründung
+     wie beim ganzen Block hier).
+   - Warum es gewinnt: Spezifität (0,2,1) gegen die scoped Regel .flirty-content[b-…] mit (0,2,0). */
+main.flirty-content:has(.graph-layout) {
+    max-width: none;
+}
+
 .graph-toolbar {
     display: flex;
     align-items: center;

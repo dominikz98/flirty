@@ -128,7 +128,10 @@ internal static class DialogGraphBuilder
                     && warning.ElementId == question.Id)
                 .ToList();
 
-            // Unerreichbarkeit ist erst im Graphen sichtbar – die Listenansicht kennt den Befund nicht.
+            // Unerreichbarkeit entsteht erst aus der Anordnung ab der Einstiegsfrage, also hier und nicht
+            // im TransitionWarningAnalyzer. Seit #118 schöpft auch die Listenansicht daraus: Ihre
+            // Publish-Rückfrage liest den ganzen Graphen (GraphWarningList), damit dieser Befund nicht
+            // ausgerechnet vor dem Veröffentlichen fehlt.
             if (position is { IsReachable: false })
             {
                 nodeWarnings.Add(GraphWarning.ForQuestion(

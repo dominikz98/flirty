@@ -139,11 +139,17 @@ Regeln, die die UI sichtbar macht:
 - Ein neuer Dialog entsteht als **Entwurf** (`Version = 1`, `IsPublished = false`, ohne Einstiegsfrage).
 - **Veröffentlichen** ist deaktiviert, solange keine Einstiegsfrage gesetzt *und gespeichert* ist –
   `PublishDialogCommand` würde sonst mit `InvalidOperationException` abbrechen.
-- Hat der Graph **offene Übergangs-Warnungen** (dieselben Regeln wie je Ausgangsfrage, gesammelt in
-  `GraphWarnings`), wiederholt der Abschnitt „Veröffentlichung & Löschen" sie und fragt vor dem
-  Veröffentlichen zurück. Grund: Veröffentlicht ist der Graph gesperrt – ein durchgerutschter
+- Hat der Graph **offene Warnungen**, wiederholt der Abschnitt „Veröffentlichung & Löschen" sie und fragt
+  vor dem Veröffentlichen zurück. Grund: Veröffentlicht ist der Graph gesperrt – ein durchgerutschter
   Konfigurationsfehler (etwa ein bedingter Übergang ohne Default) kostet dann eine neue Version, während
-  laufende Sessions bereits in den 409 der Laufzeit laufen (#97).
+  laufende Sessions bereits in den 409 der Laufzeit laufen (#97). Gemeint sind **alle** Warnungsarten:
+  Übergänge, Schleifen, die fehlende Einstiegsfrage und die **Erreichbarkeit** der Fragen. Quelle ist
+  deshalb `DialogGraphModel.AllWarnings` über `GraphWarningList.Describe` und nicht ein einzelner
+  Analyzer – bis #118 stand in `GraphWarnings()` nur der `TransitionWarningAnalyzer`, eine **unerreichbare**
+  Frage ließ sich also ohne Rückfrage veröffentlichen, obwohl der Graph sie deutlich auswies. Der Defekt
+  war nicht die eine fehlende Warnung, sondern die handverlesene Auswahl: Jede weitere Warnungsart wäre
+  wieder herausgefallen. Der Preis dafür ist ein `DialogGraphBuilder.Build` je Laden des Editors – es
+  liegt in einem Feld (`_graph`), **nie** im Markup, sonst liefe die ganze Anordnung bei jedem Klick.
 - Ein **veröffentlichter** Dialog ist gesperrt: Die Editoren für Fragen, Übergänge, Schleifen, Trigger
   und die Einstiegsfrage sind deaktiviert, ein Banner nennt die beiden Auswege (neue Version anlegen
   oder zurückziehen). Name und Beschreibung bleiben änderbar. Details unten unter
@@ -581,6 +587,7 @@ auch die Listenansicht ruft. Es gibt kein Canvas-CRUD.
 | `GraphLayout` | `Services/` | Auto-Layout („Sugiyama-Light"), rein geometrisch – und der Einbau gespeicherter Positionen. |
 | `DialogGraphBuilder` | `Services/` | Fügt Graph, Warnungen, Schleifen und Trigger zum Zeichenmodell. |
 | `TransitionWarningAnalyzer` | `Services/` | Die Übergangs-Warnungen – **dieselbe** Quelle wie die Liste. |
+| `GraphWarningList` | `Services/` | Die Textfassung aller Graph-Warnungen für die Listenansicht und die Publish-Rückfrage (#118). |
 | `DialogGraphModel` | `Models/` | Knoten, Kanten, Rahmen, Marker, Auswahl. |
 | `GraphMetrics`, `SvgFormat` | `Models/` | Maße bzw. kulturfeste Zahlformatierung. |
 | `GraphNodeCard`, `GraphInspector` | `Components/` | Knoteninhalt bzw. Detailpanel. |
@@ -621,7 +628,15 @@ liefert seine Befunde ebenfalls verortet (`LoopInsight.TargetedWarnings`, mit `W
 Textsicht).
 
 **Die Wortlaute sind Vertrag.** Der Dialog-Editor zeigt sie unverändert, die Publish-Rückfrage zählt sie,
-die E2E-Suite sucht darin. `TransitionWarningAnalyzerTests` nagelt alle vier Volltexte fest.
+die E2E-Suite sucht darin. `TransitionWarningAnalyzerTests` nagelt alle vier Volltexte fest,
+`GraphWarningListTests` die Textfassung samt Präfix.
+
+Die Liste, die der Dialog-Editor daraus baut, liegt in `Services/GraphWarningList.cs` (`Describe`) und
+nicht im `@code`-Block – dort wäre sie nicht prüfbar. Sie setzt **nur** das Präfix: Fragen und Übergänge
+tragen den Fragenschlüssel (`GraphWarning.QuestionId` ist bei einer Kante bereits deren Ausgangsfrage),
+ein Schleifen-Marker seinen `CollectionKey`, und eine Warnung am **Dialog** bleibt ohne Präfix – ihr
+Verursacher ist der Dialog selbst. Genau dieser Fall war die Falle: Bis #118 griff die Liste hart auf
+`QuestionId!.Value` zu, eine Dialog- oder Schleifen-Warnung hätte sie zum Absturz gebracht.
 
 Verortet wird nach Verursacher, nicht nach Fundort: „Kein Default-Übergang" und „Mehrere Defaults" sind
 Eigenschaften der **Gruppe** und hängen an der Frage; „Bedingung wird nicht ausgewertet" und „greift
@@ -1005,6 +1020,26 @@ Der Listen- und Formularpfad bleibt vollständig erhalten – der Canvas ist zus
   CSS-Isolation vergibt ihr Scope-Attribut nicht an Kind-Komponenten. Styles für gerenderte Komponenten
   (`<NavLink>` &c.) gehören deshalb global nach `wwwroot/app.css` – siehe den Kommentar in
   `NavMenu.razor.css`, wo genau das die Navigationslinks unlesbar gemacht hatte.
+- **Die Lesebreite gilt für alle Seiten – außer wo ein Canvas steht.** `main.flirty-content`
+  (`MainLayout.razor.css`) deckelt auf **1100 px**, was für Text- und Formularspalten richtig ist. Für den
+  Graph-Editor war es der begrenzende Faktor: Bei 1100 px passen Palette (12 rem) + Canvas (Basis 640 px) +
+  Inspector (340 px) samt Abständen nicht nebeneinander – die Schwelle liegt bei **1204 px** –, der
+  Inspector rutschte per `flex-wrap` unter die Palette, während auf einem 2560-px-Fenster rechts über
+  1400 px leer blieben (#118). Der Deckel fällt deshalb genau dann, wenn im Inhalt ein Canvas steht:
+
+  ```css
+  main.flirty-content:has(.graph-layout) { max-width: none; }
+  ```
+
+  Drei Punkte daran sind Absicht. **Erstens** `:has()` und **kein** zweites Layout an der Seite: Der
+  Test-Runner rendert `.graph-layout` nur im Graph-Zweig seines Umschalters, seine Verlaufsliste bleibt
+  damit bei 1100 px lesbar – ein `@layout` an der Seite könnte das nicht unterscheiden, und aufwärts
+  (Kind → Vorfahr) gibt es in Blazor keinen Cascade. **Zweitens** global in `wwwroot/app.css` statt in
+  `MainLayout.razor.css`: `.graph-layout` entsteht in einer anderen Komponente, CSS-Isolation reicht ihr
+  Scope-Attribut nicht dorthin. **Drittens** die Spezifität `(0,2,1)` gegen die scoped Regel
+  `.flirty-content[b-…]` mit `(0,2,0)` – deshalb `main` davor. Unangetastet bleiben die gekoppelten
+  Höhen `.graph-canvas-host { height: 70vh }` / `.graph-inspector { max-height: 70vh }` und
+  `GraphMetrics.MinCanvasWidth` (das ist eine Aussage über den **Nutzerraum**, nicht über die CSS-Breite).
 - **Zahlen in SVG-Attributen ausschließlich über `SvgFormat.N`.** Die feste Anzeige-Kultur `de-DE` gilt
   auch beim Rendern: Eine interpolierte `double`-Koordinate wird zu `12,5`, und weil das Komma in der
   SVG-Pfadsyntax ein *Trennzeichen* ist, entsteht daraus eine falsche Zahlenfolge – ohne Ausnahme, ohne
@@ -1064,6 +1099,11 @@ Designer; Interna via `InternalsVisibleTo("Flirty.Tests")`):
   `DialogEditor` lagen: jede Regel einzeln, die Verortung am Knoten bzw. an der Kante – und als
   Kernprobe, dass alle vier **Wortlaute unverändert** sind. Listenansicht, Publish-Rückfrage und
   E2E-Suite hängen daran.
+- `Designer/GraphWarningListTests` – die Textfassung dieser Warnungen (#118). Kern ist die
+  **Vollständigkeit**: dass eine unerreichbare Frage in der Liste steht (der Befund des Issues) und dass
+  jede Warnung nach ihrem Verursacher benannt wird – Frage über ihren Schlüssel, Schleifen-Marker über
+  seinen `CollectionKey`, Dialog-Warnung **ohne** Präfix (genau der Fall, an dem der alte
+  `QuestionId!`-Zugriff geknallt wäre). Dazu ein zweiter Wortlaut-Vertrag samt Reihenfolge.
 - `Designer/GraphLayoutTests` – das Auto-Layout (#101). Kern ist der **Determinismus**, geprüft gegen
   die drei Quellen, aus denen er üblicherweise wegbricht: Hash-Iterationsreihenfolge (zweimal rechnen),
   neu vergebene Guids (denselben Graphen zweimal bauen – der Test, der `CreateDialogVersionCommand`
@@ -1214,8 +1254,9 @@ Ein paar Punkte, die beim Erweitern der Suite Zeit sparen:
   `#inspectorKey` bereits sichtbar, und die Wiederholschleife hält einen verpufften Klick für erfolgreich.
   Der Feldinhalt sagt dagegen, *welche* Frage der Server gerade zeigt.
 - **Auf dem Canvas wird in Bruchteilen der Fläche gezielt, nicht in Pixeln.** Das SVG skaliert seinen
-  `viewBox` in den 70 vh hohen Host, dessen Breite sich Palette und Inspector teilen – wie viele
-  Bildschirm-Pixel ein Knoten breit ist, hängt am Fenster. Eine feste Pixelangabe landete bei anderem
+  `viewBox` in den 70 vh hohen Host, dessen Breite sich Palette und Inspector teilen und der seit #118 am
+  Fenster statt an der Lesebreite hängt – wie viele Bildschirm-Pixel ein Knoten breit ist, hängt also am
+  Fenster **und** am Zuschnitt. Eine feste Pixelangabe landete bei anderem
   Zuschnitt auf einem Knoten statt daneben, und aus dem Zug ins Leere würde still eine Verbindung
   (`DragToCanvasFractionAsync`). Losgelassen werden muss ohnehin **innerhalb** der Canvas-Box – außerhalb
   ist die Geste bewusst ein Abbruch (`insideCanvas` im Modul).

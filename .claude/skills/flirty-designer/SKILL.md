@@ -121,11 +121,17 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `UpdateDialogCommand`). Vorher ließ sich der Einstiegspunkt nur im Dialog-Editor setzen, obwohl der
   Graph über sein Fehlen warnte. Kein Core-Code: Der Guard des Commands greift genau dann, wenn sich
   `StartQuestionId` ändert, der Knopf trägt deshalb das übliche `Locked` des Panels.
+- **Abnahme-Befunde (#118):** zwei Nachbesserungen aus dem manuellen Durchgang zum Abschluss von EPIC 11,
+  beide **ohne** Core-Code. Neu `Services/GraphWarningList.cs` – die Publish-Rückfrage des `DialogEditor`
+  liest jetzt **alle** Graph-Warnungen (`DialogGraphModel.AllWarnings`) statt nur die des
+  `TransitionWarningAnalyzer`; eine unerreichbare Frage ließ sich vorher ohne Rückfrage veröffentlichen.
+  Dazu die eine CSS-Regel `main.flirty-content:has(.graph-layout)`, mit der die Graph-Seiten die
+  1100-px-Lesebreite aufheben. Beides unten unter *Konventionen* im Detail.
 - **Tests:** `tests/Flirty.Tests/Designer/` (`JsonConnectionProfileStoreTests`,
   `ConnectionProfileOperationsTests`, `FlirtyAdminGatewayTests`, `QuestionFormModelTests`,
   `DesignerExpressionContextTests`, `LoopAnalyzerTests`, `TriggerFormModelTests`,
   `FlirtyRuntimeGatewayTests`, `AnswerValueCodecTests`, `RunExpressionContextTests`,
-  `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphLayoutTests`,
+  `DesignerTriggerLogTests`, `TransitionWarningAnalyzerTests`, `GraphWarningListTests`, `GraphLayoutTests`,
   `DialogGraphBuilderTests`, `GraphEditingTests`, `GraphRunAnalyzerTests`; gemeinsamer DI-Stack in
   `DesignerTestHost`) plus im Core
   `Domain/TriggerConfigTests`, `Runtime/DialogTriggerDispatchTests`,
@@ -382,6 +388,13 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   `@bind-Value:event="oninput"` nicht mit `@bind-Value:after` kombinieren (RZ10010), und ohne `oninput`
   prüft der Editor erst beim Verlassen des Felds.
 - Gemeinsame UI-Klassen gehören nach `wwwroot/app.css` (global), nicht in jede `*.razor.css` kopiert.
+- **Braucht eine Seite mehr als die Lesebreite, entscheidet der Inhalt – nicht die Route** (#118).
+  `main.flirty-content` deckelt auf 1100 px; der Deckel fällt über
+  `main.flirty-content:has(.graph-layout) { max-width: none; }` in `app.css`. Kein zweites Layout und kein
+  `@layout` an der Seite: Der Test-Runner rendert `.graph-layout` nur im Graph-Zweig seines Umschalters,
+  seine Verlaufsliste soll schmal bleiben. Aufwärts (Kind → Vorfahr) gibt es in Blazor keinen Cascade,
+  `:has()` ist hier das Werkzeug – die Regel muss **global** stehen (CSS-Isolation reicht nicht in
+  Kindkomponenten) und braucht `main` davor, damit die Spezifität die scoped Regel schlägt.
 - Bestätigungen **inline** im Komponentenzustand lösen, **kein** JS-`confirm`/`alert` – das blockiert
   sonst die Playwright-E2E (#46).
 - UI-Texte und Doku **deutsch**. Der Designer ist `IsPackable=false` (kein NuGet-Paket) → CS1591 ist
@@ -423,6 +436,14 @@ description: Den Blazor-Designer (Flirty.Designer) aufbauen oder erweitern – D
   Warnungslogik neben diesen beiden gibt es nicht: Graph- und Listenansicht schöpfen aus derselben
   Quelle, verortet wird nach Verursacher (Gruppeneigenschaft → Frage, Eigenschaft eines Übergangs →
   seine Kante).
+- **Die Publish-Rückfrage liest den *ganzen* Graphen** (#118), nicht einen einzelnen Analyzer: Quelle ist
+  `DialogGraphModel.AllWarnings` über `GraphWarningList.Describe`, und weil die Erreichbarkeit erst aus
+  der Anordnung ab der Einstiegsfrage entsteht, hält der `DialogEditor` dafür ein `DialogGraphBuilder`-
+  Modell in einem Feld (`_graph`, einmal je Laden – **nie** im Markup, sonst liefe die Anordnung bei jedem
+  Klick). Wer eine neue Warnungsart ergänzt, muss die Rückfrage deshalb **nicht** anfassen; wer die Quelle
+  wieder auf einen Analyzer verengt, baut den Defekt von #118 nach. Und wer eine Warnung ohne
+  `QuestionId` erzeugt (`ForDialog`/`ForLoop`), verlässt sich darauf, dass das Präfix im Service liegt und
+  nicht im `@code`-Block.
 - **Der gelaufene Pfad ist abgeleitet, nicht gespeichert** (#104). Die Engine hält keine `TransitionId` an
   der Antwort fest; `GraphRunAnalyzer` liest den Weg aus der Antwortfolge. Parallele Übergänge zwischen
   denselben zwei Fragen bleiben damit **prinzipiell** mehrdeutig – das wird ausgewiesen, nicht geraten. Der
