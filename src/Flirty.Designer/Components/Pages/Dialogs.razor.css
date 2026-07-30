@@ -1,4 +1,4 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* The shared UI primitives live globally in wwwroot/app.css – only page-specific rules here. */
 
 .filter {
     max-width: 320px;

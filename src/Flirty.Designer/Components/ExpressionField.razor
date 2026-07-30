@@ -1,32 +1,32 @@
 @*
-    Der Ausdrucks-Editor: Eingabefeld mit Live-Validierung, Fehlerstelle, Baustein-Einfüger und
-    Bezeichner-Referenz.
+    The expression editor: input field with live validation, error position, snippet inserter and
+    identifier reference.
 
-    Herausgezogen aus TransitionEditor und TriggerEditor (#103), wo er Zeile für Zeile identisch stand –
-    bis auf einen Satz („der Übergang greift immer" / „der Trigger löst immer aus"). Der Canvas-Inspector
-    braucht ihn als dritte Stelle; eine dritte Kopie hätte die Konvention „rohes <textarea> mit @oninput,
-    nicht <InputTextArea>" endgültig unhaltbar gemacht.
+    Pulled out of TransitionEditor and TriggerEditor (#103), where it stood line for line identical –
+    except for one sentence ("the transition always matches" / "the trigger always fires"). The canvas
+    inspector needs it as a third place; a third copy would have made the convention "raw <textarea> with
+    @oninput, not <InputTextArea>" finally untenable.
 
-    Der Parametersatz besteht ausschließlich aus öffentlichen Typen: Razor erzeugt Komponenten als
-    public, ein internal Typ an einem [Parameter] wäre CS0053 – unter TreatWarningsAsErrors ein
-    Buildfehler. Deshalb kommt DialogDetail (öffentlicher Core-Typ) herein und die Komponente baut
-    Musterkontext und Bezeichnerliste selbst; ExpressionVariable bleibt internal.
+    The parameter set consists exclusively of public types: Razor generates components as public, an
+    internal type on a [Parameter] would be CS0053 – under TreatWarningsAsErrors a build error. That is
+    why DialogDetail (a public core type) comes in and the component builds the sample context and
+    identifier list itself; ExpressionVariable stays internal.
 
-    Die BLOCKIERENDE Prüfung vor dem Speichern bleibt beim Aufrufer. Hier wird angezeigt, dort
-    entschieden – sonst müsste jeder Aufrufer den Zustand dieser Komponente kennen.
+    The BLOCKING check before saving stays with the caller. Here it is displayed, there it is decided –
+    otherwise every caller would have to know the state of this component.
 *@
 @using Flirty.Expressions
 @using Flirty.Runtime.Admin
 
 <div class="field">
-    <label for="@FieldId">Ausdruck</label>
-    @* Bewusst ein rohes <textarea> mit @oninput statt <InputTextArea>: Nur so wird bei JEDER Eingabe
-       validiert (das Formular-Binding feuert erst beim Verlassen des Felds). *@
+    <label for="@FieldId">Expression</label>
+    @* Deliberately a raw <textarea> with @oninput instead of <InputTextArea>: only this way is it
+       validated on EVERY input (the form binding fires only when the field is left). *@
     <textarea id="@FieldId" class="input mono" rows="3" disabled="@Disabled"
               value="@_expression" @oninput="OnExpressionInput"></textarea>
     <span class="hint">
-        Boolescher Ausdruck, z. B. <code>role == "dev" &amp;&amp; alter &gt; 18</code>.
-        Leer bedeutet „@EmptyHint".
+        Boolean expression, e.g. <code>role == "dev" &amp;&amp; age &gt; 18</code>.
+        Empty means "@EmptyHint".
     </span>
 </div>
 
@@ -36,15 +36,15 @@
     {
         <p class="expr-status ok">
             ✓ @(string.IsNullOrWhiteSpace(_expression)
-                ? $"Ohne Bedingung – {EmptyMeaning}."
-                : "Ausdruck ist gültig.")
+                ? $"No condition – {EmptyMeaning}."
+                : "Expression is valid.")
         </p>
     }
     else
     {
-        @* Die Fehlermeldung stammt aus der Ausdrucks-Engine (DynamicExpresso) und ist englisch –
-           deshalb der deutsche Rahmen davor. *@
-        <p class="expr-status err">✗ Der Ausdruck ist ungültig: @_validation.Error</p>
+        @* The error message comes from the expression engine (DynamicExpresso) and is already English –
+           hence the English frame in front of it. *@
+        <p class="expr-status err">✗ The expression is invalid: @_validation.Error</p>
 
         @if (Caret() is { } caret)
         {
@@ -56,13 +56,13 @@
 
 @if (ShowBuilder)
 {
-    <h3>Baustein einfügen</h3>
+    <h3>Insert snippet</h3>
 
     @if (BuilderVariables.Count == 0)
     {
         <p class="hint">
-            Es gibt noch keine referenzierbaren Fragen in diesem Dialog – erst Fragen anlegen,
-            dann lassen sich Bedingungen darauf bauen.
+            There are no referenceable questions in this dialog yet – create questions first,
+            then conditions can be built on them.
         </p>
     }
     else
@@ -91,13 +91,13 @@
             </div>
 
             <div class="field">
-                <label for="@($"{FieldId}Value")">Wert</label>
+                <label for="@($"{FieldId}Value")">Value</label>
                 @if (SelectedVariable?.Kind == ExpressionValueKind.Boolean)
                 {
                     <select id="@($"{FieldId}Value")" class="input" disabled="@Disabled"
                             @bind="_builderValue">
-                        <option value="true">true (ja)</option>
-                        <option value="false">false (nein)</option>
+                        <option value="true">true (yes)</option>
+                        <option value="false">false (no)</option>
                     </select>
                 }
                 else
@@ -108,31 +108,31 @@
             </div>
 
             <div class="field">
-                <label for="@($"{FieldId}Conjunction")">Verknüpfung</label>
+                <label for="@($"{FieldId}Conjunction")">Conjunction</label>
                 <select id="@($"{FieldId}Conjunction")" class="input" @bind="_builderConjunction"
                         disabled="@(Disabled || string.IsNullOrWhiteSpace(_expression))">
-                    <option value="&amp;&amp;">und (&amp;&amp;)</option>
-                    <option value="||">oder (||)</option>
+                    <option value="&amp;&amp;">and (&amp;&amp;)</option>
+                    <option value="||">or (||)</option>
                 </select>
             </div>
         </div>
 
         <div class="actions">
             <button type="button" class="btn" disabled="@Disabled"
-                    @onclick="InsertCondition">Einfügen</button>
-            <span class="hint">Vorschau: <code class="mono">@Preview()</code></span>
+                    @onclick="InsertCondition">Insert</button>
+            <span class="hint">Preview: <code class="mono">@Preview()</code></span>
         </div>
     }
 
-    <h3>Verfügbare Bezeichner</h3>
+    <h3>Available identifiers</h3>
 
     <table class="data-table">
         <thead>
             <tr>
-                <th>Bezeichner</th>
-                <th>Typ</th>
-                <th>Beispiel</th>
-                <th>Hinweis</th>
+                <th>Identifier</th>
+                <th>Type</th>
+                <th>Example</th>
+                <th>Note</th>
             </tr>
         </thead>
         <tbody>
@@ -145,7 +145,7 @@
                     <td>
                         @if (!variable.IsUsable)
                         {
-                            <span class="badge badge-draft">nicht nutzbar</span>
+                            <span class="badge badge-draft">not usable</span>
                         }
                         @variable.Note
                     </td>
@@ -156,43 +156,43 @@
 }
 
 @code {
-    /// <summary>Der Dialog, gegen dessen Musterkontext geprüft wird.</summary>
+    /// <summary>The dialog against whose sample context validation runs.</summary>
     [Parameter, EditorRequired]
     public required DialogDetail Detail { get; set; }
 
-    /// <summary>Der bearbeitete Ausdruck; <see langword="null"/> oder leer heißt „bedingungslos".</summary>
+    /// <summary>The edited expression; <see langword="null"/> or empty means "unconditional".</summary>
     [Parameter]
     public string? Value { get; set; }
 
-    /// <summary>Meldet jede Eingabe – bindbar über <c>@bind-Value</c>.</summary>
+    /// <summary>Reports every input – bindable via <c>@bind-Value</c>.</summary>
     [Parameter]
     public EventCallback<string?> ValueChanged { get; set; }
 
-    /// <summary>Ob das Feld gesperrt ist (veröffentlichter Dialog oder laufende Geste).</summary>
+    /// <summary>Whether the field is locked (published dialog or running gesture).</summary>
     [Parameter]
     public bool Disabled { get; set; }
 
     /// <summary>
-    /// Was ein leerer Ausdruck bedeutet – der einzige fachliche Unterschied zwischen den Aufrufern
-    /// („bedingungslos zutreffend" beim Übergang, „löst bedingungslos aus" beim Trigger).
+    /// What an empty expression means – the only functional difference between the callers
+    /// ("matches unconditionally" for the transition, "fires unconditionally" for the trigger).
     /// </summary>
     [Parameter]
-    public string EmptyHint { get; set; } = "bedingungslos zutreffend";
+    public string EmptyHint { get; set; } = "matches unconditionally";
 
-    /// <summary>Derselbe Sachverhalt als Satzteil für die Erfolgsmeldung.</summary>
+    /// <summary>The same fact as a sentence fragment for the success message.</summary>
     [Parameter]
-    public string EmptyMeaning { get; set; } = "der Übergang greift immer";
+    public string EmptyMeaning { get; set; } = "the transition always matches";
 
     /// <summary>
-    /// Ob Baustein-Einfüger und Bezeichner-Referenz mitgezeigt werden. Im schmalen Inspector-Panel
-    /// bewusst abschaltbar – dort ist der Platz knapp und der Vollteditor einen Sprung entfernt.
+    /// Whether the snippet inserter and identifier reference are shown too. In the narrow inspector panel
+    /// deliberately switchable off – space is tight there and the full editor is one jump away.
     /// </summary>
     [Parameter]
     public bool ShowBuilder { get; set; } = true;
 
     /// <summary>
-    /// Die <c>id</c> des Eingabefelds. Vorgabe <c>expression</c>, damit die bestehenden Editoren (und
-    /// deren E2E-Selektoren) sich nicht ändern; wo zwei Felder auf einer Seite liegen, wird sie gesetzt.
+    /// The <c>id</c> of the input field. Default <c>expression</c>, so the existing editors (and their
+    /// E2E selectors) do not change; where two fields sit on one page, it is set.
     /// </summary>
     [Parameter]
     public string FieldId { get; set; } = "expression";
@@ -210,9 +210,9 @@
     private string _builderConjunction = "&&";
 
     /// <summary>
-    /// Der Dialog, für den Kontext und Bezeichner zuletzt gerechnet wurden. Ohne diesen Vergleich liefe
-    /// die ganze Kontextbildung bei <b>jedem</b> Tastendruck erneut – <c>OnParametersSet</c> läuft nach
-    /// jedem Elternteil-Render.
+    /// The dialog for which context and identifiers were last computed. Without this comparison the whole
+    /// context construction would run again on <b>every</b> keystroke – <c>OnParametersSet</c> runs after
+    /// every parent render.
     /// </summary>
     private DialogDetail? _contextFor;
 
@@ -238,8 +238,8 @@
             OnBuilderVariableChanged();
         }
 
-        // Von außen gesetzter Wert (Auswahlwechsel, Zurücksetzen) übernimmt; die eigene Eingabe steht
-        // schon in _expression und wird hier nicht überschrieben.
+        // A value set from outside (selection change, reset) takes over; the own input already sits
+        // in _expression and is not overwritten here.
         if (_expression != Value)
         {
             _expression = Value;
@@ -259,8 +259,9 @@
     }
 
     /// <summary>
-    /// Prüft den Ausdruck gegen den Musterkontext des Dialogs – bei jeder Eingabe. Der Compile-Check ist
-    /// eine synchrone In-Memory-Operation (DynamicExpresso <c>Parse</c>), daher ohne Entprellung tragbar.
+    /// Validates the expression against the dialog's sample context – on every input. The compile check
+    /// is a synchronous in-memory operation (DynamicExpresso <c>Parse</c>), hence tolerable without
+    /// debouncing.
     /// </summary>
     private void Validate()
     {
@@ -273,8 +274,8 @@
 
     private void OnBuilderVariableChanged()
     {
-        // Nach einem Variablenwechsel passt der bisherige Operator womöglich nicht mehr (z. B. „>" auf
-        // einer Liste) -> auf den ersten passenden zurücksetzen.
+        // After a variable change the previous operator may no longer fit (e.g. ">" on a list) -> reset
+        // to the first matching one.
         if (!BuilderOperators.Contains(_builderOperator))
         {
             _builderOperator = BuilderOperators.FirstOrDefault() ?? "==";
@@ -308,7 +309,7 @@
         await ValueChanged.InvokeAsync(_expression);
     }
 
-    /// <summary>Baut die Caret-Zeile, die unter der gemeldeten Fehlerposition ein „^" setzt.</summary>
+    /// <summary>Builds the caret line that places a "^" under the reported error position.</summary>
     private string? Caret()
     {
         if (_validation?.ErrorPosition is not { } position

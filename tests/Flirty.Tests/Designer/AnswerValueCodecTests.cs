@@ -132,8 +132,8 @@ public sealed class AnswerValueCodecTests
 
     /// <summary>Wahrheitswerte erscheinen deutsch.</summary>
     [Theory]
-    [InlineData("true", "Ja")]
-    [InlineData("false", "Nein")]
+    [InlineData("true", "Yes")]
+    [InlineData("false", "No")]
     public void Describe_zeigt_Wahrheitswerte_deutsch(string value, string expected)
         => Assert.Equal(expected, AnswerValueCodec.Describe(NewDetail(QuestionType.Boolean), value));
 

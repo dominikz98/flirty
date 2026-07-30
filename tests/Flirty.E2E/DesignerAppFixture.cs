@@ -10,10 +10,10 @@ using Microsoft.AspNetCore.Hosting;
 namespace Flirty.E2E;
 
 /// <summary>
-/// Hostet den echten Blazor-Designer (<see cref="DesignerApp"/>) in-Prozess auf einem freien
-/// Kestrel-Port und stellt ihm ein bereits aktives Connection-Profil auf eine frisch migrierte
-/// SQLite-Temp-Datenbank bereit. Damit startet jeder E2E-Test direkt auf <c>/dialogs</c>, ohne
-/// vorher die Profil-Verwaltung durchklicken zu müssen.
+/// Hosts the real Blazor designer (<see cref="DesignerApp"/>) in-process on a free Kestrel port and
+/// provides it with an already-active connection profile on a freshly migrated SQLite temp database.
+/// That way every E2E test starts directly on <c>/dialogs</c>, without having to click through the
+/// profile management first.
 /// </summary>
 public sealed class DesignerAppFixture : IAsyncLifetime
 {
@@ -21,7 +21,7 @@ public sealed class DesignerAppFixture : IAsyncLifetime
     private string? _contentRoot;
     private string? _databasePath;
 
-    /// <summary>Die Basis-URL, unter der der Designer im Browser erreichbar ist.</summary>
+    /// <summary>The base URL under which the designer is reachable in the browser.</summary>
     public string BaseUrl { get; private set; } = string.Empty;
 
     /// <inheritdoc />
@@ -30,8 +30,8 @@ public sealed class DesignerAppFixture : IAsyncLifetime
         var port = GetFreeTcpPort();
         BaseUrl = $"http://127.0.0.1:{port}";
 
-        // Eigenes ContentRoot je Lauf: dort landet die (per .gitignore ausgeschlossene)
-        // connection-profiles.json, statt im Repo oder im Testausgabeverzeichnis.
+        // Own ContentRoot per run: that is where the (gitignored) connection-profiles.json lands, instead
+        // of in the repo or the test output directory.
         _contentRoot = Path.Combine(Path.GetTempPath(), $"flirty-designer-e2e-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_contentRoot);
 
@@ -40,7 +40,7 @@ public sealed class DesignerAppFixture : IAsyncLifetime
         {
             Name = "E2E",
             Provider = FlirtyDatabaseProvider.Sqlite,
-            // Pooling=False: sonst hält der SQLite-Connection-Pool die Datei offen und der Cleanup scheitert.
+            // Pooling=False: otherwise the SQLite connection pool keeps the file open and cleanup fails.
             ConnectionString = $"Data Source={_databasePath};Pooling=False",
         };
 
@@ -48,10 +48,10 @@ public sealed class DesignerAppFixture : IAsyncLifetime
         if (!migration.Success)
         {
             throw new InvalidOperationException(
-                "Die Temp-Datenbank der Designer-E2E ließ sich nicht migrieren: " + migration.Error);
+                "The designer E2E temp database could not be migrated: " + migration.Error);
         }
 
-        // Profil als Standard hinterlegen -> ActiveConnectionProfile aktiviert es in jedem neuen Circuit.
+        // Store the profile as the default -> ActiveConnectionProfile activates it in every new circuit.
         var store = new JsonConnectionProfileStore(
             Path.Combine(_contentRoot, DesignerApp.ConnectionProfilesFileName));
         store.Save(profile);
@@ -59,14 +59,14 @@ public sealed class DesignerAppFixture : IAsyncLifetime
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
-            // Beide Angaben sind funktional zwingend, nicht kosmetisch:
-            // - ApplicationName: der StaticWebAssetsLoader sucht die "<App>.staticwebassets.runtime.json"
-            //   über Assembly.Load(ApplicationName), MapStaticAssets() leitet den Namen der
-            //   endpoints.json davon ab. Ohne das wird _framework/blazor.web.js nicht ausgeliefert,
-            //   der Circuit kommt nie zustande und jeder Klick im Test verpufft.
-            // - Development: nur in dieser Umgebung ruft der WebApplicationBuilder überhaupt
-            //   UseStaticWebAssets() auf. Nebeneffekt (erwünscht): Developer Exception Page statt
-            //   /Error, das macht rote Tests lesbar.
+            // Both settings are functionally mandatory, not cosmetic:
+            // - ApplicationName: the StaticWebAssetsLoader looks up the "<App>.staticwebassets.runtime.json"
+            //   via Assembly.Load(ApplicationName), and MapStaticAssets() derives the name of the
+            //   endpoints.json from it. Without it, _framework/blazor.web.js is not served, the circuit
+            //   never comes up and every click in the test fizzles.
+            // - Development: only in this environment does the WebApplicationBuilder call
+            //   UseStaticWebAssets() at all. Side effect (desired): a Developer Exception Page instead of
+            //   /Error, which makes red tests readable.
             ApplicationName = "Flirty.Designer",
             EnvironmentName = "Development",
             ContentRootPath = _contentRoot,

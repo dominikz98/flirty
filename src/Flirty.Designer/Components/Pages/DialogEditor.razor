@@ -1,5 +1,5 @@
-@* Bewusst NICHT "DialogDetail" genannt: der Komponententyp würde sonst den gleichnamigen
-   Sichttyp Flirty.Runtime.Admin.DialogDetail verdecken. *@
+@* Deliberately NOT named "DialogDetail": the component type would otherwise shadow the
+   equally named view type Flirty.Runtime.Admin.DialogDetail. *@
 @page "/dialogs/{Id:guid}"
 @rendermode InteractiveServer
 @using Mediator
@@ -10,7 +10,7 @@
 
 <PageTitle>@(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
 
-<p class="back"><a href="dialogs">← Dialoge</a></p>
+<p class="back"><a href="dialogs">← Dialogs</a></p>
 
 @if (_detail is null)
 {
@@ -22,7 +22,7 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
@@ -31,38 +31,38 @@ else
         @_detail.Dialog.Name
         @if (_detail.Dialog.IsPublished)
         {
-            <span class="badge badge-published">Veröffentlicht</span>
+            <span class="badge badge-published">Published</span>
         }
         else
         {
-            <span class="badge badge-draft">Entwurf</span>
+            <span class="badge badge-draft">Draft</span>
         }
     </h1>
 
     <p class="intro">
-        Version @_detail.Dialog.Version · angelegt @_detail.Dialog.CreatedAt.LocalDateTime.ToString("g")
-        · zuletzt geändert @_detail.Dialog.UpdatedAt.LocalDateTime.ToString("g")
-        · <a href="@($"dialogs/{Id}/graph")">Graph ansehen</a>
+        Version @_detail.Dialog.Version · created @_detail.Dialog.CreatedAt.LocalDateTime.ToString("g")
+        · last changed @_detail.Dialog.UpdatedAt.LocalDateTime.ToString("g")
+        · <a href="@($"dialogs/{Id}/graph")">View graph</a>
     </p>
 
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
             <p>
-                Dieser Dialog ist in Version @_detail.Dialog.Version veröffentlicht und deshalb
-                <strong>gesperrt</strong>: Fragen, Antwortoptionen, Übergänge, Schleifen, Trigger und die
-                Einstiegsfrage lassen sich nicht ändern. Laufende Sessions arbeiten auf dieser Version
-                weiter – eine Änderung würde sie brechen.
+                This dialog is published in version @_detail.Dialog.Version and therefore
+                <strong>locked</strong>: questions, answer options, transitions, loops, triggers and the
+                entry question cannot be changed. Running sessions keep working on this version –
+                a change would break them.
             </p>
             <p>
-                Zum Weiterentwickeln eine <strong>neue Version</strong> anlegen (Kopie als Entwurf; die
-                veröffentlichte Version bleibt unverändert) oder den Dialog <strong>zurückziehen</strong>
-                (dann startet ihn niemand mehr neu, laufende Sessions laufen zu Ende).
-                Name und Beschreibung bleiben auch hier änderbar.
+                To evolve it, create a <strong>new version</strong> (a copy as a draft; the
+                published version stays unchanged) or <strong>retire</strong> the dialog
+                (then no one starts it anew, running sessions run to completion).
+                Name and description remain editable here too.
             </p>
             <div class="actions">
                 <button class="btn btn-primary" disabled="@_busy" @onclick="CreateVersionAsync">
-                    Neue Version anlegen
+                    Create new version
                 </button>
             </div>
         </div>
@@ -78,12 +78,12 @@ else
     }
 
     <div class="editor">
-        <h2>Metadaten</h2>
+        <h2>Metadata</h2>
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
             <div class="field">
-                <label for="key">Schlüssel</label>
+                <label for="key">Key</label>
                 <InputText id="key" class="input" @bind-Value="_form.Key" />
                 <ValidationMessage For="() => _form.Key" />
             </div>
@@ -95,15 +95,15 @@ else
             </div>
 
             <div class="field">
-                <label for="description">Beschreibung</label>
+                <label for="description">Description</label>
                 <InputTextArea id="description" class="input" rows="2" @bind-Value="_form.Description" />
             </div>
 
             <div class="field">
-                <label for="startQuestion">Einstiegsfrage</label>
+                <label for="startQuestion">Entry question</label>
                 <InputSelect id="startQuestion" class="input" @bind-Value="_form.StartQuestionId"
                              disabled="@(_detail.Questions.Count == 0 || !Editable)">
-                    <option value="">— keine —</option>
+                    <option value="">— none —</option>
                     @foreach (var question in _detail.Questions)
                     {
                         <option value="@question.Id">@question.Key — @question.Text</option>
@@ -111,31 +111,31 @@ else
                 </InputSelect>
                 @if (_detail.Questions.Count == 0)
                 {
-                    <span class="hint">Erst unten eine Frage anlegen – dann lässt sich hier die Einstiegsfrage wählen.</span>
+                    <span class="hint">Create a question below first – then the entry question can be chosen here.</span>
                 }
                 else if (_form.StartQuestionId is null)
                 {
-                    <span class="hint">Ohne Einstiegsfrage lässt sich der Dialog nicht veröffentlichen.</span>
+                    <span class="hint">Without an entry question the dialog cannot be published.</span>
                 }
                 else
                 {
-                    <span class="hint">Hier beginnt jede Session dieses Dialogs.</span>
+                    <span class="hint">Every session of this dialog begins here.</span>
                 }
             </div>
 
             <div class="actions">
-                <button type="submit" class="btn btn-primary" disabled="@_busy">Speichern</button>
-                <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Zurücksetzen</button>
+                <button type="submit" class="btn btn-primary" disabled="@_busy">Save</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="ResetForm">Reset</button>
             </div>
         </EditForm>
     </div>
 
     <div class="editor">
-        <h2>Fragen</h2>
+        <h2>Questions</h2>
 
         @if (_detail.Questions.Count == 0)
         {
-            <p class="empty">Noch keine Fragen angelegt.</p>
+            <p class="empty">No questions created yet.</p>
         }
         else
         {
@@ -143,19 +143,19 @@ else
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Schlüssel</th>
+                        <th>Key</th>
                         <th>Text</th>
-                        <th>Typ</th>
-                        <th>Pflicht</th>
-                        <th>Optionen</th>
-                        <th>Aktionen</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Options</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @for (var index = 0; index < _detail.Questions.Count; index++)
                     {
-                        // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
-                        // Schleifenzustand nach dem letzten Durchlauf.
+                        // Local copies: otherwise the buttons' lambdas would run against the loop
+                        // state after the last iteration.
                         var position = index;
                         var question = _detail.Questions[index];
 
@@ -165,34 +165,34 @@ else
                                 @question.Key
                                 @if (_detail.Dialog.StartQuestionId == question.Id)
                                 {
-                                    <span class="badge badge-start">Einstieg</span>
+                                    <span class="badge badge-start">Entry</span>
                                 }
                             </td>
                             <td>@question.Text</td>
                             <td>@QuestionTypeLabels.Describe(question.Type)</td>
-                            <td>@(question.IsRequired ? "ja" : "nein")</td>
+                            <td>@(question.IsRequired ? "yes" : "no")</td>
                             <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
                             <td class="row-actions">
-                                <button class="btn" title="Nach oben"
+                                <button class="btn" title="Move up"
                                         disabled="@(_busy || !Editable || position == 0)"
                                         @onclick="() => MoveQuestionAsync(position, position - 1)">↑</button>
-                                <button class="btn" title="Nach unten"
+                                <button class="btn" title="Move down"
                                         disabled="@(_busy || !Editable || position == _detail.Questions.Count - 1)"
                                         @onclick="() => MoveQuestionAsync(position, position + 1)">↓</button>
-                                <button class="btn" @onclick="() => OpenQuestion(question)">Bearbeiten</button>
+                                <button class="btn" @onclick="() => OpenQuestion(question)">Edit</button>
 
                                 @if (_confirmDeleteQuestionId == question.Id)
                                 {
-                                    <span class="confirm">Frage samt Optionen und Übergängen löschen?</span>
+                                    <span class="confirm">Delete the question along with its options and transitions?</span>
                                     <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                            @onclick="() => DeleteQuestionAsync(question)">Ja, löschen</button>
+                                            @onclick="() => DeleteQuestionAsync(question)">Yes, delete</button>
                                     <button class="btn" disabled="@_busy"
-                                            @onclick="() => _confirmDeleteQuestionId = null">Abbrechen</button>
+                                            @onclick="() => _confirmDeleteQuestionId = null">Cancel</button>
                                 }
                                 else
                                 {
                                     <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                            @onclick="() => _confirmDeleteQuestionId = question.Id">Löschen</button>
+                                            @onclick="() => _confirmDeleteQuestionId = question.Id">Delete</button>
                                 }
                             </td>
                         </tr>
@@ -204,7 +204,7 @@ else
         @if (_newQuestion is null)
         {
             <div class="actions">
-                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateQuestion">Neue Frage</button>
+                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateQuestion">New question</button>
             </div>
         }
         else
@@ -213,23 +213,23 @@ else
                 <DataAnnotationsValidator />
 
                 <div class="field">
-                    <label for="questionKey">Schlüssel</label>
+                    <label for="questionKey">Key</label>
                     <InputText id="questionKey" class="input" @bind-Value="_newQuestion.Key" />
                     <span class="hint">
-                        Fachlicher, stabiler Schlüssel – im Dialog eindeutig und im Ausdruckskontext des
-                        Branchings sichtbar (z. B. <code>vorname</code>).
+                        A domain-level, stable key – unique within the dialog and visible in the branching
+                        expression context (e.g. <code>first_name</code>).
                     </span>
                     <ValidationMessage For="() => _newQuestion.Key" />
                 </div>
 
                 <div class="field">
-                    <label for="questionText">Fragetext</label>
+                    <label for="questionText">Question text</label>
                     <InputTextArea id="questionText" class="input" rows="2" @bind-Value="_newQuestion.Text" />
                     <ValidationMessage For="() => _newQuestion.Text" />
                 </div>
 
                 <div class="field">
-                    <label for="questionType">Typ</label>
+                    <label for="questionType">Type</label>
                     <InputSelect id="questionType" class="input" @bind-Value="_newQuestion.Type">
                         @foreach (var type in Enum.GetValues<QuestionType>())
                         {
@@ -240,35 +240,35 @@ else
 
                 <div class="field check">
                     <InputCheckbox id="questionRequired" @bind-Value="_newQuestion.IsRequired" />
-                    <label for="questionRequired">Antwort erforderlich</label>
+                    <label for="questionRequired">Answer required</label>
                 </div>
 
                 <div class="actions">
-                    <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
-                    <button type="button" class="btn" disabled="@_busy" @onclick="() => _newQuestion = null">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" disabled="@_busy">Create</button>
+                    <button type="button" class="btn" disabled="@_busy" @onclick="() => _newQuestion = null">Cancel</button>
                 </div>
             </EditForm>
         }
     </div>
 
     <div class="editor">
-        <h2>Übergänge (Branching)</h2>
+        <h2>Transitions (branching)</h2>
 
         @if (_detail.Questions.Count == 0)
         {
-            <p class="empty">Erst Fragen anlegen – Übergänge verbinden Fragen miteinander.</p>
+            <p class="empty">Create questions first – transitions connect questions to each other.</p>
         }
         else
         {
             <p class="hint">
-                Je Ausgangsfrage werden die Übergänge von oben nach unten geprüft; der erste zutreffende
-                gewinnt. Greift keiner, kommt der Default-Übergang zum Zug.
+                Per source question the transitions are checked top to bottom; the first matching one
+                wins. If none match, the default transition takes effect.
             </p>
 
             @foreach (var question in _detail.Questions)
             {
-                // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den Schleifenzustand
-                // nach dem letzten Durchlauf.
+                // Local copy: otherwise the buttons' lambdas would run against the loop state
+                // after the last iteration.
                 var source = question;
                 var outgoing = Outgoing(source.Id);
 
@@ -276,13 +276,13 @@ else
                     <span class="mono">@source.Key</span>
                     <span class="group-text">— @source.Text</span>
                     <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => StartCreateTransition(source.Id)">
-                        + Übergang
+                        + Transition
                     </button>
                 </h3>
 
                 @if (outgoing.Count == 0)
                 {
-                    <p class="hint">Keine Übergänge – der Dialog endet nach dieser Frage.</p>
+                    <p class="hint">No transitions – the dialog ends after this question.</p>
                 }
                 else
                 {
@@ -295,10 +295,10 @@ else
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Bedingung</th>
-                                <th>Ziel</th>
-                                <th>Art</th>
-                                <th>Aktionen</th>
+                                <th>Condition</th>
+                                <th>Target</th>
+                                <th>Kind</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -311,7 +311,7 @@ else
                                     <td>@(position + 1)</td>
                                     <td class="mono">
                                         @(string.IsNullOrWhiteSpace(transition.Expression)
-                                            ? "— bedingungslos —"
+                                            ? "— unconditional —"
                                             : transition.Expression)
                                     </td>
                                     <td class="mono">@QuestionLabel(transition.TargetQuestionId)</td>
@@ -322,30 +322,30 @@ else
                                         }
                                         @if (IsBackJump(transition))
                                         {
-                                            <span class="badge badge-loop" title="Zeigt auf eine frühere Frage – Zyklus/Schleife">Rücksprung</span>
+                                            <span class="badge badge-loop" title="Points to an earlier question – cycle/loop">Back-jump</span>
                                         }
                                     </td>
                                     <td class="row-actions">
-                                        <button class="btn" title="Nach oben"
+                                        <button class="btn" title="Move up"
                                                 disabled="@(_busy || !Editable || position == 0)"
                                                 @onclick="() => MoveTransitionAsync(source.Id, position, position - 1)">↑</button>
-                                        <button class="btn" title="Nach unten"
+                                        <button class="btn" title="Move down"
                                                 disabled="@(_busy || !Editable || position == outgoing.Count - 1)"
                                                 @onclick="() => MoveTransitionAsync(source.Id, position, position + 1)">↓</button>
-                                        <button class="btn" @onclick="() => OpenTransition(transition)">Bearbeiten</button>
+                                        <button class="btn" @onclick="() => OpenTransition(transition)">Edit</button>
 
                                         @if (_confirmDeleteTransitionId == transition.Id)
                                         {
-                                            <span class="confirm">Übergang löschen?</span>
+                                            <span class="confirm">Delete transition?</span>
                                             <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                    @onclick="() => DeleteTransitionAsync(transition)">Ja, löschen</button>
+                                                    @onclick="() => DeleteTransitionAsync(transition)">Yes, delete</button>
                                             <button class="btn" disabled="@_busy"
-                                                    @onclick="() => _confirmDeleteTransitionId = null">Abbrechen</button>
+                                                    @onclick="() => _confirmDeleteTransitionId = null">Cancel</button>
                                         }
                                         else
                                         {
                                             <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                    @onclick="() => _confirmDeleteTransitionId = transition.Id">Löschen</button>
+                                                    @onclick="() => _confirmDeleteTransitionId = transition.Id">Delete</button>
                                         }
                                     </td>
                                 </tr>
@@ -358,14 +358,14 @@ else
             @if (Orphans().Count > 0)
             {
                 <div class="banner warn">
-                    @Orphans().Count Übergang/Übergänge zeigen auf eine unbekannte Ausgangsfrage und werden
-                    nie ausgewertet. Sie lassen sich nur löschen:
+                    @Orphans().Count transition(s) point to an unknown source question and are
+                    never evaluated. They can only be deleted:
                     @foreach (var orphan in Orphans())
                     {
                         var stale = orphan;
                         <button class="btn btn-danger" disabled="@(_busy || !Editable)"
                                 @onclick="() => DeleteTransitionAsync(stale)">
-                            @stale.Id löschen
+                            Delete @stale.Id
                         </button>
                     }
                 </div>
@@ -375,7 +375,7 @@ else
             {
                 <div class="actions">
                     <button class="btn btn-primary" disabled="@(_busy || !Editable)"
-                            @onclick="() => StartCreateTransition(null)">Neuer Übergang</button>
+                            @onclick="() => StartCreateTransition(null)">New transition</button>
                 </div>
             }
             else
@@ -385,9 +385,9 @@ else
 
                     <div class="field-row">
                         <div class="field">
-                            <label for="transitionFrom">Ausgangsfrage</label>
+                            <label for="transitionFrom">Source question</label>
                             <InputSelect id="transitionFrom" class="input" @bind-Value="_newTransition.FromQuestionId">
-                                <option value="">— wählen —</option>
+                                <option value="">— choose —</option>
                                 @foreach (var question in _detail.Questions)
                                 {
                                     <option value="@question.Id">@question.Key — @question.Text</option>
@@ -397,9 +397,9 @@ else
                         </div>
 
                         <div class="field">
-                            <label for="transitionTarget">Zielfrage</label>
+                            <label for="transitionTarget">Target question</label>
                             <InputSelect id="transitionTarget" class="input" @bind-Value="_newTransition.TargetQuestionId">
-                                <option value="">— wählen —</option>
+                                <option value="">— choose —</option>
                                 @foreach (var question in _detail.Questions)
                                 {
                                     <option value="@question.Id">@question.Key — @question.Text</option>
@@ -411,18 +411,18 @@ else
 
                     <div class="field check">
                         <InputCheckbox id="transitionDefault" @bind-Value="_newTransition.IsDefault" />
-                        <label for="transitionDefault">Default-Übergang (greift, wenn keine Bedingung zutrifft)</label>
+                        <label for="transitionDefault">Default transition (applies when no condition matches)</label>
                     </div>
 
                     <span class="hint">
-                        Die Bedingung wird anschließend im Übergangs-Editor gepflegt – dort wird sie live
-                        gegen die Fragen dieses Dialogs geprüft.
+                        The condition is then maintained in the transition editor – there it is checked
+                        live against this dialog's questions.
                     </span>
 
                     <div class="actions">
-                        <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                        <button type="submit" class="btn btn-primary" disabled="@_busy">Create</button>
                         <button type="button" class="btn" disabled="@_busy"
-                                @onclick="() => _newTransition = null">Abbrechen</button>
+                                @onclick="() => _newTransition = null">Cancel</button>
                     </div>
                 </EditForm>
             }
@@ -430,23 +430,23 @@ else
     </div>
 
     <div class="editor">
-        <h2>Schleifen (Loops)</h2>
+        <h2>Loops</h2>
 
         @if (_detail.Questions.Count == 0)
         {
-            <p class="empty">Erst Fragen und Übergänge anlegen – eine Schleife markiert einen vorhandenen Zyklus.</p>
+            <p class="empty">Create questions and transitions first – a loop marks an existing cycle.</p>
         }
         else
         {
             <p class="hint">
-                Eine Schleife entsteht aus den Übergängen: Ein Rücksprung auf eine frühere Frage bildet den
-                Zyklus. Der Marker sagt der Laufzeit nur, dass die Antworten des Bereichs je Iteration unter
-                dem Collection-Schlüssel <em>gesammelt</em> statt überschrieben werden.
+                A loop arises from the transitions: a back-jump to an earlier question forms the
+                cycle. The marker only tells the runtime that the answers of the range are
+                <em>collected</em> per iteration under the collection key instead of being overwritten.
             </p>
 
             @if (_detail.Loops.Count == 0)
             {
-                <p class="empty">Noch keine Schleifen markiert.</p>
+                <p class="empty">No loops marked yet.</p>
             }
             else
             {
@@ -454,53 +454,53 @@ else
                     <thead>
                         <tr>
                             <th>Collection</th>
-                            <th>Einstieg</th>
+                            <th>Entry</th>
                             <th>Breaking</th>
-                            <th>Bereich</th>
+                            <th>Range</th>
                             <th>Status</th>
-                            <th>Aktionen</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var insight in _loops)
                         {
-                            // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den
-                            // Schleifenzustand nach dem letzten Durchlauf.
+                            // Local copy: otherwise the buttons' lambdas would run against the loop
+                            // state after the last iteration.
                             var loop = insight.Loop;
 
                             <tr>
                                 <td class="mono">@loop.CollectionKey</td>
                                 <td class="mono">@QuestionLabel(loop.EntryQuestionId)</td>
                                 <td class="mono">@QuestionLabel(loop.BreakingQuestionId)</td>
-                                <td>@insight.Body.Count Frage(n)</td>
+                                <td>@insight.Body.Count question(s)</td>
                                 <td>
                                     @if (insight.Warnings.Count == 0)
                                     {
-                                        <span class="badge badge-loop">Schleife</span>
+                                        <span class="badge badge-loop">Loop</span>
                                     }
                                     else
                                     {
                                         <span class="badge badge-draft"
                                               title="@string.Join(" ", insight.Warnings)">
-                                            @insight.Warnings.Count Warnung(en)
+                                            @insight.Warnings.Count warning(s)
                                         </span>
                                     }
                                 </td>
                                 <td class="row-actions">
-                                    <button class="btn" @onclick="() => OpenLoop(loop)">Bearbeiten</button>
+                                    <button class="btn" @onclick="() => OpenLoop(loop)">Edit</button>
 
                                     @if (_confirmDeleteLoopId == loop.Id)
                                     {
-                                        <span class="confirm">Marker löschen? Der Zyklus selbst bleibt bestehen.</span>
+                                        <span class="confirm">Delete marker? The cycle itself remains.</span>
                                         <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                @onclick="() => DeleteLoopAsync(loop)">Ja, löschen</button>
+                                                @onclick="() => DeleteLoopAsync(loop)">Yes, delete</button>
                                         <button class="btn" disabled="@_busy"
-                                                @onclick="() => _confirmDeleteLoopId = null">Abbrechen</button>
+                                                @onclick="() => _confirmDeleteLoopId = null">Cancel</button>
                                     }
                                     else
                                     {
                                         <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                @onclick="() => _confirmDeleteLoopId = loop.Id">Löschen</button>
+                                                @onclick="() => _confirmDeleteLoopId = loop.Id">Delete</button>
                                     }
                                 </td>
                             </tr>
@@ -512,14 +512,14 @@ else
             @if (UnmarkedBackJumps().Count > 0)
             {
                 <div class="banner warn">
-                    Rücksprung ohne Schleifen-Marker: Die Antworten dieses Zyklus werden zur Laufzeit
-                    <strong>überschrieben</strong> statt je Iteration gesammelt.
+                    Back-jump without a loop marker: the answers of this cycle are
+                    <strong>overwritten</strong> at runtime instead of collected per iteration.
                     @foreach (var candidate in UnmarkedBackJumps())
                     {
                         var backJump = candidate;
                         <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => StartCreateLoop(backJump)">
                             @QuestionLabel(backJump.FromQuestionId) → @QuestionLabel(backJump.TargetQuestionId)
-                            als Schleife markieren
+                            mark as loop
                         </button>
                     }
                 </div>
@@ -529,7 +529,7 @@ else
             {
                 <div class="actions">
                     <button class="btn btn-primary" disabled="@(_busy || !Editable)"
-                            @onclick="() => StartCreateLoop(null)">Neue Schleife</button>
+                            @onclick="() => StartCreateLoop(null)">New loop</button>
                 </div>
             }
             else
@@ -539,46 +539,46 @@ else
 
                     <div class="field-row">
                         <div class="field">
-                            <label for="loopEntry">Einstiegsfrage</label>
+                            <label for="loopEntry">Entry question</label>
                             <InputSelect id="loopEntry" class="input" @bind-Value="_newLoop.EntryQuestionId">
-                                <option value="">— wählen —</option>
+                                <option value="">— choose —</option>
                                 @foreach (var question in _detail.Questions)
                                 {
                                     <option value="@question.Id">@question.Key — @question.Text</option>
                                 }
                             </InputSelect>
-                            <span class="hint">Ziel des Rücksprungs; ihre Antwort wird je Iteration gesammelt.</span>
+                            <span class="hint">Target of the back-jump; its answer is collected per iteration.</span>
                             <ValidationMessage For="() => _newLoop.EntryQuestionId" />
                         </div>
 
                         <div class="field">
-                            <label for="loopBreaking">Breaking Question</label>
+                            <label for="loopBreaking">Breaking question</label>
                             <InputSelect id="loopBreaking" class="input" @bind-Value="_newLoop.BreakingQuestionId">
-                                <option value="">— wählen —</option>
+                                <option value="">— choose —</option>
                                 @foreach (var question in _detail.Questions)
                                 {
                                     <option value="@question.Id">@question.Key — @question.Text</option>
                                 }
                             </InputSelect>
-                            <span class="hint">Frage, an der über Rücksprung oder Ausstieg entschieden wird.</span>
+                            <span class="hint">The question at which back-jump or exit is decided.</span>
                             <ValidationMessage For="() => _newLoop.BreakingQuestionId" />
                         </div>
                     </div>
 
                     <div class="field">
-                        <label for="loopKey">Collection-Schlüssel</label>
+                        <label for="loopKey">Collection key</label>
                         <InputText id="loopKey" class="input mono" @bind-Value="_newLoop.CollectionKey" />
                         <span class="hint">
-                            Bezeichner der gesammelten Antworten im Ausdruckskontext, z. B.
-                            <code>skills</code> für <code>skills.Count &gt; 0</code>.
+                            Identifier of the collected answers in the expression context, e.g.
+                            <code>skills</code> for <code>skills.Count &gt; 0</code>.
                         </span>
                         <ValidationMessage For="() => _newLoop.CollectionKey" />
                     </div>
 
                     <div class="actions">
-                        <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                        <button type="submit" class="btn btn-primary" disabled="@_busy">Create</button>
                         <button type="button" class="btn" disabled="@_busy"
-                                @onclick="() => _newLoop = null">Abbrechen</button>
+                                @onclick="() => _newLoop = null">Cancel</button>
                     </div>
                 </EditForm>
             }
@@ -586,38 +586,38 @@ else
     </div>
 
     <div class="editor">
-        <h2>Trigger</h2>
+        <h2>Triggers</h2>
 
         <p class="hint">
-            Trigger sind Rückkanäle in die Host-Anwendung. Ein <strong>Webhook</strong> wird von der
-            Engine selbst als HTTP-POST an die konfigurierte URL zugestellt; ein
-            <strong>In-Process</strong>-Eintrag hält nur fest, dass die Host-App an dieser Stelle mit
-            einem eigenen <code>INotificationHandler&lt;T&gt;</code> reagiert – die Notification wird
-            ohnehin publiziert.
+            Triggers are back channels into the host application. A <strong>webhook</strong> is delivered
+            by the engine itself as an HTTP POST to the configured URL; an
+            <strong>in-process</strong> entry only records that the host app reacts at this point with
+            its own <code>INotificationHandler&lt;T&gt;</code> – the notification is
+            published anyway.
         </p>
 
         @if (_detail.Triggers.Count == 0)
         {
-            <p class="empty">Noch keine Trigger angelegt.</p>
+            <p class="empty">No triggers created yet.</p>
         }
         else
         {
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Zeitpunkt</th>
-                        <th>Frage</th>
-                        <th>Kanal</th>
-                        <th>Ziel</th>
-                        <th>Bedingung</th>
-                        <th>Aktionen</th>
+                        <th>When</th>
+                        <th>Question</th>
+                        <th>Channel</th>
+                        <th>Target</th>
+                        <th>Condition</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var entry in _detail.Triggers)
                     {
-                        // Lokale Kopie: die Lambdas der Schaltflächen liefen sonst gegen den
-                        // Schleifenzustand nach dem letzten Durchlauf.
+                        // Local copy: otherwise the buttons' lambdas would run against the loop
+                        // state after the last iteration.
                         var trigger = entry;
 
                         <tr>
@@ -629,24 +629,24 @@ else
                             <td class="mono">@TriggerTarget(trigger)</td>
                             <td class="mono">
                                 @(string.IsNullOrWhiteSpace(trigger.Expression)
-                                    ? "— bedingungslos —"
+                                    ? "— unconditional —"
                                     : trigger.Expression)
                             </td>
                             <td class="row-actions">
-                                <button class="btn" @onclick="() => OpenTrigger(trigger)">Bearbeiten</button>
+                                <button class="btn" @onclick="() => OpenTrigger(trigger)">Edit</button>
 
                                 @if (_confirmDeleteTriggerId == trigger.Id)
                                 {
-                                    <span class="confirm">Trigger löschen?</span>
+                                    <span class="confirm">Delete trigger?</span>
                                     <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                            @onclick="() => DeleteTriggerAsync(trigger)">Ja, löschen</button>
+                                            @onclick="() => DeleteTriggerAsync(trigger)">Yes, delete</button>
                                     <button class="btn" disabled="@_busy"
-                                            @onclick="() => _confirmDeleteTriggerId = null">Abbrechen</button>
+                                            @onclick="() => _confirmDeleteTriggerId = null">Cancel</button>
                                 }
                                 else
                                 {
                                     <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                            @onclick="() => _confirmDeleteTriggerId = trigger.Id">Löschen</button>
+                                            @onclick="() => _confirmDeleteTriggerId = trigger.Id">Delete</button>
                                 }
                             </td>
                         </tr>
@@ -658,7 +658,7 @@ else
         @if (_newTrigger is null)
         {
             <div class="actions">
-                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateTrigger">Neuer Trigger</button>
+                <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateTrigger">New trigger</button>
             </div>
         }
         else
@@ -668,7 +668,7 @@ else
 
                 <div class="field-row">
                     <div class="field">
-                        <label for="triggerScope">Zeitpunkt</label>
+                        <label for="triggerScope">When</label>
                         <InputSelect id="triggerScope" class="input" @bind-Value="_newTrigger.Scope">
                             @foreach (var scope in Enum.GetValues<TriggerScope>())
                             {
@@ -678,7 +678,7 @@ else
                     </div>
 
                     <div class="field">
-                        <label for="triggerKind">Kanal</label>
+                        <label for="triggerKind">Channel</label>
                         <InputSelect id="triggerKind" class="input" @bind-Value="_newTrigger.Kind">
                             @foreach (var kind in Enum.GetValues<TriggerKind>())
                             {
@@ -691,113 +691,113 @@ else
                 @if (TriggerLabels.RequiresQuestion(_newTrigger.Scope))
                 {
                     <div class="field">
-                        <label for="triggerQuestion">Frage</label>
+                        <label for="triggerQuestion">Question</label>
                         <InputSelect id="triggerQuestion" class="input" @bind-Value="_newTrigger.QuestionId"
                                      disabled="@(_detail.Questions.Count == 0)">
-                            <option value="">— wählen —</option>
+                            <option value="">— choose —</option>
                             @foreach (var question in _detail.Questions)
                             {
                                 <option value="@question.Id">@question.Key — @question.Text</option>
                             }
                         </InputSelect>
-                        <span class="hint">Der Trigger löst nur nach dieser Frage aus.</span>
+                        <span class="hint">The trigger only fires after this question.</span>
                     </div>
                 }
 
                 @if (_newTrigger.Kind == TriggerKind.Webhook)
                 {
                     <div class="field">
-                        <label for="triggerUrl">Ziel-URL</label>
+                        <label for="triggerUrl">Target URL</label>
                         <InputText id="triggerUrl" class="input mono" @bind-Value="_newTrigger.Url" />
-                        <span class="hint">Absolute http-/https-Adresse, z. B. <code>https://host.example/flirty/completed</code>.</span>
+                        <span class="hint">Absolute http/https address, e.g. <code>https://host.example/flirty/completed</code>.</span>
                     </div>
                 }
 
                 <div class="field">
-                    <label for="triggerName">Ereignisname (optional)</label>
+                    <label for="triggerName">Event name (optional)</label>
                     <InputText id="triggerName" class="input mono" @bind-Value="_newTrigger.Name" />
                     <span class="hint">
-                        Wird beim Webhook als Header <code>X-Flirty-Trigger</code> mitgeliefert, z. B.
+                        Sent with the webhook as the header <code>X-Flirty-Trigger</code>, e.g.
                         <code>order-created</code>.
                     </span>
                 </div>
 
                 <span class="hint">
-                    Die Bedingung wird anschließend im Trigger-Editor gepflegt – dort wird sie live gegen
-                    die Fragen dieses Dialogs geprüft.
+                    The condition is then maintained in the trigger editor – there it is checked live
+                    against this dialog's questions.
                 </span>
 
                 <div class="actions">
-                    <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
+                    <button type="submit" class="btn btn-primary" disabled="@_busy">Create</button>
                     <button type="button" class="btn" disabled="@_busy"
-                            @onclick="() => _newTrigger = null">Abbrechen</button>
+                            @onclick="() => _newTrigger = null">Cancel</button>
                 </div>
             </EditForm>
         }
     </div>
 
     <div class="editor">
-        <h2>Testlauf</h2>
+        <h2>Test run</h2>
 
         <p class="hint">
-            Den Dialog mit der echten Engine durchspielen – auch als Entwurf. Der Lauf legt eine echte
-            Session in der Datenbank des aktiven Profils an.
+            Play the dialog through with the real engine – even as a draft. The run creates a real
+            session in the database of the active profile.
         </p>
 
         <div class="actions">
             <button class="btn btn-primary"
                     disabled="@(_busy || _detail.Dialog.StartQuestionId is null)"
                     @onclick="OpenTestRunner">
-                Durchspielen
+                Test run
             </button>
         </div>
 
         @if (_detail.Dialog.StartQuestionId is null)
         {
-            <p class="hint">Ohne gesetzte (und gespeicherte) Einstiegsfrage gibt es nichts durchzuspielen.</p>
+            <p class="hint">Without a set (and saved) entry question there is nothing to play through.</p>
         }
     </div>
 
     <div class="editor">
-        <h2>Veröffentlichung &amp; Löschen</h2>
+        <h2>Publishing &amp; deletion</h2>
         <div class="actions">
             @if (_detail.Dialog.IsPublished)
             {
-                <button class="btn" disabled="@_busy" @onclick="UnpublishAsync">Zurückziehen</button>
+                <button class="btn" disabled="@_busy" @onclick="UnpublishAsync">Retire</button>
             }
             else if (_confirmPublish)
             {
-                <span class="confirm">Trotz der Warnungen veröffentlichen?</span>
+                <span class="confirm">Publish despite the warnings?</span>
                 <button class="btn btn-danger" disabled="@_busy" @onclick="PublishAsync">
-                    Ja, veröffentlichen
+                    Yes, publish
                 </button>
-                <button class="btn" disabled="@_busy" @onclick="() => _confirmPublish = false">Abbrechen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmPublish = false">Cancel</button>
             }
             else
             {
                 <button class="btn btn-primary"
                         disabled="@(_busy || _detail.Dialog.StartQuestionId is null)"
                         @onclick="StartPublish">
-                    Veröffentlichen
+                    Publish
                 </button>
             }
 
             @if (_confirmDelete)
             {
-                <span class="confirm">Wirklich löschen? Der gesamte Dialog-Graph geht verloren.</span>
-                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Ja, löschen</button>
-                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Abbrechen</button>
+                <span class="confirm">Really delete? The entire dialog graph is lost.</span>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Yes, delete</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _confirmDelete = false">Cancel</button>
             }
             else
             {
-                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Löschen</button>
+                <button class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
             }
         </div>
 
         @if (!_detail.Dialog.IsPublished && _detail.Dialog.StartQuestionId is null)
         {
             <p class="hint">
-                Zum Veröffentlichen muss oben eine Einstiegsfrage gesetzt (und gespeichert) sein.
+                To publish, an entry question must be set (and saved) above.
             </p>
         }
 
@@ -808,10 +808,10 @@ else
         {
             <div class="banner warn">
                 <p>
-                    Der Graph hat offene Warnungen. Sie sind hier wiederholt, weil eine veröffentlichte
-                    Version <strong>gesperrt</strong> ist: Was jetzt durchrutscht, lässt sich erst über eine
-                    neue Version oder ein Zurückziehen heilen – während laufende Sessions bereits in den
-                    Fehler laufen.
+                    The graph has open warnings. They are repeated here because a published
+                    version is <strong>locked</strong>: what slips through now can only be healed via a
+                    new version or a retirement – while running sessions are already running into the
+                    error.
                 </p>
                 <ul>
                     @foreach (var warning in openWarnings)
@@ -826,26 +826,26 @@ else
         {
             <div class="banner warn">
                 <p>
-                    Auf dieser Version laufen <strong>@_activeSessions Session(s)</strong>. Löschen ist
-                    deshalb gesperrt: Die Session-Zeilen überleben den Dialog, wären danach aber weder
-                    fortsetzbar noch lesbar. Beende sie zuerst – Antworten und Verlauf bleiben erhalten,
-                    nur der Status wechselt auf „abgebrochen".
+                    <strong>@_activeSessions session(s)</strong> are running on this version. Deletion is
+                    therefore locked: the session rows outlive the dialog but would afterwards be neither
+                    resumable nor readable. End them first – answers and history are preserved,
+                    only the status changes to "abandoned".
                 </p>
                 <div class="actions">
                     @if (_confirmAbandon)
                     {
-                        <span class="confirm">@_activeSessions laufende Session(s) endgültig beenden?</span>
+                        <span class="confirm">End @_activeSessions running session(s) for good?</span>
                         <button class="btn btn-danger" disabled="@_busy" @onclick="AbandonSessionsAsync">
-                            Ja, beenden
+                            Yes, end them
                         </button>
                         <button class="btn" disabled="@_busy" @onclick="() => _confirmAbandon = false">
-                            Abbrechen
+                            Cancel
                         </button>
                     }
                     else
                     {
                         <button class="btn" disabled="@_busy" @onclick="() => _confirmAbandon = true">
-                            Laufende Sessions beenden
+                            End running sessions
                         </button>
                     }
                 </div>
@@ -855,7 +855,7 @@ else
 }
 
 @code {
-    /// <summary>Der Primärschlüssel des angezeigten Dialogs (aus der Route).</summary>
+    /// <summary>The primary key of the displayed dialog (from the route).</summary>
     [Parameter]
     public Guid Id { get; set; }
 
@@ -863,9 +863,9 @@ else
     private IReadOnlyList<LoopInsight> _loops = [];
 
     /// <summary>
-    /// Das Zeichenmodell des Graphen – hier nicht zum Zeichnen, sondern als <b>vollständige</b> Quelle
-    /// der Warnungen (#118). Liegt bewusst in einem Feld: aus dem Markup gerufen liefe die ganze
-    /// Anordnung bei jedem Render, also bei jedem Klick (siehe <see cref="DialogGraphModel"/>).
+    /// The graph's drawing model – here not for drawing, but as the <b>complete</b> source
+    /// of the warnings (#118). Deliberately held in a field: called from the markup the whole
+    /// layout would run on every render, i.e. on every click (see <see cref="DialogGraphModel"/>).
     /// </summary>
     private DialogGraphModel? _graph;
 
@@ -888,10 +888,10 @@ else
     private Guid _loadedId;
 
     /// <summary>
-    /// Ob der Konfigurationsgraph bearbeitbar ist. Eine <b>veröffentlichte</b> Version ist gesperrt –
-    /// die Engine lehnt Graph-Änderungen daran mit einem Konflikt ab (<c>DialogPublishedException</c>),
-    /// damit laufende Sessions nicht brechen. Die Sperre spiegelt diese Regel in der Oberfläche, statt
-    /// den Anwender in die Fehlermeldung laufen zu lassen. Name und Beschreibung bleiben änderbar.
+    /// Whether the configuration graph is editable. A <b>published</b> version is locked –
+    /// the engine rejects graph changes to it with a conflict (<c>DialogPublishedException</c>),
+    /// so that running sessions do not break. The lock mirrors this rule in the UI, instead of
+    /// letting the user run into the error message. Name and description remain editable.
     /// </summary>
     private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
 
@@ -918,12 +918,12 @@ else
     }
 
     /// <summary>
-    /// Lädt den Dialog samt Graph neu.
+    /// Reloads the dialog including its graph.
     /// </summary>
     /// <param name="resetForm">
-    /// Ob das Metadaten-Formular überschrieben werden soll. Bei Fragen-Operationen bewusst
-    /// <see langword="false"/>: sonst gingen dort gerade getippte, noch nicht gespeicherte Metadaten
-    /// verloren. Die Einstiegsfrage wird trotzdem abgeglichen, falls sie serverseitig wegfiel.
+    /// Whether the metadata form should be overwritten. For question operations deliberately
+    /// <see langword="false"/>: otherwise just-typed, not-yet-saved metadata would be lost there.
+    /// The entry question is reconciled anyway, in case it fell away server-side.
     /// </param>
     private async Task ReloadAsync(bool resetForm = true)
     {
@@ -932,13 +932,13 @@ else
         _error = result.Error;
         _loops = _detail is null ? [] : LoopAnalyzer.Analyze(_detail);
 
-        // Der Graph wird hier nicht gezeichnet, aber gebaut: Er ist die einzige Stelle, die alle
-        // Warnungsarten kennt – die Erreichbarkeit entsteht erst aus der Anordnung ab der
-        // Einstiegsfrage. Einmal pro Laden, nie pro Render.
+        // The graph is not drawn here, but built: it is the only place that knows all
+        // warning kinds – reachability arises only from the layout starting at the
+        // entry question. Once per load, never per render.
         _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
 
-        // Laufende Sessions sperren das Löschen (DeleteDialogCommand) – die Zahl gehört an den
-        // Löschen-Abschnitt, damit sie vor dem Klick sichtbar ist und nicht erst als Fehlermeldung.
+        // Running sessions lock deletion (DeleteDialogCommand) – the count belongs in the
+        // deletion section, so that it is visible before the click and not only as an error message.
         if (_detail is not null)
         {
             var sessions = await Admin.ExecuteAsync(
@@ -958,7 +958,7 @@ else
             && _form.StartQuestionId is { } selected
             && _detail.Questions.All(question => question.Id != selected))
         {
-            // Die gewählte Einstiegsfrage existiert nicht mehr (gelöscht) -> auf den Serverstand zurück.
+            // The chosen entry question no longer exists (deleted) -> fall back to the server state.
             _form.StartQuestionId = _detail.Dialog.StartQuestionId;
         }
     }
@@ -975,32 +975,32 @@ else
         => await RunAsync(
             (sender, token) => sender.Send(
                 new UpdateDialogCommand(Id, _form.Key, _form.Name, _form.Description, _form.StartQuestionId), token),
-            "Änderungen gespeichert.");
+            "Changes saved.");
 
     /// <summary>
-    /// Sammelt <b>alle</b> Warnungen des Graphen, jeweils mit dem Schlüssel ihres Verursachers davor:
-    /// Übergänge (<see cref="TransitionWarningAnalyzer"/>), Schleifen (<see cref="LoopAnalyzer"/>), die
-    /// fehlende Einstiegsfrage und die Erreichbarkeit der Fragen. Quelle ist deshalb der
-    /// <see cref="DialogGraphBuilder"/> und nicht ein einzelner Analyzer – dieselbe Quelle speist die
-    /// Graph-Ansicht (#101), die die Befunde am betroffenen Element statt als Liste zeigt.
+    /// Collects <b>all</b> warnings of the graph, each with the key of its cause in front:
+    /// transitions (<see cref="TransitionWarningAnalyzer"/>), loops (<see cref="LoopAnalyzer"/>), the
+    /// missing entry question and the reachability of the questions. The source is therefore the
+    /// <see cref="DialogGraphBuilder"/> and not a single analyzer – the same source feeds the
+    /// graph view (#101), which shows the findings at the affected element instead of as a list.
     /// </summary>
     /// <remarks>
-    /// Bis #118 stand hier nur <see cref="TransitionWarningAnalyzer"/>. Eine <b>unerreichbare</b> Frage
-    /// ließ sich damit ohne Rückfrage veröffentlichen, obwohl der Graph sie deutlich auswies. Die
-    /// Auswahl handverlesen zu halten war der Defekt: Jede weitere Warnungsart wäre wieder
-    /// herausgefallen.
+    /// Until #118 only <see cref="TransitionWarningAnalyzer"/> stood here. An <b>unreachable</b> question
+    /// could thereby be published without a confirmation, even though the graph clearly flagged it. Keeping
+    /// the selection hand-picked was the defect: every further warning kind would have fallen
+    /// out again.
     /// </remarks>
-    /// <returns>Die offenen Warnungen; leer, wenn der Graph stimmig ist.</returns>
+    /// <returns>The open warnings; empty when the graph is consistent.</returns>
     private IReadOnlyList<string> GraphWarnings()
         => _detail is null || _graph is null
             ? []
             : GraphWarningList.Describe(_detail, _graph);
 
     /// <summary>
-    /// Startet das Veröffentlichen. Bei offenen Graph-Warnungen wird erst rückgefragt – veröffentlicht
-    /// ist der Graph gesperrt, ein übersehener Konfigurationsfehler kostet dann eine neue Version.
+    /// Starts publishing. With open graph warnings it first asks back – once published
+    /// the graph is locked, an overlooked configuration error then costs a new version.
     /// </summary>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald veröffentlicht (oder rückgefragt) wurde.</returns>
+    /// <returns>A task that completes once publishing (or the confirmation) has happened.</returns>
     private async Task StartPublish()
     {
         if (GraphWarnings().Count > 0)
@@ -1015,20 +1015,20 @@ else
     private async Task PublishAsync()
     {
         _confirmPublish = false;
-        await RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog veröffentlicht.");
+        await RunAsync((sender, token) => sender.Send(new PublishDialogCommand(Id), token), "Dialog published.");
     }
 
     private async Task UnpublishAsync()
         => await RunAsync(
-            (sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Veröffentlichung zurückgenommen.");
+            (sender, token) => sender.Send(new UnpublishDialogCommand(Id), token), "Publication retracted.");
 
     /// <summary>
-    /// Leitet eine neue Version aus dem angezeigten Dialog ab und wechselt in deren Editor. Der
-    /// Seitenwechsel ist Absicht: Ab hier arbeitet man am Entwurf, nicht mehr an der veröffentlichten
-    /// Version.
+    /// Derives a new version from the displayed dialog and switches into its editor. The
+    /// page change is intentional: from here on one works on the draft, no longer on the published
+    /// version.
     /// </summary>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald die Version angelegt (oder der Fehler
-    /// angezeigt) wurde.</returns>
+    /// <returns>A task that completes once the version has been created (or the error
+    /// displayed).</returns>
     private async Task CreateVersionAsync()
     {
         _busy = true;
@@ -1052,26 +1052,26 @@ else
         }
     }
 
-    /// <summary>Beendet die laufenden Sessions dieser Dialogversion (Status <c>Abandoned</c>).</summary>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald die Sessions beendet wurden.</returns>
+    /// <summary>Ends the running sessions of this dialog version (status <c>Abandoned</c>).</summary>
+    /// <returns>A task that completes once the sessions have been ended.</returns>
     private async Task AbandonSessionsAsync()
     {
         _confirmAbandon = false;
         var count = _activeSessions;
         await RunAsync(
             (sender, token) => sender.Send(new AbandonDialogSessionsCommand(Id), token),
-            $"{count} laufende Session(s) beendet.");
+            $"{count} running session(s) ended.");
     }
 
     /// <summary>
-    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Dialog neu (die
-    /// Commands liefern nur ihren eigenen Ausschnitt zurück, die Ansicht braucht den ganzen Graphen).
+    /// Runs a writing operation, shows success or error and reloads the dialog (the
+    /// commands return only their own slice, the view needs the whole graph).
     /// </summary>
-    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
-    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
-    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
-    /// <param name="resetForm">Ob das Metadaten-Formular vom Serverstand überschrieben werden soll.</param>
-    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    /// <typeparam name="TResult">The result type of the operation.</typeparam>
+    /// <param name="operation">The admin message to run.</param>
+    /// <param name="successMessage">The message shown on success.</param>
+    /// <param name="resetForm">Whether the metadata form should be overwritten from the server state.</param>
+    /// <returns><see langword="true"/> if the operation succeeded.</returns>
     private async Task<bool> RunAsync<TResult>(
         Func<ISender, CancellationToken, ValueTask<TResult>> operation,
         string successMessage,
@@ -1099,7 +1099,7 @@ else
         }
     }
 
-    // ---- Fragen (#39) -----------------------------------------------------------------------------
+    // ---- Questions (#39) --------------------------------------------------------------------------
 
     private void StartCreateQuestion() => _newQuestion = new QuestionFormModel();
 
@@ -1107,8 +1107,8 @@ else
         => Navigation.NavigateTo($"dialogs/{Id}/questions/{question.Id}");
 
     /// <summary>
-    /// Legt eine Frage am Ende des Dialogs an. Validierungsregeln und Antwortoptionen werden bewusst
-    /// nicht hier, sondern im Frage-Editor gepflegt – so bleibt das Anlegen mehrerer Fragen zügig.
+    /// Creates a question at the end of the dialog. Validation rules and answer options are deliberately
+    /// maintained not here but in the question editor – this keeps creating several questions quick.
     /// </summary>
     private async Task CreateQuestionAsync()
     {
@@ -1124,7 +1124,7 @@ else
             (sender, token) => sender.Send(
                 new CreateQuestionCommand(Id, model.Key, model.Text, model.Type, order, model.IsRequired, null),
                 token),
-            $"Frage „{model.Key}“ angelegt.",
+            $"Question \"{model.Key}\" created.",
             resetForm: false);
 
         if (created)
@@ -1134,13 +1134,13 @@ else
     }
 
     /// <summary>
-    /// Verschiebt eine Frage um eine Position. Geschrieben wird der <b>Positionsindex</b> als neue
-    /// <c>Order</c> – das repariert nebenbei doppelte oder lückenhafte Werte, bei denen ein reines
-    /// Vertauschen der beiden Zahlen wirkungslos bliebe. Beide Updates laufen in <b>einem</b>
-    /// Gateway-Aufruf, also im selben DI-Scope mit einem Fehlerpfad.
+    /// Moves a question by one position. The <b>position index</b> is written as the new
+    /// <c>Order</c> – this incidentally repairs duplicate or gappy values where a mere
+    /// swap of the two numbers would have no effect. Both updates run in <b>one</b>
+    /// gateway call, i.e. in the same DI scope with one error path.
     /// </summary>
-    /// <param name="from">Die aktuelle Position der Frage.</param>
-    /// <param name="to">Die Zielposition.</param>
+    /// <param name="from">The current position of the question.</param>
+    /// <param name="to">The target position.</param>
     private async Task MoveQuestionAsync(int from, int to)
     {
         if (_detail is null || to < 0 || to >= _detail.Questions.Count)
@@ -1175,7 +1175,7 @@ else
 
                 return Unit.Value;
             },
-            "Reihenfolge geändert.",
+            "Order changed.",
             resetForm: false);
     }
 
@@ -1185,22 +1185,22 @@ else
 
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteQuestionCommand(Id, question.Id), token),
-            $"Frage „{question.Key}“ gelöscht.",
+            $"Question \"{question.Key}\" deleted.",
             resetForm: false);
     }
 
-    // ---- Übergänge / Branching (#40) --------------------------------------------------------------
+    // ---- Transitions / branching (#40) ------------------------------------------------------------
 
-    /// <summary>Die ausgehenden Übergänge einer Frage in Auswertungsreihenfolge.</summary>
-    /// <param name="questionId">Die Ausgangsfrage.</param>
-    /// <returns>Die Übergänge nach <c>Priority</c> sortiert.</returns>
+    /// <summary>The outgoing transitions of a question in evaluation order.</summary>
+    /// <param name="questionId">The source question.</param>
+    /// <returns>The transitions sorted by <c>Priority</c>.</returns>
     private IReadOnlyList<TransitionDetail> Outgoing(Guid questionId)
         => _detail is null ? [] : TransitionWarningAnalyzer.Outgoing(_detail, questionId);
 
     /// <summary>
-    /// Übergänge, deren Ausgangsfrage nicht (mehr) zum Dialog gehört. Über den Designer entstehen sie
-    /// nicht – die Admin-API prüft Frage-Verweise aber bewusst nicht, deshalb werden sie sichtbar
-    /// gemacht statt still verschluckt.
+    /// Transitions whose source question no longer belongs to the dialog. They do not arise through
+    /// the designer – but the admin API deliberately does not check question references, so they are
+    /// made visible instead of silently swallowed.
     /// </summary>
     private IReadOnlyList<TransitionDetail> Orphans()
         => _detail is null
@@ -1210,12 +1210,12 @@ else
 
     private string QuestionLabel(Guid questionId)
         => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
-            ?? $"unbekannt ({questionId})";
+            ?? $"unknown ({questionId})";
 
     /// <summary>
-    /// Gibt an, ob der Übergang auf eine frühere (oder dieselbe) Frage zeigt – damit entsteht ein Zyklus,
-    /// also eine Schleife. Der Marker dazu wird im Abschnitt „Schleifen" gepflegt. Die Regel liegt im
-    /// <see cref="LoopAnalyzer"/>, damit Liste und Graph-Kante dasselbe behaupten.
+    /// Indicates whether the transition points to an earlier (or the same) question – this forms a cycle,
+    /// i.e. a loop. The marker for it is maintained in the "Loops" section. The rule lives in the
+    /// <see cref="LoopAnalyzer"/>, so that list and graph edge claim the same thing.
     /// </summary>
     private bool IsBackJump(TransitionDetail transition)
         => _detail is not null && LoopAnalyzer.IsBackJump(_detail, transition);
@@ -1227,8 +1227,8 @@ else
         => Navigation.NavigateTo($"dialogs/{Id}/transitions/{transition.Id}");
 
     /// <summary>
-    /// Legt einen Übergang am Ende der Prioritätsliste seiner Ausgangsfrage an. Die Bedingung bleibt
-    /// zunächst leer – sie wird im Übergangs-Editor gepflegt, wo sie live validiert wird.
+    /// Creates a transition at the end of its source question's priority list. The condition stays
+    /// empty at first – it is maintained in the transition editor, where it is validated live.
     /// </summary>
     private async Task CreateTransitionAsync()
     {
@@ -1245,7 +1245,7 @@ else
         var created = await RunAsync<TransitionDetail>(
             (sender, token) => sender.Send(
                 new CreateTransitionCommand(Id, from, target, null, priority, model.IsDefault), token),
-            $"Übergang {QuestionLabel(from)} → {QuestionLabel(target)} angelegt.",
+            $"Transition {QuestionLabel(from)} → {QuestionLabel(target)} created.",
             resetForm: false);
 
         if (created)
@@ -1255,13 +1255,13 @@ else
     }
 
     /// <summary>
-    /// Verschiebt einen Übergang innerhalb seiner Ausgangsfrage. Wie bei Fragen und Optionen wird der
-    /// <b>Positionsindex</b> als neue <c>Priority</c> geschrieben (repariert doppelte/lückenhafte Werte);
-    /// alle Updates laufen in einem Gateway-Aufruf.
+    /// Moves a transition within its source question. As with questions and options, the
+    /// <b>position index</b> is written as the new <c>Priority</c> (repairs duplicate/gappy values);
+    /// all updates run in one gateway call.
     /// </summary>
-    /// <param name="fromQuestionId">Die Ausgangsfrage, deren Übergänge umsortiert werden.</param>
-    /// <param name="from">Die aktuelle Position des Übergangs.</param>
-    /// <param name="to">Die Zielposition.</param>
+    /// <param name="fromQuestionId">The source question whose transitions are reordered.</param>
+    /// <param name="from">The current position of the transition.</param>
+    /// <param name="to">The target position.</param>
     private async Task MoveTransitionAsync(Guid fromQuestionId, int from, int to)
     {
         var changed = GraphEditing.Reorder(Outgoing(fromQuestionId), from, to);
@@ -1284,7 +1284,7 @@ else
 
                 return Unit.Value;
             },
-            "Reihenfolge der Übergänge geändert.",
+            "Order of transitions changed.",
             resetForm: false);
     }
 
@@ -1294,17 +1294,17 @@ else
 
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteTransitionCommand(Id, transition.Id), token),
-            "Übergang gelöscht.",
+            "Transition deleted.",
             resetForm: false);
     }
 
-    // ---- Schleifen / Loops (#41) ------------------------------------------------------------------
+    // ---- Loops (#41) ------------------------------------------------------------------------------
 
     /// <summary>
-    /// Rücksprung-Übergänge, zu denen (noch) kein Schleifen-Marker passt. Die Regel liegt im
-    /// <see cref="LoopAnalyzer"/>, weil der Canvas (#103) denselben Vorschlag am Zyklus anbietet.
+    /// Back-jump transitions for which (as yet) no loop marker fits. The rule lives in the
+    /// <see cref="LoopAnalyzer"/>, because the canvas (#103) offers the same suggestion at the cycle.
     /// </summary>
-    /// <returns>Die unmarkierten Rücksprünge in Dialog-Reihenfolge.</returns>
+    /// <returns>The unmarked back-jumps in dialog order.</returns>
     private IReadOnlyList<TransitionDetail> UnmarkedBackJumps()
         => _detail is null ? [] : LoopAnalyzer.UnmarkedBackJumps(_detail);
 
@@ -1312,10 +1312,10 @@ else
         => Navigation.NavigateTo($"dialogs/{Id}/loops/{loop.Id}");
 
     /// <summary>
-    /// Öffnet das Anlege-Formular – aus einem Rücksprung heraus bereits vorbelegt: dessen Zielfrage ist
-    /// die Einstiegsfrage, dessen Ausgangsfrage die Breaking Question.
+    /// Opens the creation form – already pre-filled from a back-jump: its target question is
+    /// the entry question, its source question the breaking question.
     /// </summary>
-    /// <param name="backJump">Der Rücksprung, aus dem vorbelegt wird, oder <see langword="null"/> für ein leeres Formular.</param>
+    /// <param name="backJump">The back-jump to pre-fill from, or <see langword="null"/> for an empty form.</param>
     private void StartCreateLoop(TransitionDetail? backJump)
     {
         if (_detail is null || backJump is null)
@@ -1348,7 +1348,7 @@ else
                 new CreateLoopCommand(
                     Id, model.CollectionKey, model.EntryQuestionId!.Value, model.BreakingQuestionId!.Value),
                 token),
-            $"Schleife „{model.CollectionKey}“ markiert.",
+            $"Loop \"{model.CollectionKey}\" marked.",
             resetForm: false);
 
         if (created)
@@ -1363,11 +1363,11 @@ else
 
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteLoopCommand(Id, loop.Id), token),
-            $"Schleife „{loop.CollectionKey}“ gelöscht.",
+            $"Loop \"{loop.CollectionKey}\" deleted.",
             resetForm: false);
     }
 
-    // ---- Trigger (#42) ----------------------------------------------------------------------------
+    // ---- Triggers (#42) ---------------------------------------------------------------------------
 
     private void StartCreateTrigger() => _newTrigger = new TriggerFormModel();
 
@@ -1375,12 +1375,12 @@ else
         => Navigation.NavigateTo($"dialogs/{Id}/triggers/{trigger.Id}");
 
     /// <summary>
-    /// Beschreibt das Ziel eines Triggers für die Übersicht: die URL des Webhooks bzw. der
-    /// Ereignisname. Unlesbare Konfiguration wird roh angezeigt statt verschwiegen – zur Laufzeit
-    /// überspringt der Webhook-Handler solche Einträge.
+    /// Describes the target of a trigger for the overview: the webhook URL or the
+    /// event name. Unreadable configuration is shown raw instead of concealed – at runtime
+    /// the webhook handler skips such entries.
     /// </summary>
-    /// <param name="trigger">Der anzuzeigende Trigger.</param>
-    /// <returns>Der Anzeigetext für die Spalte „Ziel".</returns>
+    /// <param name="trigger">The trigger to display.</param>
+    /// <returns>The display text for the "Target" column.</returns>
     private static string TriggerTarget(TriggerDetail trigger)
     {
         if (!TriggerConfig.TryParse(trigger.Config, out var config, out _))
@@ -1392,8 +1392,8 @@ else
     }
 
     /// <summary>
-    /// Legt einen Trigger an. Die Bedingung bleibt zunächst leer – sie wird im Trigger-Editor gepflegt,
-    /// wo sie live validiert wird.
+    /// Creates a trigger. The condition stays empty at first – it is maintained in the trigger editor,
+    /// where it is validated live.
     /// </summary>
     private async Task CreateTriggerAsync()
     {
@@ -1406,7 +1406,7 @@ else
 
         if (TriggerLabels.RequiresQuestion(model.Scope) && model.QuestionId is null)
         {
-            _error = "Bitte eine Frage wählen – ein Trigger nach einer bestimmten Frage braucht ihren Bezug.";
+            _error = "Please choose a question – a trigger after a specific question needs its reference.";
             _message = null;
             return;
         }
@@ -1423,7 +1423,7 @@ else
                 new CreateTriggerCommand(
                     Id, model.Scope, model.NormalizedQuestionId(), model.Kind, config, null),
                 token),
-            $"Trigger „{TriggerLabels.Describe(model.Scope)}“ angelegt.",
+            $"Trigger \"{TriggerLabels.Describe(model.Scope)}\" created.",
             resetForm: false);
 
         if (created)
@@ -1438,11 +1438,11 @@ else
 
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteTriggerCommand(Id, trigger.Id), token),
-            "Trigger gelöscht.",
+            "Trigger deleted.",
             resetForm: false);
     }
 
-    // ---- Test-Runner (#43) ------------------------------------------------------------------------
+    // ---- Test runner (#43) ------------------------------------------------------------------------
 
     private void OpenTestRunner() => Navigation.NavigateTo($"dialogs/{Id}/test");
 

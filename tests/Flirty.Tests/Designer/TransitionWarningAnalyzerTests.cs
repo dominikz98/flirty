@@ -33,7 +33,7 @@ public sealed class TransitionWarningAnalyzerTests
         Assert.Equal(GraphElementKind.Question, warning.Kind);
         Assert.Equal(FromId, warning.ElementId);
         Assert.Equal(FromId, warning.QuestionId);
-        Assert.Contains("Kein Default-Übergang", warning.Text, StringComparison.Ordinal);
+        Assert.Contains("No default transition", warning.Text, StringComparison.Ordinal);
     }
 
     /// <summary>Mehrere Defaults sind eine Eigenschaft der Gruppe, also der Frage.</summary>
@@ -50,7 +50,7 @@ public sealed class TransitionWarningAnalyzerTests
 
         Assert.Equal(GraphElementKind.Question, warning.Kind);
         Assert.Equal(FromId, warning.ElementId);
-        Assert.Contains("Mehrere Default-Übergänge", warning.Text, StringComparison.Ordinal);
+        Assert.Contains("Multiple default transitions", warning.Text, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public sealed class TransitionWarningAnalyzerTests
 
         Assert.Equal(decorated.Id, warning.ElementId);
         Assert.Equal(FromId, warning.QuestionId);
-        Assert.Contains("nicht ausgewertet", warning.Text, StringComparison.Ordinal);
+        Assert.Contains("not evaluated", warning.Text, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -88,8 +88,8 @@ public sealed class TransitionWarningAnalyzerTests
 
         Assert.Equal(blocking.Id, warning.ElementId);
         Assert.Equal(
-            "Der bedingungslose Übergang an Position 1 greift immer – die nachfolgenden Übergänge "
-            + "werden nie geprüft.",
+            "The unconditional transition at position 1 always matches – the following transitions are "
+            + "never evaluated.",
             warning.Text);
     }
 
@@ -112,10 +112,10 @@ public sealed class TransitionWarningAnalyzerTests
 
         Assert.Equal(
             [
-                "Mehrere Default-Übergänge – es greift nur der oberste.",
-                "Die Bedingung eines Default-Übergangs wird zur Laufzeit nicht ausgewertet.",
-                "Der bedingungslose Übergang an Position 1 greift immer – die nachfolgenden Übergänge "
-                + "werden nie geprüft.",
+                "Multiple default transitions – only the topmost one applies.",
+                "The condition of a default transition is not evaluated at runtime.",
+                "The unconditional transition at position 1 always matches – the following transitions are "
+                + "never evaluated.",
             ],
             texts);
     }
@@ -156,7 +156,7 @@ public sealed class TransitionWarningAnalyzerTests
         var warnings = TransitionWarningAnalyzer.Analyze(AdminProjection.ToDetail(dialog));
 
         Assert.Equal([ids.RoleQuestionId, ids.DevQuestionId], warnings.Select(warning => warning.QuestionId));
-        Assert.All(warnings, warning => Assert.Contains("Kein Default-Übergang", warning.Text, StringComparison.Ordinal));
+        Assert.All(warnings, warning => Assert.Contains("No default transition", warning.Text, StringComparison.Ordinal));
     }
 
     /// <summary>

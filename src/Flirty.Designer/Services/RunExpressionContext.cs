@@ -4,26 +4,26 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Momentaufnahme der Ausdrucks-Bindungen eines laufenden Testlaufs – dieselben drei Bausteine, die der
-/// Core zur Laufzeit in den <c>ExpressionContext</c> stellt.
+/// Snapshot of the expression bindings of a running test run – the same three building blocks the
+/// core puts into the <c>ExpressionContext</c> at runtime.
 /// </summary>
 /// <param name="Answers">
-/// Die zuletzt gegebene Antwort je Frage, indiziert nach dem fachlichen Frage-Schlüssel; Werte sind
-/// roher JSON-Text.
+/// The last answer given per question, indexed by the domain question key; values are
+/// raw JSON text.
 /// </param>
 /// <param name="Collections">
-/// Die je Iteration gesammelten Antworten der Schleifen, indiziert nach dem <c>CollectionKey</c>.
+/// The answers of the loops collected per iteration, indexed by the <c>CollectionKey</c>.
 /// </param>
 /// <param name="IterationIndex">
-/// Der nullbasierte Iterationsindex der aktuell offenen Frage oder <see langword="null"/>, wenn sie
-/// außerhalb einer Schleife liegt bzw. keine Frage offen ist.
+/// The zero-based iteration index of the currently open question or <see langword="null"/> if it
+/// lies outside a loop or no question is open.
 /// </param>
 /// <remarks>
-/// <see langword="public"/> – seit #104 ist der Typ <c>[Parameter]</c> des <c>GraphRunInspector</c>, der
-/// die Bindungen am gewählten Knoten zeigt. Razor erzeugt Komponenten <see langword="public"/>, ein
-/// <see langword="internal"/> Typ an einem Parameter wäre CS0053 und unter
-/// <c>TreatWarningsAsErrors</c> ein Buildfehler (dieselbe Begründung wie bei
-/// <see cref="Flirty.Designer.Models.AnswerInputModel"/>). Gebaut wird er weiterhin ausschließlich vom
+/// <see langword="public"/> – since #104 the type is a <c>[Parameter]</c> of the <c>GraphRunInspector</c>, which
+/// shows the bindings at the selected node. Razor generates components <see langword="public"/>, an
+/// <see langword="internal"/> type on a parameter would be CS0053 and, under
+/// <c>TreatWarningsAsErrors</c>, a build error (same rationale as with
+/// <see cref="Flirty.Designer.Models.AnswerInputModel"/>). It is still built exclusively by the
 /// <see cref="RunExpressionContext"/>.
 /// </remarks>
 public sealed record RunExpressionSnapshot(
@@ -32,33 +32,33 @@ public sealed record RunExpressionSnapshot(
     int? IterationIndex);
 
 /// <summary>
-/// Baut die Ausdrucks-Bindungen eines laufenden Testlaufs (#43) auf, damit der Test-Runner zeigen kann,
-/// <b>womit</b> die Übergangs- und Trigger-Bedingungen gerade rechnen.
+/// Builds up the expression bindings of a running test run (#43), so the test runner can show
+/// <b>what</b> the transition and trigger conditions are currently computing with.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Spiegelt bewusst den Core-internen <c>SessionExpressionContextBuilder</c>
-/// (<c>src/Flirty/Runtime/SessionExpressionContextBuilder.cs</c>) samt der von ihm genutzten
-/// <c>LoopResolver</c>-Regeln: der Resolver ist <c>internal</c> und arbeitet auf einer <c>Dialog</c>-Entity
-/// mit geladenen Navigationen, während der Designer nur die navigationsfreien Sichten
-/// <see cref="DialogDetail"/> und <see cref="ResumeDialogResult"/> hat. Dieselbe Abgrenzung wie bei
-/// <see cref="DesignerExpressionContext"/> und <see cref="LoopAnalyzer"/>; gegen ein Auseinanderlaufen
-/// sichert ein Test in <c>tests/Flirty.Tests/Designer/RunExpressionContextTests</c>, der beide
-/// Implementierungen auf demselben Graphen und derselben Session vergleicht.
+/// Deliberately mirrors the core-internal <c>SessionExpressionContextBuilder</c>
+/// (<c>src/Flirty/Runtime/SessionExpressionContextBuilder.cs</c>) including the
+/// <c>LoopResolver</c> rules it uses: the resolver is <c>internal</c> and works on a <c>Dialog</c> entity
+/// with loaded navigations, while the designer only has the navigation-free views
+/// <see cref="DialogDetail"/> and <see cref="ResumeDialogResult"/>. The same demarcation as with
+/// <see cref="DesignerExpressionContext"/> and <see cref="LoopAnalyzer"/>; against a drift
+/// a test in <c>tests/Flirty.Tests/Designer/RunExpressionContextTests</c> secures it, comparing both
+/// implementations on the same graph and the same session.
 /// </para>
 /// <para>
-/// Die Bereichsermittlung der Schleifen kommt aus <see cref="LoopAnalyzer.ComputeBody"/> – nicht noch
-/// einmal nachgebaut.
+/// The loop range determination comes from <see cref="LoopAnalyzer.ComputeBody"/> – not built
+/// a second time.
 /// </para>
 /// </remarks>
 internal static class RunExpressionContext
 {
     /// <summary>
-    /// Baut die Momentaufnahme aus dem Dialog-Graphen und dem gelesenen Session-Zustand.
+    /// Builds the snapshot from the dialog graph and the read session state.
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <param name="state">Der Session-Zustand (aus <c>ResumeDialogQuery</c>).</param>
-    /// <returns>Die Bindungen zum aktuellen Zeitpunkt des Laufs.</returns>
+    /// <param name="detail">The dialog including graph (from <c>GetDialogQuery</c>).</param>
+    /// <param name="state">The session state (from <c>ResumeDialogQuery</c>).</param>
+    /// <returns>The bindings at the current moment of the run.</returns>
     public static RunExpressionSnapshot Build(DialogDetail detail, ResumeDialogResult state)
     {
         ArgumentNullException.ThrowIfNull(detail);
@@ -66,8 +66,8 @@ internal static class RunExpressionContext
 
         var known = detail.Questions.Select(question => question.Id).ToHashSet();
 
-        // Je Frage die Antwort mit der höchsten Sequence – innerhalb einer Schleife also die der
-        // aktuellen Iteration (identisch zum SessionExpressionContextBuilder).
+        // Per question the answer with the highest Sequence – within a loop therefore that of the
+        // current iteration (identical to the SessionExpressionContextBuilder).
         var answers = state.Answers
             .Where(answer => known.Contains(answer.QuestionId))
             .GroupBy(answer => answer.QuestionId)
@@ -86,15 +86,15 @@ internal static class RunExpressionContext
     }
 
     /// <summary>
-    /// Sammelt die Werte einer Schleifen-Collection: die Antworten der <b>Einstiegsfrage</b> in der
-    /// jüngsten Loop-Instanz, nach Iterationsindex geordnet. Solange die Schleife nicht betreten wurde,
-    /// bleibt die Liste leer – der Schlüssel wird trotzdem gebunden, sonst wäre
-    /// <c>skills.Count &gt; 0</c> vor der ersten Iteration nicht auswertbar.
+    /// Collects the values of a loop collection: the answers of the <b>entry question</b> in the
+    /// most recent loop instance, ordered by iteration index. As long as the loop has not been entered,
+    /// the list stays empty – the key is still bound, otherwise
+    /// <c>skills.Count &gt; 0</c> would not be evaluable before the first iteration.
     /// </summary>
-    /// <param name="detail">Der Dialog samt Graph.</param>
-    /// <param name="state">Der Session-Zustand.</param>
-    /// <param name="loop">Der Schleifen-Marker.</param>
-    /// <returns>Die gesammelten Rohwerte je Iteration.</returns>
+    /// <param name="detail">The dialog including graph.</param>
+    /// <param name="state">The session state.</param>
+    /// <param name="loop">The loop marker.</param>
+    /// <returns>The collected raw values per iteration.</returns>
     private static IReadOnlyList<string?> CollectEntries(
         DialogDetail detail, ResumeDialogResult state, LoopDetail loop)
     {
@@ -122,12 +122,12 @@ internal static class RunExpressionContext
     }
 
     /// <summary>
-    /// Der Iterationsindex, mit dem die Bedingungen der aktuell offenen Frage rechnen: der zuletzt
-    /// vergebene Index dieser Frage. Ohne offene Frage (abgeschlossene Session) oder außerhalb einer
-    /// Schleife ist er <see langword="null"/>.
+    /// The iteration index the conditions of the currently open question compute with: the last
+    /// assigned index of this question. Without an open question (completed session) or outside a
+    /// loop it is <see langword="null"/>.
     /// </summary>
-    /// <param name="state">Der Session-Zustand.</param>
-    /// <returns>Der Iterationsindex oder <see langword="null"/>.</returns>
+    /// <param name="state">The session state.</param>
+    /// <returns>The iteration index or <see langword="null"/>.</returns>
     private static int? ResolveIterationIndex(ResumeDialogResult state)
     {
         if (state.CurrentQuestion is not { } current)

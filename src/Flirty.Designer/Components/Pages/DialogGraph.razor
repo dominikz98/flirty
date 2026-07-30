@@ -1,5 +1,5 @@
-@* Bewusst NICHT "DialogGraphModel" o. Ä. genannt: der Komponententyp würde sonst den gleichnamigen
-   Sichttyp verdecken (wie bei DialogEditor/QuestionEditor). *@
+@* Deliberately NOT named "DialogGraphModel" or similar: the component type would otherwise shadow the
+   equally named view type (as with DialogEditor/QuestionEditor). *@
 @page "/dialogs/{Id:guid}/graph"
 @rendermode InteractiveServer
 @implements IAsyncDisposable
@@ -24,7 +24,7 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
@@ -33,41 +33,41 @@ else
         @_model.Dialog.Name
         @if (_model.Dialog.IsPublished)
         {
-            <span class="badge badge-published">Veröffentlicht</span>
+            <span class="badge badge-published">Published</span>
         }
         else
         {
-            <span class="badge badge-draft">Entwurf</span>
+            <span class="badge badge-draft">Draft</span>
         }
     </h1>
 
     <p class="intro">
-        Ablauf des Dialogs <span class="mono">@_model.Dialog.Key</span> in Version @_model.Dialog.Version.
-        Bausteine aus der Palette ziehen, Knoten am <span class="mono">＋</span> verbinden, Auswahl im
-        Inspector bearbeiten. Jede Geste schreibt <b>sofort</b> – es gibt kein Rückgängig, Löschen wird
-        deshalb bestätigt.
+        Flow of the dialog <span class="mono">@_model.Dialog.Key</span> in version @_model.Dialog.Version.
+        Drag building blocks from the palette, connect nodes at the <span class="mono">＋</span>, edit the
+        selection in the inspector. Every gesture writes <b>immediately</b> – there is no undo, so deletion
+        is confirmed.
     </p>
 
     @if (!Editable)
     {
-        @* Wortlaut aus dem Dialog-Editor und den vier Unter-Editoren – dieselbe Regel soll überall
-           gleich klingen. Ergänzt um den Satz zum Verschieben: Ohne ihn läse sich das deaktivierte
-           Umfeld wie ein Defekt. *@
+        @* Wording from the dialog editor and the four sub-editors – the same rule should sound the same
+           everywhere. Extended by the sentence about moving: without it the disabled
+           surroundings would read like a defect. *@
         <div class="banner warn">
             <p>
-                Dieser Dialog ist in Version @_model.Dialog.Version veröffentlicht und deshalb
-                <strong>gesperrt</strong>: Fragen, Übergänge, Schleifen und Trigger lassen sich nicht
-                ändern. Laufende Sessions arbeiten auf dieser Version weiter – eine Änderung würde sie
-                brechen.
+                This dialog is published in version @_model.Dialog.Version and therefore
+                <strong>locked</strong>: questions, transitions, loops and triggers cannot be
+                changed. Running sessions keep working on this version – a change would break
+                them.
             </p>
             <p>
-                <b>Verschieben bleibt erlaubt</b>, denn eine Position gehört nicht zum Graphen. Zum
-                Weiterentwickeln eine <strong>neue Version</strong> anlegen (Kopie als Entwurf; die
-                veröffentlichte Version bleibt unverändert).
+                <b>Moving stays allowed</b>, because a position does not belong to the graph. To
+                evolve it, create a <strong>new version</strong> (a copy as a draft; the
+                published version stays unchanged).
             </p>
             <div class="actions">
                 <button class="btn btn-primary" disabled="@_busy" @onclick="CreateVersionAsync">
-                    Neue Version anlegen
+                    Create new version
                 </button>
             </div>
         </div>
@@ -94,16 +94,16 @@ else
             @if (_model.OrphanTransitions.Count > 0)
             {
                 <p>
-                    @_model.OrphanTransitions.Count Übergang/Übergänge zeigen auf eine unbekannte Frage
-                    und lassen sich nicht zeichnen. Sie werden nie ausgewertet und sind im
-                    <a href="@($"dialogs/{Id}")">Dialog-Editor</a> zu löschen.
+                    @_model.OrphanTransitions.Count transition(s) point to an unknown question
+                    and cannot be drawn. They are never evaluated and must be deleted in the
+                    <a href="@($"dialogs/{Id}")">dialog editor</a>.
                 </p>
             }
             @if (_model.OrphanTriggers.Count > 0)
             {
                 <p>
-                    @_model.OrphanTriggers.Count Trigger verweisen auf eine gelöschte Frage und feuern
-                    nie.
+                    @_model.OrphanTriggers.Count trigger(s) reference a deleted question and never
+                    fire.
                 </p>
             }
         </div>
@@ -112,38 +112,38 @@ else
     @if (_linkFrom is { } linkSource)
     {
         <div class="banner warn">
-            Verbindung von <span class="mono">@QuestionKey(linkSource)</span> – jetzt die Zielfrage
-            wählen (Knoten anklicken oder mit Tab anspringen und bestätigen).
+            Connection from <span class="mono">@QuestionKey(linkSource)</span> – now choose the target
+            question (click a node or tab to it and confirm).
             <div class="actions">
-                <button class="btn" disabled="@_busy" @onclick="() => _linkFrom = null">Abbrechen</button>
+                <button class="btn" disabled="@_busy" @onclick="() => _linkFrom = null">Cancel</button>
             </div>
         </div>
     }
 
     <div class="graph-toolbar">
-        <button class="btn" @onclick="ZoomIn" aria-label="Vergrößern">＋</button>
-        <button class="btn" @onclick="ZoomOut" aria-label="Verkleinern">－</button>
-        <button class="btn" @onclick="ResetView">Ansicht zurücksetzen</button>
+        <button class="btn" @onclick="ZoomIn" aria-label="Zoom in">＋</button>
+        <button class="btn" @onclick="ZoomOut" aria-label="Zoom out">－</button>
+        <button class="btn" @onclick="ResetView">Reset view</button>
 
         @if (_confirmLayoutReset)
         {
             <span class="confirm">
-                @PinnedCount gespeicherte Position(en) verwerfen? Danach ordnet das Auto-Layout an.
+                Discard @PinnedCount saved position(s)? The auto-layout arranges afterwards.
             </span>
             <button class="btn btn-danger" disabled="@_busy"
-                    @onclick="ResetLayoutAsync">Ja, zurücksetzen</button>
+                    @onclick="ResetLayoutAsync">Yes, reset</button>
             <button class="btn" disabled="@_busy"
-                    @onclick="() => _confirmLayoutReset = false">Abbrechen</button>
+                    @onclick="() => _confirmLayoutReset = false">Cancel</button>
         }
         else if (PinnedCount > 0)
         {
             <button class="btn" disabled="@_busy"
-                    @onclick="() => _confirmLayoutReset = true">Layout zurücksetzen</button>
+                    @onclick="() => _confirmLayoutReset = true">Reset layout</button>
         }
 
         <span class="hint">
-            Einen Knoten ziehen verschiebt ihn, Ziehen auf freier Fläche die Ansicht; das Mausrad
-            zoomt.
+            Dragging a node moves it, dragging on empty space moves the view; the mouse wheel
+            zooms.
         </span>
     </div>
 
@@ -151,17 +151,17 @@ else
         <GraphPalette Disabled="@(!Editable || _busy)" Add="AddQuestionAsync" />
 
         <div class="graph-canvas-host">
-            @* Die Zusammenfassung steht VOR dem Bild: Ein Screenreader soll nicht erst 30 Knoten
-               durchlaufen müssen, um zu erfahren, worum es geht. *@
+            @* The summary stands BEFORE the picture: a screen reader should not have to run through 30
+               nodes first to learn what it is about. *@
             <p class="visually-hidden">@_model.Summary</p>
 
             @if (_model.Nodes.Count == 0)
             {
-                @* Der Hinweis steht ÜBER dem Canvas, nicht an seiner Stelle: Auf einen leeren Dialog
-                   wird die erste Frage gezogen – ohne Zeichenfläche gäbe es kein Ziel dafür. *@
+                @* The hint stands ABOVE the canvas, not in its place: onto an empty dialog
+                   the first question is dragged – without a drawing surface there would be no target for it. *@
                 <p class="empty">
-                    Noch keine Fragen – einen Baustein aus der Palette auf die Fläche ziehen oder
-                    <a href="@($"dialogs/{Id}")">im Dialog-Editor anlegen</a>.
+                    No questions yet – drag a building block from the palette onto the surface or
+                    <a href="@($"dialogs/{Id}")">create one in the dialog editor</a>.
                 </p>
             }
 
@@ -183,12 +183,12 @@ else
                     </marker>
                 </defs>
 
-                @* Das transform dieser Gruppe gehört dem JS-Modul. C# rendert es NIE – sonst setzte
-                   der nächste Re-Render (etwa eine Auswahl) Verschiebung und Zoom zurück. *@
+                @* The transform of this group belongs to the JS module. C# NEVER renders it – otherwise
+                   the next re-render (e.g. a selection) would reset pan and zoom. *@
                 <g class="graph-viewport">
-                    @* Reihenfolge ist eine Zusage aus ADR 0006: Rahmen, dann Kanten, dann Knoten.
-                       Läge eine Kante über einem Knoten, verschluckte ihr Trefferpfad den Klick auf
-                       die Knotenmitte – im Spike #100 nachgemessen. *@
+                    @* The order is a promise from ADR 0006: frames, then edges, then nodes.
+                       If an edge lay over a node, its hit path would swallow the click on
+                       the node center – measured in the #100 spike. *@
                     @foreach (var loop in _model.Loops.Where(frame => frame.Width > 0))
                     {
                         <g class="graph-loop @(IsSelected(GraphElementKind.Loop, loop.LoopId) ? "is-selected" : "")"
@@ -212,16 +212,16 @@ else
                         </g>
                     }
 
-                    @* data-from/data-to sind für das JS-Modul: Beim Ziehen eines Knotens dimmt es
-                       die anliegenden Kanten, statt ihren Verlauf im Browser nachzurechnen. *@
+                    @* data-from/data-to are for the JS module: when dragging a node it dims
+                       the adjacent edges instead of recomputing their path in the browser. *@
                     @foreach (var edge in _model.Edges)
                     {
                         <g class="graph-edge @EdgeClasses(edge)" @key="edge.TransitionId"
                            data-from="@edge.FromQuestionId" data-to="@edge.TargetQuestionId">
                             <path class="graph-edge-line" d="@edge.Path"
                                   marker-end="@(edge.Warnings.Count > 0 ? "url(#graph-arrow-warn)" : "url(#graph-arrow)")" />
-                            @* Ein breiter, unsichtbarer Pfad macht die dünne Linie greifbar. Er liegt
-                               in derselben Ebene wie die Linie – also unter den Knoten. *@
+                            @* A wide, invisible path makes the thin line graspable. It lies
+                               in the same layer as the line – i.e. below the nodes. *@
                             <path class="graph-edge-hit" d="@edge.Path"
                                   role="img" aria-label="@edge.AriaLabel" tabindex="-1"
                                   @onclick="() => SelectTransition(edge.TransitionId)" />
@@ -230,9 +230,9 @@ else
                         </g>
                     }
 
-                    @* Knoten zuletzt: Sie liegen über allem und sind damit sicher anklickbar. Die
-                       Reihenfolge (Schicht, Spalte) ist zugleich die Tab-Reihenfolge – Tabben läuft
-                       den Dialog von oben nach unten durch. *@
+                    @* Nodes last: they lie above everything and are thereby safely clickable. The
+                       order (layer, column) is at the same time the tab order – tabbing runs
+                       through the dialog top to bottom. *@
                     @foreach (var node in _model.Nodes)
                     {
                         <GraphNodeCard @key="node.QuestionId"
@@ -253,12 +253,12 @@ else
                         @ScopeMarker(end)
                     }
 
-                    @* Zwei Platzhalter für die laufende Geste: C# rendert die Elemente, das JS-Modul
-                       füllt ihre Geometrie (d bzw. x/y/width/height) und leert sie wieder. Bewusst so
-                       und NICHT per createElement aus dem JS: Fremdes DOM in einem von Blazor
-                       verwalteten Container bringt den Renderer beim nächsten Diff über die
-                       Kindindizes aus dem Tritt. Umgekehrt rendert C# diese Attribute nie – dieselbe
-                       Eigentumsregel wie beim transform des Viewports (ADR 0006). *@
+                    @* Two placeholders for the ongoing gesture: C# renders the elements, the JS module
+                       fills their geometry (d or x/y/width/height) and empties them again. Deliberately so
+                       and NOT via createElement from the JS: foreign DOM in a container managed by Blazor
+                       throws the renderer off over the child indices on the next diff. Conversely
+                       C# never renders these attributes – the same ownership rule as with the transform
+                       of the viewport (ADR 0006). *@
                     <path class="graph-rubber" aria-hidden="true" />
                     <rect class="graph-ghost" aria-hidden="true" />
                 </g>
@@ -293,7 +293,7 @@ else
 }
 
 @code {
-    /// <summary>Der Dialog, dessen Graph gezeigt wird.</summary>
+    /// <summary>The dialog whose graph is shown.</summary>
     [Parameter]
     public Guid Id { get; set; }
 
@@ -306,12 +306,12 @@ else
     private bool _busy;
     private bool _confirmLayoutReset;
 
-    /// <summary>Die Ausgangsfrage einer per Tastatur begonnenen Verbindung.</summary>
+    /// <summary>The source question of a connection begun via the keyboard.</summary>
     private Guid? _linkFrom;
 
     /// <summary>
-    /// Die Rücksprünge ohne passenden Schleifen-Marker – <b>einmal</b> je Laden gerechnet, wie das
-    /// Zeichenmodell selbst. Aus dem Markup heraus aufgerufen liefe die Prüfung bei jedem Render erneut.
+    /// The back-jumps without a matching loop marker – computed <b>once</b> per load, like the
+    /// drawing model itself. Called from the markup the check would run again on every render.
     /// </summary>
     private IReadOnlyList<Guid> _unmarkedBackJumps = [];
 
@@ -320,14 +320,14 @@ else
     private DotNetObjectReference<DialogGraph>? _self;
 
     /// <summary>
-    /// Ob der Konfigurationsgraph bearbeitbar ist. Eine <b>veröffentlichte</b> Version ist gesperrt –
-    /// die Engine lehnt Graph-Änderungen daran mit einem Konflikt ab (<c>DialogPublishedException</c>),
-    /// damit laufende Sessions nicht brechen. Die Sperre spiegelt diese Regel in der Oberfläche, statt
-    /// den Anwender in die Fehlermeldung laufen zu lassen. Verschieben bleibt erlaubt (ADR 0007).
+    /// Whether the configuration graph is editable. A <b>published</b> version is locked –
+    /// the engine rejects graph changes to it with a conflict (<c>DialogPublishedException</c>),
+    /// so that running sessions do not break. The lock mirrors this rule in the UI, instead of
+    /// letting the user run into the error message. Moving stays allowed (ADR 0007).
     /// </summary>
     private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
 
-    /// <summary>Wie viele Knoten an einer vom Autor gespeicherten Position liegen.</summary>
+    /// <summary>How many nodes lie at a position saved by the author.</summary>
     private int PinnedCount => _model?.Nodes.Count(node => node.IsPinned) ?? 0;
 
     protected override async Task OnParametersSetAsync()
@@ -337,8 +337,8 @@ else
             return;
         }
 
-        // Beim Wechsel auf einen anderen Dialog die Bindung lösen: Der DotNetObjectReference zeigte
-        // sonst auf dieselbe Instanz mit inzwischen anderer Id, und attach kürzt bei bekanntem Canvas ab.
+        // On switching to another dialog, release the binding: the DotNetObjectReference would
+        // otherwise point to the same instance with a now different Id, and attach short-circuits for a known canvas.
         await ReleaseModuleAsync();
 
         _loadedId = Id;
@@ -349,8 +349,8 @@ else
     }
 
     /// <summary>
-    /// Lädt den Dialog und rechnet das Zeichenmodell <b>einmal</b> in ein Feld. Aus dem Markup heraus
-    /// aufgerufen liefe die ganze Anordnung bei jedem Render erneut – also bei jedem Klick.
+    /// Loads the dialog and computes the drawing model <b>once</b> into a field. Called from the markup
+    /// the whole layout would run again on every render – i.e. on every click.
     /// </summary>
     private async Task LoadAsync()
     {
@@ -363,16 +363,16 @@ else
             return;
         }
 
-        // Der geladene Dialog bleibt liegen: Eine geänderte Position lässt sich damit lokal einrechnen,
-        // ohne den ganzen Graphen erneut abzufragen.
+        // The loaded dialog is kept: a changed position can thereby be computed in locally,
+        // without querying the whole graph again.
         _detail = result.Value!;
         _model = DialogGraphBuilder.Build(_detail);
         _unmarkedBackJumps = [.. LoopAnalyzer.UnmarkedBackJumps(_detail).Select(transition => transition.Id)];
         ReconcileSelection();
     }
 
-    /// <summary>Baut das Zeichenmodell aus dem gepufferten Dialog mit dem angegebenen Layout neu.</summary>
-    /// <param name="layout">Das neue Layout (Ergebnis des Commands bzw. leer nach dem Zurücksetzen).</param>
+    /// <summary>Rebuilds the drawing model from the buffered dialog with the given layout.</summary>
+    /// <param name="layout">The new layout (result of the command or empty after the reset).</param>
     private void Rebuild(IReadOnlyList<DialogLayoutDetail> layout)
     {
         if (_detail is null)
@@ -385,13 +385,13 @@ else
     }
 
     /// <summary>
-    /// Verwirft eine Auswahl, deren Element es nicht mehr gibt.
+    /// Discards a selection whose element no longer exists.
     /// </summary>
     /// <remarks>
-    /// Pflicht nach jeder Mutation, nicht Kosmetik: <c>DeleteQuestionCommand</c> räumt Übergänge,
-    /// Schleifen-Marker und Trigger mit ab. Zeigte die Auswahl danach noch auf ein verschwundenes
-    /// Element, rendert der Inspector in einen leeren Zweig – und der sichtbare Rückfall auf die Legende
-    /// ist selbst ein Teil des Nachweises, dass mit aufgeräumt wurde.
+    /// Mandatory after every mutation, not cosmetics: <c>DeleteQuestionCommand</c> cleans up transitions,
+    /// loop markers and triggers along with it. If the selection still pointed to a vanished
+    /// element afterwards, the inspector would render into an empty branch – and the visible fall-back to the legend
+    /// is itself part of the proof that things were cleaned up too.
     /// </remarks>
     private void ReconcileSelection()
     {
@@ -419,34 +419,34 @@ else
         }
     }
 
-    // ---- Gesten (#103) ------------------------------------------------------------------------------
+    // ---- Gestures (#103) ----------------------------------------------------------------------------
 
     /// <summary>
-    /// Führt eine schreibende Geste aus: Sperre setzen, Commands in <b>einem</b> Gateway-Aufruf senden,
-    /// danach den Graphen neu laden.
+    /// Runs a writing gesture: set the lock, send the commands in <b>one</b> gateway call,
+    /// then reload the graph.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der Frühausstieg bei <c>_busy</c> ist die serverseitige Hälfte des Gesten-Riegels. Das JS-Modul
-    /// sperrt schon clientseitig, aber ein <c>[JSInvokable]</c>-Aufruf sieht kein gerendertes
-    /// <c>disabled</c>-Attribut – das Muster des <c>DialogEditor</c> trägt hier also nicht. Und jedes
-    /// <c>await</c> gibt den Circuit-Kontext ab, ein zweiter Aufruf kann sich dazwischenschieben.
+    /// The early exit on <c>_busy</c> is the server-side half of the gesture lock. The JS module
+    /// already locks client-side, but a <c>[JSInvokable]</c> call sees no rendered
+    /// <c>disabled</c> attribute – so the <c>DialogEditor</c>'s pattern does not carry here. And every
+    /// <c>await</c> hands off the circuit context, a second call can slip in between.
     /// </para>
     /// <para>
-    /// <b>Neu geladen statt lokal fortgeschrieben:</b> Die Commands liefern nur ihren eigenen Ausschnitt,
-    /// und <c>DeleteQuestionCommand</c> räumt zusätzlich Übergänge, Schleifen-Marker, Trigger und
-    /// Layout-Zeilen ab. Vor allem aber rechnen <c>TransitionWarningAnalyzer</c> und <c>LoopAnalyzer</c>
-    /// über den <b>ganzen</b> Dialog: Ein neuer Übergang kann eine Warnung an einer anderen Frage
-    /// aufheben. „Warnungen aktualisieren sich sofort" ist nur mit dem echten Serverstand wahr. Die
-    /// Ausnahme bleibt der Layout-Pfad (<see cref="MoveNodeAsync"/>), dessen Command den vollständigen
-    /// neuen Stand zurückgibt.
+    /// <b>Reloaded instead of written forward locally:</b> the commands return only their own slice,
+    /// and <c>DeleteQuestionCommand</c> additionally cleans up transitions, loop markers, triggers and
+    /// layout rows. Above all, <c>TransitionWarningAnalyzer</c> and <c>LoopAnalyzer</c> compute
+    /// over the <b>whole</b> dialog: a new transition can lift a warning on another question.
+    /// "Warnings update immediately" is only true with the real server state. The
+    /// exception remains the layout path (<see cref="MoveNodeAsync"/>), whose command returns the complete
+    /// new state.
     /// </para>
     /// </remarks>
-    /// <typeparam name="TResult">Der Rückgabetyp der Command-Folge.</typeparam>
-    /// <param name="operation">Die zu sendenden Commands.</param>
-    /// <param name="successMessage">Die Erfolgsmeldung.</param>
-    /// <param name="requireEditable">Ob die Geste einen unveröffentlichten Dialog voraussetzt.</param>
-    /// <returns><see langword="true"/>, wenn die Geste durchlief.</returns>
+    /// <typeparam name="TResult">The return type of the command sequence.</typeparam>
+    /// <param name="operation">The commands to send.</param>
+    /// <param name="successMessage">The success message.</param>
+    /// <param name="requireEditable">Whether the gesture requires an unpublished dialog.</param>
+    /// <returns><see langword="true"/> if the gesture ran through.</returns>
     private async Task<bool> RunGestureAsync<TResult>(
         Func<ISender, CancellationToken, ValueTask<TResult>> operation,
         string successMessage,
@@ -478,21 +478,21 @@ else
         {
             _busy = false;
 
-            // Ein JSInvokable-Aufruf läuft außerhalb eines Render-Zyklus – ohne diesen Anstoß bliebe die
-            // Oberfläche auf dem Stand vor der Geste stehen.
+            // A JSInvokable call runs outside a render cycle – without this nudge the
+            // UI would stay on the state before the gesture.
             StateHasChanged();
         }
     }
 
     /// <summary>
-    /// Legt eine Frage an – aus der Palette betätigt, also <b>ohne</b> gespeicherte Position.
+    /// Creates a question – triggered from the palette, i.e. <b>without</b> a saved position.
     /// </summary>
     /// <remarks>
-    /// Bewusst keine erfundene Koordinate: „an der Drop-Stelle" ist eine Aussage über die Zieh-Geste.
-    /// Ohne Layout-Zeile ordnet das Auto-Layout die Frage ein, was für den Tastaturpfad das
-    /// nachvollziehbarere Ergebnis ist.
+    /// Deliberately no invented coordinate: "at the drop point" is a statement about the drag gesture.
+    /// Without a layout row the auto-layout places the question, which is the more
+    /// comprehensible result for the keyboard path.
     /// </remarks>
-    /// <param name="type">Der gewählte Fragetyp.</param>
+    /// <param name="type">The chosen question type.</param>
     private async Task AddQuestionAsync(QuestionType type)
     {
         if (_detail is null)
@@ -504,10 +504,10 @@ else
 
         var created = await RunGestureAsync(
             (sender, token) => sender.Send(NewQuestion(type, key), token),
-            $"Frage „{key}“ angelegt.");
+            $"Question \"{key}\" created.");
 
-        // Nach dem Reload steht die neue Frage im Modell – über ihren Schlüssel gefunden, der im Dialog
-        // eindeutig ist. Sie auszuwählen ist der Punkt der Geste: Der Inspector zeigt sofort ihre Felder.
+        // After the reload the new question is in the model – found via its key, which is unique
+        // within the dialog. Selecting it is the point of the gesture: the inspector shows its fields at once.
         if (created && QuestionIdByKey(key) is { } questionId)
         {
             _selection = new GraphSelection(GraphElementKind.Question, questionId);
@@ -515,16 +515,16 @@ else
     }
 
     /// <summary>
-    /// Legt eine Frage an der Drop-Stelle an – die Palette-Geste des JS-Moduls.
+    /// Creates a question at the drop point – the palette gesture of the JS module.
     /// </summary>
     /// <remarks>
-    /// Der Fragetyp kommt als <b>Zeichenkette</b> aus dem DOM-Attribut und wird hier aufgelöst: Blazors
-    /// JSInterop bringt keinen String-Enum-Konverter mit, ein <c>QuestionType</c>-Parameter scheiterte
-    /// also an der Deserialisierung. Ein unbekannter Wert wird verworfen, nicht geraten.
+    /// The question type comes as a <b>string</b> from the DOM attribute and is resolved here: Blazor's
+    /// JSInterop brings no string-to-enum converter, so a <c>QuestionType</c> parameter would fail
+    /// on deserialization. An unknown value is discarded, not guessed.
     /// </remarks>
-    /// <param name="type">Der Name des Fragetyps.</param>
-    /// <param name="x">Die waagerechte Canvas-Koordinate in px.</param>
-    /// <param name="y">Die senkrechte Canvas-Koordinate in px.</param>
+    /// <param name="type">The name of the question type.</param>
+    /// <param name="x">The horizontal canvas coordinate in px.</param>
+    /// <param name="y">The vertical canvas coordinate in px.</param>
     [JSInvokable]
     public async Task CreateQuestionAtAsync(string type, int x, int y)
     {
@@ -540,22 +540,22 @@ else
             {
                 var question = await sender.Send(NewQuestion(questionType, key), token);
 
-                // Die Layout-Zeile braucht die Guid der neuen Frage – die Reihenfolge ist also zwingend.
-                // Beide Commands laufen in EINEM Gateway-Aufruf (ein DI-Scope, ein Fehlerpfad), aber
-                // nicht in einer Transaktion: Jeder Handler speichert selbst. Scheitert der zweite,
-                // existiert die Frage ohne Position und das Auto-Layout ordnet sie ein. Bewusst keine
-                // Kompensation – eine gerade angelegte Frage wegen eines Layout-Schluckaufs wieder zu
-                // löschen wäre der teurere Fehler.
+                // The layout row needs the Guid of the new question – so the order is mandatory.
+                // Both commands run in ONE gateway call (one DI scope, one error path), but
+                // not in one transaction: each handler saves itself. If the second fails,
+                // the question exists without a position and the auto-layout places it. Deliberately no
+                // compensation – deleting a just-created question because of a layout hiccup
+                // would be the more expensive mistake.
                 _ = await sender.Send(Position(question.Id, x, y), token);
 
                 return question;
             },
-            $"Frage „{key}“ angelegt.");
+            $"Question \"{key}\" created.");
     }
 
-    /// <summary>Verbindet zwei Fragen – die Port-Geste des JS-Moduls und der Tastaturpfad.</summary>
-    /// <param name="from">Die Ausgangsfrage.</param>
-    /// <param name="target">Die Zielfrage.</param>
+    /// <summary>Connects two questions – the port gesture of the JS module and the keyboard path.</summary>
+    /// <param name="from">The source question.</param>
+    /// <param name="target">The target question.</param>
     [JSInvokable]
     public async Task ConnectAsync(Guid from, Guid target)
     {
@@ -571,15 +571,15 @@ else
                 new CreateTransitionCommand(
                     Id, from, target, null, GraphEditing.NextPriority(_detail, from), false),
                 token),
-            $"Übergang {QuestionKey(from)} → {QuestionKey(target)} angelegt.");
+            $"Transition {QuestionKey(from)} → {QuestionKey(target)} created.");
     }
 
     /// <summary>
-    /// Legt eine Frage an der Loslass-Stelle an und verbindet sie – Ziehen vom Port ins Leere.
+    /// Creates a question at the release point and connects it – dragging from the port into the void.
     /// </summary>
-    /// <param name="from">Die Ausgangsfrage.</param>
-    /// <param name="x">Die waagerechte Canvas-Koordinate in px.</param>
-    /// <param name="y">Die senkrechte Canvas-Koordinate in px.</param>
+    /// <param name="from">The source question.</param>
+    /// <param name="x">The horizontal canvas coordinate in px.</param>
+    /// <param name="y">The vertical canvas coordinate in px.</param>
     [JSInvokable]
     public async Task ConnectToNewQuestionAsync(Guid from, int x, int y)
     {
@@ -600,14 +600,14 @@ else
                 return await sender.Send(
                     new CreateTransitionCommand(Id, from, question.Id, null, priority, false), token);
             },
-            $"Frage „{key}“ angelegt und mit {QuestionKey(from)} verbunden.");
+            $"Question \"{key}\" created and connected with {QuestionKey(from)}.");
     }
 
     /// <summary>
-    /// Beginnt oder beendet eine Verbindung über die Tastatur: Der Ausgangs-Port merkt die Quelle,
-    /// der nächste Knoten-Klick schließt sie ab (siehe <see cref="SelectQuestion"/>).
+    /// Begins or ends a connection via the keyboard: the source port remembers the source,
+    /// the next node click completes it (see <see cref="SelectQuestion"/>).
     /// </summary>
-    /// <param name="questionId">Die Ausgangsfrage.</param>
+    /// <param name="questionId">The source question.</param>
     private void StartLink(Guid questionId)
     {
         _error = null;
@@ -615,14 +615,14 @@ else
         _linkFrom = _linkFrom == questionId ? null : questionId;
     }
 
-    // ---- Gesten aus dem Inspector (#103) ------------------------------------------------------------
+    // ---- Gestures from the inspector (#103) ---------------------------------------------------------
 
     /// <summary>
-    /// Speichert die Kopffelder einer Frage. <c>Order</c> und <c>ValidationRules</c> gehen unverändert
-    /// mit: Das Panel kennt sie nicht, und der Command erwartet den vollständigen Satz – ohne sie
-    /// verlöre ein Feldwechsel im Inspector still die Validierungsregeln und die Listenposition.
+    /// Saves the header fields of a question. <c>Order</c> and <c>ValidationRules</c> go along
+    /// unchanged: the panel does not know them, and the command expects the complete set – without them
+    /// a field change in the inspector would silently lose the validation rules and the list position.
     /// </summary>
-    /// <param name="edit">Die geänderten Felder.</param>
+    /// <param name="edit">The changed fields.</param>
     private async Task SaveQuestionAsync(QuestionEdit edit)
     {
         if (_detail?.Questions.FirstOrDefault(question => question.Id == edit.QuestionId) is not { } current)
@@ -636,27 +636,27 @@ else
                     Id, edit.QuestionId, edit.Key, edit.Text, edit.Type, current.Order, edit.IsRequired,
                     current.ValidationRules),
                 token),
-            $"Frage „{edit.Key}“ gespeichert.");
+            $"Question \"{edit.Key}\" saved.");
     }
 
     /// <summary>
-    /// Macht die gewählte Frage zur Einstiegsfrage des Dialogs.
+    /// Makes the chosen question the dialog's entry question.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der einzige Weg, der die <b>Dialog</b>-Metadaten anfasst statt den Graphen – und deshalb der
-    /// einzige, der <c>UpdateDialogCommand</c> ruft. Schlüssel, Name und Beschreibung gehen unverändert
-    /// mit: Der Command erwartet den vollständigen Satz, und der Canvas kennt nur die Einstiegsfrage.
+    /// The only path that touches the <b>dialog</b> metadata instead of the graph – and therefore the
+    /// only one that calls <c>UpdateDialogCommand</c>. Key, name and description go along unchanged:
+    /// the command expects the complete set, and the canvas only knows the entry question.
     /// </para>
     /// <para>
-    /// Kein Sonderfall bei der Publish-Sperre, sondern ihr Normalfall: Der Guard des Commands greift
-    /// genau dann, wenn sich <c>StartQuestionId</c> ändert. Weil der Knopf im Panel bei gesperrtem
-    /// Graphen <c>disabled</c> ist und <see cref="RunGestureAsync"/> zusätzlich
-    /// <c>requireEditable</c> prüft, entsteht daraus keine Fehlermeldung, sondern eine nicht
-    /// auslösbare Aktion.
+    /// Not a special case of the publish lock, but its normal case: the command's guard takes effect
+    /// exactly when <c>StartQuestionId</c> changes. Because the button in the panel is
+    /// <c>disabled</c> when the graph is locked and <see cref="RunGestureAsync"/> additionally
+    /// checks <c>requireEditable</c>, this yields no error message but a non-triggerable
+    /// action.
     /// </para>
     /// </remarks>
-    /// <param name="questionId">Die neue Einstiegsfrage.</param>
+    /// <param name="questionId">The new entry question.</param>
     private async Task SetStartQuestionAsync(Guid questionId)
     {
         if (_detail is null)
@@ -670,18 +670,18 @@ else
             (sender, token) => sender.Send(
                 new UpdateDialogCommand(Id, dialog.Key, dialog.Name, dialog.Description, questionId),
                 token),
-            $"„{QuestionKey(questionId)}“ ist jetzt Einstiegsfrage.");
+            $"\"{QuestionKey(questionId)}\" is now the entry question.");
     }
 
     /// <summary>
-    /// Löscht eine Frage und benennt die Mit-Aufräumung.
+    /// Deletes a question and names the accompanying cleanup.
     /// </summary>
     /// <remarks>
-    /// Der Command räumt verweisende Übergänge, Schleifen-Marker, Trigger und Layout-Zeilen mit ab. Die
-    /// Zahlen dafür entstehen als Differenz der Bestände vor und nach dem Reload – gemeldet wird also,
-    /// was wirklich passiert ist, nicht was der Client erwartet hat.
+    /// The command cleans up referencing transitions, loop markers, triggers and layout rows. The
+    /// numbers for it arise as the difference of the counts before and after the reload – so what is reported
+    /// is what really happened, not what the client expected.
     /// </remarks>
-    /// <param name="questionId">Die zu löschende Frage.</param>
+    /// <param name="questionId">The question to delete.</param>
     private async Task DeleteQuestionAsync(Guid questionId)
     {
         if (_detail is null)
@@ -694,18 +694,18 @@ else
 
         var deleted = await RunGestureAsync(
             (sender, token) => sender.Send(new DeleteQuestionCommand(Id, questionId), token),
-            $"Frage „{key}“ gelöscht.");
+            $"Question \"{key}\" deleted.");
 
         if (deleted && _detail is not null)
         {
             var removed = new List<string>(3);
-            Describe(before.Item1 - _detail.Transitions.Count, "Übergang", "Übergänge");
-            Describe(before.Item2 - _detail.Loops.Count, "Schleifen-Marker", "Schleifen-Marker");
-            Describe(before.Item3 - _detail.Triggers.Count, "Trigger", "Trigger");
+            Describe(before.Item1 - _detail.Transitions.Count, "transition", "transitions");
+            Describe(before.Item2 - _detail.Loops.Count, "loop marker", "loop markers");
+            Describe(before.Item3 - _detail.Triggers.Count, "trigger", "triggers");
 
             if (removed.Count > 0)
             {
-                _message = $"Frage „{key}“ gelöscht – {string.Join(", ", removed)} mit entfernt.";
+                _message = $"Question \"{key}\" deleted – {string.Join(", ", removed)} removed along with it.";
             }
 
             void Describe(int count, string singular, string plural)
@@ -718,8 +718,8 @@ else
         }
     }
 
-    /// <summary>Verschiebt einen Übergang in der Auswertungsreihenfolge seiner Ausgangsfrage.</summary>
-    /// <param name="move">Ausgangsfrage sowie alte und neue Position.</param>
+    /// <summary>Moves a transition in the evaluation order of its source question.</summary>
+    /// <param name="move">Source question as well as old and new position.</param>
     private async Task MoveTransitionAsync(TransitionMove move)
     {
         if (_detail is null)
@@ -749,11 +749,11 @@ else
 
                 return Unit.Value;
             },
-            "Reihenfolge der Übergänge geändert.");
+            "Order of transitions changed.");
     }
 
-    /// <summary>Schaltet die Default-Kennzeichnung eines Übergangs um.</summary>
-    /// <param name="transitionId">Der Übergang.</param>
+    /// <summary>Toggles the default flag of a transition.</summary>
+    /// <param name="transitionId">The transition.</param>
     private async Task ToggleDefaultAsync(Guid transitionId)
     {
         if (_detail?.Transitions.FirstOrDefault(transition => transition.Id == transitionId)
@@ -768,11 +768,11 @@ else
                     Id, current.Id, current.FromQuestionId, current.TargetQuestionId, current.Expression,
                     current.Priority, !current.IsDefault),
                 token),
-            current.IsDefault ? "Default-Kennzeichnung entfernt." : "Als Default markiert.");
+            current.IsDefault ? "Default flag removed." : "Marked as default.");
     }
 
-    /// <summary>Verbindet die gewählte Frage mit dem im Inspector gewählten Ziel.</summary>
-    /// <param name="target">Die Zielfrage.</param>
+    /// <summary>Connects the chosen question with the target chosen in the inspector.</summary>
+    /// <param name="target">The target question.</param>
     private async Task ConnectFromInspectorAsync(Guid target)
     {
         if (_selection is { Kind: GraphElementKind.Question } selection)
@@ -781,14 +781,14 @@ else
         }
     }
 
-    /// <summary>Speichert Ziel, Bedingung und Default-Kennzeichnung eines Übergangs.</summary>
+    /// <summary>Saves target, condition and default flag of a transition.</summary>
     /// <remarks>
-    /// Ausgangsfrage und Priorität bleiben unberührt: Der Wechsel der Ausgangsfrage vergibt die
-    /// Priorität in der neuen Gruppe neu, und diese Regel steht im Übergangs-Editor. Die Bedingung ist
-    /// beim Speichern schon <b>live geprüft</b> (<c>ExpressionField</c>); eine zweite blockierende
-    /// Prüfung hier wäre die Aufgabe des Vollteditors, der sie unverändert leistet.
+    /// Source question and priority stay untouched: changing the source question reassigns the
+    /// priority in the new group, and this rule lives in the transition editor. The condition is
+    /// already <b>checked live</b> when saving (<c>ExpressionField</c>); a second blocking
+    /// check here would be the job of the full editor, which does it unchanged.
     /// </remarks>
-    /// <param name="edit">Die geänderten Felder.</param>
+    /// <param name="edit">The changed fields.</param>
     private async Task SaveTransitionAsync(TransitionEdit edit)
     {
         if (_detail?.Transitions.FirstOrDefault(transition => transition.Id == edit.TransitionId)
@@ -803,61 +803,61 @@ else
                     Id, current.Id, current.FromQuestionId, edit.TargetQuestionId, edit.Expression,
                     current.Priority, edit.IsDefault),
                 token),
-            "Übergang gespeichert.");
+            "Transition saved.");
     }
 
-    /// <summary>Löscht einen Übergang.</summary>
-    /// <param name="transitionId">Der zu löschende Übergang.</param>
+    /// <summary>Deletes a transition.</summary>
+    /// <param name="transitionId">The transition to delete.</param>
     private async Task DeleteTransitionAsync(Guid transitionId)
         => _ = await RunGestureAsync(
             (sender, token) => sender.Send(new DeleteTransitionCommand(Id, transitionId), token),
-            "Übergang gelöscht.");
+            "Transition deleted.");
 
-    /// <summary>Legt aus einem Rücksprung einen Schleifen-Marker an.</summary>
-    /// <param name="draft">Collection-Schlüssel, Einstieg und Breaking Question.</param>
+    /// <summary>Creates a loop marker from a back-jump.</summary>
+    /// <param name="draft">Collection key, entry and breaking question.</param>
     private async Task CreateLoopAsync(LoopDraft draft)
         => _ = await RunGestureAsync(
             (sender, token) => sender.Send(
                 new CreateLoopCommand(Id, draft.CollectionKey, draft.EntryQuestionId, draft.BreakingQuestionId),
                 token),
-            $"Schleife „{draft.CollectionKey}“ angelegt.");
+            $"Loop \"{draft.CollectionKey}\" created.");
 
-    /// <summary>Löscht einen Schleifen-Marker; der Zyklus selbst bleibt bestehen.</summary>
-    /// <param name="loopId">Der zu löschende Marker.</param>
+    /// <summary>Deletes a loop marker; the cycle itself remains.</summary>
+    /// <param name="loopId">The marker to delete.</param>
     private async Task DeleteLoopAsync(Guid loopId)
         => _ = await RunGestureAsync(
             (sender, token) => sender.Send(new DeleteLoopCommand(Id, loopId), token),
-            "Schleifen-Marker gelöscht.");
+            "Loop marker deleted.");
 
     /// <summary>
-    /// Legt einen Trigger an. Die Querfeld-Regeln aus #42 hat das Panel bereits geprüft; der Command
-    /// prüft sie erneut (<c>IValidatableObject</c>) – die UI-Prüfung ist Bequemlichkeit, nicht Ersatz.
+    /// Creates a trigger. The panel has already checked the cross-field rules from #42; the command
+    /// checks them again (<c>IValidatableObject</c>) – the UI check is convenience, not a replacement.
     /// </summary>
-    /// <param name="draft">Zeitpunkt, Bezugsfrage, Kanal und Konfiguration.</param>
+    /// <param name="draft">When, reference question, channel and configuration.</param>
     private async Task AddTriggerAsync(TriggerDraft draft)
         => _ = await RunGestureAsync(
             (sender, token) => sender.Send(
                 new CreateTriggerCommand(Id, draft.Scope, draft.QuestionId, draft.Kind, draft.Config, null),
                 token),
-            $"Trigger „{TriggerLabels.Describe(draft.Scope)}“ angelegt.");
+            $"Trigger \"{TriggerLabels.Describe(draft.Scope)}\" created.");
 
     private CreateQuestionCommand NewQuestion(QuestionType type, string key)
-        => new(Id, key, "Neue Frage", type, GraphEditing.NextOrder(_detail!), false, null);
+        => new(Id, key, "New question", type, GraphEditing.NextOrder(_detail!), false, null);
 
     private SetDialogLayoutCommand Position(Guid questionId, int x, int y)
         => new(Id, [new DialogLayoutEntry(LayoutElementKind.Question, questionId, x, y)]);
 
-    /// <summary>Findet eine Frage über ihren Schlüssel – der ist im Dialog eindeutig.</summary>
+    /// <summary>Finds a question via its key – which is unique within the dialog.</summary>
     private Guid? QuestionIdByKey(string key)
         => _detail?.Questions.FirstOrDefault(question => question.Key == key)?.Id;
 
     private string QuestionKey(Guid questionId)
-        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unbekannt";
+        => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unknown";
 
-    /// <summary>Leitet eine neue Version ab und bleibt dabei auf dem Canvas.</summary>
+    /// <summary>Derives a new version and stays on the canvas.</summary>
     /// <remarks>
-    /// Anders als der <c>DialogEditor</c>, der in seinen eigenen Editor springt: Wer hier arbeitet, will
-    /// am Graphen weiterarbeiten, nicht in der Liste.
+    /// Unlike the <c>DialogEditor</c>, which jumps into its own editor: whoever works here wants
+    /// to keep working on the graph, not in the list.
     /// </remarks>
     private async Task CreateVersionAsync()
     {
@@ -889,32 +889,32 @@ else
         }
     }
 
-    // ---- Verschieben (#102) -------------------------------------------------------------------------
+    // ---- Moving (#102) ------------------------------------------------------------------------------
 
     /// <summary>
-    /// Übernimmt die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde.
+    /// Takes over the new position of a node after the drag ended in the browser.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Während des Ziehens schreibt das Modul nur das <c>transform</c> des Knotens (ADR 0006). Der Commit
-    /// schreibt denselben Wert anschließend aus C# – die Ansicht springt dabei nicht, weil
-    /// <c>SvgFormat.N</c> ganze Zahlen genauso formatiert wie das Modul.
+    /// During the drag the module writes only the node's <c>transform</c> (ADR 0006). The commit
+    /// then writes the same value from C# – the view does not jump, because
+    /// <c>SvgFormat.N</c> formats whole numbers exactly as the module does.
     /// </para>
     /// <para>
-    /// Ein Fehlschlag baut das Modell aus dem <b>gespeicherten</b> Stand neu: Der Knoten springt dann
-    /// sichtbar zurück. Ihn stehen zu lassen behauptete eine Position, die es in der Datenbank nicht
-    /// gibt – und der nächste Reload widerspräche.
+    /// A failure rebuilds the model from the <b>saved</b> state: the node then springs
+    /// back visibly. Leaving it in place would claim a position that does not exist in the database
+    /// – and the next reload would contradict it.
     /// </para>
     /// <para>
-    /// Prüft bewusst <b>nicht</b> auf <see cref="Editable"/>: Eine Position gehört nicht zum Graphen,
-    /// ein veröffentlichter Dialog muss anordbar bleiben (ADR 0007). Der Gesten-Riegel gilt trotzdem –
-    /// nicht wegen des Upserts, sondern damit sich ein Zug nicht mit einer fliegenden Graph-Änderung
-    /// verschränkt und auf einem Stand aufsetzt, den der Reload gleich ersetzt.
+    /// Deliberately does <b>not</b> check <see cref="Editable"/>: a position does not belong to the graph,
+    /// a published dialog must remain arrangeable (ADR 0007). The gesture lock still applies –
+    /// not because of the upsert, but so that a drag does not interleave with a flying graph change
+    /// and build on a state that the reload replaces right away.
     /// </para>
     /// </remarks>
-    /// <param name="questionId">Die verschobene Frage.</param>
-    /// <param name="x">Die neue waagerechte Canvas-Koordinate in px.</param>
-    /// <param name="y">Die neue senkrechte Canvas-Koordinate in px.</param>
+    /// <param name="questionId">The moved question.</param>
+    /// <param name="x">The new horizontal canvas coordinate in px.</param>
+    /// <param name="y">The new vertical canvas coordinate in px.</param>
     [JSInvokable]
     public async Task MoveNodeAsync(Guid questionId, int x, int y)
     {
@@ -948,7 +948,7 @@ else
         }
     }
 
-    /// <summary>Verwirft alle gespeicherten Positionen; danach greift wieder das Auto-Layout.</summary>
+    /// <summary>Discards all saved positions; afterwards the auto-layout takes effect again.</summary>
     private async Task ResetLayoutAsync()
     {
         _confirmLayoutReset = false;
@@ -983,9 +983,9 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Das Modul selbst ist die Wahrheit darüber, ob gebunden ist – ein zusätzliches Flag müsste an
-        // jedem Dialogwechsel mit zurückgesetzt werden. Der Canvas existiert jetzt auch ohne Knoten
-        // (er ist die Ablagefläche für die erste Frage), die Knotenzahl ist also keine Bedingung mehr.
+        // The module itself is the truth about whether it is bound – an additional flag would have to be
+        // reset along on every dialog switch. The canvas now exists even without nodes
+        // (it is the drop surface for the first question), so the node count is no longer a condition.
         if (_module is not null || _model is null)
         {
             return;
@@ -1009,19 +1009,19 @@ else
             });
     }
 
-    // ---- Auswahl ------------------------------------------------------------------------------------
+    // ---- Selection ----------------------------------------------------------------------------------
 
     private bool IsSelected(GraphElementKind kind, Guid id)
         => _selection is { } selection && selection.Kind == kind && selection.Id == id;
 
     /// <summary>
-    /// Wählt eine Frage aus und zieht den Fokus auf ihren Knoten nach. Das Nachziehen ist der Grund,
-    /// warum die Methode asynchron ist: Wer im Inspector „Zur Zielfrage“ betätigt, soll danach auf dem
-    /// gemeinten Knoten stehen und nicht auf der Schaltfläche, die ihn dorthin gebracht hat.
+    /// Selects a question and moves the focus onto its node. This focus move is the reason
+    /// why the method is asynchronous: whoever hits "To the target question" in the inspector should afterwards be on the
+    /// intended node and not on the button that brought them there.
     /// </summary>
     /// <remarks>
-    /// Läuft gerade eine über die Tastatur begonnene Verbindung, schließt der Klick sie ab statt
-    /// auszuwählen – der Knoten ist dann das Ziel, nicht das Objekt des Interesses.
+    /// If a connection begun via the keyboard is currently running, the click completes it instead of
+    /// selecting – the node is then the target, not the object of interest.
     /// </remarks>
     private async Task SelectQuestion(Guid questionId)
     {
@@ -1045,7 +1045,7 @@ else
     private void SelectLoop(Guid loopId)
         => _selection = new GraphSelection(GraphElementKind.Loop, loopId);
 
-    // ---- Sprünge in die bestehenden Editoren --------------------------------------------------------
+    // ---- Jumps into the existing editors ------------------------------------------------------------
 
     private void OpenQuestion(Guid questionId)
         => Navigation.NavigateTo($"dialogs/{Id}/questions/{questionId}");
@@ -1059,7 +1059,7 @@ else
     private void OpenTrigger(Guid triggerId)
         => Navigation.NavigateTo($"dialogs/{Id}/triggers/{triggerId}");
 
-    // ---- Werkzeugleiste -----------------------------------------------------------------------------
+    // ---- Toolbar ------------------------------------------------------------------------------------
 
     private async Task ZoomIn() => await Zoom(GraphMetrics.ZoomStep);
 
@@ -1095,9 +1095,9 @@ else
             classes.Add("is-backjump");
         }
 
-        // Ein Rücksprung ohne Marker ist auf der Fläche erkennbar, weil der Vorschlag „als Schleife
-        // markieren" an genau dieser Kante hängt (#103). Die Markierung trägt zusätzlich zur Farbe eine
-        // eigene Strichform – keine Aussage darf allein an der Farbe hängen (Befund #95).
+        // A back-jump without a marker is recognizable on the surface, because the suggestion "mark as
+        // loop" hangs on exactly this edge (#103). The marking carries, in addition to color, its
+        // own stroke form – no statement may hang on color alone (finding #95).
         if (_unmarkedBackJumps.Contains(edge.TransitionId))
         {
             classes.Add("is-unmarked");
@@ -1113,9 +1113,9 @@ else
 
     private static string LoopLabel(GraphLoopFrame loop)
     {
-        var label = $"Schleife {loop.CollectionKey}, Einstieg {loop.EntryKey}, Breaking Question {loop.BreakingKey}";
+        var label = $"Loop {loop.CollectionKey}, entry {loop.EntryKey}, breaking question {loop.BreakingKey}";
 
-        return loop.Warnings.Count == 0 ? label + "." : $"{label}, {loop.Warnings.Count} Warnung(en).";
+        return loop.Warnings.Count == 0 ? label + "." : $"{label}, {loop.Warnings.Count} warning(s).";
     }
 
     private RenderFragment ScopeMarker(GraphScopeMarker marker) => @<g class="graph-scope-marker">
@@ -1147,7 +1147,7 @@ else
             }
             catch (JSDisconnectedException)
             {
-                // Circuit schon weg (Reload oder Schließen) – es gibt nichts mehr aufzuräumen.
+                // Circuit already gone (reload or close) – there is nothing left to clean up.
             }
 
             _module = null;

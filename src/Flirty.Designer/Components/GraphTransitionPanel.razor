@@ -1,17 +1,17 @@
 @*
-    Der Übergangs-Zweig des Graph-Inspectors (#103).
+    The transition branch of the graph inspector (#103).
 
-    Hier steht auch der Schleifen-Vorschlag: Ein Rücksprung ohne passenden Marker wird AM ZYKLUS
-    angeboten – bei der Kante, die ihn verursacht – statt in einer Liste am Seitenende (#41 bot ihn dort
-    an). Die Vorbelegung ist dieselbe: Ziel des Rücksprungs = Einstieg, Ausgangsfrage = Breaking
-    Question, Schlüssel aus LoopFormModel.SuggestCollectionKey.
+    The loop suggestion also stands here: a back-jump without a matching marker is offered AT THE CYCLE –
+    at the edge that causes it – instead of in a list at the bottom of the page (#41 offered it there). The
+    prefill is the same: target of the back-jump = entry, source question = breaking question, key from
+    LoopFormModel.SuggestCollectionKey.
 
-    Der Wechsel der Ausgangsfrage bleibt dem TransitionEditor vorbehalten: Er vergibt dabei die
-    Priorität in der neuen Gruppe neu, und diese Regel soll nicht an zwei Stellen stehen.
+    Changing the source question stays reserved for the TransitionEditor: it reassigns the priority in the
+    new group, and this rule should not stand in two places.
 *@
 @using Flirty.Runtime.Admin
 
-<h2>Übergang</h2>
+<h2>Transition</h2>
 <p class="graph-inspector-key mono">
     @KeyOf(Edge.FromQuestionId) → @KeyOf(Edge.TargetQuestionId)
 </p>
@@ -22,18 +22,18 @@
 }
 
 <dl class="graph-facts">
-    <dt>Auswertung</dt>
+    <dt>Evaluation</dt>
     <dd>Position @Edge.Position</dd>
-    <dt>Art</dt>
+    <dt>Kind</dt>
     <dd>@Role</dd>
 </dl>
 
-@* Rohe Felder statt EditForm – dieselbe Begründung wie im GraphQuestionPanel: Das Panel wird nach jeder
-   Geste neu aufgebaut, und der Submit einer EditForm kam darin nicht an. *@
+@* Raw fields instead of EditForm – the same rationale as in the GraphQuestionPanel: the panel is rebuilt
+   after every gesture, and the submit of an EditForm did not arrive in it. *@
 <div class="field">
-    <label for="inspectorTarget">Zielfrage</label>
+    <label for="inspectorTarget">Target question</label>
     <select id="inspectorTarget" class="input" disabled="@Locked" @onchange="OnTargetChanged">
-        <option value="">— wählen —</option>
+        <option value="">— choose —</option>
         @foreach (var question in Detail.Questions)
         {
             <option value="@question.Id" selected="@(question.Id == _form.TargetQuestionId)">
@@ -46,33 +46,33 @@
 <div class="field check">
     <input id="inspectorDefault" type="checkbox" disabled="@Locked"
            checked="@_form.IsDefault" @onchange="OnDefaultChanged" />
-    <label for="inspectorDefault">Default-Übergang</label>
+    <label for="inspectorDefault">Default transition</label>
 </div>
     <span class="hint">
-        Der Default greift, wenn <em>kein</em> bedingter Übergang zutrifft. Seine eigene Bedingung wird
-        dabei <strong>nicht</strong> ausgewertet.
+        The default matches when <em>no</em> conditional transition applies. Its own condition is
+        <strong>not</strong> evaluated in the process.
     </span>
 
     @if (_form.IsDefault && !string.IsNullOrWhiteSpace(_form.Expression))
     {
         <div class="banner warn">
-            Dieser Übergang ist als Default markiert – seine Bedingung wird zur Laufzeit nicht
-            ausgewertet. Entweder den Default-Haken entfernen oder die Bedingung leeren.
+            This transition is marked as default – its condition is not evaluated at runtime. Either
+            remove the default check or clear the condition.
         </div>
     }
 
-    <h3 class="graph-inspector-section">Bedingung</h3>
+    <h3 class="graph-inspector-section">Condition</h3>
 
-    @* Der Baustein-Einfüger und die Bezeichner-Tabelle bleiben im Panel aus: Die Spalte ist schmal, und
-       der Übergangs-Editor ist einen Sprung entfernt. Die Live-Validierung – der eigentliche Wert – ist
-       dieselbe wie dort, weil es dieselbe Komponente ist. *@
+    @* The snippet inserter and the identifier table stay off in the panel: the column is narrow, and the
+       transition editor is one jump away. The live validation – the actual value – is the same as there,
+       because it is the same component. *@
     <ExpressionField Detail="Detail"
                      @bind-Value="_form.Expression"
                      Disabled="@Locked"
                      ShowBuilder="false"
                      FieldId="inspectorExpression"
-                     EmptyHint="bedingungslos zutreffend"
-                     EmptyMeaning="der Übergang greift immer" />
+                     EmptyHint="matches unconditionally"
+                     EmptyMeaning="the transition always matches" />
 
 @if (_formError is not null)
 {
@@ -80,103 +80,103 @@
 }
 
 <div class="actions">
-    <button class="btn btn-primary" disabled="@Locked" @onclick="SaveAsync">Speichern</button>
-    <button class="btn" disabled="@Locked" @onclick="ResetForm">Zurücksetzen</button>
+    <button class="btn btn-primary" disabled="@Locked" @onclick="SaveAsync">Save</button>
+    <button class="btn" disabled="@Locked" @onclick="ResetForm">Reset</button>
 </div>
 
 @if (IsUnmarkedBackJump && Editable)
 {
-    <h3 class="graph-inspector-section">Schleife</h3>
+    <h3 class="graph-inspector-section">Loop</h3>
     <div class="banner warn">
-        Rücksprung ohne Schleifen-Marker: Die Antworten dieses Zyklus werden zur Laufzeit
-        <strong>überschrieben</strong> statt je Iteration gesammelt.
+        Back-jump without a loop marker: the answers of this cycle are
+        <strong>overwritten</strong> at runtime instead of collected per iteration.
     </div>
 
     <div class="field">
-        <label for="inspectorCollectionKey">Collection-Schlüssel</label>
+        <label for="inspectorCollectionKey">Collection key</label>
         <input id="inspectorCollectionKey" class="input mono" @bind="_collectionKey" disabled="@Busy" />
         <span class="hint">
-            Unter diesem Bezeichner liegen die je Iteration gesammelten Antworten im Ausdruckskontext.
+            Under this identifier the answers collected per iteration sit in the expression context.
         </span>
     </div>
 
     <div class="actions">
         <button class="btn" disabled="@(Busy || string.IsNullOrWhiteSpace(_collectionKey))"
-                @onclick="CreateLoopAsync">Als Schleife markieren</button>
+                @onclick="CreateLoopAsync">Mark as loop</button>
     </div>
 }
 
 <div class="actions">
     <button class="btn btn-primary" @onclick="() => OpenTransition.InvokeAsync(Edge.TransitionId)">
-        Übergang bearbeiten →
+        Edit transition →
     </button>
     <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(Edge.FromQuestionId)">
-        Zur Ausgangsfrage
+        To source question
     </button>
     <button class="btn" @onclick="() => SelectQuestion.InvokeAsync(Edge.TargetQuestionId)">
-        Zur Zielfrage
+        To target question
     </button>
 </div>
 
 @if (Editable)
 {
-    <h3 class="graph-inspector-section">Übergang löschen</h3>
+    <h3 class="graph-inspector-section">Delete transition</h3>
 
     @if (_confirmDelete)
     {
-        <span class="confirm">Übergang löschen? Die beteiligten Fragen bleiben bestehen.</span>
+        <span class="confirm">Delete transition? The questions involved remain.</span>
         <div class="actions">
-            <button class="btn btn-danger" disabled="@Busy" @onclick="DeleteAsync">Ja, löschen</button>
-            <button class="btn" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            <button class="btn btn-danger" disabled="@Busy" @onclick="DeleteAsync">Yes, delete</button>
+            <button class="btn" @onclick="() => _confirmDelete = false">Cancel</button>
         </div>
     }
     else
     {
         <div class="actions">
             <button class="btn btn-danger" disabled="@Busy"
-                    @onclick="() => _confirmDelete = true">Löschen</button>
+                    @onclick="() => _confirmDelete = true">Delete</button>
         </div>
     }
 }
 
 @code {
-    /// <summary>Der Dialog samt Graph.</summary>
+    /// <summary>The dialog including graph.</summary>
     [Parameter, EditorRequired]
     public required DialogDetail Detail { get; set; }
 
-    /// <summary>Die gewählte Kante.</summary>
+    /// <summary>The selected edge.</summary>
     [Parameter, EditorRequired]
     public required GraphEdge Edge { get; set; }
 
-    /// <summary>Ob dieser Rücksprung noch keinen passenden Schleifen-Marker hat.</summary>
+    /// <summary>Whether this back-jump does not yet have a matching loop marker.</summary>
     [Parameter]
     public bool IsUnmarkedBackJump { get; set; }
 
-    /// <summary>Ob der Graph bearbeitbar ist (unveröffentlichte Version).</summary>
+    /// <summary>Whether the graph is editable (unpublished version).</summary>
     [Parameter]
     public bool Editable { get; set; }
 
-    /// <summary>Ob gerade eine Geste läuft.</summary>
+    /// <summary>Whether a gesture is currently running.</summary>
     [Parameter]
     public bool Busy { get; set; }
 
-    /// <summary>Meldet geänderte Felder des Übergangs.</summary>
+    /// <summary>Reports changed fields of the transition.</summary>
     [Parameter]
     public EventCallback<TransitionEdit> Save { get; set; }
 
-    /// <summary>Meldet den bestätigten Löschwunsch.</summary>
+    /// <summary>Reports the confirmed deletion wish.</summary>
     [Parameter]
     public EventCallback<Guid> Delete { get; set; }
 
-    /// <summary>Meldet einen aus diesem Rücksprung abgeleiteten Schleifen-Marker.</summary>
+    /// <summary>Reports a loop marker derived from this back-jump.</summary>
     [Parameter]
     public EventCallback<LoopDraft> CreateLoop { get; set; }
 
-    /// <summary>Wählt eine Frage auf dem Canvas aus.</summary>
+    /// <summary>Selects a question on the canvas.</summary>
     [Parameter]
     public EventCallback<Guid> SelectQuestion { get; set; }
 
-    /// <summary>Springt in den Übergangs-Editor.</summary>
+    /// <summary>Jumps into the transition editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenTransition { get; set; }
 
@@ -196,15 +196,15 @@
 
             if (Edge.IsDefault)
             {
-                roles.Add("Default-Übergang");
+                roles.Add("Default transition");
             }
 
             if (Edge.IsBackJump)
             {
-                roles.Add("Rücksprung (Zyklus)");
+                roles.Add("Back-jump (cycle)");
             }
 
-            return roles.Count == 0 ? "bedingter Übergang" : string.Join(", ", roles);
+            return roles.Count == 0 ? "conditional transition" : string.Join(", ", roles);
         }
     }
 
@@ -243,7 +243,7 @@
     {
         if (_form.TargetQuestionId is not { } target)
         {
-            _formError = "Bitte eine Zielfrage wählen.";
+            _formError = "Please choose a target question.";
             return;
         }
 
@@ -263,5 +263,5 @@
     }
 
     private string KeyOf(Guid questionId)
-        => Detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unbekannt";
+        => Detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unknown";
 }

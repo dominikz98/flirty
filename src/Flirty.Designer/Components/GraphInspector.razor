@@ -1,47 +1,47 @@
 @*
-    Das Inspector-Panel der Graph-Ansicht: zeigt das gewählte Element – und bearbeitet es seit #103.
+    The inspector panel of the graph view: shows the selected element – and edits it since #103.
 
-    #101 hatte hier bewusst eine reine Lesesicht mit Sprung in die vier @page-Editoren, weil deren
-    Einbetten ihren Umbau bedeutet hätte. #103 dreht das zur Hälfte um: Eingebettet werden NICHT die
-    @page-Editoren, sondern eigene Panels, die dieselben Admin-Commands rufen. Die Grenze verläuft
-    entlang der Datenform – skalare Felder hier, eigene Unterstruktur (Antwortoptionen,
-    Validierungsregeln, Roh-JSON) im Vollteditor. „… bearbeiten →" führt weiterhin dorthin.
+    #101 deliberately had a pure read view here with a jump into the four @page editors, because
+    embedding them would have meant rebuilding them. #103 turns that half around: embedded are NOT the
+    @page editors, but dedicated panels that call the same admin commands. The boundary runs along the
+    data shape – scalar fields here, own substructure (answer options, validation rules, raw JSON) in the
+    full editor. "… edit →" still leads there.
 
-    Das Panel ist zugleich der Tastaturpfad zu allem, was auf der Fläche eine Zeiger-Geste ist: Kanten
-    sind nicht fokussierbar (45 Tabstopps wären eine Wüste), Verbinden geht hier über eine Auswahlliste,
-    und die Auswertungsreihenfolge wird ohnehin nur hier gepflegt – eine Position darf keine Semantik
-    tragen.
+    The panel is at the same time the keyboard path to everything that is a pointer gesture on the
+    surface: edges are not focusable (45 tab stops would be a desert), connecting goes through a select
+    list here, and the evaluation order is maintained only here anyway – a position must not carry
+    semantics.
 *@
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
 
-<aside class="graph-inspector" aria-label="Details zum gewählten Element">
+<aside class="graph-inspector" aria-label="Details of the selected element">
     @if (Selection is null)
     {
         <h2>Inspector</h2>
         <p class="hint">
-            Einen Knoten oder eine Kante wählen – hier erscheinen dann die Details und der Sprung in den
-            passenden Editor.
+            Select a node or an edge – the details and the jump into the matching editor then appear
+            here.
         </p>
 
-        <h3 class="graph-inspector-section">Legende</h3>
+        <h3 class="graph-inspector-section">Legend</h3>
         <ul class="graph-legend">
-            <li><span class="badge badge-start">Einstieg</span> Startfrage des Dialogs</li>
-            <li><span class="badge badge-terminal">Abschluss</span> kein ausgehender Übergang – der Dialog endet hier</li>
-            <li><span class="badge badge-unreachable">Unerreichbar</span> kein Pfad von der Einstiegsfrage</li>
-            <li><span class="badge badge-loop">Breaking</span> Breaking Question einer Schleife</li>
-            <li><span class="badge badge-default">Default</span> greift, wenn keine Bedingung zutrifft</li>
+            <li><span class="badge badge-start">Entry</span> start question of the dialog</li>
+            <li><span class="badge badge-terminal">Terminal</span> no outgoing transition – the dialog ends here</li>
+            <li><span class="badge badge-unreachable">Unreachable</span> no path from the entry question</li>
+            <li><span class="badge badge-loop">Breaking</span> breaking question of a loop</li>
+            <li><span class="badge badge-default">Default</span> matches when no condition applies</li>
         </ul>
 
-        @* Die Trigger ohne Frage-Bezug haben auf der Fläche keinen dauerhaften Ort: Die Scope-Marker
-           entstehen erst, WENN sie Trigger tragen (#101 – „der Canvas bleibt frei von Leerformen").
-           Deshalb stehen sie hier, im Zweig ohne Auswahl, und nicht an einem Marker, den es noch nicht
-           gibt. Ist einer da, führt sein Chip in den Trigger-Editor. *@
-        <h3 class="graph-inspector-section">Trigger am Dialog</h3>
+        @* The triggers without a question reference have no permanent place on the surface: the scope
+           markers arise only WHEN they carry triggers (#101 – "the canvas stays free of empty forms").
+           That is why they stand here, in the branch without a selection, and not on a marker that does
+           not yet exist. If one is there, its chip leads into the trigger editor. *@
+        <h3 class="graph-inspector-section">Triggers on the dialog</h3>
 
         @if (DialogTriggers.Count == 0)
         {
-            <p class="hint">Keine – beim Start, nach jeder Antwort und am Ende wird nichts ausgelöst.</p>
+            <p class="hint">None – nothing is fired at start, after each answer or at the end.</p>
         }
         else
         {
@@ -64,14 +64,14 @@
             {
                 <div class="actions">
                     <button class="btn" @onclick="() => _newTrigger = new TriggerFormModel()">
-                        Dialog-Trigger anlegen
+                        Create dialog trigger
                     </button>
                 </div>
             }
             else
             {
                 <div class="field">
-                    <label for="dialogTriggerScope">Zeitpunkt</label>
+                    <label for="dialogTriggerScope">Timing</label>
                     <select id="dialogTriggerScope" class="input" @bind="_newTrigger.Scope">
                         @foreach (var scope in DialogScopes)
                         {
@@ -81,7 +81,7 @@
                 </div>
 
                 <div class="field">
-                    <label for="dialogTriggerKind">Kanal</label>
+                    <label for="dialogTriggerKind">Channel</label>
                     <select id="dialogTriggerKind" class="input" @bind="_newTrigger.Kind">
                         @foreach (var kind in Enum.GetValues<TriggerKind>())
                         {
@@ -93,21 +93,21 @@
                 @if (_newTrigger.Kind == TriggerKind.Webhook)
                 {
                     <div class="field">
-                        <label for="dialogTriggerUrl">Ziel-URL</label>
+                        <label for="dialogTriggerUrl">Target URL</label>
                         <input id="dialogTriggerUrl" class="input mono" @bind="_newTrigger.Url" />
-                        <span class="hint">Absolute URL – die Engine lehnt alles andere ab.</span>
+                        <span class="hint">Absolute URL – the engine rejects anything else.</span>
                     </div>
                 }
                 else
                 {
                     <p class="hint">
-                        In-Process stellt <b>nichts</b> zu: Die Host-Anwendung hängt dafür einen eigenen
-                        <span class="mono">INotificationHandler</span> ein.
+                        In-process delivers <b>nothing</b>: the host application plugs in its own
+                        <span class="mono">INotificationHandler</span> for that.
                     </p>
                 }
 
                 <div class="field">
-                    <label for="dialogTriggerName">Ereignisname (optional)</label>
+                    <label for="dialogTriggerName">Event name (optional)</label>
                     <input id="dialogTriggerName" class="input" @bind="_newTrigger.Name" />
                 </div>
 
@@ -118,19 +118,19 @@
 
                 <div class="actions">
                     <button class="btn btn-primary" disabled="@Busy"
-                            @onclick="CreateDialogTriggerAsync">Anlegen</button>
+                            @onclick="CreateDialogTriggerAsync">Create</button>
                     <button class="btn"
-                            @onclick="() => { _newTrigger = null; _triggerError = null; }">Abbrechen</button>
+                            @onclick="() => { _newTrigger = null; _triggerError = null; }">Cancel</button>
                 </div>
             }
         }
     }
     else if (SelectedNode is { } node)
     {
-        @* Das @key bindet die Panel-Instanz an das bearbeitete Element. Ohne es verwirft Blazor sie beim
-           nächsten Diff und der begonnene Formular-Entwurf ist weg – sichtbar daran, dass ein getippter
-           Schlüssel nach dem Reload wieder auf dem gespeicherten Wert stand. Mit ihm überlebt der
-           Entwurf jeden Re-Render derselben Frage und wird beim Wechsel bewusst verworfen. *@
+        @* The @key binds the panel instance to the edited element. Without it Blazor discards it on the
+           next diff and the started form draft is gone – visible in that a typed key stood on the saved
+           value again after the reload. With it the draft survives every re-render of the same question
+           and is deliberately discarded on a switch. *@
         <GraphQuestionPanel @key="node.QuestionId"
                             Detail="Detail"
                             Node="node"
@@ -165,14 +165,14 @@
     }
     else if (SelectedLoop is { } loop)
     {
-        <h2>Schleife</h2>
+        <h2>Loop</h2>
         <p class="graph-inspector-key mono">@loop.CollectionKey</p>
 
         <dl class="graph-facts">
-            <dt>Einstieg</dt>
-            <dd class="mono">@(string.IsNullOrEmpty(loop.EntryKey) ? "— fehlt —" : loop.EntryKey)</dd>
-            <dt>Breaking Question</dt>
-            <dd class="mono">@(string.IsNullOrEmpty(loop.BreakingKey) ? "— fehlt —" : loop.BreakingKey)</dd>
+            <dt>Entry</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.EntryKey) ? "— missing —" : loop.EntryKey)</dd>
+            <dt>Breaking question</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.BreakingKey) ? "— missing —" : loop.BreakingKey)</dd>
         </dl>
 
         @foreach (var warning in loop.Warnings)
@@ -182,31 +182,31 @@
 
         <div class="actions">
             <button class="btn btn-primary" @onclick="() => OpenLoop.InvokeAsync(loop.LoopId)">
-                Schleife bearbeiten →
+                Edit loop →
             </button>
         </div>
 
         @if (Editable)
         {
-            <h3 class="graph-inspector-section">Marker löschen</h3>
+            <h3 class="graph-inspector-section">Delete marker</h3>
 
             @if (_confirmDeleteLoop)
             {
                 <span class="confirm">
-                    Schleifen-Marker löschen? Der Zyklus selbst bleibt bestehen – seine Antworten werden
-                    danach überschrieben statt gesammelt.
+                    Delete loop marker? The cycle itself remains – its answers are then overwritten
+                    instead of collected.
                 </span>
                 <div class="actions">
                     <button class="btn btn-danger" disabled="@Busy"
-                            @onclick="() => DeleteLoopAsync(loop.LoopId)">Ja, löschen</button>
-                    <button class="btn" @onclick="() => _confirmDeleteLoop = false">Abbrechen</button>
+                            @onclick="() => DeleteLoopAsync(loop.LoopId)">Yes, delete</button>
+                    <button class="btn" @onclick="() => _confirmDeleteLoop = false">Cancel</button>
                 </div>
             }
             else
             {
                 <div class="actions">
                     <button class="btn btn-danger" disabled="@Busy"
-                            @onclick="() => _confirmDeleteLoop = true">Löschen</button>
+                            @onclick="() => _confirmDeleteLoop = true">Delete</button>
                 </div>
             }
         }
@@ -214,103 +214,103 @@
 </aside>
 
 @code {
-    /// <summary>Der gesamte Graph – der Inspector liest daraus die Nachbarschaft des gewählten Elements.</summary>
+    /// <summary>The whole graph – the inspector reads the neighbourhood of the selected element from it.</summary>
     [Parameter, EditorRequired]
     public required DialogGraphModel Model { get; set; }
 
-    /// <summary>Der Dialog samt Graph – Datenquelle der eingebetteten Formulare.</summary>
+    /// <summary>The dialog including graph – data source of the embedded forms.</summary>
     [Parameter, EditorRequired]
     public required DialogDetail Detail { get; set; }
 
-    /// <summary>Das gewählte Element oder <see langword="null"/>.</summary>
+    /// <summary>The selected element or <see langword="null"/>.</summary>
     [Parameter]
     public GraphSelection? Selection { get; set; }
 
-    /// <summary>Ob der Graph bearbeitbar ist (unveröffentlichte Version).</summary>
+    /// <summary>Whether the graph is editable (unpublished version).</summary>
     [Parameter]
     public bool Editable { get; set; }
 
-    /// <summary>Ob gerade eine Geste läuft.</summary>
+    /// <summary>Whether a gesture is currently running.</summary>
     [Parameter]
     public bool Busy { get; set; }
 
-    /// <summary>Die Rücksprünge ohne passenden Schleifen-Marker – von der Seite einmal gerechnet.</summary>
+    /// <summary>The back-jumps without a matching loop marker – computed once by the page.</summary>
     [Parameter]
     public IReadOnlyList<Guid> UnmarkedBackJumps { get; set; } = [];
 
-    /// <summary>Springt in den Frage-Editor.</summary>
+    /// <summary>Jumps into the question editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenQuestion { get; set; }
 
-    /// <summary>Springt in den Übergangs-Editor.</summary>
+    /// <summary>Jumps into the transition editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenTransition { get; set; }
 
-    /// <summary>Springt in den Loop-Editor.</summary>
+    /// <summary>Jumps into the loop editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenLoop { get; set; }
 
-    /// <summary>Springt in den Trigger-Editor.</summary>
+    /// <summary>Jumps into the trigger editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenTrigger { get; set; }
 
-    /// <summary>Wählt eine andere Frage auf dem Canvas aus.</summary>
+    /// <summary>Selects a different question on the canvas.</summary>
     [Parameter]
     public EventCallback<Guid> SelectQuestion { get; set; }
 
-    /// <summary>Wählt eine Kante auf dem Canvas aus.</summary>
+    /// <summary>Selects an edge on the canvas.</summary>
     [Parameter]
     public EventCallback<Guid> SelectTransition { get; set; }
 
-    /// <summary>Meldet geänderte Kopffelder einer Frage.</summary>
+    /// <summary>Reports changed header fields of a question.</summary>
     [Parameter]
     public EventCallback<QuestionEdit> SaveQuestion { get; set; }
 
-    /// <summary>Meldet den Wunsch, die gewählte Frage zur Einstiegsfrage des Dialogs zu machen.</summary>
+    /// <summary>Reports the wish to make the selected question the entry question of the dialog.</summary>
     [Parameter]
     public EventCallback<Guid> SetStartQuestion { get; set; }
 
-    /// <summary>Meldet den bestätigten Löschwunsch einer Frage.</summary>
+    /// <summary>Reports the confirmed deletion wish of a question.</summary>
     [Parameter]
     public EventCallback<Guid> DeleteQuestion { get; set; }
 
-    /// <summary>Meldet eine Umsortierung der Auswertungsreihenfolge.</summary>
+    /// <summary>Reports a reordering of the evaluation order.</summary>
     [Parameter]
     public EventCallback<TransitionMove> MoveTransition { get; set; }
 
-    /// <summary>Meldet das Umschalten der Default-Kennzeichnung.</summary>
+    /// <summary>Reports the toggling of the default marking.</summary>
     [Parameter]
     public EventCallback<Guid> ToggleDefault { get; set; }
 
-    /// <summary>Meldet einen neuen Übergang von der gewählten Frage zum gewählten Ziel.</summary>
+    /// <summary>Reports a new transition from the selected question to the selected target.</summary>
     [Parameter]
     public EventCallback<Guid> Connect { get; set; }
 
-    /// <summary>Meldet geänderte Felder eines Übergangs.</summary>
+    /// <summary>Reports changed fields of a transition.</summary>
     [Parameter]
     public EventCallback<TransitionEdit> SaveTransition { get; set; }
 
-    /// <summary>Meldet den bestätigten Löschwunsch eines Übergangs.</summary>
+    /// <summary>Reports the confirmed deletion wish of a transition.</summary>
     [Parameter]
     public EventCallback<Guid> DeleteTransition { get; set; }
 
-    /// <summary>Meldet einen aus einem Rücksprung abgeleiteten Schleifen-Marker.</summary>
+    /// <summary>Reports a loop marker derived from a back-jump.</summary>
     [Parameter]
     public EventCallback<LoopDraft> CreateLoop { get; set; }
 
-    /// <summary>Meldet den bestätigten Löschwunsch eines Schleifen-Markers.</summary>
+    /// <summary>Reports the confirmed deletion wish of a loop marker.</summary>
     [Parameter]
     public EventCallback<Guid> DeleteLoop { get; set; }
 
-    /// <summary>Meldet einen neuen Trigger nach einer Frage.</summary>
+    /// <summary>Reports a new trigger after a question.</summary>
     [Parameter]
     public EventCallback<TriggerDraft> AddTrigger { get; set; }
 
-    /// <summary>Meldet einen neuen Trigger ohne Frage-Bezug.</summary>
+    /// <summary>Reports a new trigger without a question reference.</summary>
     [Parameter]
     public EventCallback<TriggerDraft> AddDialogTrigger { get; set; }
 
-    /// <summary>Die Zeitpunkte ohne Frage-Bezug – <c>AfterQuestion</c> entsteht am Knoten.</summary>
+    /// <summary>The timings without a question reference – <c>AfterQuestion</c> arises on the node.</summary>
     private static readonly TriggerScope[] DialogScopes =
         [.. Enum.GetValues<TriggerScope>().Where(scope => !TriggerLabels.RequiresQuestion(scope))];
 

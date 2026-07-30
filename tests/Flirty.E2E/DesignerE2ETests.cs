@@ -4,18 +4,18 @@ using Microsoft.Playwright;
 namespace Flirty.E2E;
 
 /// <summary>
-/// Playwright-E2E des Blazor-Designers (#46) gegen ein echtes, in-Prozess gehostetes Kestrel
-/// (<see cref="DesignerAppFixture"/>). Deckt das Akzeptanzkriterium des Issues ab – Dialog anlegen →
-/// Branching → Loop → speichern – und spielt den so konfigurierten Dialog anschließend mit dem
-/// Test-Runner (#43) und damit der echten Engine durch. Sind keine Playwright-Browser installiert,
-/// überspringen sich die Tests (<see cref="SkippableFactAttribute"/>) – Installation z. B. via
+/// Playwright E2E of the Blazor designer (#46) against a real, in-process hosted Kestrel
+/// (<see cref="DesignerAppFixture"/>). Covers the issue's acceptance criterion – create dialog →
+/// branching → loop → save – and then plays the dialog configured this way through with the
+/// test runner (#43) and thus the real engine. If no Playwright browsers are installed, the tests
+/// skip themselves (<see cref="SkippableFactAttribute"/>) – install e.g. via
 /// <c>pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium</c>.
 /// </summary>
 /// <remarks>
-/// Der aufgebaute Graph spiegelt bewusst <c>DesignerTestHost.ArrangeLoopDialogAsync</c> aus
-/// <c>tests/Flirty.Tests</c>: <c>position</c> → <c>more</c>, bei <c>more == "yes"</c> zurück auf
-/// <c>position</c>, sonst weiter auf <c>summary</c>; Schleife <c>position_liste</c>. So beschreiben
-/// Service-Tests und E2E denselben Dialog – nur einmal über die Commands, einmal durch die UI.
+/// The graph built here deliberately mirrors <c>DesignerTestHost.ArrangeLoopDialogAsync</c> from
+/// <c>tests/Flirty.Tests</c>: <c>position</c> → <c>more</c>, on <c>more == "yes"</c> back to
+/// <c>position</c>, otherwise on to <c>summary</c>; loop <c>position_list</c>. So service tests
+/// and E2E describe the same dialog – once via the commands, once through the UI.
 /// </remarks>
 public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 {
@@ -24,9 +24,9 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     private static readonly LocatorAssertionsToHaveCountOptions SlowCount = new() { Timeout = 15_000 };
     private static readonly LocatorAssertionsToHaveValueOptions SlowValue = new() { Timeout = 15_000 };
 
-    // Die Frage-Auswahlfelder listen die Fragen in Dialog-Reihenfolge; an Index 0 steht der Leereintrag
-    // („— keine —" bzw. „— wählen —"). Die Indizes gelten also für den unten aufgebauten Graphen – dass
-    // sie die erwarteten Fragen treffen, prüft SetStartQuestionAsync mit.
+    // The question select fields list the questions in dialog order; at index 0 sits the empty entry
+    // ("— none —" or "— choose —"). The indices therefore apply to the graph built below – that they
+    // hit the expected questions is verified by SetStartQuestionAsync.
     private const int PositionOption = 1;
     private const int MoreOption = 2;
     private const int SummaryOption = 3;
@@ -37,14 +37,14 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
     private readonly DesignerAppFixture _fixture;
 
-    /// <summary>Initialisiert den Test mit dem gemeinsam genutzten Designer-Host.</summary>
-    /// <param name="fixture">Der in-Prozess gehostete Designer.</param>
+    /// <summary>Initializes the test with the shared designer host.</summary>
+    /// <param name="fixture">The in-process hosted designer.</param>
     public DesignerE2ETests(DesignerAppFixture fixture) => _fixture = fixture;
 
     /// <summary>
-    /// Das Akzeptanzkriterium aus #46: einen Dialog samt Fragen, Übergängen und Schleife komplett
-    /// durch die UI anlegen, veröffentlichen – und über einen Reload nachweisen, dass alles wirklich
-    /// gespeichert wurde (nach dem Neuladen kommt jedes Feld aus der Datenbank).
+    /// The acceptance criterion from #46: create a dialog with its questions, transitions and loop
+    /// completely through the UI, publish it – and prove via a reload that everything was really saved
+    /// (after reloading, every field comes from the database).
     /// </summary>
     [SkippableFact]
     public async Task Dialog_mit_Branching_und_Schleife_anlegen_und_speichern()
@@ -52,30 +52,30 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Veröffentlichen" }).ClickAsync();
-        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", SlowText);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Publish" }).ClickAsync();
+        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Published", SlowText);
 
-        // Neu laden: der Server rendert die Seite komplett aus der Datenbank neu – erst das belegt,
-        // dass Fragen, Übergänge, Bedingung, Schleife und Publish-Status persistiert sind.
+        // Reload: the server re-renders the page completely from the database – only that proves that
+        // questions, transitions, condition, loop and publish status are persisted.
         await page.ReloadAsync();
 
-        await Assertions.Expect(page.Locator("h1 .badge-published")).ToHaveTextAsync("Veröffentlicht", SlowText);
-        await Assertions.Expect(Section(page, "Fragen").Locator("tbody tr")).ToHaveCountAsync(3, SlowCount);
-        await Assertions.Expect(Section(page, "Übergänge (Branching)").Locator("tbody tr"))
+        await Assertions.Expect(page.Locator("h1 .badge-published")).ToHaveTextAsync("Published", SlowText);
+        await Assertions.Expect(Section(page, "Questions").Locator("tbody tr")).ToHaveCountAsync(3, SlowCount);
+        await Assertions.Expect(Section(page, "Transitions (branching)").Locator("tbody tr"))
             .ToHaveCountAsync(3, SlowCount);
-        await Assertions.Expect(Section(page, "Übergänge (Branching)"))
+        await Assertions.Expect(Section(page, "Transitions (branching)"))
             .ToContainTextAsync("more == \"yes\"", SlowContains);
 
-        // Die Schleife trägt das Badge „Schleife" statt „n Warnung(en)": der LoopAnalyzer findet also
-        // einen erreichbaren Ausstieg – der Zyklus ist keine Endlosschleife.
-        var loopRow = Section(page, "Schleifen (Loops)").Locator("tbody tr").Filter(new() { HasText = "position_liste" });
-        await Assertions.Expect(loopRow.Locator(".badge")).ToHaveTextAsync("Schleife", SlowText);
+        // The loop carries the badge "Loop" instead of "n warning(s)": the LoopAnalyzer thus finds a
+        // reachable exit – the cycle is not an infinite loop.
+        var loopRow = Section(page, "Loops").Locator("tbody tr").Filter(new() { HasText = "position_list" });
+        await Assertions.Expect(loopRow.Locator(".badge")).ToHaveTextAsync("Loop", SlowText);
     }
 
     /// <summary>
-    /// Die Gegenprobe zur Konfiguration: denselben – bewusst <b>unveröffentlichten</b> – Dialog mit dem
-    /// Test-Runner (#43) und damit der echten Engine durchspielen. Zwei Iterationen der Schleife, dann
-    /// Ausstieg und Abschluss.
+    /// The counter-check to the configuration: play the same – deliberately <b>unpublished</b> – dialog
+    /// through with the test runner (#43) and thus the real engine. Two iterations of the loop, then
+    /// exit and completion.
     /// </summary>
     [SkippableFact]
     public async Task Testlauf_spielt_die_Schleife_mit_der_echten_Engine_durch()
@@ -83,50 +83,49 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Durchspielen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Test run" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/test$"));
 
-        // Exact: sonst träfe der Name auch das „Neuen Lauf starten" der Ergebnis-Karte. Ein zweiter Klick
-        // würde nur einen weiteren Lauf beginnen und den ersten verwerfen – harmlos.
+        // Exact: otherwise the name would also match the "Start new run" of the result card. A second
+        // click would only begin another run and discard the first – harmless.
         await InteractWhenReadyAsync(
-            () => page.GetByRole(AriaRole.Button, new() { Name = "Lauf starten", Exact = true }).ClickAsync(),
-            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Welche Position?", QuickContains));
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Start run", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Which role?", QuickContains));
 
-        // Erste Iteration, Rücksprung über „Ja", zweite Iteration, Ausstieg über „Nein".
+        // First iteration, back-jump via "Yes", second iteration, exit via "No".
         await AnswerTextAsync(page, "Backend");
-        await ChooseAsync(page, "Ja");
+        await ChooseAsync(page, "Yes");
         await AnswerTextAsync(page, "Frontend");
-        await ChooseAsync(page, "Nein");
-        await AnswerTextAsync(page, "fertig");
+        await ChooseAsync(page, "No");
+        await AnswerTextAsync(page, "done");
 
-        await Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Dialog abgeschlossen", SlowContains);
+        await Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Dialog completed", SlowContains);
 
-        // Der Verlauf weist die zweite Iteration aus – die Schleife hat also wirklich gesammelt statt
-        // die erste Antwort zu überschreiben …
+        // The history shows the second iteration – the loop thus really collected instead of overwriting
+        // the first answer …
         await Assertions.Expect(page.Locator(".transcript")).ToContainTextAsync("Iteration 2", SlowContains);
 
-        // … und der Ausdruckskontext zeigt beide Werte unter dem Collection-Schlüssel.
-        var collection = Section(page, "Ausdruckskontext").Locator("tbody tr").Filter(new() { HasText = "position_liste" });
+        // … and the expression context shows both values under the collection key.
+        var collection = Section(page, "Expression context").Locator("tbody tr").Filter(new() { HasText = "position_list" });
         await Assertions.Expect(collection).ToContainTextAsync("Backend", SlowContains);
         await Assertions.Expect(collection).ToContainTextAsync("Frontend", SlowContains);
     }
 
     /// <summary>
-    /// Rauchprobe der Graph-Ansicht (#101): Der Canvas bindet sein JS-Modul, zeichnet den Graphen und
-    /// führt über die Auswahl in den bestehenden Frage-Editor. Die vollständige Canvas-Abdeckung bleibt
-    /// Stufe 5 (#105) – hier geht es um den Nachweis, dass die Seite im Browser überhaupt lebt.
+    /// Smoke test of the graph view (#101): The canvas binds its JS module, draws the graph and leads
+    /// via the selection into the existing question editor. The full canvas coverage remains stage 5
+    /// (#105) – here it is about the proof that the page lives in the browser at all.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der Test wartet auf <c>data-canvas-ready</c> statt <c>InteractWhenReadyAsync</c> zu benutzen.
-    /// Das Wiederholmuster setzt <b>idempotente</b> Aktionen voraus – für einen Canvas gilt das nicht:
-    /// Ein wiederholtes Ziehen verschöbe doppelt, ein wiederholter Zoomschritt zoomte zweimal. Das
-    /// Attribut setzt das JS-Modul, sobald es gebunden ist; es ist damit ein echtes Signal statt einer
-    /// Vermutung (ADR 0006).
+    /// The test waits on <c>data-canvas-ready</c> instead of using <c>InteractWhenReadyAsync</c>.
+    /// The retry pattern presupposes <b>idempotent</b> actions – that does not hold for a canvas:
+    /// a repeated drag would move twice, a repeated zoom step would zoom twice. The attribute is set by
+    /// the JS module as soon as it is bound; it is therefore a real signal instead of a guess (ADR 0006).
     /// </para>
     /// <para>
-    /// Es ist bewusst das <b>erste</b> <c>data-</c>-Attribut im Designer – die übrige Suite adressiert
-    /// über Rolle, Überschrift, Feld-<c>id</c> und CSS-Klasse.
+    /// It is deliberately the <b>first</b> <c>data-</c> attribute in the designer – the rest of the suite
+    /// addresses via role, heading, field <c>id</c> and CSS class.
     /// </para>
     /// </remarks>
     [SkippableFact]
@@ -136,56 +135,56 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         var page = await ArrangeDialogAsync(session);
         await CreateQuestionTriggerAsync(page);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
 
-        // Das Bereitschaftssignal des Canvas – erst danach ist eine Interaktion verlässlich.
+        // The readiness signal of the canvas – only after it is an interaction reliable.
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
-        // Drei Fragen, drei Übergänge – derselbe Graph, den die Listenansicht zeigt.
+        // Three questions, three transitions – the same graph the list view shows.
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(3, SlowCount);
 
-        // Die Marker, die den Ablauf lesbar machen: Einstieg, Abschluss und der Schleifen-Rahmen.
+        // The markers that make the flow readable: entry, terminal and the loop frame.
         await Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-terminal")).ToHaveCountAsync(1, SlowCount);
-        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("position_liste", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("position_list", SlowContains);
 
-        // Der Trigger hängt als Chip an genau der Frage, nach der er feuert – nicht an allen.
+        // The trigger hangs as a chip on exactly the question after which it fires – not on all.
         var triggerNode = page.Locator(".graph-node").Filter(new() { HasText = "summary" });
         await Assertions.Expect(triggerNode.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
         await Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, SlowCount);
 
-        // Auswahl öffnet den Inspector. Adressiert wird die Karte über ihre Klasse, nicht über die Rolle:
-        // Seit #103 trägt ein Knoten einen zweiten Button (den Ausgangs-Port), und GetByRole(Button) wäre
-        // damit eine Strict-Mode-Verletzung.
+        // Selection opens the inspector. The card is addressed via its class, not via the role: since
+        // #103 a node carries a second button (the source port), and GetByRole(Button) would therefore
+        // be a strict-mode violation.
         await page.Locator(".graph-node").Filter(new() { HasText = "position" }).First
             .Locator(".graph-node-card").ClickAsync();
         var inspector = page.Locator(".graph-inspector");
-        await Assertions.Expect(inspector).ToContainTextAsync("Einstiegsfrage", SlowContains);
+        await Assertions.Expect(inspector).ToContainTextAsync("Entry question", SlowContains);
 
-        // … und der Inspector führt in den bestehenden Editor, statt ihn nachzubauen.
-        await inspector.GetByRole(AriaRole.Button, new() { Name = "Frage bearbeiten →" }).ClickAsync();
+        // … and the inspector leads into the existing editor instead of rebuilding it.
+        await inspector.GetByRole(AriaRole.Button, new() { Name = "Edit question →" }).ClickAsync();
         await page.WaitForURLAsync(QuestionUrl);
         await Assertions.Expect(page.Locator("#key")).ToHaveValueAsync("position", SlowValue);
     }
 
     /// <summary>
-    /// Rauchprobe der Layout-Persistenz (#102): Ein Knoten wird gezogen, die Position überlebt den
-    /// Reload – also den vollständigen Neuaufbau der Seite aus der Datenbank – und „Layout zurücksetzen"
-    /// stellt die Position des Auto-Layouts wieder her.
+    /// Smoke test of the layout persistence (#102): A node is dragged, the position survives the
+    /// reload – i.e. the complete rebuild of the page from the database – and "Reset layout" restores
+    /// the position of the auto-layout.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Gezogen wird der <b>veröffentlichte</b> Dialog. Damit belegt der Test zugleich das Kernversprechen
-    /// der Stufe: Wo jede Graph-Änderung 409 liefert, geht das Verschieben durch (ADR 0007) – hier
-    /// sichtbar daran, dass keine Fehlermeldung erscheint und die Position wirklich gespeichert wird.
+    /// The <b>published</b> dialog is dragged. Thereby the test also proves the stage's core promise:
+    /// where every graph change returns 409, moving goes through (ADR 0007) – visible here in that no
+    /// error message appears and the position is really saved.
     /// </para>
     /// <para>
-    /// Auch dieser Test wartet auf <c>data-canvas-ready</c> statt <c>InteractWhenReadyAsync</c> zu
-    /// benutzen – ein wiederholter Zug verschöbe doppelt. Der Zug läuft über mehrere
-    /// <c>Mouse.MoveAsync</c>-Schritte: Ein einziger Sprung erzeugt genau ein <c>pointermove</c>, was die
-    /// 4-px-Schwelle zwar überschritte, aber nicht wie eine echte Geste aussähe.
+    /// This test too waits on <c>data-canvas-ready</c> instead of using <c>InteractWhenReadyAsync</c> –
+    /// a repeated drag would move twice. The drag runs over several <c>Mouse.MoveAsync</c> steps: a
+    /// single jump produces exactly one <c>pointermove</c>, which would exceed the 4-px threshold but
+    /// would not look like a real gesture.
     /// </para>
     /// </remarks>
     [SkippableFact]
@@ -194,10 +193,10 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Veröffentlichen" }).ClickAsync();
-        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", SlowText);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Publish" }).ClickAsync();
+        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Published", SlowText);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
@@ -205,54 +204,55 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         var pinnedNode = page.Locator(".graph-node.is-pinned").Filter(new() { HasText = "summary" });
         var before = await TransformOfAsync(node);
 
-        // Vor dem Zug ist nichts gepinnt – sonst prüfte der Reload unten eine Position, die schon stand.
+        // Before the drag nothing is pinned – otherwise the reload below would check a position that
+        // already held.
         await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(0, SlowCount);
         await Assertions.Expect(
-            page.GetByRole(AriaRole.Button, new() { Name = "Layout zurücksetzen" })).ToBeHiddenAsync();
+            page.GetByRole(AriaRole.Button, new() { Name = "Reset layout" })).ToBeHiddenAsync();
 
         await DragByAsync(page, node, 180, 120);
 
-        // Der Knoten trägt jetzt eine eigene Position – die Markierung kommt aus dem neu gebauten
-        // Modell, also erst nachdem der Server den Zug übernommen hat.
+        // The node now carries its own position – the marking comes from the freshly built model, i.e.
+        // only after the server took over the drag.
         await Assertions.Expect(pinnedNode).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
         var afterDrag = await TransformOfAsync(node);
         Assert.NotEqual(before, afterDrag);
 
-        // Der Nachweis: Nach dem Reload rendert der Server den Knoten aus der Datenbank.
+        // The proof: after the reload the server renders the node from the database.
         await page.ReloadAsync();
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
         await Assertions.Expect(pinnedNode).ToHaveCountAsync(1, SlowCount);
         Assert.Equal(afterDrag, await TransformOfAsync(node));
 
-        // Zurücksetzen verwirft die Zeile – danach liegt der Knoten wieder, wo das Auto-Layout ihn hatte.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Layout zurücksetzen" }).ClickAsync();
-        await page.GetByRole(AriaRole.Button, new() { Name = "Ja, zurücksetzen" }).ClickAsync();
+        // Reset discards the row – afterwards the node lies again where the auto-layout had it.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Reset layout" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Yes, reset" }).ClickAsync();
 
         await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(0, SlowCount);
         Assert.Equal(before, await TransformOfAsync(node));
     }
 
     /// <summary>
-    /// Rauchprobe des Editierens auf dem Canvas (#103): Ein Baustein wird aus der Palette auf die Fläche
-    /// gezogen, ein zweiter per Klick angefügt, beide werden am Ausgangs-Port verbunden – und alles
-    /// erscheint unmittelbar auch in der Listenansicht.
+    /// Smoke test of editing on the canvas (#103): A building block is dragged from the palette onto
+    /// the surface, a second appended by click, both are connected at the source port – and everything
+    /// appears immediately in the list view too.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der Test beginnt auf einem <b>leeren</b> Dialog. Das ist Absicht: Bis #103 ersetzte ein Hinweis
-    /// den Canvas, solange es keine Fragen gab – auf eine nicht vorhandene Fläche lässt sich nichts
-    /// ziehen. Der leere Fall ist damit der eigentliche Beweis.
+    /// The test begins on an <b>empty</b> dialog. That is deliberate: until #103 a hint replaced the
+    /// canvas as long as there were no questions – nothing can be dragged onto a non-existent surface.
+    /// The empty case is thus the actual proof.
     /// </para>
     /// <para>
-    /// Die letzte Prüfung ist die wichtigste: Die Fragen stehen in der Fragenliste des Dialog-Editors.
-    /// Der Canvas ruft dieselben Admin-Commands wie die Formulare – es gibt keine zweite Wahrheit.
+    /// The last check is the most important: the questions stand in the question list of the dialog
+    /// editor. The canvas calls the same admin commands as the forms – there is no second truth.
     /// </para>
     /// <para>
-    /// Die vollständige Gesten-Abdeckung (Ziehen ins Leere, Umsortieren, Löschen samt Kaskade, Trigger,
-    /// Schleife) bleibt Stufe 5 (#105); jede dieser Regeln ist auf Command-Ebene in
-    /// <c>tests/Flirty.Tests/Designer</c> belegt.
+    /// The full gesture coverage (dragging into the void, resorting, deleting with cascade, trigger,
+    /// loop) remains stage 5 (#105); each of these rules is proven at the command level in
+    /// <c>tests/Flirty.Tests/Designer</c>.
     /// </para>
     /// </remarks>
     [SkippableFact]
@@ -261,56 +261,55 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
-        // Der leere Dialog zeigt trotzdem eine Zeichenfläche – sonst gäbe es kein Ziel für den Zug.
+        // The empty dialog still shows a drawing surface – otherwise there would be no target for the drag.
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(0, SlowCount);
         await Assertions.Expect(page.Locator(".graph-palette-item").First).ToBeEnabledAsync();
 
-        // 1) Ziehen: Der Baustein landet an der Loslass-Stelle, also mit eigener Position (is-pinned).
+        // 1) Drag: The building block lands at the release point, i.e. with its own position (is-pinned).
         await DragToCanvasAsync(page, page.Locator(".graph-palette-item").First, 260, 140);
 
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
-        // 2) Klick: der zeigerlose Weg. Ohne Position – die vergibt das Auto-Layout.
+        // 2) Click: the pointerless path. Without a position – that is assigned by the auto-layout.
         await page.Locator(".graph-palette-item").Nth(1).ClickAsync();
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
 
-        // 3) Verbinden: vom Ausgangs-Port des einen Knotens auf den anderen ziehen.
-        var quelle = page.Locator(".graph-node").First;
-        var ziel = page.Locator(".graph-node").Nth(1);
-        await DragToTargetAsync(page, quelle.Locator(".graph-port"), ziel.Locator(".graph-node-card"));
+        // 3) Connect: drag from the source port of one node onto the other.
+        var source = page.Locator(".graph-node").First;
+        var target = page.Locator(".graph-node").Nth(1);
+        await DragToTargetAsync(page, source.Locator(".graph-port"), target.Locator(".graph-node-card"));
 
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
-        // Der Reload beweist, dass alles geschrieben wurde – nicht nur im DOM steht.
+        // The reload proves that everything was written – not just standing in the DOM.
         await page.ReloadAsync();
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
 
-        // Keine zweite Wahrheit: Dieselben Fragen stehen in der Liste des Dialog-Editors.
+        // No second truth: the same questions stand in the list of the dialog editor.
         await page.Locator(".back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
-        await Assertions.Expect(Section(page, "Fragen").Locator("tbody tr")).ToHaveCountAsync(2, SlowCount);
-        await Assertions.Expect(Section(page, "Übergänge (Branching)").Locator("tbody tr"))
+        await Assertions.Expect(Section(page, "Questions").Locator("tbody tr")).ToHaveCountAsync(2, SlowCount);
+        await Assertions.Expect(Section(page, "Transitions (branching)").Locator("tbody tr"))
             .ToHaveCountAsync(1, SlowCount);
     }
 
     /// <summary>
-    /// Der Inspector ist seit #103 ein Editor: Kopffelder speichern, verbinden, Default umschalten,
-    /// löschen. Der Test prüft die <b>Verdrahtung</b> dieser Pfade – jeder von ihnen ist ein eigener
-    /// <c>EventCallback</c> von Panel über Inspector zur Seite, und ein falsch verbundener fiele durch
-    /// jeden Unit-Test.
+    /// Since #103 the inspector is an editor: save header fields, connect, toggle default, delete. The
+    /// test checks the <b>wiring</b> of these paths – each of them is its own <c>EventCallback</c> from
+    /// panel via inspector to the page, and a wrongly connected one would slip through every unit test.
     /// </summary>
     /// <remarks>
-    /// Der Schluss ist zugleich der Nachweis für „die Mit-Aufräumung wird sichtbar nachgezogen": Mit der
-    /// gelöschten Frage verschwindet die Kante, die an ihr hing – gemeldet als Zählung, nicht behauptet.
+    /// The end is at the same time the proof for "the co-cleanup is visibly carried along": with the
+    /// deleted question the edge that hung on it disappears – reported as a count, not asserted.
     /// </remarks>
     [SkippableFact]
     public async Task Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade()
@@ -318,11 +317,11 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
-        // Zwei Fragen über den zeigerlosen Weg – hier geht es um den Inspector, nicht um die Geste.
+        // Two questions via the pointerless path – here it is about the inspector, not the gesture.
         await page.Locator(".graph-palette-item").First.ClickAsync();
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
         await page.Locator(".graph-palette-item").First.ClickAsync();
@@ -330,42 +329,41 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
         var inspector = page.Locator(".graph-inspector");
 
-        // 1) Kopffelder speichern: Der Knoten trägt danach den neuen Schlüssel.
+        // 1) Save header fields: the node carries the new key afterwards.
         await SelectNodeAsync(page, page.Locator(".graph-node").First);
 
-        // Adressiert wird über den Schlüssel, nicht über die DOM-Reihenfolge: Die Anordnung entsteht aus
-        // Schicht und Spalte und ist keine Zusage an den Test.
+        // Addressed via the key, not via the DOM order: the arrangement arises from layer and column
+        // and is no promise to the test.
         var start = page.Locator(".graph-node").Filter(new() { HasText = "start" });
 
-        // Füllen UND speichern in einer wiederholbaren Einheit, und geprüft wird das Ergebnis am
-        // Graphen – nicht der Feldinhalt.
+        // Fill AND save in a repeatable unit, and the result is checked on the graph – not the field
+        // content.
         //
-        // Der Grund ist eine Falle, die diesen Test zweimal rot gemacht hat: Ein Blick auf den DOM-Wert
-        // beweist NICHT, dass Blazor die Eingabe gesehen hat. Verpufft die erste Interaktion auf einem
-        // frisch gerenderten Feld (Blazor Server verdrahtet es erst mit dem nächsten Circuit-Update),
-        // steht der getippte Wert trotzdem im DOM – bis der nächste Render ihn mit dem gebundenen Wert
-        // überschreibt. Wer in diesem Fenster prüft, sieht Erfolg und speichert den alten Wert.
-        // Belastbar ist nur eine Wirkung, die der Server erzeugt hat: der Knoten mit dem neuen Schlüssel.
-        // Beides ist idempotent – denselben Wert erneut zu speichern ändert nichts.
+        // The reason is a trap that turned this test red twice: a look at the DOM value does NOT prove
+        // that Blazor saw the input. If the first interaction on a freshly rendered field fizzles
+        // (Blazor Server wires it up only with the next circuit update), the typed value still stands
+        // in the DOM – until the next render overwrites it with the bound value. Whoever checks in this
+        // window sees success and saves the old value. Only an effect the server produced is reliable:
+        // the node with the new key. Both are idempotent – saving the same value again changes nothing.
         await InteractWhenReadyAsync(
             async () =>
             {
                 await page.Locator("#inspectorKey").FillAsync("start");
-                await page.Locator("#inspectorText").FillAsync("Wie heißt du?");
-                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+                await page.Locator("#inspectorText").FillAsync("What is your name?");
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
             },
             () => Assertions.Expect(start).ToHaveCountAsync(1, QuickCount));
 
-        // 2) Verbinden über die Auswahlliste – das Tastaturäquivalent zum Ziehen am Port.
+        // 2) Connect via the selection list – the keyboard equivalent to dragging at the port.
         //
-        // Die Vorbedingung wird sichtbar gemacht, statt sie vorauszusetzen: „Verbinden" ist genau dann
-        // bedienbar, wenn der Server das gewählte Ziel kennt. Ohne diesen Zwischenschritt hing der Test
-        // an einem Rennen – die Auswahl in der Liste konnte vom Re-Render der Knotenauswahl überholt und
-        // damit verworfen werden, und der Klick lief in einen deaktivierten Knopf (#105). Wiederholt wird
-        // nur das Wählen; der Klick legt einen Übergang an und darf sich nicht verdoppeln.
+        // The precondition is made visible instead of presupposed: "Connect" is operable exactly when
+        // the server knows the chosen target. Without this intermediate step the test hung on a race –
+        // the selection in the list could be overtaken by the re-render of the node selection and
+        // thereby discarded, and the click ran into a disabled button (#105). Only the selecting is
+        // repeated; the click creates a transition and must not double.
         await SelectNodeAsync(page, start, "start");
 
-        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" });
+        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Connect" });
         await InteractWhenReadyAsync(
             () => page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 }),
             () => Assertions.Expect(connect).ToBeEnabledAsync(QuickEnabled));
@@ -373,32 +371,32 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await connect.ClickAsync();
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
 
-        // 3) Default umschalten: Die Kante wechselt ihre Kennzeichnung, und damit verschwindet die
-        //    Warnung „Kein Default-Übergang" aus dem Graphen.
+        // 3) Toggle default: the edge changes its marking, and thereby the warning "No default
+        //    transition" disappears from the graph.
         await SelectNodeAsync(page, start);
         await InteractWhenReadyAsync(
             () => inspector.GetByRole(AriaRole.Button, new() { Name = "Default" }).First.ClickAsync(),
             () => Assertions.Expect(page.Locator(".graph-edge.is-default")).ToHaveCountAsync(1, QuickCount));
 
-        // 4) Löschen mit sichtbarer Kaskade: Die Frage geht, ihre Kante geht mit.
+        // 4) Delete with visible cascade: the question goes, its edge goes with it.
         await SelectNodeAsync(page, start);
         await InteractWhenReadyAsync(
-            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Löschen" }).ClickAsync(),
-            () => Assertions.Expect(inspector).ToContainTextAsync("Ja, löschen", QuickContains));
-        await inspector.GetByRole(AriaRole.Button, new() { Name = "Ja, löschen" }).ClickAsync();
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Delete" }).ClickAsync(),
+            () => Assertions.Expect(inspector).ToContainTextAsync("Yes, delete", QuickContains));
+        await inspector.GetByRole(AriaRole.Button, new() { Name = "Yes, delete" }).ClickAsync();
 
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(0, SlowCount);
-        await Assertions.Expect(page.Locator(".banner.ok")).ToContainTextAsync("mit entfernt", SlowContains);
+        await Assertions.Expect(page.Locator(".banner.ok")).ToContainTextAsync("removed along with it", SlowContains);
 
-        // Der Inspector fällt sichtbar auf die Legende zurück – die Auswahl zeigte sonst ins Leere.
-        await Assertions.Expect(inspector).ToContainTextAsync("Legende", SlowContains);
+        // The inspector visibly falls back to the legend – the selection would otherwise point into the void.
+        await Assertions.Expect(inspector).ToContainTextAsync("Legend", SlowContains);
     }
 
     /// <summary>
-    /// Bei veröffentlichtem Dialog sind die Graph-Gesten <b>deaktiviert</b> statt in einen Konflikt zu
-    /// laufen: Es gibt keinen Ausgangs-Port, die Palette ist gesperrt, und der Hinweis bietet die neue
-    /// Version an. Verschieben funktioniert weiter (ADR 0007) – und erzeugt keine Fehlermeldung.
+    /// When the dialog is published the graph gestures are <b>disabled</b> instead of running into a
+    /// conflict: there is no source port, the palette is locked, and the hint offers the new version.
+    /// Moving continues to work (ADR 0007) – and produces no error message.
     /// </summary>
     [SkippableFact]
     public async Task Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert()
@@ -406,22 +404,22 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Veröffentlichen" }).ClickAsync();
-        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", SlowText);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Publish" }).ClickAsync();
+        await Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Published", SlowText);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
-        // Das Attribut ist C#-Zustand: Das JS-Modul liest es bei jeder Geste, statt ihn beim Binden zu
-        // kopieren.
+        // The attribute is C# state: the JS module reads it on every gesture instead of copying it at
+        // binding time.
         await Assertions.Expect(page.Locator("svg[data-editable='false']")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-port")).ToHaveCountAsync(0, SlowCount);
         await Assertions.Expect(page.Locator(".graph-palette-item").First).ToBeDisabledAsync();
         await Assertions.Expect(
-            page.GetByRole(AriaRole.Button, new() { Name = "Neue Version anlegen" })).ToBeVisibleAsync();
+            page.GetByRole(AriaRole.Button, new() { Name = "Create new version" })).ToBeVisibleAsync();
 
-        // Verschieben bleibt erlaubt – und läuft nicht in einen Konflikt.
+        // Moving stays allowed – and does not run into a conflict.
         await DragByAsync(page, page.Locator(".graph-node").Filter(new() { HasText = "summary" }), 150, 90);
 
         await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(1, SlowCount);
@@ -429,21 +427,21 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Der Testlauf im Graphen (#104): Derselbe Lauf wie im listenbasierten Runner, aber als Pfad auf dem
-    /// Canvas – besuchte Knoten, die offene Frage, gegriffene Kanten, die Iterationszahl am
-    /// Schleifenrahmen und die publizierten Trigger am auslösenden Knoten.
+    /// The test run in the graph (#104): the same run as in the list-based runner, but as a path on the
+    /// canvas – visited nodes, the open question, taken edges, the iteration count on the loop frame
+    /// and the published triggers at the triggering node.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der Test steht im Browser, obwohl die Ableitung des Pfads in
-    /// <c>tests/Flirty.Tests/Designer/GraphRunAnalyzerTests</c> vollständig gegen die echte Engine geprüft
-    /// ist: Was hier dazukommt, ist die <b>Verdrahtung</b> – Umschalter, Canvas im Runner, Antwort-Eingabe
-    /// in beiden Ansichten und der Editier-Pfad über das Inspector-Panel. Genau diese Art Verbindung ist
-    /// in #103 zweimal gerissen, ohne dass ein Unit-Test es hätte sehen können.
+    /// The test stands in the browser, although the derivation of the path in
+    /// <c>tests/Flirty.Tests/Designer/GraphRunAnalyzerTests</c> is fully checked against the real
+    /// engine: what is added here is the <b>wiring</b> – toggle, canvas in the runner, answer input in
+    /// both views and the edit path via the inspector panel. Exactly this kind of connection broke
+    /// twice in #103 without a unit test being able to see it.
     /// </para>
     /// <para>
-    /// Gespielt wird der <b>unveröffentlichte</b> Dialog – der Runner startet über
-    /// <c>StartDialogVersionCommand</c>, ein Entwurf ist also ohne Veröffentlichen testbar.
+    /// The <b>unpublished</b> dialog is played – the runner starts via
+    /// <c>StartDialogVersionCommand</c>, so a draft is testable without publishing.
     /// </para>
     /// </remarks>
     [SkippableFact]
@@ -452,57 +450,57 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Durchspielen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Test run" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/test$"));
 
-        // Umschalten ist idempotent – zweimal „Graph" zu wählen ändert nichts.
+        // Toggling is idempotent – choosing "Graph" twice changes nothing.
         await InteractWhenReadyAsync(
             () => page.Locator(".run-views")
                 .GetByRole(AriaRole.Button, new() { Name = "Graph", Exact = true }).ClickAsync(),
             () => Assertions.Expect(page.Locator(".graph-canvas")).ToHaveCountAsync(1, QuickCount));
 
-        // Das explizite Bereitschaftssignal des Moduls statt einer Wiederholung: Canvas-Gesten sind nicht
+        // The explicit readiness signal of the module instead of a retry: canvas gestures are not
         // idempotent (ADR 0006).
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
-        // Vor dem Start liegt der Graph da, aber ohne Pfad.
+        // Before the start the graph lies there, but without a path.
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(0, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(0, SlowCount);
 
         await InteractWhenReadyAsync(
-            () => page.GetByRole(AriaRole.Button, new() { Name = "Lauf starten", Exact = true }).ClickAsync(),
-            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Welche Position?", QuickContains));
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Start run", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Which role?", QuickContains));
 
-        // Noch keine Antwort: Die Einstiegsfrage ist offen, aber nicht besucht.
+        // No answer yet: the entry question is open but not visited.
         await Assertions.Expect(page.Locator(".graph-node.is-current")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(0, SlowCount);
 
-        // Erste Iteration. Die Karte des besuchten Knotens zeigt die Antwort, die Kante ist gegriffen.
+        // First iteration. The card of the visited node shows the answer, the edge is taken.
         await AnswerTextAsync(page, "Backend");
         await Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-visited .graph-node-answer"))
             .ToContainTextAsync("Backend", SlowContains);
 
-        // Rücksprung: Damit ist eine zweite Kante gegriffen – die Schleife wurde wirklich durchlaufen.
-        await ChooseAsync(page, "Ja");
+        // Back-jump: thereby a second edge is taken – the loop was really traversed.
+        await ChooseAsync(page, "Yes");
         await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(2, SlowCount);
 
-        // Zweite Iteration, dann Ausstieg über „Nein".
+        // Second iteration, then exit via "No".
         await AnswerTextAsync(page, "Frontend");
-        await Assertions.Expect(page.Locator(".graph-loop-iterations")).ToContainTextAsync("2 Iterationen", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-loop-iterations")).ToContainTextAsync("2 iterations", SlowContains);
 
-        await ChooseAsync(page, "Nein");
+        await ChooseAsync(page, "No");
         await Assertions.Expect(page.Locator(".graph-edge.is-taken")).ToHaveCountAsync(3, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-current").Filter(new() { HasText = "summary" }))
             .ToHaveCountAsync(1, SlowCount);
 
-        // Die publizierten Trigger hängen am auslösenden Knoten – Quelle bleibt der DesignerTriggerLog.
+        // The published triggers hang on the triggering node – the source remains the DesignerTriggerLog.
         await Assertions.Expect(page.Locator(".graph-node .chip-fired").First).ToBeVisibleAsync();
 
-        // Der Inspector zeigt die Bindungen und die Antworten je Iteration am gewählten Knoten.
-        var positionNode = page.Locator(".graph-node").Filter(new() { HasText = "Welche Position?" });
+        // The inspector shows the bindings and the answers per iteration at the selected node.
+        var positionNode = page.Locator(".graph-node").Filter(new() { HasText = "Which role?" });
         var inspector = page.Locator(".graph-inspector");
 
         await InteractWhenReadyAsync(
@@ -511,19 +509,19 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
         await Assertions.Expect(inspector).ToContainTextAsync("Iteration 2", SlowContains);
         await Assertions.Expect(inspector).ToContainTextAsync("\"Frontend\"", SlowContains);
-        // Die Bindung der umschließenden Schleife steht am Knoten – das ist der Gewinn gegenüber der
-        // globalen Tafel der Listenansicht.
-        await Assertions.Expect(inspector).ToContainTextAsync("position_liste", SlowContains);
+        // The binding of the enclosing loop stands at the node – that is the gain over the global board
+        // of the list view.
+        await Assertions.Expect(inspector).ToContainTextAsync("position_list", SlowContains);
 
-        // Ein Edit rechnet den Pfad neu: Die nachgelagerten Antworten fallen weg, der Pfad schrumpft auf
-        // den einen besuchten Knoten. Wiederholt wird die ganze Einheit (öffnen, füllen, speichern) –
-        // derselbe Wert erneut gespeichert führt zum selben Zustand.
+        // An edit recomputes the path: the downstream answers fall away, the path shrinks to the one
+        // visited node. The whole unit (open, fill, save) is repeated – the same value saved again
+        // leads to the same state.
         await InteractWhenReadyAsync(
             async () =>
             {
-                await inspector.GetByRole(AriaRole.Button, new() { Name = "Bearbeiten" }).First.ClickAsync();
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Edit" }).First.ClickAsync();
                 await inspector.Locator(".answer-input input.input").FillAsync("Middleware");
-                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
             },
             () => Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, QuickCount));
 
@@ -531,14 +529,14 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(page.Locator(".graph-node.is-visited .graph-node-answer"))
             .ToContainTextAsync("Middleware", SlowContains);
 
-        // Und die Listenansicht zeigt denselben Lauf – derselbe Zustand, nur andere Darstellung.
-        await page.Locator(".run-views").GetByRole(AriaRole.Button, new() { Name = "Verlauf" }).ClickAsync();
+        // And the list view shows the same run – the same state, just a different representation.
+        await page.Locator(".run-views").GetByRole(AriaRole.Button, new() { Name = "History" }).ClickAsync();
         await Assertions.Expect(page.Locator(".transcript")).ToContainTextAsync("Middleware", SlowContains);
         await Assertions.Expect(page.Locator(".transcript li")).ToHaveCountAsync(1, SlowCount);
 
-        // Zurück auf „Graph": Der Canvas wird neu gebunden. Das prüft zugleich, dass das Lösen der
-        // Bindung beim Wegschalten den Circuit nicht reißt – ein Fehler in `DisposeAsync` fiele hier auf,
-        // weil danach nichts mehr interaktiv wäre.
+        // Back to "Graph": the canvas is re-bound. That also checks that releasing the binding when
+        // switching away does not tear the circuit – an error in `DisposeAsync` would show up here,
+        // because afterwards nothing would be interactive anymore.
         await page.Locator(".run-views").GetByRole(AriaRole.Button, new() { Name = "Graph", Exact = true })
             .ClickAsync();
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
@@ -546,29 +544,29 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Der Anlege-Flow auf dem Canvas (#105): Ein Dialog entsteht vollständig aus Gesten – Baustein
-    /// ziehen, vom Port ins <b>Leere</b> ziehen (Frage und Übergang in einem Zug), Bedingung mit
-    /// Live-Validierung, Default-Kante, Einstiegsfrage, Verschieben – wird veröffentlicht und übersteht
-    /// ein Neuladen, <b>inklusive</b> der Positionen.
+    /// The creation flow on the canvas (#105): A dialog arises completely from gestures – drag a
+    /// building block, drag from the port into the <b>void</b> (question and transition in one drag),
+    /// condition with live validation, default edge, entry question, moving – is published and survives
+    /// a reload, <b>including</b> the positions.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Der Zug <b>ins Leere</b> ist der Grund, warum dieser Test existiert: Er ist die einzige Geste,
-    /// die zwei Commands aus einer Bewegung ableitet (<c>CreateQuestionCommand</c> +
-    /// <c>SetDialogLayoutCommand</c> + <c>CreateTransitionCommand</c>), und die einzige, deren
-    /// Hit-Test-Zweig „kein Knoten unter dem Zeiger" nur im Browser durchlaufen wird.
+    /// The drag <b>into the void</b> is the reason this test exists: it is the only gesture that derives
+    /// two commands from one movement (<c>CreateQuestionCommand</c> +
+    /// <c>SetDialogLayoutCommand</c> + <c>CreateTransitionCommand</c>), and the only one whose
+    /// hit-test branch "no node under the pointer" is only traversed in the browser.
     /// </para>
     /// <para>
-    /// <b>Nach jeder Geste wird eine serverseitig erzeugte Wirkung abgewartet.</b> Der Riegel
-    /// <c>send()</c> im JS-Modul verwirft eine zweite Geste <b>still</b>, solange die erste läuft – eine
-    /// zu früh ausgelöste Bewegung hinterlässt keine Meldung, nur einen fehlenden Effekt. Deshalb steht
-    /// hinter jedem Zug eine Zählung oder eine Meldung, nie eine Wartezeit.
+    /// <b>After every gesture a server-produced effect is awaited.</b> The lock
+    /// <c>send()</c> in the JS module discards a second gesture <b>silently</b> while the first runs – a
+    /// movement triggered too early leaves no message, only a missing effect. That is why behind every
+    /// drag stands a count or a message, never a wait time.
     /// </para>
     /// <para>
-    /// Veröffentlicht und die Einstiegsfrage gesetzt wird bewusst an zwei verschiedenen Orten: Die
-    /// Einstiegsfrage geht seit #105 am Knoten (der Graph warnte sonst über etwas, das nur woanders zu
-    /// heilen war), das Veröffentlichen bleibt im Dialog-Editor – es betrifft den ganzen Dialog, nicht
-    /// ein Element des Graphen.
+    /// Publishing and setting the entry question happen deliberately in two different places: the
+    /// entry question goes, since #105, at the node (the graph otherwise warned about something that
+    /// could only be healed elsewhere), publishing stays in the dialog editor – it concerns the whole
+    /// dialog, not one element of the graph.
     /// </para>
     /// </remarks>
     [SkippableFact]
@@ -577,92 +575,92 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
         var inspector = page.Locator(".graph-inspector");
 
-        // 1) Der erste Baustein kommt aus der Palette. Deren Reihenfolge ist die des Enums
-        //    (QuestionType.SingleChoice = 0), der vorgeschlagene Schlüssel also „auswahl“.
+        // 1) The first building block comes from the palette. Its order is that of the enum
+        //    (QuestionType.SingleChoice = 0), so the suggested key is "choice".
         await DragToCanvasFractionAsync(page, page.Locator(".graph-palette-item").First, 0.25, 0.2);
 
-        var auswahl = page.Locator(".graph-node").Filter(new() { HasText = "auswahl" });
-        await Assertions.Expect(auswahl).ToHaveCountAsync(1, SlowCount);
+        var choice = page.Locator(".graph-node").Filter(new() { HasText = "choice" });
+        await Assertions.Expect(choice).ToHaveCountAsync(1, SlowCount);
 
-        // Jetzt – mit einer Frage – warnt der Graph über den fehlenden Einstieg. Am leeren Dialog tut er
-        // das absichtlich nicht, deshalb steht die Prüfung hier und nicht oben.
+        // Now – with one question – the graph warns about the missing entry. On the empty dialog it
+        // deliberately does not, that is why the check stands here and not above.
         await Assertions.Expect(page.Locator(".banner.warn"))
-            .ToContainTextAsync("Keine Einstiegsfrage gesetzt", SlowContains);
+            .ToContainTextAsync("No entry question set", SlowContains);
 
-        // 2) Vom Port ins Leere: Frage UND Übergang aus einer Bewegung.
-        await DragToCanvasFractionAsync(page, auswahl.Locator(".graph-port"), 0.25, 0.72);
+        // 2) From the port into the void: question AND transition from one movement.
+        await DragToCanvasFractionAsync(page, choice.Locator(".graph-port"), 0.25, 0.72);
 
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.ok"))
-            .ToContainTextAsync("angelegt und mit auswahl verbunden", SlowContains);
+            .ToContainTextAsync("created and connected with choice", SlowContains);
 
-        // 3) Derselbe Zug ein zweites Mal – das belegt zugleich, dass der Riegel des Moduls die nächste
-        //    Geste wieder freigibt. Der zweite Zweig macht den Graphen erst vollständig: eine bedingte
-        //    Kante braucht eine Default-Kante als Gegenstück.
-        await DragToCanvasFractionAsync(page, auswahl.Locator(".graph-port"), 0.72, 0.72);
+        // 3) The same drag a second time – this also proves that the module's lock releases the next
+        //    gesture again. The second branch is what first makes the graph complete: a conditional
+        //    edge needs a default edge as its counterpart.
+        await DragToCanvasFractionAsync(page, choice.Locator(".graph-port"), 0.72, 0.72);
 
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(3, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(2, SlowCount);
 
-        // 4) Bedingung mit Live-Validierung. Der Ausdruck wird gegen den Musterkontext des Dialogs
-        //    kompiliert – „auswahl“ ist dort als Zeichenkette gebunden (DesignerExpressionContext).
+        // 4) Condition with live validation. The expression is compiled against the dialog's sample
+        //    context – "choice" is bound there as a string (DesignerExpressionContext).
         //
-        //    Die Statusmeldung steht INNERHALB der wiederholten Einheit: Sie entsteht serverseitig und
-        //    ist damit der Nachweis, dass Blazor die Eingabe gesehen hat. Ein Blick auf den Feldwert
-        //    wäre keiner – der stünde auch im DOM, wenn die Eingabe verpufft ist.
-        await SelectOutgoingEdgeAsync(page, auswahl, 0);
+        //    The status message stands INSIDE the repeated unit: it arises server-side and is thus the
+        //    proof that Blazor saw the input. A look at the field value would not be – it would stand
+        //    in the DOM even if the input fizzled.
+        await SelectOutgoingEdgeAsync(page, choice, 0);
         await InteractWhenReadyAsync(
             async () =>
             {
-                await page.Locator("#inspectorExpression").FillAsync("auswahl == \"ja\"");
+                await page.Locator("#inspectorExpression").FillAsync("choice == \"yes\"");
                 await Assertions.Expect(page.Locator(".expr-status"))
-                    .ToContainTextAsync("Ausdruck ist gültig", QuickContains);
-                await inspector.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+                    .ToContainTextAsync("Expression is valid", QuickContains);
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
             },
-            // Geprüft wird die Beschriftung GENAU EINER Kante: Nach dem zweiten Zweig gibt es zwei
-            // Labels, und ein unbeschränkter Locator wäre eine Strict-Mode-Verletzung.
+            // The label of EXACTLY ONE edge is checked: after the second branch there are two labels,
+            // and an unbounded locator would be a strict-mode violation.
             () => Assertions.Expect(ConditionLabel(page)).ToHaveCountAsync(1, QuickCount));
 
-        // 5) Die zweite Kante wird Default – danach ist der Graph warnungsfrei.
-        await SelectNodeAsync(page, auswahl);
+        // 5) The second edge becomes default – afterwards the graph is warning-free.
+        await SelectNodeAsync(page, choice);
         await InteractWhenReadyAsync(
             () => inspector.GetByRole(AriaRole.Button, new() { Name = "Default" }).Nth(1).ClickAsync(),
             () => Assertions.Expect(page.Locator(".graph-edge.is-default")).ToHaveCountAsync(1, QuickCount));
 
-        // 6) Einstiegsfrage am Knoten (#105). Wirkung: Der Knoten trägt die Markierung, und die
-        //    Dialog-Warnung verschwindet – beides rechnet der Server beim Neuaufbau des Modells.
-        await SelectNodeAsync(page, auswahl);
+        // 6) Entry question at the node (#105). Effect: the node carries the marking, and the dialog
+        //    warning disappears – the server computes both when rebuilding the model.
+        await SelectNodeAsync(page, choice);
         await InteractWhenReadyAsync(
-            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Als Einstiegsfrage setzen" }).ClickAsync(),
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Set as entry question" }).ClickAsync(),
             () => Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, QuickCount));
 
-        await Assertions.Expect(page.Locator(".graph-node.is-start").Filter(new() { HasText = "auswahl" }))
+        await Assertions.Expect(page.Locator(".graph-node.is-start").Filter(new() { HasText = "choice" }))
             .ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.warn")).ToHaveCountAsync(0, SlowCount);
 
-        // 7) Verschieben. Alle drei Knoten sind schon gepinnt (jede Geste legte eine Position an), die
-        //    Zählung taugt hier also nicht als Nachweis – gemerkt wird die Position selbst. Sie steht in
-        //    Nutzerkoordinaten und ist damit unabhängig davon, wie das SVG gerade skaliert.
-        await DragByAsync(page, auswahl, 120, 90);
+        // 7) Moving. All three nodes are already pinned (every gesture created a position), so the
+        //    count is no proof here – the position itself is remembered. It stands in user coordinates
+        //    and is thus independent of how the SVG currently scales.
+        await DragByAsync(page, choice, 120, 90);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
-        var moved = await TransformOfAsync(auswahl);
+        var moved = await TransformOfAsync(choice);
         Assert.NotNull(moved);
 
-        // 8) Veröffentlichen im Dialog-Editor – der Canvas kennt dafür bewusst keinen Knopf.
+        // 8) Publish in the dialog editor – the canvas deliberately knows no button for it.
         await page.Locator(".back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
         await PublishFromEditorAsync(page);
 
-        // 9) Der Persistenznachweis: Nach dem Neuladen kommt jedes Stück aus der Datenbank.
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        // 9) The persistence proof: after reloading, every piece comes from the database.
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.ReloadAsync();
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
@@ -673,30 +671,30 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await Assertions.Expect(ConditionLabel(page)).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".graph-node.is-pinned")).ToHaveCountAsync(3, SlowCount);
-        Assert.Equal(moved, await TransformOfAsync(auswahl));
+        Assert.Equal(moved, await TransformOfAsync(choice));
 
-        // Und der Graph ist jetzt gesperrt – dieselbe Wirkung, die der Lesemodus-Test prüft.
+        // And the graph is now locked – the same effect the read-mode test checks.
         await Assertions.Expect(page.Locator("svg[data-editable='false']")).ToHaveCountAsync(1, SlowCount);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
-        // Die Gegenprobe zum Guard: Die Einstiegsfrage ist Teil des Graphen, also an einer
-        // veröffentlichten Version nicht umzusetzen. Gesperrt, nicht fehlerhaft – der Knopf lässt sich
-        // gar nicht auslösen, statt in ein 409 zu laufen.
+        // The counter-check to the guard: the entry question is part of the graph, so it cannot be
+        // changed on a published version. Locked, not erroneous – the button cannot be triggered at all
+        // instead of running into a 409.
         await SelectNodeAsync(page, page.Locator(".graph-node").Filter(new() { HasText = "text2" }));
         await Assertions.Expect(
-                inspector.GetByRole(AriaRole.Button, new() { Name = "Als Einstiegsfrage setzen" }))
+                inspector.GetByRole(AriaRole.Button, new() { Name = "Set as entry question" }))
             .ToBeDisabledAsync();
     }
 
     /// <summary>
-    /// Die zwei Gesten des Inspectors, die #103 bewusst offengelassen hatte (#105): einen Rücksprung
-    /// <b>am Zyklus</b> als Schleife markieren und einen Trigger an genau einer Frage anlegen.
+    /// The two inspector gestures that #103 deliberately left open (#105): mark a back-jump
+    /// <b>at the cycle</b> as a loop and create a trigger at exactly one question.
     /// </summary>
     /// <remarks>
-    /// Beide Wege haben ihren Reiz erst im Browser: Der Schleifen-Vorschlag erscheint nur, wenn der
-    /// Designer den Zyklus selbst erkannt und den Collection-Schlüssel vorbelegt hat – und der
-    /// Trigger-Chip muss an der <b>auslösenden</b> Frage hängen, nicht an allen. Zum Schluss die
-    /// Listen-Parität: Beides steht unmittelbar auch im Dialog-Editor, weil es dieselben Commands sind.
+    /// Both paths only have their appeal in the browser: the loop suggestion appears only when the
+    /// designer has recognized the cycle itself and prefilled the collection key – and the trigger chip
+    /// must hang on the <b>triggering</b> question, not on all. Finally the list parity: both stand
+    /// immediately in the dialog editor too, because they are the same commands.
     /// </remarks>
     [SkippableFact]
     public async Task Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an()
@@ -704,32 +702,32 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
 
-        await page.GetByRole(AriaRole.Link, new() { Name = "Graph ansehen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/graph$"));
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
 
         var inspector = page.Locator(".graph-inspector");
 
-        // Zwei Fragen über den zeigerlosen Weg – hier geht es um den Inspector, nicht um die Geste.
-        // Bewusst zwei verschiedene Typen: Die Schlüssel „auswahl“ und „text“ überschneiden sich nicht,
-        // während „auswahl“/„auswahl2“ als Textfilter beide Knoten träfen.
+        // Two questions via the pointerless path – here it is about the inspector, not the gesture.
+        // Deliberately two different types: the keys "choice" and "text" do not overlap, while
+        // "choice"/"choice2" as a text filter would hit both nodes.
         await page.Locator(".graph-palette-item").First.ClickAsync();
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, SlowCount);
         await page.Locator(".graph-palette-item").Nth(2).ClickAsync();
         await Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(2, SlowCount);
 
-        var auswahl = page.Locator(".graph-node").Filter(new() { HasText = "auswahl" });
+        var choice = page.Locator(".graph-node").Filter(new() { HasText = "choice" });
         var text = page.Locator(".graph-node").Filter(new() { HasText = "text" });
 
-        // Hinweg über die Auswahlliste (Index 2 = die zweite Frage in Dialog-Reihenfolge).
+        // Outbound via the selection list (index 2 = the second question in dialog order).
         //
-        // Gewählt und geklickt wird in ZWEI Schritten mit einer serverseitigen Vorbedingung dazwischen:
-        // „Verbinden" ist genau dann bedienbar, wenn der Server das gewählte Ziel kennt. Wiederholt wird
-        // deshalb nur das Wählen (idempotent), nicht der Klick – der legt einen Übergang an und darf sich
-        // nicht verdoppeln.
-        await SelectNodeAsync(page, auswahl, "auswahl");
+        // Selecting and clicking happen in TWO steps with a server-side precondition between them:
+        // "Connect" is operable exactly when the server knows the chosen target. That is why only the
+        // selecting is repeated (idempotent), not the click – it creates a transition and must not
+        // double.
+        await SelectNodeAsync(page, choice, "choice");
 
-        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Verbinden" });
+        var connect = inspector.GetByRole(AriaRole.Button, new() { Name = "Connect" });
         await InteractWhenReadyAsync(
             () => page.Locator("#inspectorConnect").SelectOptionAsync(new SelectOptionValue { Index = 2 }),
             () => Assertions.Expect(connect).ToBeEnabledAsync(QuickEnabled));
@@ -737,29 +735,30 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await connect.ClickAsync();
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(1, SlowCount);
 
-        // Rückweg per Port-Geste – damit ist der Zyklus da, und der Designer erkennt ihn selbst.
-        await DragToTargetAsync(page, text.Locator(".graph-port"), auswahl.Locator(".graph-node-card"));
+        // Return path via the port gesture – thereby the cycle exists, and the designer recognizes it
+        // itself.
+        await DragToTargetAsync(page, text.Locator(".graph-port"), choice.Locator(".graph-node-card"));
         await Assertions.Expect(page.Locator(".graph-edge")).ToHaveCountAsync(2, SlowCount);
         await Assertions.Expect(page.Locator(".graph-edge.is-backjump")).ToHaveCountAsync(1, SlowCount);
 
-        // 1) Schleife AM ZYKLUS: Der Vorschlag hängt an der Kante, die den Rücksprung verursacht, und
-        //    ist mit dem Schlüssel der Einstiegsfrage vorbelegt (LoopFormModel.SuggestCollectionKey).
+        // 1) Loop AT THE CYCLE: the suggestion hangs on the edge that causes the back-jump and is
+        //    prefilled with the key of the entry question (LoopFormModel.SuggestCollectionKey).
         await SelectOutgoingEdgeAsync(page, text, 0);
-        await Assertions.Expect(inspector).ToContainTextAsync("Rücksprung ohne Schleifen-Marker", SlowContains);
-        await Assertions.Expect(page.Locator("#inspectorCollectionKey")).ToHaveValueAsync("auswahl_liste", SlowValue);
+        await Assertions.Expect(inspector).ToContainTextAsync("Back-jump without a loop marker", SlowContains);
+        await Assertions.Expect(page.Locator("#inspectorCollectionKey")).ToHaveValueAsync("choice_list", SlowValue);
 
         await InteractWhenReadyAsync(
-            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Als Schleife markieren" }).ClickAsync(),
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Mark as loop" }).ClickAsync(),
             () => Assertions.Expect(page.Locator(".graph-loop-label")).ToHaveCountAsync(1, QuickCount));
 
-        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("auswahl_liste", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("choice_list", SlowContains);
         await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
 
-        // 2) Trigger am Knoten. Der Kanal steht schon auf Webhook (Vorgabe des Formularmodells), das
-        //    URL-Feld ist deshalb sofort da.
-        await SelectNodeAsync(page, auswahl);
+        // 2) Trigger at the node. The channel is already set to Webhook (default of the form model),
+        //    so the URL field is there immediately.
+        await SelectNodeAsync(page, choice);
         await InteractWhenReadyAsync(
-            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Trigger nach dieser Frage anlegen" })
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Create trigger after this question" })
                 .ClickAsync(),
             () => Assertions.Expect(page.Locator("#inspectorTriggerUrl")).ToBeVisibleAsync(QuickVisible));
 
@@ -767,49 +766,48 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             async () =>
             {
                 await page.Locator("#inspectorTriggerUrl").FillAsync("https://hooks.test/canvas");
-                await inspector.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+                await inspector.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
             },
             () => Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, QuickCount));
 
-        // Der Chip hängt an der auslösenden Frage – nicht an allen.
-        await Assertions.Expect(auswahl.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
+        // The chip hangs on the triggering question – not on all.
+        await Assertions.Expect(choice.Locator(".chip")).ToContainTextAsync("hooks.test", SlowContains);
 
-        // Der Reload beweist, dass Marker und Trigger geschrieben wurden.
+        // The reload proves that marker and trigger were written.
         await page.ReloadAsync();
         await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
-        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("auswahl_liste", SlowContains);
+        await Assertions.Expect(page.Locator(".graph-loop-label")).ToContainTextAsync("choice_list", SlowContains);
         await Assertions.Expect(page.Locator(".graph-node .chip")).ToHaveCountAsync(1, SlowCount);
 
-        // Keine zweite Wahrheit: Beides steht in den Listen des Dialog-Editors.
+        // No second truth: both stand in the lists of the dialog editor.
         await page.Locator(".back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
-        await Assertions.Expect(Section(page, "Schleifen (Loops)").Locator("tbody tr"))
+        await Assertions.Expect(Section(page, "Loops").Locator("tbody tr"))
             .ToHaveCountAsync(1, SlowCount);
-        await Assertions.Expect(Section(page, "Trigger").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(Section(page, "Triggers").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
     }
 
     /// <summary>
-    /// Die Kantenbeschriftung, die die in Test A gesetzte Bedingung trägt. Der Ausdruck erscheint dort
-    /// gekürzt als Label (<c>DialogGraphBuilder</c>) und ist damit die im Bild sichtbare Wirkung des
-    /// Speicherns.
+    /// The edge label that carries the condition set in test A. The expression appears there shortened
+    /// as a label (<c>DialogGraphBuilder</c>) and is thus the effect of saving visible in the picture.
     /// </summary>
     private static ILocator ConditionLabel(IPage page)
-        => page.Locator(".graph-edge-label").Filter(new() { HasText = "auswahl == \"ja\"" });
+        => page.Locator(".graph-edge-label").Filter(new() { HasText = "choice == \"yes\"" });
 
-    /// <summary>Liest das <c>transform</c> eines Knotens – die im DOM sichtbare Position.</summary>
+    /// <summary>Reads the <c>transform</c> of a node – the position visible in the DOM.</summary>
     private static async Task<string?> TransformOfAsync(ILocator node)
         => await node.GetAttributeAsync("transform");
 
     /// <summary>
-    /// Zieht ein Element um den angegebenen Versatz. Bewusst über <c>Mouse</c> statt
-    /// <c>DragToAsync</c>: Letzteres nutzt die HTML5-Drag-and-Drop-API, die auf einem SVG-Canvas mit
-    /// Pointer-Events gar nicht auslöst.
+    /// Drags an element by the given offset. Deliberately via <c>Mouse</c> instead of
+    /// <c>DragToAsync</c>: the latter uses the HTML5 drag-and-drop API, which does not fire at all on
+    /// an SVG canvas with pointer events.
     /// </summary>
     private static async Task DragByAsync(IPage page, ILocator target, int deltaX, int deltaY)
     {
-        // Der Canvas-Host ist 70vh hoch und steht unter Kopfzeile, Hinweis und Werkzeugleiste – ein
-        // Knoten der unteren Schichten liegt damit leicht außerhalb des Fensters. Mouse-Koordinaten
-        // sind fensterbezogen; ohne das Scrollen zielte die Geste ins Leere.
+        // The canvas host is 70vh tall and stands below header, hint and toolbar – a node of the lower
+        // layers thus lies slightly outside the window. Mouse coordinates are window-relative; without
+        // the scrolling the gesture would aim into the void.
         await target.ScrollIntoViewIfNeededAsync();
 
         var box = await target.BoundingBoxAsync();
@@ -822,7 +820,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await page.Mouse.MoveAsync(startX, startY);
         await page.Mouse.DownAsync();
 
-        // Mehrere Schritte: eine echte Geste, und der erste überschreitet die 4-px-Schwelle des Moduls.
+        // Several steps: a real gesture, and the first exceeds the module's 4-px threshold.
         for (var step = 1; step <= steps; step++)
         {
             await page.Mouse.MoveAsync(
@@ -833,17 +831,17 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Zieht ein Element auf eine Stelle der Zeichenfläche – die Palette-Geste (#103).
+    /// Drags an element onto a point on the drawing surface – the palette gesture (#103).
     /// </summary>
     /// <remarks>
-    /// Wie <see cref="DragByAsync"/> über <c>Mouse</c>: Die Palette-Einträge sind zwar HTML außerhalb des
-    /// SVG, ihre Geste läuft aber im selben Pointer-Events-Modell wie der Canvas – <c>DragToAsync</c>
-    /// (HTML5-Drag-and-Drop) löst dort nichts aus.
+    /// Like <see cref="DragByAsync"/> via <c>Mouse</c>: the palette entries are HTML outside the SVG,
+    /// but their gesture runs in the same pointer-events model as the canvas – <c>DragToAsync</c>
+    /// (HTML5 drag-and-drop) fires nothing there.
     /// </remarks>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="source">Der Palette-Eintrag.</param>
-    /// <param name="offsetX">Der waagerechte Abstand vom linken Rand der Zeichenfläche in px.</param>
-    /// <param name="offsetY">Der senkrechte Abstand von deren oberem Rand in px.</param>
+    /// <param name="page">The page.</param>
+    /// <param name="source">The palette entry.</param>
+    /// <param name="offsetX">The horizontal distance from the left edge of the drawing surface in px.</param>
+    /// <param name="offsetY">The vertical distance from its top edge in px.</param>
     private static async Task DragToCanvasAsync(IPage page, ILocator source, int offsetX, int offsetY)
     {
         var canvas = page.Locator(".graph-canvas");
@@ -863,19 +861,19 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Zieht ein Element auf einen <b>Bruchteil</b> der Zeichenfläche (je Achse 0…1).
+    /// Drags an element onto a <b>fraction</b> of the drawing surface (0…1 per axis).
     /// </summary>
     /// <remarks>
-    /// Bewusst relativ statt in Pixeln: Das SVG skaliert seinen <c>viewBox</c> in den 70 vh hohen Host
-    /// (<c>preserveAspectRatio</c> in der Voreinstellung), und dieser teilt die Breite mit Palette und
-    /// Inspector. Wie viele Bildschirm-Pixel ein Knoten breit ist, hängt damit am Fenster – eine feste
-    /// Pixelangabe landete bei anderem Zuschnitt auf einem Knoten statt daneben, und aus dem Zug ins
-    /// Leere würde still eine Verbindung.
+    /// Deliberately relative instead of in pixels: the SVG scales its <c>viewBox</c> into the 70 vh
+    /// tall host (<c>preserveAspectRatio</c> in the default), and this shares its width with palette
+    /// and inspector. How many screen pixels a node is wide thus depends on the window – a fixed pixel
+    /// value would land on a node instead of beside it at a different layout, and the drag into the
+    /// void would silently become a connection.
     /// </remarks>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="source">Der Palette-Eintrag bzw. der Ausgangs-Port.</param>
-    /// <param name="fractionX">Waagerechte Loslass-Stelle als Anteil der Flächenbreite.</param>
-    /// <param name="fractionY">Senkrechte Loslass-Stelle als Anteil der Flächenhöhe.</param>
+    /// <param name="page">The page.</param>
+    /// <param name="source">The palette entry or the source port.</param>
+    /// <param name="fractionX">Horizontal release point as a fraction of the surface width.</param>
+    /// <param name="fractionY">Vertical release point as a fraction of the surface height.</param>
     private static async Task DragToCanvasFractionAsync(
         IPage page, ILocator source, double fractionX, double fractionY)
     {
@@ -888,10 +886,10 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await DragToCanvasAsync(page, source, (int)(box.Width * fractionX), (int)(box.Height * fractionY));
     }
 
-    /// <summary>Zieht von einem Element auf die Mitte eines anderen – die Verbindungsgeste (#103).</summary>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="source">Der Ausgangs-Port.</param>
-    /// <param name="target">Das Ziel (die Knotenkarte).</param>
+    /// <summary>Drags from one element onto the center of another – the connection gesture (#103).</summary>
+    /// <param name="page">The page.</param>
+    /// <param name="source">The source port.</param>
+    /// <param name="target">The target (the node card).</param>
     private static async Task DragToTargetAsync(IPage page, ILocator source, ILocator target)
     {
         await source.ScrollIntoViewIfNeededAsync();
@@ -910,8 +908,8 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Der gemeinsame Zug zwischen zwei Fensterkoordinaten. Mehrere Schritte, damit der erste die
-    /// 4-px-Schwelle des Moduls überschreitet und die Geste wie eine echte aussieht.
+    /// The shared drag between two window coordinates. Several steps so the first exceeds the module's
+    /// 4-px threshold and the gesture looks like a real one.
     /// </summary>
     private static async Task DragBetweenAsync(
         IPage page, float startX, float startY, float endX, float endY)
@@ -932,23 +930,23 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Legt einen Dialog <b>ohne</b> Fragen an – die Ausgangslage für die Canvas-Gesten, die ihre Fragen
-    /// selbst anlegen.
+    /// Creates a dialog <b>without</b> questions – the starting point for the canvas gestures that
+    /// create their questions themselves.
     /// </summary>
-    /// <param name="session">Die Browser-Sitzung des Tests.</param>
-    /// <returns>Die Seite, die auf dem leeren Dialog-Editor steht.</returns>
+    /// <param name="session">The test's browser session.</param>
+    /// <returns>The page sitting on the empty dialog editor.</returns>
     private async Task<IPage> ArrangeEmptyDialogAsync(PlaywrightSession session)
     {
         var page = await session.NewPageAsync();
         await page.GotoAsync($"{_fixture.BaseUrl}/dialogs");
 
         await InteractWhenReadyAsync(
-            () => page.GetByRole(AriaRole.Button, new() { Name = "Neuer Dialog" }).ClickAsync(),
+            () => page.GetByRole(AriaRole.Button, new() { Name = "New dialog" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#key")).ToBeVisibleAsync(QuickVisible));
 
         await page.Locator("#key").FillAsync($"e2e-{Guid.NewGuid():N}"[..12]);
         await page.Locator("#name").FillAsync("E2E-Canvas-Dialog");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
 
         await page.WaitForURLAsync(DialogUrl);
 
@@ -956,50 +954,50 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Legt einen Webhook-Trigger auf die Abschlussfrage an – die Vorbedingung dafür, dass die
-    /// Graph-Ansicht überhaupt einen Trigger-Chip zeigen kann.
+    /// Creates a webhook trigger on the final question – the precondition for the graph view to be
+    /// able to show a trigger chip at all.
     /// </summary>
-    /// <param name="page">Die Seite, die auf dem Dialog-Editor steht.</param>
+    /// <param name="page">The page sitting on the dialog editor.</param>
     private static async Task CreateQuestionTriggerAsync(IPage page)
     {
-        await Section(page, "Trigger").GetByRole(AriaRole.Button, new() { Name = "Neuer Trigger" }).ClickAsync();
+        await Section(page, "Triggers").GetByRole(AriaRole.Button, new() { Name = "New trigger" }).ClickAsync();
         await page.Locator("#triggerScope").SelectOptionAsync("AfterQuestion");
 
-        // Das Frage-Auswahlfeld erscheint erst, wenn der Zeitpunkt eine Frage verlangt.
+        // The question select field appears only when the timing requires a question.
         await Assertions.Expect(page.Locator("#triggerQuestion")).ToBeVisibleAsync(QuickVisible);
         await page.Locator("#triggerQuestion").SelectOptionAsync(new SelectOptionValue { Index = SummaryOption });
-        await page.Locator("#triggerUrl").FillAsync("https://hooks.test/fertig");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await page.Locator("#triggerUrl").FillAsync("https://hooks.test/done");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
 
-        await Assertions.Expect(Section(page, "Trigger").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(Section(page, "Triggers").Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
     }
 
     /// <summary>
-    /// Baut den Schleifen-Dialog vollständig durch die UI auf: Dialog → drei Fragen → Antwortoptionen →
-    /// Einstiegsfrage → drei Übergänge → Bedingung → Schleifen-Marker. Beide Tests legen dabei ihren
-    /// <b>eigenen</b> Dialog an (eindeutiger Schlüssel), weil sie sich die Datenbank der Fixture teilen.
+    /// Builds the loop dialog completely through the UI: dialog → three questions → answer options →
+    /// entry question → three transitions → condition → loop marker. Both tests create their
+    /// <b>own</b> dialog (unique key) because they share the fixture's database.
     /// </summary>
-    /// <param name="session">Die Browser-Sitzung des Tests.</param>
-    /// <returns>Die Seite, die auf dem fertigen Dialog-Editor steht.</returns>
+    /// <param name="session">The test's browser session.</param>
+    /// <returns>The page sitting on the finished dialog editor.</returns>
     private async Task<IPage> ArrangeDialogAsync(PlaywrightSession session)
     {
         var page = await session.NewPageAsync();
         await page.GotoAsync($"{_fixture.BaseUrl}/dialogs");
 
         await InteractWhenReadyAsync(
-            () => page.GetByRole(AriaRole.Button, new() { Name = "Neuer Dialog" }).ClickAsync(),
+            () => page.GetByRole(AriaRole.Button, new() { Name = "New dialog" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#key")).ToBeVisibleAsync(QuickVisible));
 
         await page.Locator("#key").FillAsync($"e2e-{Guid.NewGuid():N}"[..12]);
-        await page.Locator("#name").FillAsync("E2E-Schleifendialog");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await page.Locator("#name").FillAsync("E2E-Loop-Dialog");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
 
-        // CreateDialogCommand -> die Seite navigiert selbst in den Editor des neuen Dialogs.
+        // CreateDialogCommand -> the page navigates itself into the editor of the new dialog.
         await page.WaitForURLAsync(DialogUrl);
 
-        await CreateQuestionAsync(page, "position", "Welche Position?", "FreeText");
-        await CreateQuestionAsync(page, "more", "Weitere Position?", "SingleChoice");
-        await CreateQuestionAsync(page, "summary", "Zusammenfassung?", "FreeText");
+        await CreateQuestionAsync(page, "position", "Which role?", "FreeText");
+        await CreateQuestionAsync(page, "more", "Another role?", "SingleChoice");
+        await CreateQuestionAsync(page, "summary", "Summary?", "FreeText");
 
         await AddChoicesToMoreQuestionAsync(page);
         await SetStartQuestionAsync(page);
@@ -1012,33 +1010,33 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
     private static async Task CreateQuestionAsync(IPage page, string key, string text, string type)
     {
-        var questions = Section(page, "Fragen");
+        var questions = Section(page, "Questions");
 
         await InteractWhenReadyAsync(
-            () => questions.GetByRole(AriaRole.Button, new() { Name = "Neue Frage" }).ClickAsync(),
+            () => questions.GetByRole(AriaRole.Button, new() { Name = "New question" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#questionKey")).ToBeVisibleAsync(QuickVisible));
 
         await page.Locator("#questionKey").FillAsync(key);
         await page.Locator("#questionText").FillAsync(text);
         await page.Locator("#questionType").SelectOptionAsync(type);
-        await questions.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await questions.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
 
         await Assertions.Expect(questions.Locator("tbody tr").Filter(new() { HasText = text }))
             .ToHaveCountAsync(1, SlowCount);
     }
 
     /// <summary>
-    /// Ergänzt die Antwortoptionen der Einfachauswahl <c>more</c>. Die pflegt bewusst nicht der
-    /// Dialog-Editor, sondern der Frage-Editor (#39) – also wird dorthin gewechselt und zurück.
+    /// Adds the answer options of the single choice <c>more</c>. These are deliberately maintained not
+    /// by the dialog editor but by the question editor (#39) – so we switch there and back.
     /// </summary>
     private static async Task AddChoicesToMoreQuestionAsync(IPage page)
     {
-        await Section(page, "Fragen").Locator("tbody tr").Filter(new() { HasText = "Weitere Position?" })
-            .GetByRole(AriaRole.Button, new() { Name = "Bearbeiten" }).ClickAsync();
+        await Section(page, "Questions").Locator("tbody tr").Filter(new() { HasText = "Another role?" })
+            .GetByRole(AriaRole.Button, new() { Name = "Edit" }).ClickAsync();
         await page.WaitForURLAsync(QuestionUrl);
 
-        await CreateAnswerOptionAsync(page, "yes", "Ja");
-        await CreateAnswerOptionAsync(page, "no", "Nein");
+        await CreateAnswerOptionAsync(page, "yes", "Yes");
+        await CreateAnswerOptionAsync(page, "no", "No");
 
         await page.Locator("p.back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
@@ -1046,17 +1044,17 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
     private static async Task CreateAnswerOptionAsync(IPage page, string key, string label)
     {
-        var options = Section(page, "Antwortoptionen");
+        var options = Section(page, "Answer options");
 
         await InteractWhenReadyAsync(
-            () => options.GetByRole(AriaRole.Button, new() { Name = "Neue Option" }).ClickAsync(),
+            () => options.GetByRole(AriaRole.Button, new() { Name = "New option" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#optionKey")).ToBeVisibleAsync(QuickVisible));
 
         await page.Locator("#optionKey").FillAsync(key);
         await page.Locator("#optionLabel").FillAsync(label);
-        // Gespeichert und validiert wird der Wert – genau der taucht später im Ausdruck auf.
+        // The value is saved and validated – exactly that appears later in the expression.
         await page.Locator("#optionValue").FillAsync(key);
-        await options.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+        await options.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
         await Assertions.Expect(options.Locator("tbody tr").Filter(new() { HasText = label }))
             .ToHaveCountAsync(1, SlowCount);
@@ -1064,24 +1062,24 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
 
     private static async Task SetStartQuestionAsync(IPage page)
     {
-        // Das Badge „Einstieg" an der position-Zeile ist zugleich die Wirkungsprüfung und der Beleg,
-        // dass die Options-Indizes oben die erwarteten Fragen treffen. Dieselbe Frage erneut zu wählen
-        // und zu speichern ist folgenlos – die Interaktion darf also wiederholt werden.
-        var startBadge = Section(page, "Fragen").Locator("tbody tr")
-            .Filter(new() { HasText = "Welche Position?" }).Locator(".badge-start");
+        // The badge "Entry" on the position row is at the same time the effect check and the proof that
+        // the option indices above hit the expected questions. Choosing and saving the same question
+        // again is without consequence – so the interaction may be repeated.
+        var startBadge = Section(page, "Questions").Locator("tbody tr")
+            .Filter(new() { HasText = "Which role?" }).Locator(".badge-start");
 
         await InteractWhenReadyAsync(
             async () =>
             {
                 await page.Locator("#startQuestion").SelectOptionAsync(new SelectOptionValue { Index = PositionOption });
-                await Section(page, "Metadaten").GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+                await Section(page, "Metadata").GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
             },
             () => Assertions.Expect(startBadge).ToBeVisibleAsync(QuickVisible));
     }
 
     /// <summary>
-    /// Legt das Branching an: <c>position</c> → <c>more</c> (Default), von <c>more</c> aus der bedingte
-    /// Rücksprung auf <c>position</c> und als Default der Ausstieg auf <c>summary</c>.
+    /// Creates the branching: <c>position</c> → <c>more</c> (default), from <c>more</c> the conditional
+    /// back-jump to <c>position</c> and as default the exit to <c>summary</c>.
     /// </summary>
     private static async Task CreateTransitionsAsync(IPage page)
     {
@@ -1089,18 +1087,18 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         await CreateTransitionAsync(page, MoreOption, PositionOption, isDefault: false);
         await CreateTransitionAsync(page, MoreOption, SummaryOption, isDefault: true);
 
-        var transitions = Section(page, "Übergänge (Branching)");
+        var transitions = Section(page, "Transitions (branching)");
         await Assertions.Expect(transitions.Locator("tbody tr")).ToHaveCountAsync(3, SlowCount);
-        // Der Designer erkennt den Zyklus von selbst.
-        await Assertions.Expect(transitions.Locator(".badge-loop")).ToHaveTextAsync("Rücksprung", SlowText);
+        // The designer recognizes the cycle itself.
+        await Assertions.Expect(transitions.Locator(".badge-loop")).ToHaveTextAsync("Back-jump", SlowText);
     }
 
     private static async Task CreateTransitionAsync(IPage page, int from, int target, bool isDefault)
     {
-        var transitions = Section(page, "Übergänge (Branching)");
+        var transitions = Section(page, "Transitions (branching)");
 
         await InteractWhenReadyAsync(
-            () => transitions.GetByRole(AriaRole.Button, new() { Name = "Neuer Übergang" }).ClickAsync(),
+            () => transitions.GetByRole(AriaRole.Button, new() { Name = "New transition" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#transitionFrom")).ToBeVisibleAsync(QuickVisible));
 
         await page.Locator("#transitionFrom").SelectOptionAsync(new SelectOptionValue { Index = from });
@@ -1110,96 +1108,95 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             await page.Locator("#transitionDefault").CheckAsync();
         }
 
-        await transitions.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await transitions.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
         await Assertions.Expect(page.Locator("#transitionFrom")).ToHaveCountAsync(0, SlowCount);
     }
 
     /// <summary>
-    /// Pflegt die Bedingung des Rücksprungs im Übergangs-Editor (#40) und prüft dabei die
-    /// <b>Live-Validierung</b>: Der Ausdruck wird schon beim Tippen gegen den Musterkontext des
-    /// Dialogs kompiliert.
+    /// Maintains the condition of the back-jump in the transition editor (#40) and checks the
+    /// <b>live validation</b> in doing so: the expression is compiled against the dialog's sample
+    /// context already while typing.
     /// </summary>
     private static async Task SetBackJumpConditionAsync(IPage page)
     {
-        await Section(page, "Übergänge (Branching)").Locator("tbody tr").Filter(new() { HasText = "Rücksprung" })
-            .GetByRole(AriaRole.Button, new() { Name = "Bearbeiten" }).ClickAsync();
+        await Section(page, "Transitions (branching)").Locator("tbody tr").Filter(new() { HasText = "Back-jump" })
+            .GetByRole(AriaRole.Button, new() { Name = "Edit" }).ClickAsync();
         await page.WaitForURLAsync(TransitionUrl);
 
         await InteractWhenReadyAsync(
             () => page.Locator("#expression").FillAsync("more == \"yes\""),
             () => Assertions.Expect(page.Locator(".expr-status"))
-                .ToContainTextAsync("Ausdruck ist gültig", QuickContains));
+                .ToContainTextAsync("Expression is valid", QuickContains));
 
-        await page.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
-        await Assertions.Expect(page.Locator(".banner.ok")).ToContainTextAsync("gespeichert", SlowContains);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
+        await Assertions.Expect(page.Locator(".banner.ok")).ToContainTextAsync("saved", SlowContains);
 
         await page.Locator("p.back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
     }
 
     /// <summary>
-    /// Markiert den Zyklus als Schleife (#41) – über den Vorschlag, den der Designer für unmarkierte
-    /// Rücksprünge selbst anbietet (inklusive vorbelegtem Collection-Schlüssel).
+    /// Marks the cycle as a loop (#41) – via the suggestion the designer offers itself for unmarked
+    /// back-jumps (including the prefilled collection key).
     /// </summary>
     private static async Task MarkLoopAsync(IPage page)
     {
-        var loops = Section(page, "Schleifen (Loops)");
+        var loops = Section(page, "Loops");
 
         await InteractWhenReadyAsync(
-            () => loops.GetByRole(AriaRole.Button, new() { Name = "als Schleife markieren" }).ClickAsync(),
+            () => loops.GetByRole(AriaRole.Button, new() { Name = "Mark as loop" }).ClickAsync(),
             () => Assertions.Expect(page.Locator("#loopKey")).ToBeVisibleAsync(QuickVisible));
 
-        // Der Collection-Schlüssel ist aus dem Rücksprung vorbelegt (LoopFormModel.SuggestCollectionKey).
-        await Assertions.Expect(page.Locator("#loopKey")).ToHaveValueAsync("position_liste", new() { Timeout = 15_000 });
+        // The collection key is prefilled from the back-jump (LoopFormModel.SuggestCollectionKey).
+        await Assertions.Expect(page.Locator("#loopKey")).ToHaveValueAsync("position_list", new() { Timeout = 15_000 });
 
-        await loops.GetByRole(AriaRole.Button, new() { Name = "Anlegen" }).ClickAsync();
+        await loops.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
         await Assertions.Expect(loops.Locator("tbody tr")).ToHaveCountAsync(1, SlowCount);
     }
 
-    // ---- Test-Runner ---------------------------------------------------------------------------------
+    // ---- Test runner ---------------------------------------------------------------------------------
 
-    /// <summary>Der Abschnitt mit der offenen Frage bzw. – nach dem letzten Schritt – dem Ergebnis.</summary>
+    /// <summary>The section with the open question or – after the last step – the result.</summary>
     private static ILocator CurrentStep(IPage page)
-        => page.Locator(".editor").Filter(new() { Has = page.Locator("h2", new() { HasTextRegex = new Regex("^(Aktuelle Frage|Ergebnis)$") }) });
+        => page.Locator(".editor").Filter(new() { Has = page.Locator("h2", new() { HasTextRegex = new Regex("^(Current question|Result)$") }) });
 
     private static async Task AnswerTextAsync(IPage page, string text)
     {
         await CurrentStep(page).Locator(".answer-input input.input").FillAsync(text);
-        await CurrentStep(page).GetByRole(AriaRole.Button, new() { Name = "Antworten" }).ClickAsync();
+        await CurrentStep(page).GetByRole(AriaRole.Button, new() { Name = "Answer" }).ClickAsync();
     }
 
     private static Task ChooseAsync(IPage page, string label)
         => CurrentStep(page).GetByRole(AriaRole.Button, new() { Name = label, Exact = true }).ClickAsync();
 
-    // ---- Helfer --------------------------------------------------------------------------------------
+    // ---- Helpers -------------------------------------------------------------------------------------
 
-    /// <summary>Ein Abschnitt („editor"-Karte) der Seite, adressiert über seine Überschrift.</summary>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="heading">Der exakte Text der <c>h2</c>-Überschrift.</param>
+    /// <summary>A section ("editor" card) of the page, addressed via its heading.</summary>
+    /// <param name="page">The page.</param>
+    /// <param name="heading">The exact text of the <c>h2</c> heading.</param>
     private static ILocator Section(IPage page, string heading)
         => page.Locator(".editor").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = heading, Exact = true }) });
 
     /// <summary>
-    /// Führt die <b>erste</b> Interaktion nach einem Seitenwechsel aus und wiederholt sie, bis sie wirkt.
+    /// Performs the <b>first</b> interaction after a page change and repeats it until it takes effect.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// In Blazor Server ist eine frisch gerenderte Seite zunächst nur vorgerendertes DOM; bis der Circuit
-    /// sie übernommen hat, verpuffen Klicks und Eingaben <b>still</b> – kein Fehler, keine Wirkung. Das
-    /// gilt nicht nur nach <c>GotoAsync</c>, sondern auch nach jeder <c>NavigateTo</c>-Navigation des
-    /// Designers: Der Router ist statisch, jede Seite wird per Enhanced Navigation neu geliefert und ihre
-    /// interaktive Komponente erst danach an den Circuit gehängt.
+    /// In Blazor Server a freshly rendered page is at first only prerendered DOM; until the circuit has
+    /// taken it over, clicks and inputs fizzle <b>silently</b> – no error, no effect. This holds not
+    /// only after <c>GotoAsync</c>, but also after every <c>NavigateTo</c> navigation of the designer:
+    /// the router is static, every page is delivered anew via Enhanced Navigation and its interactive
+    /// component is attached to the circuit only afterwards.
     /// </para>
     /// <para>
-    /// Ein zuverlässiges JS-Signal dafür gibt es nicht: <c>window.Blazor.reconnect</c> ist definiert und
-    /// die <c>&lt;!--Blazor:…--&gt;</c>-Boot-Marker sind verschwunden, <i>bevor</i> der Circuit Ereignisse
-    /// verarbeitet (beides nachgemessen). Deshalb wird die Interaktion wiederholt, bis ihre Wirkung
-    /// eintritt – sie muss dafür <b>idempotent</b> sein (ein Formular öffnen, ein Feld füllen, denselben
-    /// Wert nochmals speichern).
+    /// There is no reliable JS signal for it: <c>window.Blazor.reconnect</c> is defined and the
+    /// <c>&lt;!--Blazor:…--&gt;</c> boot markers have vanished <i>before</i> the circuit processes
+    /// events (both measured). That is why the interaction is repeated until its effect occurs – it
+    /// must be <b>idempotent</b> for that (open a form, fill a field, save the same value again).
     /// </para>
     /// </remarks>
-    /// <param name="interaction">Die – idempotente – Interaktion.</param>
-    /// <param name="verify">Prüfung der Wirkung; sollte ein kurzes Timeout verwenden.</param>
+    /// <param name="interaction">The – idempotent – interaction.</param>
+    /// <param name="verify">Check of the effect; should use a short timeout.</param>
     private static async Task InteractWhenReadyAsync(Func<Task> interaction, Func<Task> verify)
     {
         var deadline = DateTime.UtcNow.AddSeconds(30);
@@ -1213,41 +1210,41 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
             }
             catch (Exception) when (DateTime.UtcNow < deadline)
             {
-                // Der Circuit hatte die Seite noch nicht übernommen – erneut versuchen.
+                // The circuit had not yet taken over the page – try again.
             }
         }
     }
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToBeVisibleOptions QuickVisible = new() { Timeout = 2_000 };
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToContainTextOptions QuickContains = new() { Timeout = 2_000 };
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToHaveValueOptions QuickValue = new() { Timeout = 2_000 };
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToHaveCountOptions QuickCount = new() { Timeout = 2_000 };
 
     /// <summary>
-    /// Wählt einen Knoten aus und wartet, bis das Inspector-Panel dazu steht.
+    /// Selects a node and waits until its inspector panel is up.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Wiederholt, weil die Auswahl ein frisch gerendertes Panel erzeugt und die erste Interaktion darauf
-    /// verpuffen kann. Eine Auswahl ist idempotent – zweimal denselben Knoten zu wählen ändert nichts.
+    /// Repeated because the selection produces a freshly rendered panel and the first interaction on it
+    /// can fizzle. A selection is idempotent – choosing the same node twice changes nothing.
     /// </para>
     /// <para>
-    /// <paramref name="expectedKey"/> angeben, wenn <b>schon ein Frage-Panel offen ist</b>: Dann ist
-    /// <c>#inspectorKey</c> bereits sichtbar, und die Prüfung „ist sichtbar" träfe auf das alte Panel zu –
-    /// die Wiederholschleife hielte den verpufften Klick für erfolgreich. Der Schlüssel im Feld ist
-    /// dagegen eine Aussage darüber, <i>welche</i> Frage der Server gerade zeigt.
+    /// Pass <paramref name="expectedKey"/> when <b>a question panel is already open</b>: then
+    /// <c>#inspectorKey</c> is already visible, and the check "is visible" would apply to the old panel –
+    /// the retry loop would consider the fizzled click successful. The key in the field, by contrast,
+    /// is a statement about <i>which</i> question the server currently shows.
     /// </para>
     /// </remarks>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="node">Der zu wählende Knoten.</param>
-    /// <param name="expectedKey">Der erwartete Schlüssel im Inspector, falls schon ein Panel offen ist.</param>
+    /// <param name="page">The page.</param>
+    /// <param name="node">The node to select.</param>
+    /// <param name="expectedKey">The expected key in the inspector, if a panel is already open.</param>
     private static async Task SelectNodeAsync(IPage page, ILocator node, string? expectedKey = null)
         => await InteractWhenReadyAsync(
             () => node.Locator(".graph-node-card").ClickAsync(),
@@ -1256,25 +1253,24 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
                 : Assertions.Expect(page.Locator("#inspectorKey")).ToHaveValueAsync(expectedKey, QuickValue));
 
     /// <summary>
-    /// Wählt eine ausgehende Kante eines Knotens über die Liste im Inspector aus.
+    /// Selects an outgoing edge of a node via the list in the inspector.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Bewusst <b>nicht</b> per Klick auf <c>.graph-edge-hit</c>: Der Trefferpfad ist eine Bézier, und
-    /// die Mitte seiner Bounding-Box liegt nicht zwingend auf dem Strich – Playwright zielte dann
-    /// daneben und scheiterte an der Aktionierbarkeit statt an der Sache. Die Liste ist ohnehin der
-    /// Tastaturpfad zu den Kanten (die sind nicht fokussierbar).
+    /// Deliberately <b>not</b> via a click on <c>.graph-edge-hit</c>: the hit path is a Bézier, and the
+    /// center of its bounding box does not necessarily lie on the stroke – Playwright would then aim
+    /// beside it and fail on actionability instead of on the matter. The list is the keyboard path to
+    /// the edges anyway (they are not focusable).
     /// </para>
     /// <para>
-    /// Adressiert wird über <c>ol.graph-inspector-list</c>: Die <b>ausgehenden</b> Übergänge stehen in
-    /// einer geordneten Liste (ihre Reihenfolge ist die Auswertungsreihenfolge), die eingehenden in
-    /// einer ungeordneten. Ohne diese Unterscheidung träfe der Index bei einem Knoten mit eingehenden
-    /// Kanten die falsche.
+    /// Addressed via <c>ol.graph-inspector-list</c>: the <b>outgoing</b> transitions stand in an
+    /// ordered list (their order is the evaluation order), the incoming ones in an unordered one.
+    /// Without this distinction the index would hit the wrong one for a node with incoming edges.
     /// </para>
     /// </remarks>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="node">Der Knoten, dessen Kante gewählt wird.</param>
-    /// <param name="index">Die Position in der Auswertungsreihenfolge (nullbasiert).</param>
+    /// <param name="page">The page.</param>
+    /// <param name="node">The node whose edge is selected.</param>
+    /// <param name="index">The position in the evaluation order (zero-based).</param>
     private static async Task SelectOutgoingEdgeAsync(IPage page, ILocator node, int index)
     {
         await SelectNodeAsync(page, node);
@@ -1286,38 +1282,37 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// Veröffentlicht den Dialog aus dem Dialog-Editor heraus.
+    /// Publishes the dialog from within the dialog editor.
     /// </summary>
     /// <remarks>
-    /// Zwei Schritte in <b>einer</b> wiederholbaren Einheit: Bei offenen Graph-Warnungen fragt der
-    /// Editor zurück (#97), sonst nicht. Nach dem Veröffentlichen ist keiner der beiden Knöpfe mehr
-    /// sichtbar – die Einheit ist damit idempotent. „Veröffentlichen“ braucht
-    /// <c>Exact&#160;=&#160;true</c>: Ohne das matcht der Name auch „Ja, veröffentlichen“, und der
-    /// Locator verletzt den Strict Mode.
+    /// Two steps in <b>one</b> repeatable unit: with open graph warnings the editor asks back (#97),
+    /// otherwise not. After publishing neither of the two buttons is visible anymore – the unit is thus
+    /// idempotent. "Publish" needs <c>Exact&#160;=&#160;true</c>: without it the name also matches
+    /// "Yes, publish", and the locator violates strict mode.
     /// </remarks>
-    /// <param name="page">Die Seite, die auf dem Dialog-Editor steht.</param>
+    /// <param name="page">The page sitting on the dialog editor.</param>
     private static Task PublishFromEditorAsync(IPage page)
         => InteractWhenReadyAsync(
             async () =>
             {
                 var publish = page.GetByRole(
-                    AriaRole.Button, new() { Name = "Veröffentlichen", Exact = true });
+                    AriaRole.Button, new() { Name = "Publish", Exact = true });
                 if (await publish.IsVisibleAsync())
                 {
                     await publish.ClickAsync();
                 }
 
-                var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Ja, veröffentlichen" });
+                var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Yes, publish" });
                 if (await confirm.IsVisibleAsync())
                 {
                     await confirm.ClickAsync();
                 }
             },
-            () => Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Veröffentlicht", QuickText));
+            () => Assertions.Expect(page.Locator("h1 .badge")).ToHaveTextAsync("Published", QuickText));
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToHaveTextOptions QuickText = new() { Timeout = 2_000 };
 
-    /// <summary>Kurzes Timeout für die Wirkungsprüfung in <see cref="InteractWhenReadyAsync"/>.</summary>
+    /// <summary>Short timeout for the effect check in <see cref="InteractWhenReadyAsync"/>.</summary>
     private static readonly LocatorAssertionsToBeEnabledOptions QuickEnabled = new() { Timeout = 2_000 };
 }

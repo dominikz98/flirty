@@ -1,39 +1,39 @@
-// Verschieben und Zoomen des Graph-Canvas (#101), das Ziehen einzelner Knoten (#102) sowie die
-// Editier-Gesten: Bausteine aus der Palette ablegen und Knoten verbinden (#103).
+// Panning and zooming the graph canvas (#101), dragging individual nodes (#102) as well as the
+// editing gestures: dropping building blocks from the palette and connecting nodes (#103).
 //
-// Warum das hier und nicht in C#: Der Designer ist Blazor *Server*. Jedes Blazor-Ereignis ist ein
-// SignalR-Roundtrip – liefe das Verschieben in C#, kostete jeder Zeigerschritt eine Netzwerkumlaufzeit.
-// Der Spike zu #100 hat das gemessen (40 px Rückstand hinter dem Zeiger, 68 Nachrichten je Geste);
-// ADR 0006 macht daraus eine Zusage: Zwischen pointerdown und pointerup geht KEINE Nachricht an den
-// Server. Für Knoten-Zug, Verbindungsgeste und Palette-Drop gilt sie genauso – die einzige Stelle, die
-// invokeMethodAsync aufruft, ist die Hilfsfunktion send(), und die wird ausschließlich aus einem
-// pointerup heraus gerufen. Wer hier einen Aufruf in einem pointermove ergänzt, bricht ein
-// Akzeptanzkriterium.
+// Why here and not in C#: the designer is Blazor *Server*. Every Blazor event is a
+// SignalR round-trip – if moving ran in C#, every pointer step would cost a network round-trip time.
+// The spike for #100 measured this (40 px lag behind the pointer, 68 messages per gesture);
+// ADR 0006 turns it into a promise: between pointerdown and pointerup NO message goes to the
+// server. It applies just the same for node drag, connection gesture and palette drop – the only place that
+// calls invokeMethodAsync is the helper function send(), and it is called exclusively from a
+// pointerup. Whoever adds a call in a pointermove here breaks an
+// acceptance criterion.
 //
-// Die Wahrheit über die Ansicht liegt deshalb im DOM, nicht im C#-Zustand. Das ist der Grund, warum
-// DialogGraph.razor auf .graph-viewport niemals selbst ein transform rendert: Der nächste Re-Render
-// würde Verschiebung und Zoom sonst zurücksetzen. Beim Knoten dagegen *ist* das transform C#-Zustand –
-// deshalb schreibt der Zug es nur vorläufig und der Commit lässt C# denselben Wert rendern.
+// The truth about the view therefore lives in the DOM, not in the C# state. That is why
+// DialogGraph.razor never renders a transform on .graph-viewport itself: the next re-render
+// would otherwise reset pan and zoom. For a node, on the other hand, the transform *is* C# state –
+// so the drag writes it only provisionally and the commit lets C# render the same value.
 //
-// Umgekehrt gilt für den Zustand, der C# gehört: data-editable und data-busy am <svg> rendert C#, das
-// Modul LIEST sie nur – und zwar bei jeder Geste frisch, nicht als beim attach eingefrorene Option.
+// Conversely, for the state that belongs to C#: data-editable and data-busy on the <svg> are rendered by C#, the
+// module only READS them – and freshly on every gesture, not as an option frozen at attach.
 //
-// GESTEN SIND NICHT IDEMPOTENT. Ein doppelt ausgelöster Drop legt zwei Fragen an, eine doppelte
-// Verbindungsgeste zwei Übergänge. Deshalb läuft jede Nachricht über send(): Es sperrt bis die
-// zugehörige .NET-Methode zurückkehrt. Das Versprechen von invokeMethodAsync IST die Quittung – ein
-// zweiter Rückkanal wird nicht gebraucht und könnte vergessen werden.
+// GESTURES ARE NOT IDEMPOTENT. A doubly triggered drop creates two questions, a doubled
+// connection gesture two transitions. That is why every message runs through send(): it locks until the
+// associated .NET method returns. The promise of invokeMethodAsync IS the receipt – a
+// second back channel is not needed and could be forgotten.
 
 const states = new WeakMap();
 
-/** Ab wie vielen Bildschirm-Pixeln aus einem Klick ein Zug wird. */
+/** From how many screen pixels a click becomes a drag. */
 const DRAG_THRESHOLD = 4;
 
 /**
- * Bindet Zeiger- und Rad-Steuerung an einen Canvas.
- * @param {SVGSVGElement} canvas Das SVG-Element.
- * @param {object} dotNetRef Rückkanal nach C# – Ziel aller Gesten-Meldungen beim Loslassen.
+ * Binds pointer and wheel control to a canvas.
+ * @param {SVGSVGElement} canvas The SVG element.
+ * @param {object} dotNetRef Back channel to C# – target of all gesture messages on release.
  * @param {{minZoom: number, maxZoom: number, zoomStep: number, nodeWidth: number, nodeHeight: number}} options
- *        Grenzwerte und Maße aus GraphMetrics – nie im JS hartkodiert, sonst gibt es zwei Wahrheiten.
+ *        Limits and dimensions from GraphMetrics – never hardcoded in the JS, otherwise there are two truths.
  */
 export function attach(canvas, dotNetRef, options) {
     if (!canvas || states.has(canvas)) {
@@ -50,13 +50,13 @@ export function attach(canvas, dotNetRef, options) {
         viewport,
         dotNetRef,
         options,
-        // Die beiden Platzhalter rendert C#; dieses Modul füllt nur ihre Geometrie (siehe Modulkopf).
+        // C# renders the two placeholders; this module only fills their geometry (see module header).
         rubber: canvas.querySelector(".graph-rubber"),
         ghost: canvas.querySelector(".graph-ghost"),
-        // Die Palette liegt neben dem Canvas, nicht darin – ihre Zeiger-Ereignisse erreichen ihn also
-        // nie. Gesucht statt als Parameter gereicht: Beide sind Kinder derselben .graph-layout, und ein
-        // zusätzlicher ElementReference-Parameter müsste durch die GraphPalette-Komponente
-        // durchgeschleift werden, ohne etwas zu gewinnen.
+        // The palette sits next to the canvas, not inside it – so its pointer events never reach it.
+        // Searched for rather than passed as a parameter: both are children of the same .graph-layout, and an
+        // additional ElementReference parameter would have to be threaded through the GraphPalette component
+        // without gaining anything.
         palette: canvas.closest(".graph-layout")?.querySelector(".graph-palette") ?? null,
         x: 0,
         y: 0,
@@ -94,15 +94,15 @@ export function attach(canvas, dotNetRef, options) {
 
     states.set(canvas, state);
 
-    // Explizites Bereitschaftssignal für die E2E-Suite. Das Wiederholmuster InteractWhenReadyAsync
-    // trägt für einen Canvas nicht: Es setzt idempotente Aktionen voraus, ein wiederholtes Ziehen
-    // verschöbe doppelt und eine wiederholte Verbindungsgeste legte zwei Übergänge an.
+    // Explicit readiness signal for the E2E suite. The retry pattern InteractWhenReadyAsync
+    // does not carry for a canvas: it presupposes idempotent actions, a repeated drag
+    // would move twice and a repeated connection gesture would create two transitions.
     canvas.setAttribute("data-canvas-ready", "true");
 }
 
 /**
- * Löst die Bindung wieder.
- * @param {SVGSVGElement} canvas Das SVG-Element.
+ * Releases the binding again.
+ * @param {SVGSVGElement} canvas The SVG element.
  */
 export function detach(canvas) {
     const state = states.get(canvas);
@@ -131,9 +131,9 @@ export function detach(canvas) {
 }
 
 /**
- * Zoomt um die Mitte der Ansicht – der Weg der Werkzeugleiste.
- * @param {SVGSVGElement} canvas Das SVG-Element.
- * @param {number} factor Der Faktor (> 1 vergrößert).
+ * Zooms around the center of the view – the toolbar's path.
+ * @param {SVGSVGElement} canvas The SVG element.
+ * @param {number} factor The factor (> 1 zooms in).
  */
 export function zoomBy(canvas, factor) {
     const state = states.get(canvas);
@@ -146,8 +146,8 @@ export function zoomBy(canvas, factor) {
 }
 
 /**
- * Setzt Verschiebung und Zoom zurück.
- * @param {SVGSVGElement} canvas Das SVG-Element.
+ * Resets pan and zoom.
+ * @param {SVGSVGElement} canvas The SVG element.
  */
 export function resetViewport(canvas) {
     const state = states.get(canvas);
@@ -162,9 +162,9 @@ export function resetViewport(canvas) {
 }
 
 /**
- * Holt einen Knoten in den sichtbaren Bereich – für die Tastaturbedienung.
- * @param {SVGSVGElement} canvas Das SVG-Element.
- * @param {string} nodeId Die Frage-Id.
+ * Brings a node into the visible area – for keyboard operation.
+ * @param {SVGSVGElement} canvas The SVG element.
+ * @param {string} nodeId The question id.
  */
 export function focusNode(canvas, nodeId) {
     const node = canvas?.querySelector(`[data-node-id="${nodeId}"] .graph-node-card`);
@@ -173,15 +173,15 @@ export function focusNode(canvas, nodeId) {
     }
 }
 
-// ---- Sperre und Zustandsabfragen ------------------------------------------------------------------
+// ---- Lock and state queries -----------------------------------------------------------------------
 
 /**
- * Schickt genau eine Nachricht und sperrt, bis die .NET-Methode zurückkehrt.
+ * Sends exactly one message and locks until the .NET method returns.
  *
- * Das Versprechen von invokeMethodAsync ist die Quittung: Blazor Server erfüllt es, wenn der Aufruf
- * abgeschlossen ist. Ein hängender Circuit lässt es nie auflösen und der Canvas bleibt gesperrt – das
- * ist die richtige Reihenfolge der Übel (gesperrt statt doppelt angelegt); den echt abgerissenen Fall
- * behandelt das Reconnect-Modal.
+ * The promise of invokeMethodAsync is the receipt: Blazor Server fulfills it when the call
+ * is complete. A hanging circuit never lets it resolve and the canvas stays locked – that
+ * is the right ordering of evils (locked instead of created twice); the truly severed case
+ * is handled by the reconnect modal.
  */
 function send(state, method, ...args) {
     if (state.busy || !state.dotNetRef) {
@@ -196,30 +196,30 @@ function send(state, method, ...args) {
         });
 }
 
-/** Ob der Graph bearbeitbar ist – gelesen, nicht gespeichert (das Attribut gehört C#). */
+/** Whether the graph is editable – read, not stored (the attribute belongs to C#). */
 function editable(state) {
     return state.canvas.dataset.editable === "true";
 }
 
-/** Ob eine schreibende Geste gerade beginnen darf. */
+/** Whether a writing gesture may begin right now. */
 function canEdit(state) {
     return !state.busy && editable(state);
 }
 
-// ---- Zeiger auf dem Canvas ------------------------------------------------------------------------
+// ---- Pointer on the canvas ------------------------------------------------------------------------
 
 function onPointerDown(state, event) {
     if (event.button !== 0) {
         return;
     }
 
-    // Der Ausgangs-Port MUSS vor dem Knoten geprüft werden: Er liegt innerhalb der Knotengruppe, die
-    // Knotenprüfung würde die Verbindungsgeste sonst als Verschiebe-Zug verschlucken.
+    // The source port MUST be checked before the node: it lies inside the node group, the
+    // node check would otherwise swallow the connection gesture as a move drag.
     const port = event.target.closest(".graph-port");
     if (port) {
-        // Kein preventDefault und noch keine Capture – genau wie beim Knoten: Bis zur Schwelle bleibt
-        // die Geste ein Klick, und der Klick ist der zeigerlose Weg zu verbinden (Blazors @onclick am
-        // Port schaltet den Verbindungsmodus). Wer hier preventDefault ergänzt, nimmt ihn weg.
+        // No preventDefault and no capture yet – just like for the node: until the threshold
+        // the gesture stays a click, and the click is the pointerless way to connect (Blazor's @onclick on the
+        // port switches the connection mode). Whoever adds preventDefault here takes it away.
         if (canEdit(state)) {
             const node = port.closest(".graph-node");
             state.link = {
@@ -235,13 +235,13 @@ function onPointerDown(state, event) {
         return;
     }
 
-    // Ein Knoten wird gezogen – aber erst ab der Schwelle. Bis dahin bleibt die Geste ein Klick, damit
-    // Blazors @onclick (die Auswahl) weiter funktioniert. Deshalb hier KEIN preventDefault und noch
-    // keine Pointer-Capture.
+    // A node is dragged – but only from the threshold on. Until then the gesture stays a click, so that
+    // Blazor's @onclick (the selection) keeps working. That is why NO preventDefault here and no
+    // pointer capture yet.
     const node = event.target.closest(".graph-node");
     if (node) {
-        // Verschieben ist auch am veröffentlichten Dialog erlaubt (ADR 0007) – hier gilt nur die
-        // Sperre, nicht die Bearbeitbarkeit.
+        // Moving is allowed even on a published dialog (ADR 0007) – here only the
+        // lock applies, not editability.
         if (state.busy) {
             return;
         }
@@ -266,8 +266,8 @@ function onPointerDown(state, event) {
         return;
     }
 
-    // Trifft die Geste ein anderes bedienbares Element, gehört sie diesem – und zwar VOLLSTÄNDIG: kein
-    // preventDefault(), sonst verpufft der nachfolgende Klick und damit Blazors @onclick.
+    // If the gesture hits another operable element, it belongs to it – and COMPLETELY: no
+    // preventDefault(), otherwise the following click fizzles and with it Blazor's @onclick.
     if (event.target.closest(".graph-edge-hit, .graph-loop-label, .chip, button")) {
         return;
     }
@@ -332,7 +332,7 @@ function onPointerUp(state, event) {
     releasePointer(state.canvas, event.pointerId);
 }
 
-// ---- Knoten verschieben (#102) --------------------------------------------------------------------
+// ---- Moving nodes (#102) --------------------------------------------------------------------------
 
 function onNodeMove(state, drag, event) {
     if (!drag.moved) {
@@ -348,8 +348,8 @@ function onNodeMove(state, drag, event) {
         return;
     }
 
-    // Nie über den Ursprung hinaus: Die viewBox beginnt links bei 0, ein negativer Wert schöbe den
-    // Knoten aus der Zeichenfläche – und der Command lehnt ihn ohnehin ab.
+    // Never beyond the origin: the viewBox begins at 0 on the left, a negative value would push the
+    // node off the drawing surface – and the command rejects it anyway.
     drag.x = Math.max(0, Math.round(point.x - drag.grabX));
     drag.y = Math.max(0, Math.round(point.y - drag.grabY));
 
@@ -363,9 +363,9 @@ function beginNodeDrag(state, drag, event) {
     state.canvas.classList.add("is-dragging");
     drag.node.classList.add("is-dragging");
 
-    // Die anliegenden Kanten werden gedimmt statt live neu berechnet: Ihr Verlauf entsteht in C#
-    // (GraphLayout.Route) und ist dort getestet – ihn im Browser nachzubauen wäre eine zweite Quelle
-    // für dieselbe Geometrie. Nach dem Commit zeichnet C# die exakten Pfade.
+    // The adjacent edges are dimmed instead of recomputed live: their path arises in C#
+    // (GraphLayout.Route) and is tested there – rebuilding it in the browser would be a second source
+    // for the same geometry. After the commit C# draws the exact paths.
     for (const edge of incidentEdges(state.canvas, drag.nodeId)) {
         edge.classList.add("is-stale");
     }
@@ -377,8 +377,8 @@ function endNodeDrag(state, drag, event) {
     state.drag = null;
 
     if (!drag.moved) {
-        // Unter der Schwelle geblieben: Das war ein Klick. Nichts anfassen – der folgende click
-        // trägt Blazors Auswahl.
+        // Stayed under the threshold: that was a click. Touch nothing – the following click
+        // carries Blazor's selection.
         return;
     }
 
@@ -390,7 +390,7 @@ function endNodeDrag(state, drag, event) {
     send(state, "MoveNodeAsync", drag.nodeId, drag.x, drag.y);
 }
 
-// ---- Verbinden (#103) ----------------------------------------------------------------------------
+// ---- Connecting (#103) ---------------------------------------------------------------------------
 
 function onLinkMove(state, link, event) {
     if (!link.moved) {
@@ -409,9 +409,9 @@ function onLinkMove(state, link, event) {
         return;
     }
 
-    // Bewusst eine Gerade und keine Bézier wie die fertigen Kanten: Die endgültige Form entsteht aus
-    // GraphLayout.Route und hängt an Schichtung und Fächer – sie hier zu erraten wäre eine Vorschau,
-    // die nach dem Commit anders aussieht.
+    // Deliberately a straight line and not a Bézier like the finished edges: the final shape arises from
+    // GraphLayout.Route and depends on layering and fanning – guessing it here would be a preview
+    // that looks different after the commit.
     state.rubber?.setAttribute(
         "d",
         `M ${round(from.x)} ${round(from.y)} L ${round(point.x)} ${round(point.y)}`);
@@ -424,7 +424,7 @@ function endLink(state, link, event) {
     state.link = null;
 
     if (!link.moved) {
-        // Unter der Schwelle: Der folgende click schaltet den Verbindungsmodus (Tastaturpfad).
+        // Under the threshold: the following click switches the connection mode (keyboard path).
         return;
     }
 
@@ -442,8 +442,8 @@ function endLink(state, link, event) {
         return;
     }
 
-    // Ins Leere gezogen: Frage und Übergang in einem Zug – aber nur, wenn wirklich auf der
-    // Zeichenfläche losgelassen wurde. Außerhalb ist die Geste ein Abbruch, keine Streufrage.
+    // Dragged into the void: question and transition in one drag – but only if it was really released
+    // on the drawing surface. Outside, the gesture is a cancel, not a stray question.
     const point = insideCanvas(state, event) ? toUserSpace(state, event) : null;
     if (point) {
         send(
@@ -455,7 +455,7 @@ function endLink(state, link, event) {
     }
 }
 
-/** Die Mitte des Ausgangs-Ports in Nutzerkoordinaten – Unterkante-Mitte der Knotenbox. */
+/** The center of the source port in user coordinates – bottom-edge center of the node box. */
 function portCenter(state, node) {
     const origin = node ? nodeOrigin(node) : null;
 
@@ -465,11 +465,11 @@ function portCenter(state, node) {
 }
 
 /**
- * Der Knoten unter dem Zeiger.
+ * The node under the pointer.
  *
- * Über elementFromPoint und nicht über event.target: Nach setPointerCapture zeigt event.target auf das
- * Capture-Element, nicht auf das, was unter dem Zeiger liegt. Voraussetzung ist, dass Gummiband und
- * Vorschau `pointer-events: none` tragen – sonst trifft der Test sie selbst.
+ * Via elementFromPoint and not via event.target: after setPointerCapture, event.target points to the
+ * capture element, not to what lies under the pointer. The precondition is that the rubber band and
+ * preview carry `pointer-events: none` – otherwise the test hits them itself.
  */
 function targetNodeAt(event) {
     return document.elementFromPoint(event.clientX, event.clientY)?.closest(".graph-node") ?? null;
@@ -489,7 +489,7 @@ function clearRubber(state) {
     state.rubber?.removeAttribute("d");
 }
 
-// ---- Baustein aus der Palette ablegen (#103) -----------------------------------------------------
+// ---- Dropping a building block from the palette (#103) -------------------------------------------
 
 function onPaletteDown(state, event) {
     if (event.button !== 0 || !canEdit(state)) {
@@ -501,8 +501,8 @@ function onPaletteDown(state, event) {
         return;
     }
 
-    // Wie überall: kein preventDefault, keine Capture. Bleibt die Geste unter der Schwelle, ist sie ein
-    // Klick – und der legt die Frage über Blazors @onclick ohne Position an.
+    // As everywhere: no preventDefault, no capture. If the gesture stays under the threshold, it is a
+    // click – and that creates the question via Blazor's @onclick without a position.
     state.spawn = {
         pointerId: event.pointerId,
         item,
@@ -529,8 +529,8 @@ function onPaletteMove(state, event) {
         spawn.item.setPointerCapture(event.pointerId);
     }
 
-    // toUserSpace trägt auch außerhalb des SVG: Die Matrix ist global. Liegt der Zeiger neben der
-    // Fläche, schneidet das SVG die Vorschau einfach ab – das ist die gewünschte Rückmeldung.
+    // toUserSpace carries outside the SVG too: the matrix is global. If the pointer lies beside the
+    // surface, the SVG simply clips the preview – that is the desired feedback.
     const point = toUserSpace(state, event);
     if (!point || !state.ghost) {
         return;
@@ -559,9 +559,9 @@ function onPaletteUp(state, event) {
     releasePointer(spawn.item, event.pointerId);
     clearGhost(state);
 
-    // Der Riegel muss auf der PALETTE sitzen, nicht auf dem Canvas: Der click nach dem Zug feuert am
-    // Palette-Eintrag. Ohne ihn legte jeder Zug zusätzlich die Klick-Frage an – zwei Fragen aus einer
-    // Geste, genau die Falle, die dieses Issue benennt.
+    // The lock must sit on the PALETTE, not on the canvas: the click after the drag fires on the
+    // palette entry. Without it every drag would additionally create the click question – two questions from one
+    // gesture, exactly the trap this issue names.
     swallowNextClick(state.palette);
 
     const point = insideCanvas(state, event) ? toUserSpace(state, event) : null;
@@ -587,15 +587,15 @@ function clearGhost(state) {
     }
 }
 
-// ---- Gemeinsame Helfer ---------------------------------------------------------------------------
+// ---- Shared helpers ------------------------------------------------------------------------------
 
 /**
- * Verschluckt das click, das der Browser nach dem Loslassen noch feuert. Ohne diesen Riegel löste jeder
- * Zug zusätzlich die Klick-Aktion des Elements aus – eine zweite Nachricht, die niemand ausgelöst hat.
+ * Swallows the click that the browser still fires after release. Without this lock every
+ * drag would additionally trigger the element's click action – a second message that no one triggered.
  *
- * Der Timeout räumt den Horcher auch dann ab, wenn ausnahmsweise kein click folgt (etwa weil der Zeiger
- * das Fenster verlassen hat). Er läuft nach dem click derselben Geste – sonst bliebe der Riegel liegen
- * und schluckte irgendwann einen echten Klick.
+ * The timeout also clears the listener if exceptionally no click follows (e.g. because the pointer
+ * left the window). It runs after the click of the same gesture – otherwise the lock would remain
+ * and eventually swallow a real click.
  */
 function swallowNextClick(element) {
     if (!element) {
@@ -635,18 +635,18 @@ function incidentEdges(canvas, nodeId) {
         `.graph-edge[data-from="${nodeId}"], .graph-edge[data-to="${nodeId}"]`);
 }
 
-/** Liest die linke obere Ecke eines Knotens aus seinem transform. */
+/** Reads the top-left corner of a node from its transform. */
 function nodeOrigin(node) {
     const matrix = node.transform?.baseVal?.consolidate()?.matrix;
     return matrix ? { x: matrix.e, y: matrix.f } : null;
 }
 
 /**
- * Rechnet einen Zeigerpunkt in Nutzerkoordinaten des Viewports um.
+ * Converts a pointer point into user coordinates of the viewport.
  *
- * Über getScreenCTM statt über state.scale: Die Matrix enthält auch die Skalierung, die die viewBox
- * gegenüber der CSS-Breite des SVG erzeugt. Wer nur durch state.scale teilt, unterschlägt diesen
- * Faktor – der Knoten liefe dann je nach Fensterbreite schneller oder langsamer als der Zeiger.
+ * Via getScreenCTM instead of via state.scale: the matrix also contains the scaling that the viewBox
+ * produces relative to the CSS width of the SVG. Dividing only by state.scale omits this
+ * factor – the node would then run faster or slower than the pointer depending on the window width.
  */
 function toUserSpace(state, event) {
     const matrix = state.viewport.getScreenCTM();
@@ -664,16 +664,16 @@ function onWheel(state, event) {
 }
 
 function onKeyDown(event) {
-    // Die Leertaste betätigt einen fokussierten Knoten – ohne diesen Riegel scrollt sie zusätzlich die
-    // Seite. In Blazor ließe sich @onkeydown:preventDefault nur statisch setzen, was auch Tab träfe.
+    // The space bar activates a focused node – without this lock it additionally scrolls the
+    // page. In Blazor @onkeydown:preventDefault could only be set statically, which would also hit Tab.
     if (event.key === " " && event.target.closest(".graph-node-card, .graph-loop-label, .graph-port")) {
         event.preventDefault();
     }
 }
 
 /**
- * Zoomt um einen Ankerpunkt: Der Punkt unter dem Zeiger bleibt stehen, alles andere skaliert um ihn
- * herum. Ohne Anker springt der Graph bei jedem Rad-Schritt weg.
+ * Zooms around an anchor point: the point under the pointer stays put, everything else scales around
+ * it. Without an anchor the graph jumps away on every wheel step.
  */
 function applyZoom(state, factor, anchorX, anchorY) {
     const next = clamp(state.scale * factor, state.options.minZoom, state.options.maxZoom);

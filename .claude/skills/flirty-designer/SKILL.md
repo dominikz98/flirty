@@ -274,10 +274,10 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
    - **The canvas sets `data-canvas-ready`** as soon as the module is bound. `InteractWhenReadyAsync`
      does not carry here (see conventions).
 
-   **Numbers in SVG attributes exclusively via `SvgFormat.N`.** The fixed display culture `de-DE`
-   applies to rendering too: an interpolated `double` coordinate becomes `12,5`, and because the comma is
-   a *separator* in path syntax, a wrong number sequence arises – without an exception, without a
-   message, only with a wrong picture.
+   **Numbers in SVG attributes exclusively via `SvgFormat.N`.** The display culture is configurable
+   (`en-US` by default) and applies to rendering too: under a comma-decimal culture an interpolated
+   `double` coordinate becomes `12,5`, and because the comma is a *separator* in path syntax, a wrong
+   number sequence arises – without an exception, without a message, only with a wrong picture.
 
    **Auto-layout must be deterministic**, otherwise E2E selectors wobble: only lists to the outside
    (never set or dictionary), sort keys end with a unique ordinal (total order instead of borrowed

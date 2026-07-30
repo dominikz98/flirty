@@ -4,14 +4,14 @@
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
 
-<PageTitle>Dialoge · Flirty Designer</PageTitle>
+<PageTitle>Dialogs · Flirty Designer</PageTitle>
 
-<h1>Dialoge</h1>
+<h1>Dialogs</h1>
 
 <p class="intro">
-    Hier legst du Dialoge an und bearbeitest sie. Ein neuer Dialog startet als <em>Entwurf</em>; zum
-    Veröffentlichen braucht er eine Einstiegsfrage. Gearbeitet wird gegen das aktive
-    <a href="connections">Connection-Profil</a>.
+    Here you create and edit dialogs. A new dialog starts as a <em>draft</em>; to publish it needs an
+    entry question. Work happens against the active
+    <a href="connections">connection profile</a>.
 </p>
 
 @if (_error is not null)
@@ -21,19 +21,19 @@
 
 @if (_createModel is null)
 {
-    <button class="btn btn-primary" @onclick="StartCreate">Neuer Dialog</button>
+    <button class="btn btn-primary" @onclick="StartCreate">New dialog</button>
 }
 else
 {
     <div class="editor">
-        <h2>Neuer Dialog</h2>
+        <h2>New dialog</h2>
         <EditForm Model="_createModel" OnValidSubmit="CreateAsync">
             <DataAnnotationsValidator />
 
             <div class="field">
-                <label for="key">Schlüssel</label>
+                <label for="key">Key</label>
                 <InputText id="key" class="input" @bind-Value="_createModel.Key" />
-                <span class="hint">Fachlicher, stabiler Schlüssel – muss eindeutig sein (z. B. <code>onboarding</code>).</span>
+                <span class="hint">Business-level, stable key – must be unique (e.g. <code>onboarding</code>).</span>
                 <ValidationMessage For="() => _createModel.Key" />
             </div>
 
@@ -44,13 +44,13 @@ else
             </div>
 
             <div class="field">
-                <label for="description">Beschreibung</label>
+                <label for="description">Description</label>
                 <InputTextArea id="description" class="input" rows="2" @bind-Value="_createModel.Description" />
             </div>
 
             <div class="actions">
-                <button type="submit" class="btn btn-primary" disabled="@_busy">Anlegen</button>
-                <button type="button" class="btn" disabled="@_busy" @onclick="CancelCreate">Abbrechen</button>
+                <button type="submit" class="btn btn-primary" disabled="@_busy">Create</button>
+                <button type="button" class="btn" disabled="@_busy" @onclick="CancelCreate">Cancel</button>
             </div>
         </EditForm>
     </div>
@@ -60,30 +60,30 @@ else
 {
     <div class="field filter">
         <label for="filter">Filter</label>
-        <input id="filter" class="input" placeholder="Schlüssel oder Name" @bind="_filter" @bind:event="oninput" />
+        <input id="filter" class="input" placeholder="Key or name" @bind="_filter" @bind:event="oninput" />
     </div>
 }
 
 @if (_dialogs.Count == 0)
 {
-    <p class="empty">Noch keine Dialoge angelegt.</p>
+    <p class="empty">No dialogs created yet.</p>
 }
 else if (FilteredDialogs.Count == 0)
 {
-    <p class="empty">Kein Dialog passt zum Filter „@_filter“.</p>
+    <p class="empty">No dialog matches the filter "@_filter".</p>
 }
 else
 {
     <table class="data-table">
         <thead>
             <tr>
-                <th>Schlüssel</th>
+                <th>Key</th>
                 <th>Name</th>
                 <th>Version</th>
                 <th>Status</th>
-                <th>Einstiegsfrage</th>
-                <th>Geändert</th>
-                <th>Aktionen</th>
+                <th>Entry question</th>
+                <th>Changed</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -96,17 +96,17 @@ else
                     <td>
                         @if (dialog.IsPublished)
                         {
-                            <span class="badge badge-published">Veröffentlicht</span>
+                            <span class="badge badge-published">Published</span>
                         }
                         else
                         {
-                            <span class="badge badge-draft">Entwurf</span>
+                            <span class="badge badge-draft">Draft</span>
                         }
                     </td>
-                    <td>@(dialog.StartQuestionId is null ? "—" : "gesetzt")</td>
+                    <td>@(dialog.StartQuestionId is null ? "—" : "set")</td>
                     <td>@dialog.UpdatedAt.LocalDateTime.ToString("g")</td>
                     <td class="row-actions">
-                        <button class="btn" @onclick="() => Open(dialog)">Öffnen</button>
+                        <button class="btn" @onclick="() => Open(dialog)">Open</button>
                         <button class="btn" @onclick="() => OpenGraph(dialog)">Graph</button>
                     </td>
                 </tr>
@@ -163,7 +163,7 @@ else
 
             _createModel = null;
             _error = null;
-            // Direkt in die Detailseite: dort werden Einstiegsfrage und Veröffentlichung gepflegt.
+            // Straight to the detail page: entry question and publication are maintained there.
             Navigation.NavigateTo($"dialogs/{result.Value!.Id}");
         }
         finally
@@ -174,6 +174,6 @@ else
 
     private void Open(DialogSummary dialog) => Navigation.NavigateTo($"dialogs/{dialog.Id}");
 
-    /// <summary>Öffnet die lesende Graph-Ansicht (#101) – den Ablauf statt der Formularliste.</summary>
+    /// <summary>Opens the read-only graph view (#101) – the flow instead of the form list.</summary>
     private void OpenGraph(DialogSummary dialog) => Navigation.NavigateTo($"dialogs/{dialog.Id}/graph");
 }

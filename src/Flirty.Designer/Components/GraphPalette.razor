@@ -1,28 +1,27 @@
 @*
-    Die Palette der Fragetypen (#103) neben dem Graph-Canvas.
+    The palette of question types (#103) beside the graph canvas.
 
-    Zwei Wege, bewusst beide: Ein Eintrag lässt sich auf die Zeichenfläche ziehen (dann liegt die Frage
-    an der Drop-Stelle – das JS-Modul führt die Geste und meldet die Koordinaten), oder betätigen, was
-    sie ohne gespeicherte Position anlegt und dem Auto-Layout überlässt. Der zweite Weg ist der
-    Tastatur- und Screenreader-Pfad: Ein reiner Zeiger-Zug wäre gegenüber dem Formularpfad ein
-    Rückschritt.
+    Two ways, deliberately both: an entry can be dragged onto the drawing surface (the question then sits
+    at the drop point – the JS module drives the gesture and reports the coordinates), or activated, which
+    creates it without a saved position and leaves it to the auto-layout. The second way is the keyboard
+    and screen-reader path: a pointer-only drag would be a regression against the form path.
 
-    Die Einträge sind bei gesperrtem Graphen `disabled` statt unsichtbar – anders als die Ports am
-    Knoten, die dann gar nicht gerendert werden. Grund: Die Palette ist eine erklärende Fläche mit
-    Überschrift; sie verschwinden zu lassen ließe den Canvas ohne Hinweis darauf, dass hier normalerweise
-    etwas anzulegen ist.
+    When the graph is locked the entries are `disabled` rather than invisible – unlike the ports on the
+    node, which are then not rendered at all. Reason: the palette is an explanatory surface with a
+    heading; letting it disappear would leave the canvas without any hint that something is normally
+    created here.
 *@
 @using Flirty.Domain
 
-<aside class="graph-palette" aria-label="Neue Frage anlegen">
-    <h2>Bausteine</h2>
+<aside class="graph-palette" aria-label="Create new question">
+    <h2>Building blocks</h2>
 
     <ul class="graph-palette-list">
         @foreach (var type in Types)
         {
             var current = type;
             <li>
-                @* data-question-type liest das JS-Modul beim Ziehen; der Klick läuft über Blazor. *@
+                @* data-question-type is read by the JS module while dragging; the click runs through Blazor. *@
                 <button type="button"
                         class="graph-palette-item"
                         data-question-type="@current"
@@ -36,24 +35,24 @@
     </ul>
 
     <p class="hint">
-        Auf die Fläche <b>ziehen</b> legt die Frage dort ab. Ein <b>Klick</b> hängt sie hinten an und
-        überlässt die Anordnung dem Auto-Layout.
+        <b>Dragging</b> onto the surface drops the question there. A <b>click</b> appends it at the end and
+        leaves the arrangement to the auto-layout.
     </p>
 </aside>
 
 @code {
     /// <summary>
-    /// Die anbietbaren Fragetypen. Aus dem Enum gelesen statt aufgezählt: Ein neuer
-    /// <see cref="QuestionType"/> (Skill <c>flirty-question-type</c>) erscheint dann von selbst hier,
-    /// statt still zu fehlen.
+    /// The offered question types. Read from the enum rather than enumerated: a new
+    /// <see cref="QuestionType"/> (skill <c>flirty-question-type</c>) then appears here by itself
+    /// instead of silently missing.
     /// </summary>
     private static readonly QuestionType[] Types = Enum.GetValues<QuestionType>();
 
-    /// <summary>Ob die Einträge gesperrt sind – bei veröffentlichtem Dialog oder laufender Geste.</summary>
+    /// <summary>Whether the entries are locked – on a published dialog or during a running gesture.</summary>
     [Parameter]
     public bool Disabled { get; set; }
 
-    /// <summary>Wird beim Betätigen eines Eintrags ausgelöst (der Pfad ohne Zeiger).</summary>
+    /// <summary>Raised when an entry is activated (the pointerless path).</summary>
     [Parameter]
     public EventCallback<QuestionType> Add { get; set; }
 }

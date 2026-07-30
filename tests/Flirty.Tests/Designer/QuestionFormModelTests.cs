@@ -149,7 +149,7 @@ public sealed class QuestionFormModelTests
 
         Assert.False(model.TryBuildValidationRules(out var json, out var error));
         Assert.Null(json);
-        Assert.Contains("regulärer Ausdruck", error);
+        Assert.Contains("regular expression", error);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class QuestionFormModelTests
         };
 
         Assert.False(model.TryBuildValidationRules(out _, out var error));
-        Assert.Contains("Mindestlänge", error);
+        Assert.Contains("minimum length", error);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class QuestionFormModelTests
         };
 
         Assert.False(model.TryBuildValidationRules(out _, out var error));
-        Assert.Contains("Minimum", error);
+        Assert.Contains("minimum", error);
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public sealed class QuestionFormModelTests
         var model = QuestionFormModel.From(Frage(QuestionType.FreeText, "{ kein JSON"));
 
         Assert.False(model.TryBuildValidationRules(out _, out var error));
-        Assert.Contains("gültiges JSON", error);
+        Assert.Contains("valid JSON", error);
     }
 
     [Fact]
@@ -289,11 +289,11 @@ public sealed class QuestionFormModelTests
 
     [Theory]
     [InlineData(QuestionType.FreeText, "text")]
-    [InlineData(QuestionType.Number, "zahl")]
-    [InlineData(QuestionType.Date, "datum")]
-    [InlineData(QuestionType.Boolean, "janein")]
-    [InlineData(QuestionType.SingleChoice, "auswahl")]
-    [InlineData(QuestionType.MultiChoice, "mehrfach")]
+    [InlineData(QuestionType.Number, "number")]
+    [InlineData(QuestionType.Date, "date")]
+    [InlineData(QuestionType.Boolean, "yesno")]
+    [InlineData(QuestionType.SingleChoice, "choice")]
+    [InlineData(QuestionType.MultiChoice, "multi")]
     public void SuggestKey_nutzt_einen_Stamm_je_Fragetyp(QuestionType type, string erwartet)
         => Assert.Equal(erwartet, QuestionFormModel.SuggestKey(type, Dialog()));
 
@@ -327,12 +327,12 @@ public sealed class QuestionFormModelTests
     public void SuggestKey_liefert_auch_bei_vielen_Kollisionen_einen_freien_Schluessel()
     {
         var belegt = Enumerable.Range(1, 5)
-            .Select(index => Frage(QuestionType.Number, null) with { Key = index == 1 ? "zahl" : $"zahl{index}" })
+            .Select(index => Frage(QuestionType.Number, null) with { Key = index == 1 ? "number" : $"number{index}" })
             .ToArray();
 
         var vorschlag = QuestionFormModel.SuggestKey(QuestionType.Number, Dialog(belegt));
 
-        Assert.Equal("zahl6", vorschlag);
+        Assert.Equal("number6", vorschlag);
         Assert.DoesNotContain(vorschlag, belegt.Select(frage => frage.Key));
     }
 

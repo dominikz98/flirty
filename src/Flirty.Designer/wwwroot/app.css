@@ -1,14 +1,14 @@
 /* --------------------------------------------------------------------------------------------
-   Gemeinsame UI-Primitiven des Designers (#38 aus ConnectionProfiles.razor.css hierher gezogen).
-   Bewusst global statt scoped, damit alle Editor-Seiten (Verbindungen, Dialoge, ab #39 Fragen …)
-   dieselben Bausteine nutzen, ohne die Regeln je Seite zu duplizieren. In den *.razor.css-Dateien
-   bleibt nur echt Seitenspezifisches.
+   Shared UI primitives of the designer (#38, pulled here from ConnectionProfiles.razor.css).
+   Deliberately global rather than scoped, so that all editor pages (connections, dialogs, from #39
+   questions …) use the same building blocks without duplicating the rules per page. In the
+   *.razor.css files only genuinely page-specific rules remain.
    -------------------------------------------------------------------------------------------- */
 
-/* Schriftfamilie für die gesamte Oberfläche. Ohne diese Regel rendert der Designer in der
-   Browser-Standardschrift (auf Windows: Times New Roman) – dieselbe Stack-Angabe nutzt die Chat-UI
-   des Web-Samples (src/Flirty.Samples.Web/wwwroot/styles.css). Steht hier global, weil die
-   CSS-Isolation der Layout-Komponenten <body> nicht erreicht. */
+/* Font family for the whole surface. Without this rule the designer renders in the browser default font
+   (on Windows: Times New Roman) – the chat UI of the web sample uses the same stack
+   (src/Flirty.Samples.Web/wwwroot/styles.css). It stands global here because the CSS isolation of the
+   layout components does not reach <body>. */
 body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -17,11 +17,11 @@ h1:focus {
     outline: none;
 }
 
-/* Navigationslinks der Kopfzeile. Sie stehen hier GLOBAL und nicht in NavMenu.razor.css, weil sie von
-   der Komponente <NavLink> gerendert werden: CSS-Isolation vergibt ihr Scope-Attribut nur an die
-   HTML-Elemente der eigenen Komponente, nicht an Kind-Komponenten. Scoped waren die Regeln deshalb
-   wirkungslos, und die Links liefen mit der blauen Browser-Standardfarbe auf dem dunklen Grund
-   (Kontrast 1,7:1 – WCAG AA verlangt 4,5:1). */
+/* Navigation links of the header. They stand GLOBAL here and not in NavMenu.razor.css, because they are
+   rendered by the <NavLink> component: CSS isolation assigns its scope attribute only to the HTML
+   elements of its own component, not to child components. Scoped, the rules were therefore ineffective,
+   and the links ran with the blue browser default colour on the dark background
+   (contrast 1.7:1 – WCAG AA requires 4.5:1). */
 .flirty-nav-link {
     color: #cdd3ff;
     text-decoration: none;
@@ -70,14 +70,14 @@ h1:focus {
         font-size: 0.9rem;
     }
 
-/* Checkbox + Beschriftung in einer Zeile (statt untereinander wie bei den übrigen Feldern). */
+/* Checkbox + label on one line (instead of stacked as with the other fields). */
 .field.check {
     flex-direction: row;
     align-items: center;
     gap: 0.4rem;
 }
 
-/* Mehrere schmale Felder nebeneinander (z. B. Schlüssel/Beschriftung/Wert einer Antwortoption). */
+/* Several narrow fields side by side (e.g. key/label/value of an answer option). */
 .field-row {
     display: flex;
     flex-wrap: wrap;
@@ -203,7 +203,7 @@ h1:focus {
     margin-left: 0.35rem;
 }
 
-/* Branching (#40): Default-Übergang und Rücksprung (Zyklus/Schleife). */
+/* Branching (#40): default transition and back-jump (cycle/loop). */
 .badge-default {
     background-color: #5a6270;
     color: #fff;
@@ -216,7 +216,7 @@ h1:focus {
     margin-left: 0.35rem;
 }
 
-/* Rücklink und Badge in der Seitenüberschrift – auf jeder Editor-Unterseite gleich. */
+/* Back link and badge in the page heading – the same on every editor subpage. */
 .back {
     margin: 0 0 0.5rem;
     font-size: 0.9rem;
@@ -227,7 +227,7 @@ h1 .badge {
     margin-left: 0.5rem;
 }
 
-/* Inline-Löschbestätigung (statt eines JS-confirm, das die Playwright-E2E blockieren würde). */
+/* Inline delete confirmation (instead of a JS confirm, which would block the Playwright E2E). */
 .confirm {
     align-self: center;
     font-size: 0.9rem;
@@ -290,15 +290,15 @@ h1 .badge {
     color: #e50000;
 }
 
-/* ---- Ausdrucks-Editor (ExpressionField, #40/#42, global seit #103) ----
+/* ---- Expression editor (ExpressionField, #40/#42, global since #103) ----
 
-   Bis #103 lagen diese beiden Regeln scoped in TransitionEditor.razor.css. Seit der Ausdrucks-Editor
-   eine eigene Komponente ist, muss ihr Aussehen global gelten – CSS-Isolation reicht ihr Scope-Attribut
-   nicht an Kindkomponenten weiter (derselbe Befund wie bei GraphNodeCard und den NavLinks in #95). Der
-   TriggerEditor benutzt die Klassen ohnehin seit #42, hatte aber keine eigene .razor.css: Dort war der
-   Live-Status also unstyled. Der Umzug behebt das mit. */
+   Until #103 these two rules lay scoped in TransitionEditor.razor.css. Since the expression editor is its
+   own component, its appearance must apply globally – CSS isolation does not carry its scope attribute on
+   to child components (the same finding as with GraphNodeCard and the NavLinks in #95). The TriggerEditor
+   uses the classes anyway since #42, but had no own .razor.css: there the live status was thus unstyled.
+   The move fixes that along the way. */
 
-/* Live-Status des Compile-Checks. */
+/* Live status of the compile check. */
 .expr-status {
     margin: 0.35rem 0 0;
     font-size: 0.9rem;
@@ -312,7 +312,7 @@ h1 .badge {
     color: #b32121;
 }
 
-/* Ausdruck + „^"-Zeile unter der gemeldeten Fehlerposition. */
+/* Expression + "^" line under the reported error position. */
 .expr-caret {
     margin: 0.25rem 0 0;
     padding: 0.4rem 0.6rem;
@@ -326,32 +326,32 @@ h1 .badge {
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Graph-Ansicht (#101).
+   Graph view (#101).
 
-   Bewusst hier und nicht in DialogGraph.razor.css: CSS-Isolation reicht ihr Scope-Attribut NICHT an
-   Kindkomponenten weiter, und die Knotenkarte ist eine eigene Komponente (GraphNodeCard). Genau
-   dieser Fehler hat in #95 die Navigationslinks auf Kontrast 1,7:1 gebracht.
+   Deliberately here and not in DialogGraph.razor.css: CSS isolation does NOT carry its scope attribute
+   on to child components, and the node card is its own component (GraphNodeCard). Exactly this mistake
+   brought the navigation links to contrast 1.7:1 in #95.
 
-   Alle Farben sind gegen die Canvas-Fläche #fbfcfd auf mindestens 4,5:1 geprüft – auch die Striche,
-   für die die WCAG nur 3:1 verlangt. Und keine Aussage hängt allein an der Farbe: Einstieg, Abschluss
-   und Unerreichbarkeit tragen zusätzlich ein Schriftzeichen bzw. eine eigene Konturform.
+   All colours are checked against the canvas surface #fbfcfd for at least 4.5:1 – including the strokes,
+   for which WCAG only requires 3:1. And no statement hangs on colour alone: entry, terminal and
+   unreachability additionally carry a character or their own contour shape.
    ------------------------------------------------------------------------------------------------ */
 
-/* Der Canvas ist die Ausnahme von der Lesebreite (#118). main.flirty-content deckelt auf 1100px, was
-   für Textspalten richtig ist – für einen Graph-Editor ist es der begrenzende Faktor: Bei 1100px
-   Innenbreite passen Palette (12rem) + Canvas (Basis 640px) + Inspector (340px) samt Abständen nicht
-   nebeneinander (Schwelle 1204px), der Inspector rutscht unter die Palette, und rechts bleibt das
-   Fenster leer. Der Deckel fällt deshalb genau dann, wenn im Inhalt ein Graph-Canvas steht.
+/* The canvas is the exception to the reading width (#118). main.flirty-content caps at 1100px, which is
+   right for text columns – for a graph editor it is the limiting factor: at 1100px inner width the
+   palette (12rem) + canvas (base 640px) + inspector (340px) including gaps do not fit side by side
+   (threshold 1204px), the inspector slips under the palette, and on the right the window stays empty.
+   The cap therefore falls exactly when a graph canvas stands in the content.
 
-   Drei Punkte, die nicht offensichtlich sind:
-   - Warum :has() und kein zweites Layout an der Seite: Der Test-Runner rendert .graph-layout NUR im
-     Graph-Zweig seines Umschalters. So bleibt seine Verlaufsliste bei 1100px lesbar und nur die
-     Graph-Ansicht wird breit – ein @layout an der Seite könnte das nicht unterscheiden. Aufwärts
-     (Kind -> Vorfahr) gibt es in Blazor keinen Cascade; :has() ist hier das passende Werkzeug.
-   - Warum global und nicht in MainLayout.razor.css: CSS-Isolation reicht ihr Scope-Attribut nicht an
-     Kindkomponenten weiter, .graph-layout entsteht in einer anderen Komponente (dieselbe Begründung
-     wie beim ganzen Block hier).
-   - Warum es gewinnt: Spezifität (0,2,1) gegen die scoped Regel .flirty-content[b-…] mit (0,2,0). */
+   Three points that are not obvious:
+   - Why :has() and not a second layout on the page: the test runner renders .graph-layout ONLY in the
+     graph branch of its toggle. This way its history list stays readable at 1100px and only the graph
+     view becomes wide – a @layout on the page could not distinguish that. Upward (child -> ancestor)
+     there is no cascade in Blazor; :has() is the right tool here.
+   - Why global and not in MainLayout.razor.css: CSS isolation does not carry its scope attribute on to
+     child components, .graph-layout arises in another component (the same rationale as for the whole
+     block here).
+   - Why it wins: specificity (0,2,1) against the scoped rule .flirty-content[b-…] with (0,2,0). */
 main.flirty-content:has(.graph-layout) {
     max-width: none;
 }
@@ -370,7 +370,7 @@ main.flirty-content:has(.graph-layout) {
     flex-wrap: wrap;
 }
 
-/* ---- Palette der Fragetypen (#103) ---- */
+/* ---- Palette of question types (#103) ---- */
 
 .graph-palette {
     flex: 0 0 12rem;
@@ -405,7 +405,7 @@ main.flirty-content:has(.graph-layout) {
     font: inherit;
     font-size: 0.78rem;
     text-align: left;
-    /* grab statt pointer: Die Hauptgeste ist das Ziehen auf die Fläche, der Klick der Zweitweg. */
+    /* grab instead of pointer: the main gesture is dragging onto the surface, the click the second way. */
     cursor: grab;
 }
 
@@ -447,16 +447,16 @@ main.flirty-content:has(.graph-layout) {
     cursor: grabbing;
 }
 
-/* Während ein Knoten gezogen wird, soll der Zeiger nirgends etwas anderes anbieten. */
+/* While a node is being dragged, the pointer should offer nothing else anywhere. */
 .graph-canvas.is-dragging,
 .graph-canvas.is-dragging .graph-node-card,
 .graph-canvas.is-dragging .graph-edge-hit {
     cursor: grabbing;
 }
 
-/* Während einer laufenden Geste (Server antwortet noch) nimmt der Canvas keine neue an. Gesperrt wird
-   über dieses von C# gerenderte Attribut und pointer-events – NICHT über disabled an Port und Karte:
-   Blazor rendert ein Attribut sonst mitten in einem Zug neu, und die Pointer-Capture geht verloren. */
+/* During a running gesture (server still responding) the canvas accepts no new one. Locking is done via
+   this C#-rendered attribute and pointer-events – NOT via disabled on port and card: Blazor otherwise
+   re-renders an attribute mid-drag, and the pointer capture is lost. */
 .graph-canvas[data-busy="true"] {
     cursor: progress;
 }
@@ -466,14 +466,14 @@ main.flirty-content:has(.graph-layout) {
     pointer-events: none;
 }
 
-/* Während einer Verbindungsgeste bzw. eines Palette-Zugs zeigt der Zeiger nur noch diese eine Absicht. */
+/* During a connection gesture or a palette drag the pointer shows only this one intent. */
 .graph-canvas.is-linking,
 .graph-canvas.is-linking .graph-node-card,
 .graph-canvas.is-spawning {
     cursor: crosshair;
 }
 
-/* Die Zusammenfassung vor dem Bild – für Screenreader die Alternative zum Graphen. */
+/* The summary before the picture – for screen readers the alternative to the graph. */
 .visually-hidden {
     position: absolute;
     width: 1px;
@@ -486,7 +486,7 @@ main.flirty-content:has(.graph-layout) {
     border: 0;
 }
 
-/* ---- Knoten ---- */
+/* ---- Nodes ---- */
 
 .graph-node-card {
     display: flex;
@@ -502,7 +502,7 @@ main.flirty-content:has(.graph-layout) {
     font: inherit;
     font-size: 0.8rem;
     text-align: left;
-    /* Ziehbar UND anklickbar: grab zeigt die neue Hauptgeste (#102), der Klick wählt weiterhin aus. */
+    /* Draggable AND clickable: grab shows the new main gesture (#102), the click still selects. */
     cursor: grab;
     overflow: hidden;
 }
@@ -511,7 +511,7 @@ main.flirty-content:has(.graph-layout) {
     background-color: #f2f5f9;
 }
 
-/* Sichtbarer Fokus – die Knoten sind echte Schaltflächen, der Ring kommt von der Plattform. */
+/* Visible focus – the nodes are real buttons, the ring comes from the platform. */
 .graph-node-card:focus-visible {
     outline: 3px solid #3b3f8f;
     outline-offset: 2px;
@@ -528,14 +528,14 @@ main.flirty-content:has(.graph-layout) {
     border-left-color: #3b3f8f;
 }
 
-/* Abschluss: doppelte Unterkante zusätzlich zum Badge – nie Farbe allein. */
+/* Terminal: double bottom edge in addition to the badge – never colour alone. */
 .graph-node.is-terminal .graph-node-card {
     border-bottom-width: 5px;
     border-bottom-style: double;
     border-bottom-color: #2f6b3a;
 }
 
-/* Unerreichbar: gestrichelte Kontur zusätzlich zum Badge. */
+/* Unreachable: dashed contour in addition to the badge. */
 .graph-node.is-unreachable .graph-node-card {
     border-style: dashed;
     background-color: #f6f6f8;
@@ -546,22 +546,22 @@ main.flirty-content:has(.graph-layout) {
     border-color: #9c3131;
 }
 
-/* Zugehörigkeit zu einer Schleife wird auch am Knoten sichtbar – der Rahmen allein reicht nicht,
-   wenn ein Bereich nicht zusammenhängend liegt. */
+/* Membership of a loop is made visible on the node too – the frame alone is not enough when a range does
+   not lie contiguously. */
 .graph-node.in-loop .graph-node-card {
     background-image: linear-gradient(to right, #f6efe4 0 4px, transparent 4px);
 }
 
-/* Eigene, gespeicherte Position (#102): Balken an der rechten Kante – die Schleifen-Zugehörigkeit
-   markiert die linke, beide sind also auch ohne Farbunterscheidung auseinanderzuhalten. Die
-   Textfassung steht im aria-label („eigene Position"). */
+/* Own, saved position (#102): bar on the right edge – the loop membership marks the left, so both are
+   distinguishable even without a colour distinction. The text version stands in the aria-label
+   ("own position"). */
 .graph-node.is-pinned .graph-node-card {
     box-shadow: inset -4px 0 0 0 #4a5b6d;
 }
 
-/* ---- Ausgangs-Port und Verbindungsgeste (#103) ---- */
+/* ---- Outgoing port and connection gesture (#103) ---- */
 
-/* Sitzt an der Unterkante-Mitte – dem Punkt, an dem GraphLayout.Route eine Vorwärtskante ansetzt. */
+/* Sits at the bottom-edge centre – the point where GraphLayout.Route starts a forward edge. */
 .graph-port {
     display: flex;
     align-items: center;
@@ -591,25 +591,25 @@ main.flirty-content:has(.graph-layout) {
     outline-offset: 1px;
 }
 
-/* Die Quelle einer laufenden Verbindung bleibt erkennbar, auch wenn der Zeiger längst weg ist. */
+/* The source of a running connection stays recognizable, even when the pointer is long gone. */
 .graph-node.is-link-source .graph-node-card {
     border-color: #24379c;
     box-shadow: 0 0 0 2px #c5cdfb;
 }
 
-/* Der Knoten unter dem Zeiger während einer Verbindungsgeste. Zusätzlich zur Farbe eine dickere
-   Kontur – keine Aussage darf allein an der Farbe hängen (Befund #95). */
+/* The node under the pointer during a connection gesture. In addition to the colour a thicker contour –
+   no statement may hang on colour alone (finding #95). */
 .graph-node.is-link-target .graph-node-card {
     border-width: 3px;
     border-color: #0f7b3d;
     background-color: #f2fbf5;
 }
 
-/* Gummiband und Vorschau der laufenden Geste. C# rendert die Elemente, das JS-Modul ihre Geometrie.
+/* Rubber band and preview of the running gesture. C# renders the elements, the JS module their geometry.
 
-   pointer-events: none ist tragend, nicht kosmetisch: Der Ziel-Hit-Test läuft über
-   document.elementFromPoint, und ohne diese Regel träfe er das Gummiband statt des Knotens – jede
-   Verbindung ginge dann ins Leere. */
+   pointer-events: none is load-bearing, not cosmetic: the target hit test runs via
+   document.elementFromPoint, and without this rule it would hit the rubber band instead of the node –
+   every connection would then go nowhere. */
 .graph-rubber {
     fill: none;
     stroke: #24379c;
@@ -675,7 +675,7 @@ main.flirty-content:has(.graph-layout) {
     color: #fff;
 }
 
-/* ---- Trigger-Chips ---- */
+/* ---- Trigger chips ---- */
 
 .graph-chips {
     display: flex;
@@ -712,7 +712,7 @@ button.chip {
     cursor: pointer;
 }
 
-/* ---- Kanten ---- */
+/* ---- Edges ---- */
 
 .graph-edge-line {
     fill: none;
@@ -728,9 +728,9 @@ button.chip {
     stroke: #8a5a1f;
 }
 
-/* Rücksprung ohne Schleifen-Marker (#103): Der Vorschlag „als Schleife markieren" hängt an dieser
-   Kante, also muss sie auffindbar sein. Die kurze Strichelung unterscheidet sie von der langen des
-   Default-Übergangs – die Aussage hängt damit nicht allein an der Farbe (Befund #95). */
+/* Back-jump without a loop marker (#103): the suggestion "mark as loop" hangs on this edge, so it must be
+   findable. The short dashing distinguishes it from the long one of the default transition – the
+   statement thus does not hang on colour alone (finding #95). */
 .graph-edge.is-unmarked .graph-edge-line {
     stroke-dasharray: 3 3;
     stroke-width: 2.4;
@@ -749,8 +749,8 @@ button.chip {
     fill: #9c3131;
 }
 
-/* Der breite, unsichtbare Trefferpfad macht die dünne Linie greifbar. Er liegt in derselben Ebene
-   wie die Linie und damit UNTER den Knoten – ADR 0006, Konsequenzen. */
+/* The wide, invisible hit path makes the thin line graspable. It lies in the same layer as the line and
+   thus UNDER the nodes – ADR 0006, consequences. */
 .graph-edge-hit {
     fill: none;
     stroke: transparent;
@@ -762,9 +762,9 @@ button.chip {
     stroke-width: 3;
 }
 
-/* Kanten an einem gerade gezogenen Knoten: gedimmt statt live neu berechnet. Ihr Verlauf entsteht in
-   C# (GraphLayout.Route); ihn im Browser nachzubauen wäre eine zweite Quelle derselben Geometrie.
-   Nach dem Loslassen zeichnet C# den exakten Pfad. */
+/* Edges at a node currently being dragged: dimmed instead of live-recomputed. Their path arises in C#
+   (GraphLayout.Route); rebuilding it in the browser would be a second source of the same geometry.
+   After release C# draws the exact path. */
 .graph-edge.is-stale {
     opacity: 0.25;
 }
@@ -782,10 +782,10 @@ button.chip {
     user-select: none;
 }
 
-/* ---- Schleifen-Rahmen ---- */
+/* ---- Loop frames ---- */
 
-/* fill="none" und pointer-events auf den Strich: Der Rahmen umschließt Knoten und Kanten und würde
-   sonst deren Klicks schlucken. */
+/* fill="none" and pointer-events on the stroke: the frame encloses nodes and edges and would otherwise
+   swallow their clicks. */
 .graph-loop-frame {
     fill: none;
     stroke: #8a5a1f;
@@ -819,7 +819,7 @@ button.chip {
     outline-offset: 2px;
 }
 
-/* ---- Scope-Marker (Start/Abschluss) ---- */
+/* ---- Scope markers (start/end) ---- */
 
 .graph-scope {
     display: flex;
@@ -924,17 +924,17 @@ button.chip {
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Laufzustand auf dem Canvas (#104)
+   Run state on the canvas (#104)
 
-   Der Canvas der Laufansicht trägt zusätzlich .is-run; die Regeln hier gelten nur für Zustände, die
-   ausschließlich dort vorkommen (besucht, offen, gegriffen), und stehen deshalb ungescopt.
+   The canvas of the run view additionally carries .is-run; the rules here apply only to states that
+   occur exclusively there (visited, open, taken), and therefore stand unscoped.
 
-   Grün ist die Farbe des gelaufenen Wegs, Blau die der offenen Frage – aber KEINE Aussage hängt allein
-   an der Farbe (Befund #95): Ein besuchter Knoten zeigt seine Antwort, der offene ein Badge „offen",
-   eine gegriffene Kante ist dicker und durchgezogen. Alles davon steht zusätzlich im aria-label.
+   Green is the colour of the run path, blue that of the open question – but NO statement hangs on colour
+   alone (finding #95): a visited node shows its answer, the open one a badge "open", a taken edge is
+   thicker and solid. All of that additionally stands in the aria-label.
    ------------------------------------------------------------------------------------------------ */
 
-/* ---- Umschalter der Darstellung ---- */
+/* ---- Toggle of the presentation ---- */
 
 .run-views {
     display: flex;
@@ -949,7 +949,7 @@ button.chip {
         font-weight: 600;
     }
 
-/* ---- Knoten im Lauf ---- */
+/* ---- Nodes in the run ---- */
 
 .badge-current {
     background-color: #0b4a8f;
@@ -966,7 +966,7 @@ button.chip {
     background-color: #f1f8f3;
 }
 
-/* Die offene Frage: dickere Kontur plus Ring – auch bei ausgeschalteten Farben erkennbar. */
+/* The open question: thicker contour plus ring – recognizable even with colours switched off. */
 .graph-node.is-current .graph-node-card {
     border-width: 3px;
     border-color: #0b4a8f;
@@ -974,8 +974,8 @@ button.chip {
     box-shadow: 0 0 0 3px #bcd6f7;
 }
 
-/* Die gegebene Antwort steht dort, wo außerhalb eines Laufs die Konfigurationszeile steht: Die Karte
-   ist auf ihre Höhe bemessen und schneidet Überlauf ab, beides passte nicht nebeneinander. */
+/* The given answer stands where the configuration line stands outside a run: the card is sized to its
+   height and clips overflow, both did not fit side by side. */
 .graph-node-answer {
     margin-top: auto;
     font-size: 0.74rem;
@@ -986,7 +986,7 @@ button.chip {
     text-overflow: ellipsis;
 }
 
-/* ---- Publizierte Trigger ---- */
+/* ---- Published triggers ---- */
 
 .chip-fired {
     background-color: #e7f4ec;
@@ -994,8 +994,8 @@ button.chip {
     color: #0e4527;
 }
 
-/* Das Aufblitzen läuft einmal – beim Entstehen des Elements, also genau im Schritt, der das Ereignis
-   publiziert hat. Danach bleibt der Chip stehen. */
+/* The flash runs once – on the creation of the element, i.e. exactly in the step that published the
+   event. After that the chip remains. */
 @keyframes graph-chip-flash {
     from {
         background-color: #a8ddbd;
@@ -1012,7 +1012,7 @@ button.chip {
     animation: graph-chip-flash 1.1s ease-out 1;
 }
 
-/* Wer Bewegung abgewählt hat, bekommt dieselbe Aussage statisch – nicht keine. */
+/* Whoever has opted out of motion gets the same statement statically – not none. */
 @media (prefers-reduced-motion: reduce) {
     .chip.is-fresh {
         animation: none;
@@ -1020,17 +1020,17 @@ button.chip {
     }
 }
 
-/* ---- Gegriffene Kanten ---- */
+/* ---- Taken edges ---- */
 
-/* Muss NACH .is-default/.is-backjump stehen: gleiche Spezifität, die spätere Regel gewinnt. */
+/* Must stand AFTER .is-default/.is-backjump: same specificity, the later rule wins. */
 .graph-edge.is-taken .graph-edge-line {
     stroke: #14663a;
     stroke-width: 3.2;
     stroke-dasharray: none;
 }
 
-/* Mehrere parallele Übergänge zwischen denselben Fragen: Die Engine hält nicht fest, welcher gegriffen
-   hat. Die Strichelung sagt „durchlaufen, aber nicht eindeutig zuordenbar". */
+/* Several parallel transitions between the same questions: the engine does not record which one was
+   taken. The dashing says "traversed, but not uniquely assignable". */
 .graph-edge.is-ambiguous .graph-edge-line {
     stroke-dasharray: 10 4;
 }
@@ -1039,7 +1039,7 @@ button.chip {
     fill: #14663a;
 }
 
-/* ---- Schleifen im Lauf ---- */
+/* ---- Loops in the run ---- */
 
 .graph-loop.is-run .graph-loop-frame {
     stroke-width: 2.4;
@@ -1056,7 +1056,7 @@ button.chip {
     font-weight: 700;
 }
 
-/* ---- Inspector der Laufansicht ---- */
+/* ---- Inspector of the run view ---- */
 
 .run-answers > li {
     padding-bottom: 0.4rem;

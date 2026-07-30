@@ -4,30 +4,30 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Formular-Modell der Dialog-Editoren (#38). Bewusst veränderbar (settable Properties), damit die
-/// Blazor-<c>EditForm</c> direkt daran binden kann; die Annotationen spiegeln die des
-/// <c>CreateDialogCommand</c>/<c>UpdateDialogCommand</c>, damit Verstöße schon im Browser auffallen und
-/// nicht erst im <c>ValidationPipelineBehavior</c> der Engine.
+/// Form model of the dialog editors (#38). Deliberately mutable (settable properties), so that the
+/// Blazor <c>EditForm</c> can bind directly to it; the annotations mirror those of the
+/// <c>CreateDialogCommand</c>/<c>UpdateDialogCommand</c>, so that violations already show in the browser and
+/// not only in the engine's <c>ValidationPipelineBehavior</c>.
 /// </summary>
 internal sealed class DialogFormModel
 {
-    /// <summary>Der fachliche, stabile Schlüssel des Dialogs (muss eindeutig sein).</summary>
-    [Required(ErrorMessage = "Bitte einen Schlüssel angeben.")]
+    /// <summary>The stable, domain-level key of the dialog (must be unique).</summary>
+    [Required(ErrorMessage = "Please enter a key.")]
     public string Key { get; set; } = string.Empty;
 
-    /// <summary>Der Anzeigename des Dialogs.</summary>
-    [Required(ErrorMessage = "Bitte einen Namen angeben.")]
+    /// <summary>The display name of the dialog.</summary>
+    [Required(ErrorMessage = "Please enter a name.")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Die optionale Beschreibung des Dialogs.</summary>
+    /// <summary>The optional description of the dialog.</summary>
     public string? Description { get; set; }
 
-    /// <summary>Die optionale Einstiegsfrage des Dialogs (Voraussetzung zum Veröffentlichen).</summary>
+    /// <summary>The optional entry question of the dialog (prerequisite for publishing).</summary>
     public Guid? StartQuestionId { get; set; }
 
-    /// <summary>Erzeugt ein Formular-Modell aus den Metadaten eines bestehenden Dialogs.</summary>
-    /// <param name="summary">Die Dialog-Metadaten.</param>
-    /// <returns>Das befüllte Formular-Modell.</returns>
+    /// <summary>Creates a form model from the metadata of an existing dialog.</summary>
+    /// <param name="summary">The dialog metadata.</param>
+    /// <returns>The populated form model.</returns>
     public static DialogFormModel From(DialogSummary summary)
     {
         ArgumentNullException.ThrowIfNull(summary);

@@ -1,18 +1,18 @@
 @*
-    Der Frage-Zweig des Graph-Inspectors (#103): aus der Lesesicht von #101 wird ein Editor.
+    The question branch of the graph inspector (#103): the read view from #101 becomes an editor.
 
-    Die Grenze zum Vollteditor ist eine Regel, keine Laune: Hier stehen die SKALAREN Felder, die eine
-    Geste angelegt und vorläufig gelassen hat. Alles mit eigener Unterstruktur oder eigenem
-    Roh-JSON-Fallback – Antwortoptionen und Validierungsregeln – bleibt im QuestionEditor, der dafür ein
-    ganzes Formular hat. „Frage bearbeiten →" führt dorthin.
+    The boundary to the full editor is a rule, not a whim: the SCALAR fields that a gesture created and
+    left provisionally stand here. Everything with its own substructure or its own raw-JSON fallback –
+    answer options and validation rules – stays in the QuestionEditor, which has a whole form for that.
+    "Edit question →" leads there.
 
-    Das QuestionFormModel bleibt privater Zustand: Es ist internal, und ein internal Typ an einem
-    [Parameter] wäre CS0053. Nach außen geht QuestionEdit (siehe Models/GraphEdits.cs).
+    The QuestionFormModel stays private state: it is internal, and an internal type on a [Parameter] would
+    be CS0053. Outward goes QuestionEdit (see Models/GraphEdits.cs).
 *@
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
 
-<h2>Frage</h2>
+<h2>Question</h2>
 <p class="graph-inspector-key mono">@Node.Key</p>
 
 @foreach (var warning in Node.Warnings)
@@ -20,31 +20,30 @@
     <div class="banner warn">@warning.Text</div>
 }
 
-@* Bewusst KEINE EditForm mit InputText/InputSelect, sondern rohe Felder mit @bind:event="oninput".
+@* Deliberately NO EditForm with InputText/InputSelect, but raw fields with @bind:event="oninput".
 
-   Zwei Gründe, beide am laufenden Panel gemessen: Das Panel wird nach JEDER Geste neu aufgebaut (der
-   Reload ersetzt `Detail`), und das voreingestellte `onchange` liefert eine Eingabe erst beim Verlassen
-   des Felds – sie ging dabei verloren, und beim Speichern stand stillschweigend der alte Wert im
-   Command. Zudem setzt eine EditForm einen stabilen Formular-Lebenszyklus voraus, den es hier nicht
-   gibt; ihr Submit kam im Panel nicht an. Dieselbe Entscheidung wie beim rohen <textarea> des
-   Ausdrucks-Editors (§ Konventionen in docs/DESIGNER.md).
+   Two reasons, both measured on the running panel: the panel is rebuilt after EVERY gesture (the reload
+   replaces `Detail`), and the default `onchange` delivers an input only when the field is left – it was
+   lost in the process, and on saving the old value silently stood in the command. In addition an EditForm
+   assumes a stable form lifecycle that does not exist here; its submit did not arrive in the panel. The
+   same decision as with the raw <textarea> of the expression editor (§ Conventions in docs/DESIGNER.md).
 
-   Die Pflichtprüfung übernimmt damit SaveAsync – wie die Querfeld-Regeln des Trigger-Formulars, die
-   ebenfalls vor dem Command laufen. *@
+   The required check is thus handled by SaveAsync – like the cross-field rules of the trigger form, which
+   also run before the command. *@
 <div class="field">
-    <label for="inspectorKey">Schlüssel</label>
+    <label for="inspectorKey">Key</label>
     <input id="inspectorKey" class="input mono" disabled="@Locked"
            value="@_form.Key" @oninput="OnKeyInput" />
 </div>
 
 <div class="field">
-    <label for="inspectorText">Fragetext</label>
+    <label for="inspectorText">Question text</label>
     <textarea id="inspectorText" class="input" rows="2" disabled="@Locked"
               value="@_form.Text" @oninput="OnTextInput"></textarea>
 </div>
 
 <div class="field">
-    <label for="inspectorType">Antworttyp</label>
+    <label for="inspectorType">Answer type</label>
     <select id="inspectorType" class="input" disabled="@Locked"
             value="@_form.Type" @onchange="OnTypeChanged">
         @foreach (var type in Enum.GetValues<QuestionType>())
@@ -55,8 +54,7 @@
     @if (QuestionTypeLabels.UsesOptions(_form.Type) && Node.OptionCount == 0)
     {
         <span class="hint">
-            Dieser Typ wertet Antwortoptionen aus – es sind noch keine angelegt. Die pflegt der
-            Frage-Editor.
+            This type evaluates answer options – none are created yet. The question editor maintains them.
         </span>
     }
 </div>
@@ -64,7 +62,7 @@
 <div class="field check">
     <input id="inspectorRequired" type="checkbox" disabled="@Locked"
            checked="@_form.IsRequired" @onchange="OnRequiredChanged" />
-    <label for="inspectorRequired">Antwort erforderlich</label>
+    <label for="inspectorRequired">Answer required</label>
 </div>
 
 @if (_formError is not null)
@@ -73,50 +71,49 @@
 }
 
 <div class="actions">
-    <button class="btn btn-primary" disabled="@Locked" @onclick="SaveAsync">Speichern</button>
-    <button class="btn" disabled="@Locked" @onclick="ResetForm">Zurücksetzen</button>
+    <button class="btn btn-primary" disabled="@Locked" @onclick="SaveAsync">Save</button>
+    <button class="btn" disabled="@Locked" @onclick="ResetForm">Reset</button>
 </div>
 
 <dl class="graph-facts">
-    <dt>Rolle</dt>
+    <dt>Role</dt>
     <dd>@Role</dd>
     @if (Node.UsesOptions)
     {
-        <dt>Antwortoptionen</dt>
+        <dt>Answer options</dt>
         <dd>@Node.OptionCount</dd>
     }
 </dl>
 
-@* Der Einstiegspunkt gehört auf die Fläche: Ohne diesen Knopf ließe sich der ganze Graph auf dem
-   Canvas bauen, aber nicht starten – der Autor müsste ihn für ein einzelnes Feld verlassen, und genau
-   darüber warnt der Graph („Keine Einstiegsfrage gesetzt", DialogGraphBuilder). Gesetzt wird er über
-   UpdateDialogCommand, dessen Guard exakt passt: An einer veröffentlichten Version ist genau DIESES
-   Feld gesperrt (Name/Beschreibung bleiben frei) – deshalb trägt der Knopf das übliche `Locked` und
-   läuft nicht in einen 409.
+@* The entry point belongs on the surface: without this button the whole graph could be built on the
+   canvas but not started – the author would have to leave it for a single field, and that is exactly what
+   the graph warns about ("No entry question set", DialogGraphBuilder). It is set via UpdateDialogCommand,
+   whose guard fits exactly: on a published version this very field is locked (name/description stay free)
+   – so the button carries the usual `Locked` and does not run into a 409.
 
-   Ist der Knoten schon Einstieg, entfällt der Knopf: Die Rolle darüber sagt es bereits, und ein
-   deaktivierter Knopf ohne Alternative wäre eine Leerform. *@
+   If the node is already the entry, the button is omitted: the role above says so already, and a disabled
+   button without an alternative would be an empty form. *@
 @if (!Node.IsStart)
 {
     <div class="actions">
         <button class="btn" disabled="@Locked"
                 @onclick="() => SetStart.InvokeAsync(Node.QuestionId)">
-            Als Einstiegsfrage setzen
+            Set as entry question
         </button>
     </div>
 }
 
-<h3 class="graph-inspector-section">Ausgehende Übergänge</h3>
+<h3 class="graph-inspector-section">Outgoing transitions</h3>
 
 @if (Outgoing.Count == 0)
 {
-    <p class="hint">Keine – der Dialog endet nach dieser Frage.</p>
+    <p class="hint">None – the dialog ends after this question.</p>
 }
 else
 {
-    @* Die Reihenfolge dieser Liste IST die Auswertungsreihenfolge (Priority, kleiner = früher). Sie
-       wird hier gepflegt und nicht über die Lage der Kanten auf der Fläche: Eine Position darf keine
-       Semantik tragen, sonst ändert Aufräumen das Verhalten. *@
+    @* The order of this list IS the evaluation order (Priority, smaller = earlier). It is maintained here
+       and not via the position of the edges on the surface: a position must not carry semantics, otherwise
+       tidying up changes the behaviour. *@
     <ol class="graph-inspector-list">
         @foreach (var (edge, index) in Outgoing.Select((edge, index) => (edge, index)))
         {
@@ -130,15 +127,15 @@ else
                 </button>
                 <span class="row-actions">
                     <button class="btn" disabled="@(Locked || position == 0)"
-                            title="Früher auswerten"
+                            title="Evaluate earlier"
                             @onclick="() => Move.InvokeAsync(new TransitionMove(Node.QuestionId, position, position - 1))">↑</button>
                     <button class="btn" disabled="@(Locked || position == Outgoing.Count - 1)"
-                            title="Später auswerten"
+                            title="Evaluate later"
                             @onclick="() => Move.InvokeAsync(new TransitionMove(Node.QuestionId, position, position + 1))">↓</button>
                     <button class="btn @(current.IsDefault ? "btn-primary" : "")" disabled="@Locked"
                             title="@(current.IsDefault
-                                ? "Default-Kennzeichnung entfernen"
-                                : "Als Default markieren – greift, wenn keine Bedingung zutrifft")"
+                                ? "Remove default marking"
+                                : "Mark as default – matches when no condition applies")"
                             @onclick="() => ToggleDefault.InvokeAsync(current.TransitionId)">Default</button>
                 </span>
             </li>
@@ -149,28 +146,28 @@ else
 @if (!Locked)
 {
     <div class="field">
-        <label for="inspectorConnect">Übergang zu</label>
+        <label for="inspectorConnect">Transition to</label>
         <select id="inspectorConnect" class="input" @bind="_connectTarget">
-            <option value="">— Zielfrage wählen —</option>
+            <option value="">— choose target question —</option>
             @foreach (var candidate in Detail.Questions)
             {
                 <option value="@candidate.Id">@candidate.Key — @candidate.Text</option>
             }
         </select>
         <span class="hint">
-            Der zeigerlose Weg zu verbinden – gleichwertig zum Ziehen am <span class="mono">＋</span>
-            des Knotens.
+            The pointerless way to connect – equivalent to dragging on the node's
+            <span class="mono">＋</span>.
         </span>
     </div>
     <div class="actions">
         <button class="btn" disabled="@(Locked || _connectTarget is null)"
-                @onclick="ConnectAsync">Verbinden</button>
+                @onclick="ConnectAsync">Connect</button>
     </div>
 }
 
 @if (Incoming.Count > 0)
 {
-    <h3 class="graph-inspector-section">Eingehende Übergänge</h3>
+    <h3 class="graph-inspector-section">Incoming transitions</h3>
     <ul class="graph-inspector-list">
         @foreach (var edge in Incoming)
         {
@@ -186,11 +183,11 @@ else
     </ul>
 }
 
-<h3 class="graph-inspector-section">Trigger</h3>
+<h3 class="graph-inspector-section">Triggers</h3>
 
 @if (Node.Triggers.Count == 0)
 {
-    <p class="hint">Keine – nach dieser Frage wird nichts ausgelöst.</p>
+    <p class="hint">None – nothing is fired after this question.</p>
 }
 else
 {
@@ -212,13 +209,13 @@ else
     @if (_newTrigger is null)
     {
         <div class="actions">
-            <button class="btn" @onclick="StartCreateTrigger">Trigger nach dieser Frage anlegen</button>
+            <button class="btn" @onclick="StartCreateTrigger">Create trigger after this question</button>
         </div>
     }
     else
     {
         <div class="field">
-            <label for="inspectorTriggerKind">Kanal</label>
+            <label for="inspectorTriggerKind">Channel</label>
             <select id="inspectorTriggerKind" class="input" @bind="_newTrigger.Kind">
                 @foreach (var kind in Enum.GetValues<TriggerKind>())
                 {
@@ -230,21 +227,21 @@ else
         @if (_newTrigger.Kind == TriggerKind.Webhook)
         {
             <div class="field">
-                <label for="inspectorTriggerUrl">Ziel-URL</label>
+                <label for="inspectorTriggerUrl">Target URL</label>
                 <input id="inspectorTriggerUrl" class="input mono" @bind="_newTrigger.Url" />
-                <span class="hint">Absolute URL – die Engine lehnt alles andere ab.</span>
+                <span class="hint">Absolute URL – the engine rejects anything else.</span>
             </div>
         }
         else
         {
             <p class="hint">
-                In-Process stellt <b>nichts</b> zu: Die Host-Anwendung hängt dafür einen eigenen
-                <span class="mono">INotificationHandler</span> ein.
+                In-process delivers <b>nothing</b>: the host application plugs in its own
+                <span class="mono">INotificationHandler</span> for that.
             </p>
         }
 
         <div class="field">
-            <label for="inspectorTriggerName">Ereignisname (optional)</label>
+            <label for="inspectorTriggerName">Event name (optional)</label>
             <input id="inspectorTriggerName" class="input" @bind="_newTrigger.Name" />
         </div>
 
@@ -254,102 +251,102 @@ else
         }
 
         <div class="actions">
-            <button class="btn btn-primary" @onclick="CreateTriggerAsync">Anlegen</button>
-            <button class="btn" @onclick="() => { _newTrigger = null; _triggerError = null; }">Abbrechen</button>
+            <button class="btn btn-primary" @onclick="CreateTriggerAsync">Create</button>
+            <button class="btn" @onclick="() => { _newTrigger = null; _triggerError = null; }">Cancel</button>
         </div>
     }
 }
 
 <div class="actions">
     <button class="btn btn-primary" @onclick="() => OpenQuestion.InvokeAsync(Node.QuestionId)">
-        Frage bearbeiten →
+        Edit question →
     </button>
 </div>
 
 @if (!Locked)
 {
-    <h3 class="graph-inspector-section">Frage löschen</h3>
+    <h3 class="graph-inspector-section">Delete question</h3>
 
     @if (_confirmDelete)
     {
-        @* Der Bestätigungstext benennt die Mit-Aufräumung VORHER; die Erfolgsmeldung zählt sie
-           nachher. Inline und nicht per JS-confirm – das blockierte die Playwright-Suite. *@
-        <span class="confirm">Frage samt Optionen, Übergängen, Schleifen-Markern und Triggern löschen?</span>
+        @* The confirmation text names the co-cleanup BEFORE; the success message counts it afterwards.
+           Inline and not via JS confirm – that blocked the Playwright suite. *@
+        <span class="confirm">Delete question along with options, transitions, loop markers and triggers?</span>
         <div class="actions">
-            <button class="btn btn-danger" @onclick="DeleteAsync">Ja, löschen</button>
-            <button class="btn" @onclick="() => _confirmDelete = false">Abbrechen</button>
+            <button class="btn btn-danger" @onclick="DeleteAsync">Yes, delete</button>
+            <button class="btn" @onclick="() => _confirmDelete = false">Cancel</button>
         </div>
     }
     else
     {
         <div class="actions">
-            <button class="btn btn-danger" @onclick="() => _confirmDelete = true">Löschen</button>
+            <button class="btn btn-danger" @onclick="() => _confirmDelete = true">Delete</button>
         </div>
     }
 }
 
 @code {
-    /// <summary>Der Dialog samt Graph – Quelle der Zielfragen-Auswahl.</summary>
+    /// <summary>The dialog including graph – source of the target-question selection.</summary>
     [Parameter, EditorRequired]
     public required DialogDetail Detail { get; set; }
 
-    /// <summary>Der gewählte Knoten.</summary>
+    /// <summary>The selected node.</summary>
     [Parameter, EditorRequired]
     public required GraphNode Node { get; set; }
 
-    /// <summary>Die ausgehenden Kanten in Auswertungsreihenfolge.</summary>
+    /// <summary>The outgoing edges in evaluation order.</summary>
     [Parameter, EditorRequired]
     public required IReadOnlyList<GraphEdge> Outgoing { get; set; }
 
-    /// <summary>Die eingehenden Kanten.</summary>
+    /// <summary>The incoming edges.</summary>
     [Parameter, EditorRequired]
     public required IReadOnlyList<GraphEdge> Incoming { get; set; }
 
-    /// <summary>Ob der Graph bearbeitbar ist (unveröffentlichte Version).</summary>
+    /// <summary>Whether the graph is editable (unpublished version).</summary>
     [Parameter]
     public bool Editable { get; set; }
 
-    /// <summary>Ob gerade eine Geste läuft.</summary>
+    /// <summary>Whether a gesture is currently running.</summary>
     [Parameter]
     public bool Busy { get; set; }
 
-    /// <summary>Meldet geänderte Kopffelder.</summary>
+    /// <summary>Reports changed header fields.</summary>
     [Parameter]
     public EventCallback<QuestionEdit> Save { get; set; }
 
-    /// <summary>Meldet den Wunsch, diese Frage zur Einstiegsfrage des Dialogs zu machen.</summary>
+    /// <summary>Reports the wish to make this question the entry question of the dialog.</summary>
     [Parameter]
     public EventCallback<Guid> SetStart { get; set; }
 
-    /// <summary>Meldet eine Umsortierung der ausgehenden Übergänge.</summary>
+    /// <summary>Reports a reordering of the outgoing transitions.</summary>
     [Parameter]
     public EventCallback<TransitionMove> Move { get; set; }
 
-    /// <summary>Meldet das Umschalten der Default-Kennzeichnung einer Kante.</summary>
+    /// <summary>Reports the toggling of the default marking of an edge.</summary>
     [Parameter]
     public EventCallback<Guid> ToggleDefault { get; set; }
 
-    /// <summary>Meldet einen neuen Übergang zur gewählten Zielfrage.</summary>
+    /// <summary>Reports a new transition to the selected target question.</summary>
     [Parameter]
     public EventCallback<Guid> Connect { get; set; }
 
-    /// <summary>Meldet einen neuen Trigger nach dieser Frage.</summary>
+    /// <summary>Reports a new trigger after this question.</summary>
     [Parameter]
     public EventCallback<TriggerDraft> AddTrigger { get; set; }
 
-    /// <summary>Meldet den bestätigten Löschwunsch.</summary>
+    /// <summary>Reports the confirmed deletion wish.</summary>
     [Parameter]
     public EventCallback<Guid> Delete { get; set; }
 
-    /// <summary>Wählt eine Kante auf dem Canvas aus.</summary>
+    /// <summary>Selects an edge on the canvas.</summary>
     [Parameter]
     public EventCallback<Guid> SelectTransition { get; set; }
 
-    /// <summary>Springt in den Frage-Editor.</summary>
+    /// <summary>Jumps into the question editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenQuestion { get; set; }
 
-    /// <summary>Springt in den Trigger-Editor.</summary>
+    /// <summary>Jumps into the trigger editor.</summary>
     [Parameter]
     public EventCallback<Guid> OpenTrigger { get; set; }
 
@@ -371,38 +368,38 @@ else
 
             if (Node.IsStart)
             {
-                roles.Add("Einstiegsfrage");
+                roles.Add("Entry question");
             }
 
             if (Node.IsTerminal)
             {
-                roles.Add("Abschluss (kein ausgehender Übergang)");
+                roles.Add("Terminal (no outgoing transition)");
             }
 
             if (Node.IsLoopEntry)
             {
-                roles.Add("Schleifen-Einstieg");
+                roles.Add("Loop entry");
             }
 
             if (Node.IsLoopBreaking)
             {
-                roles.Add("Breaking Question");
+                roles.Add("Breaking question");
             }
 
             if (Node.IsUnreachable)
             {
-                roles.Add("nicht erreichbar");
+                roles.Add("not reachable");
             }
 
-            return roles.Count == 0 ? "Frage im Ablauf" : string.Join(", ", roles);
+            return roles.Count == 0 ? "Question in the flow" : string.Join(", ", roles);
         }
     }
 
     protected override void OnParametersSet()
     {
-        // Beim Wechsel des gewählten Knotens das Formular neu befüllen – sonst wanderte eine begonnene
-        // Eingabe zur nächsten Frage. Innerhalb derselben Auswahl bleibt der Entwurf stehen, damit ein
-        // Re-Render (etwa nach einer Umsortierung) ihn nicht verwirft.
+        // On a change of the selected node, refill the form – otherwise a started input would wander to
+        // the next question. Within the same selection the draft stays, so a re-render (e.g. after a
+        // reordering) does not discard it.
         if (_shownFor != Node.QuestionId)
         {
             _shownFor = Node.QuestionId;
@@ -436,14 +433,14 @@ else
     private void OnRequiredChanged(ChangeEventArgs args) => _form.IsRequired = args.Value is true;
 
     /// <summary>
-    /// Prüft die Pflichtfelder und meldet die Änderung. Die Prüfung liegt hier, weil das Panel ohne
-    /// <c>EditForm</c> arbeitet (Begründung im Markup) – der Command prüft sie ohnehin erneut.
+    /// Checks the required fields and reports the change. The check sits here because the panel works
+    /// without an <c>EditForm</c> (rationale in the markup) – the command checks it again anyway.
     /// </summary>
     private async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_form.Key) || string.IsNullOrWhiteSpace(_form.Text))
         {
-            _formError = "Schlüssel und Fragetext sind Pflicht.";
+            _formError = "Key and question text are required.";
             return;
         }
 
@@ -471,9 +468,9 @@ else
         };
 
     /// <summary>
-    /// Legt den Trigger an – nachdem die Querfeld-Regeln aus #42 <b>hier</b> geprüft wurden. Der Command
-    /// prüft sie ebenfalls (<c>IValidatableObject</c> → 400); dass die Meldung schon im Panel erscheint,
-    /// erspart dem Autor den Umweg über eine Fehlermeldung der Engine.
+    /// Creates the trigger – after the cross-field rules from #42 were checked <b>here</b>. The command
+    /// checks them too (<c>IValidatableObject</c> → 400); that the message already appears in the panel
+    /// spares the author the detour via an engine error message.
     /// </summary>
     private async Task CreateTriggerAsync()
     {
@@ -503,5 +500,5 @@ else
     }
 
     private string KeyOf(Guid questionId)
-        => Detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unbekannt";
+        => Detail.Questions.FirstOrDefault(question => question.Id == questionId)?.Key ?? "unknown";
 }

@@ -7,32 +7,32 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Führt die Admin-CRUD-Nachrichten der Engine (<c>src/Flirty/Runtime/Admin</c>) für den Designer aus –
-/// jede Operation in einem eigenen, frischen DI-Scope (#38). Begründung und Scope-Mechanik stehen in der
-/// Basis <see cref="DesignerGateway"/>.
+/// Runs the engine's admin CRUD messages (<c>src/Flirty/Runtime/Admin</c>) for the designer –
+/// each operation in its own, fresh DI scope (#38). Rationale and scope mechanics are in the
+/// base <see cref="DesignerGateway"/>.
 /// </summary>
 internal sealed class FlirtyAdminGateway : DesignerGateway
 {
-    /// <summary>Erstellt das Gateway.</summary>
-    /// <param name="scopeFactory">Factory für den je Operation erzeugten Kind-Scope.</param>
-    /// <param name="active">Das aktive Connection-Profil des aufrufenden Circuits.</param>
+    /// <summary>Creates the gateway.</summary>
+    /// <param name="scopeFactory">Factory for the child scope created per operation.</param>
+    /// <param name="active">The active connection profile of the calling circuit.</param>
     public FlirtyAdminGateway(IServiceScopeFactory scopeFactory, ActiveConnectionProfile active)
         : base(scopeFactory, active)
     {
     }
 
     /// <summary>
-    /// Führt die angegebene Operation über einen frischen <see cref="ISender"/> aus und bildet die von
-    /// der Engine geworfenen Ausnahmen auf eine anzeigbare Meldung ab.
+    /// Runs the given operation via a fresh <see cref="ISender"/> and maps the exceptions thrown by
+    /// the engine to a displayable message.
     /// </summary>
-    /// <typeparam name="TValue">Der Ergebnistyp der Operation.</typeparam>
+    /// <typeparam name="TValue">The result type of the operation.</typeparam>
     /// <param name="operation">
-    /// Die auszuführende Operation, z. B. <c>(sender, token) =&gt; sender.Send(new ListDialogsQuery(), token)</c>.
-    /// Bewusst als Delegat (statt <c>IRequest&lt;T&gt;</c>-Parameter), damit die stark typisierten
-    /// <see cref="ISender"/>-Overloads gebunden werden – wie bei den ASP.NET-Endpunkten.
+    /// The operation to run, e.g. <c>(sender, token) =&gt; sender.Send(new ListDialogsQuery(), token)</c>.
+    /// Deliberately a delegate (instead of an <c>IRequest&lt;T&gt;</c> parameter), so that the strongly
+    /// typed <see cref="ISender"/> overloads are bound – as with the ASP.NET endpoints.
     /// </param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
-    /// <returns>Das Ergebnis der Operation oder eine deutsche Fehlermeldung.</returns>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The result of the operation or an error message.</returns>
     public Task<GatewayResult<TValue>> ExecuteAsync<TValue>(
         Func<ISender, CancellationToken, ValueTask<TValue>> operation,
         CancellationToken cancellationToken = default)
@@ -53,7 +53,7 @@ internal sealed class FlirtyAdminGateway : DesignerGateway
             DbUpdateException => DescribeDatabaseError(exception),
             DbException => DescribeDatabaseError(exception),
 
-            // Schlüsselkonflikt, Publish ohne Einstiegsfrage – oder kein aktives Connection-Profil.
+            // Key conflict, publish without an entry question – or no active connection profile.
             InvalidOperationException => exception.Message,
             _ => null,
         };

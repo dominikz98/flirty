@@ -3,9 +3,9 @@ using Microsoft.Playwright;
 namespace Flirty.E2E;
 
 /// <summary>
-/// Ein gestarteter Playwright-Treiber samt Browser. Gemeinsame Grundlage beider E2E-Suiten
-/// (Chat-UI der Web-Sample, #45/#47, und Designer, #46): Fehlt der Treiber oder der Browser,
-/// <b>überspringt</b> sich der Test statt zu scheitern.
+/// A started Playwright driver including its browser. The shared foundation of both E2E suites (the web
+/// sample's chat UI, #45/#47, and the designer, #46): if the driver or the browser is missing, the test
+/// <b>skips</b> itself instead of failing.
 /// </summary>
 public sealed class PlaywrightSession : IAsyncDisposable
 {
@@ -21,11 +21,10 @@ public sealed class PlaywrightSession : IAsyncDisposable
     public IBrowser Browser { get; }
 
     /// <summary>
-    /// Startet Treiber und Browser. Ist eines von beidem nicht verfügbar, wird der aufrufende Test
-    /// übersprungen (Installation z. B. via
-    /// <c>pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium</c>).
+    /// Starts the driver and browser. If either is unavailable, the calling test is skipped (installation
+    /// e.g. via <c>pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium</c>).
     /// </summary>
-    /// <returns>Die Sitzung, die der Test entsorgen muss.</returns>
+    /// <returns>The session that the test must dispose.</returns>
     public static async Task<PlaywrightSession> LaunchAsync()
     {
         IPlaywright playwright;
@@ -35,7 +34,7 @@ public sealed class PlaywrightSession : IAsyncDisposable
         }
         catch (PlaywrightException ex)
         {
-            Skip.If(true, "Playwright-Treiber nicht verfügbar: " + ex.Message);
+            Skip.If(true, "Playwright driver not available: " + ex.Message);
             throw;
         }
 
@@ -55,8 +54,8 @@ public sealed class PlaywrightSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Öffnet eine Seite in einem frischen Browser-Context (leeres localStorage, eigene Cookies) –
-    /// so startet jeder Test mit einem sauberen Zustand.
+    /// Opens a page in a fresh browser context (empty localStorage, its own cookies) – so every test
+    /// starts with a clean state.
     /// </summary>
     /// <returns>Die neue Seite.</returns>
     public async Task<IPage> NewPageAsync()

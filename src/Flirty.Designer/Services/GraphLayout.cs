@@ -5,62 +5,62 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Ordnet den Dialog-Graphen automatisch an – ein „Sugiyama-Light“: Schichtung per Breitensuche ab der
-/// Einstiegsfrage, Rückwärtskanten aufgebrochen, Kreuzungen per Baryzentrum reduziert.
+/// Lays out the dialog graph automatically – a "Sugiyama-light": layering via breadth-first search from
+/// the entry question, back edges broken up, crossings reduced via barycenter.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Warum selbst gebaut:</b> dagre und ELK sind JS-Bibliotheken und haben in .NET kein verbreitetes
-/// Äquivalent; eine Node-Toolchain will das Repo bewusst nicht (ADR 0006). Die Alternative wäre gewesen,
-/// den Graphen unangeordnet zu zeigen – ohne gespeicherte Positionen (die bringt erst #102) ist das
-/// keine.
+/// <b>Why built in-house:</b> dagre and ELK are JS libraries and have no widespread equivalent in .NET;
+/// the repo deliberately does not want a Node toolchain (ADR 0006). The alternative would have been to
+/// show the graph unarranged – without stored positions (which #102 brings first) that is no
+/// alternative.
 /// </para>
 /// <para>
-/// <b>Determinismus ist hier kein Komfort, sondern Anforderung.</b> Derselbe Graph muss dieselben
-/// Koordinaten ergeben, sonst wackeln später E2E-Selektoren und Screenshots. Abgesichert wird das an
-/// drei Stellen: Es werden ausschließlich <b>Listen in fester Reihenfolge</b> zurückgegeben (nie eine
-/// Menge oder ein Wörterbuch, deren Iterationsreihenfolge nicht zugesichert ist); die Sortierschlüssel
-/// enden mit einem <b>eindeutigen</b> Ordinal, sind also eine Totalordnung und nicht auf die Stabilität
-/// von <c>OrderBy</c> angewiesen; und Koordinaten entstehen nur aus ganzzahligen Schicht-/Spaltenwerten,
-/// nie aus einem Baryzentrum – Gleitkomma-Mittelwerte bestimmen die Reihenfolge, nicht die Position.
+/// <b>Determinism here is not a comfort but a requirement.</b> The same graph must yield the same
+/// coordinates, otherwise E2E selectors and screenshots wobble later. This is secured in
+/// three places: only <b>lists in fixed order</b> are returned (never a set or a dictionary whose
+/// iteration order is not guaranteed); the sort keys end with a <b>unique</b> ordinal, so they are a total
+/// order and do not rely on the stability of <c>OrderBy</c>; and coordinates arise only from integer
+/// layer/column values, never from a barycenter – floating-point averages determine the order, not the
+/// position.
 /// </para>
 /// <para>
-/// Das Ordinal einer Frage kommt aus <c>(Order, Id)</c> und <b>nicht</b> aus der Guid allein:
-/// <c>CreateDialogVersionCommand</c> vergibt beim Klonen jeder Frage eine neue Guid, ein Guid-basiertes
-/// Layout würfelte also bei jeder neuen Dialogversion neu durch. <c>Order</c> überlebt das Klonen und
-/// ist obendrein die vom Autor gewählte Reihenfolge.
+/// The ordinal of a question comes from <c>(Order, Id)</c> and <b>not</b> from the Guid alone:
+/// <c>CreateDialogVersionCommand</c> assigns each question a new Guid on cloning, so a Guid-based
+/// layout would reshuffle on every new dialog version. <c>Order</c> survives cloning and
+/// is moreover the order chosen by the author.
 /// </para>
 /// <para>
-/// <b>Ohne Dummy-Knoten.</b> Ein vollständiger Sugiyama zieht Ketten von Platzhaltern durch
-/// übersprungene Schichten. Nötig wären sie hier nur für Rücksprünge – und die gehören optisch ohnehin
-/// nicht zwischen die Knoten, sondern in einen Kanal am Rand. Für die Zielgröße von rund 30 Knoten
-/// sparen Dummy-Ketten kein einziges Kreuz, kosten aber eine zweite Knotenart im Modell, im Rendering
-/// und in der Auswahl.
+/// <b>Without dummy nodes.</b> A full Sugiyama draws chains of placeholders through
+/// skipped layers. They would only be needed here for back-jumps – and those visually do not belong
+/// between the nodes anyway, but in a lane at the edge. For the target size of around 30 nodes
+/// dummy chains save not a single crossing, but cost a second node kind in the model, in the rendering
+/// and in the selection.
 /// </para>
 /// </remarks>
 internal static class GraphLayout
 {
-    /// <summary>Wie oft die Schichten zur Kreuzungsreduktion durchsortiert werden.</summary>
+    /// <summary>How often the layers are sorted through to reduce crossings.</summary>
     /// <remarks>
-    /// Feste Zahl statt Abbruch bei Konvergenz: Ein Konvergenzkriterium auf Gleitkommawerten wäre die
-    /// Sorte Bedingung, die auf einer anderen Maschine anders ausgeht.
+    /// A fixed number instead of stopping on convergence: a convergence criterion on floating-point values
+    /// would be the kind of condition that comes out differently on another machine.
     /// </remarks>
     private const int SweepCount = 4;
 
-    /// <summary>Eckenradius der Rücksprung-Kanäle in px.</summary>
+    /// <summary>Corner radius of the back-jump lanes in px.</summary>
     private const double CornerRadius = 12;
 
-    /// <summary>Ordnet den Graphen eines Dialogs an.</summary>
-    /// <param name="detail">Der Dialog samt Graph (aus <c>GetDialogQuery</c>).</param>
-    /// <returns>Die Geometrie aller Knoten und Kanten.</returns>
+    /// <summary>Lays out the graph of a dialog.</summary>
+    /// <param name="detail">The dialog including graph (from <c>GetDialogQuery</c>).</param>
+    /// <returns>The geometry of all nodes and edges.</returns>
     public static GraphLayoutResult Compute(DialogDetail detail)
     {
         ArgumentNullException.ThrowIfNull(detail);
 
         if (detail.Questions.Count == 0)
         {
-            // Die Mindestfläche ist keine Kosmetik: Auf einen leeren Dialog wird die erste Frage aus der
-            // Palette gezogen (#103) – eine 80 × 80 px große Fläche wäre kein Ziel.
+            // The minimum area is not cosmetics: onto an empty dialog the first question is dragged from
+            // the palette (#103) – an 80 × 80 px area would be no target.
             return new GraphLayoutResult([], [], 0, GraphMetrics.MinCanvasWidth, GraphMetrics.MinCanvasHeight);
         }
 
@@ -74,18 +74,18 @@ internal static class GraphLayout
     }
 
     /// <summary>
-    /// Liest die vom Autor gespeicherten Positionen (<c>DialogLayout</c>) aus dem Dialog.
+    /// Reads the positions stored by the author (<c>DialogLayout</c>) from the dialog.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Sie greifen erst ganz am Ende, in <see cref="Render"/>: Schichtung, Kantenform, Baryzentrum und
-    /// Kanalvergabe bleiben am Auto-Layout hängen. Ein verschobener Knoten ändert damit <b>nur seine
-    /// Position</b> – nie die Zeichenform einer Kante und nie die Anordnung der übrigen Knoten. Sonst
-    /// könnte ein einziger Zug den ganzen Graphen umsortieren.
+    /// They take effect only at the very end, in <see cref="Render"/>: layering, edge shape, barycenter and
+    /// lane assignment stay with the auto-layout. A moved node thus changes <b>only its
+    /// position</b> – never the drawing shape of an edge and never the arrangement of the other nodes.
+    /// Otherwise a single drag could resort the whole graph.
     /// </para>
     /// <para>
-    /// Die Determinismus-Zusage bleibt: Gleiche Eingabe – Graph <i>und</i> Layout-Zeilen – ergibt
-    /// dieselben Koordinaten.
+    /// The determinism guarantee holds: the same input – graph <i>and</i> layout rows – yields
+    /// the same coordinates.
     /// </para>
     /// </remarks>
     private static Dictionary<Guid, (double X, double Y)> Pinned(DialogDetail detail, GraphOrder order)
@@ -94,30 +94,30 @@ internal static class GraphLayout
 
         foreach (var entry in detail.Layout)
         {
-            // Nur Fragen sind heute Knoten; eine Zeile auf eine gelöschte Frage hat kein Ziel.
+            // Only questions are nodes today; a row on a deleted question has no target.
             if (entry.ElementKind != LayoutElementKind.Question || !order.Ordinal.ContainsKey(entry.ElementId))
             {
                 continue;
             }
 
-            // Negative Werte lehnt der Command ab; ein von Hand geschriebener Datensatz käme sonst
-            // ausserhalb der Zeichenfläche zu liegen und wäre unerreichbar.
+            // Negative values are rejected by the command; a hand-written record would otherwise come to
+            // lie outside the drawing surface and would be unreachable.
             pinned[entry.ElementId] = (Math.Max(0, entry.X), Math.Max(0, entry.Y));
         }
 
         return pinned;
     }
 
-    // ---- Schritt 0: Normalisierung ------------------------------------------------------------------
+    // ---- Step 0: normalization ----------------------------------------------------------------------
 
     /// <summary>
-    /// Bringt Fragen und Übergänge in eine eindeutige, wiederholbare Reihenfolge – die Grundlage jeder
-    /// späteren Determinismus-Zusage.
+    /// Brings questions and transitions into a unique, repeatable order – the basis of every
+    /// later determinism guarantee.
     /// </summary>
     private static GraphOrder Normalize(DialogDetail detail)
     {
-        // (Order, Id): Order ist die Autorenreihenfolge und überlebt das Klonen einer Dialogversion,
-        // die Id löst den Gleichstand, den der Designer selbst nie erzeugt.
+        // (Order, Id): Order is the author order and survives cloning a dialog version,
+        // the Id breaks the tie that the designer itself never produces.
         var questions = detail.Questions
             .OrderBy(question => question.Order)
             .ThenBy(question => question.Id)
@@ -129,8 +129,8 @@ internal static class GraphLayout
             ordinal[questions[index].Id] = index;
         }
 
-        // Nur zeichenbare Kanten. Die globale Priority-Sortierung aus DialogDetail reicht als
-        // Reihenfolge nicht: Bei gleicher Priority in verschiedenen Ausgangsfragen ist sie beliebig.
+        // Only drawable edges. The global Priority sort from DialogDetail is not enough as an
+        // order: with equal Priority across different source questions it is arbitrary.
         var edges = detail.Transitions
             .Where(transition =>
                 ordinal.ContainsKey(transition.FromQuestionId)
@@ -144,12 +144,12 @@ internal static class GraphLayout
         return new GraphOrder(questions, ordinal, edges);
     }
 
-    // ---- Schritt 1: Schichtung ----------------------------------------------------------------------
+    // ---- Step 1: layering ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Schichtet den Graphen per Breitensuche ab der Einstiegsfrage. Weil die Breitensuche kürzeste Wege
-    /// findet, gilt für jede Kante innerhalb einer Komponente <c>layer[ziel] ≤ layer[quelle] + 1</c> –
-    /// eine Vorwärtskante überspringt also nie eine Schicht.
+    /// Layers the graph via breadth-first search from the entry question. Because the breadth-first search
+    /// finds shortest paths, for every edge within a component <c>layer[target] ≤ layer[source] + 1</c>
+    /// holds – so a forward edge never skips a layer.
     /// </summary>
     private static LayerAssignment AssignLayers(DialogDetail detail, GraphOrder order)
     {
@@ -171,9 +171,9 @@ internal static class GraphLayout
         }
         else
         {
-            // Ohne Einstiegsfrage gibt es keinen Bezugspunkt für „erreichbar“. Dann wären alle Fragen
-            // rot markiert, obwohl nur eine Angabe fehlt – der Befund gehört an den Dialog, nicht an
-            // jeden Knoten. Wurzeln sind hier die Fragen, auf die nichts zeigt.
+            // Without an entry question there is no reference point for "reachable". Then all questions
+            // would be marked red, even though only one piece of information is missing – the finding
+            // belongs on the dialog, not on every node. Roots here are the questions that nothing points to.
             var targets = order.Edges.Select(edge => edge.TargetQuestionId).ToHashSet();
             var roots = order.Questions.Where(question => !targets.Contains(question.Id)).ToArray();
 
@@ -188,8 +188,8 @@ internal static class GraphLayout
             }
         }
 
-        // Was jetzt noch fehlt, hängt an keinem Pfad von der Einstiegsfrage. Es kommt hinter den Graphen,
-        // getrennt durch eine leere Schicht – das Band ist die optische Aussage „gehört nicht dazu“.
+        // What is still missing now hangs on no path from the entry question. It goes behind the graph,
+        // separated by an empty layer – the band is the visual statement "does not belong".
         var offset = (layer.Count == 0 ? -2 : layer.Values.Max()) + 2;
         foreach (var question in order.Questions)
         {
@@ -230,12 +230,12 @@ internal static class GraphLayout
         }
     }
 
-    // ---- Schritt 2: Rückwärtskanten aufbrechen ------------------------------------------------------
+    // ---- Step 2: break up back edges ----------------------------------------------------------------
 
     /// <summary>
-    /// Teilt die Kanten nach ihrer Zeichenform ein. Nur <see cref="GraphEdgeShape.Forward"/>-Kanten
-    /// zwischen benachbarten Schichten ordnen mit – Rücksprünge sind aus dem azyklischen Kantensatz
-    /// entfernt, sonst zöge der Zyklus die Anordnung in sich zusammen.
+    /// Classifies the edges by their drawing shape. Only <see cref="GraphEdgeShape.Forward"/> edges
+    /// between adjacent layers take part in the arrangement – back-jumps are removed from the acyclic
+    /// edge set, otherwise the cycle would pull the arrangement in on itself.
     /// </summary>
     private static Dictionary<Guid, GraphEdgeShape> ClassifyEdges(GraphOrder order, LayerAssignment layers)
     {
@@ -258,12 +258,12 @@ internal static class GraphLayout
         return shapes;
     }
 
-    // ---- Schritt 3: Baryzentrum ---------------------------------------------------------------------
+    // ---- Step 3: barycenter -------------------------------------------------------------------------
 
     /// <summary>
-    /// Sortiert die Knoten innerhalb ihrer Schichten so um, dass sich möglichst wenige Kanten kreuzen:
-    /// Jeder Knoten rückt an das Mittel („Baryzentrum“) seiner Nachbarn in der jeweils festgehaltenen
-    /// Nachbarschicht.
+    /// Reorders the nodes within their layers so that as few edges as possible cross:
+    /// each node moves to the mean ("barycenter") of its neighbours in the respectively fixed
+    /// adjacent layer.
     /// </summary>
     private static List<Guid>[] Arrange(
         DialogDetail detail,
@@ -279,15 +279,15 @@ internal static class GraphLayout
             slots[index] = [];
         }
 
-        // Startreihenfolge ist die Entdeckungsreihenfolge der Breitensuche, ausgedrückt über das
-        // Ordinal – reproduzierbar ohne die Suche noch einmal laufen zu lassen.
+        // Start order is the discovery order of the breadth-first search, expressed via the
+        // ordinal – reproducible without running the search again.
         foreach (var question in order.Questions)
         {
             slots[layers.Layer[question.Id]].Add(question.Id);
         }
 
-        // Nur Kanten zwischen unmittelbar benachbarten Schichten ordnen mit; alles andere hat in der
-        // dummy-freien Variante keinen definierten Platz in der Zwischenschicht.
+        // Only edges between immediately adjacent layers take part in the arrangement; everything else has
+        // no defined place in the intermediate layer in the dummy-free variant.
         var adjacent = order.Edges
             .Where(edge => shapes[edge.Id] == GraphEdgeShape.Forward
                 && layers.Layer[edge.TargetQuestionId] == layers.Layer[edge.FromQuestionId] + 1)
@@ -330,9 +330,9 @@ internal static class GraphLayout
     }
 
     /// <summary>
-    /// Ordnet eine Schicht nach dem Baryzentrum ihrer Knoten. Der Sortierschlüssel endet mit dem
-    /// eindeutigen Ordinal und ist damit eine Totalordnung – zwei Aufrufe können nicht unterschiedlich
-    /// ausgehen.
+    /// Orders a layer by the barycenter of its nodes. The sort key ends with the
+    /// unique ordinal and is thus a total order – two calls cannot come out
+    /// differently.
     /// </summary>
     private static void Reorder(
         List<Guid> layer,
@@ -345,8 +345,8 @@ internal static class GraphLayout
 
         var sorted = layer
             .OrderBy(id => Barycenter(id, neighbours, fixedSlots, previous))
-            // Fragen derselben Schleife bleiben beieinander – sonst spannt der Bereichsrahmen später
-            // über fremde Knoten hinweg.
+            // Questions of the same loop stay together – otherwise the range frame would later span
+            // across foreign nodes.
             .ThenBy(id => loopIndex.TryGetValue(id, out var index) ? index : int.MaxValue)
             .ThenBy(id => previous[id])
             .ThenBy(id => ordinal[id])
@@ -382,9 +382,10 @@ internal static class GraphLayout
     }
 
     /// <summary>
-    /// Zählt die Kreuzungen zwischen benachbarten Schichten – die Inversionen der Zielpositionen, wenn
-    /// die Kanten nach ihrer Quellposition gelesen werden. Bei der Zielgröße von rund 30 Knoten ist der
-    /// quadratische Aufwand belanglos; der Wert macht die Anordnung messbar statt behauptbar.
+    /// Counts the crossings between adjacent layers – the inversions of the target positions when
+    /// the edges are read by their source position. At the target size of around 30 nodes the
+    /// quadratic effort is negligible; the value makes the arrangement measurable instead of merely
+    /// claimed.
     /// </summary>
     private static int CountCrossings(
         IReadOnlyList<List<Guid>> slots, IReadOnlyList<TransitionDetail> adjacent, LayerAssignment layers)
@@ -424,7 +425,7 @@ internal static class GraphLayout
         return crossings;
     }
 
-    /// <summary>Ordnet jeder Frage die Schleife zu, in deren Bereich sie liegt.</summary>
+    /// <summary>Assigns each question the loop in whose range it lies.</summary>
     private static Dictionary<Guid, int> LoopIndexes(DialogDetail detail, GraphOrder order)
     {
         var loopIndex = new Dictionary<Guid, int>();
@@ -433,8 +434,8 @@ internal static class GraphLayout
         {
             var body = LoopAnalyzer.ComputeBody(detail, detail.Loops[index]);
 
-            // Über die geordnete Fragenliste projizieren, nicht über die Menge iterieren: Die
-            // Iterationsreihenfolge eines HashSet ist nicht zugesichert.
+            // Project over the ordered question list, do not iterate over the set: the
+            // iteration order of a HashSet is not guaranteed.
             foreach (var question in order.Questions)
             {
                 if (body.Contains(question.Id))
@@ -461,7 +462,7 @@ internal static class GraphLayout
     private static List<Guid>[] Snapshot(IReadOnlyList<List<Guid>> slots)
         => [.. slots.Select(layer => new List<Guid>(layer))];
 
-    // ---- Schritt 4 und 5: Koordinaten und Kantenverlauf ---------------------------------------------
+    // ---- Steps 4 and 5: coordinates and edge routing ------------------------------------------------
 
     private static GraphLayoutResult Render(
         GraphOrder order,
@@ -482,15 +483,15 @@ internal static class GraphLayout
             {
                 var id = layer[slot];
 
-                // Die Schicht wird mittig ausgerichtet. Alle Faktoren sind ganzzahlig, PitchX ist gerade –
-                // es entstehen keine Nachkommastellen aus einer Division.
+                // The layer is centered. All factors are integers, PitchX is even –
+                // no decimal places arise from a division.
                 var x = GraphMetrics.MarginX
                     + ((widest - layer.Count) * GraphMetrics.PitchX / 2)
                     + (slot * GraphMetrics.PitchX);
                 var y = GraphMetrics.MarginY + (layerIndex * GraphMetrics.PitchY);
 
-                // Die gespeicherte Position schlägt die berechnete – und zwar erst hier, damit sie das
-                // Kantenrouting unten mitnimmt, aber die Anordnung darüber nicht beeinflusst hat.
+                // The stored position beats the computed one – and only here, so that it is picked up by
+                // the edge routing below, but did not influence the arrangement above.
                 var isPinned = pinned.TryGetValue(id, out var saved);
                 boxes[id] = isPinned ? saved : (x, y);
 
@@ -499,17 +500,17 @@ internal static class GraphLayout
             }
         }
 
-        // Die Zeichenfläche muss auch verschobene Knoten fassen: Der Kanal der Rücksprünge liegt rechts
-        // von allem, was gezeichnet wird – sonst liefe er quer durch einen weit gezogenen Knoten.
+        // The drawing surface must also fit moved nodes: the lane of the back-jumps lies to the right
+        // of everything that is drawn – otherwise it would run across a widely stretched node.
         var contentWidth = Math.Max(
             GraphMetrics.MarginX + (widest * GraphMetrics.PitchX) - GraphMetrics.GapX,
             boxes.Values.Max(box => box.X) + GraphMetrics.NodeWidth);
 
         var lanes = AssignLanes(order, layers, shapes);
 
-        // Die Untergrenze gilt auch für einen kleinen Graphen: Ein Dialog mit zwei Fragen soll noch Platz
-        // zum Ablegen der dritten haben (#103). Beide Konstanten sind ganzzahlig – die Determinismus-Zusage
-        // bleibt unberührt.
+        // The lower bound also applies to a small graph: a dialog with two questions should still have room
+        // to drop the third (#103). Both constants are integers – the determinism guarantee
+        // stays unaffected.
         var width = Math.Max(
             GraphMetrics.MinCanvasWidth,
             contentWidth + GraphMetrics.MarginX + (lanes.Count * GraphMetrics.GutterStep));
@@ -545,8 +546,8 @@ internal static class GraphLayout
     }
 
     /// <summary>
-    /// Vergibt die Kanäle rechts des Graphen an die Rücksprünge – der längste außen, damit sich die
-    /// Kanäle nicht schneiden.
+    /// Assigns the lanes to the right of the graph to the back-jumps – the longest one outermost, so that
+    /// the lanes do not intersect.
     /// </summary>
     private static Dictionary<Guid, int> AssignLanes(
         GraphOrder order, LayerAssignment layers, IReadOnlyDictionary<Guid, GraphEdgeShape> shapes)
@@ -591,16 +592,16 @@ internal static class GraphLayout
                 var tx = to.X + half + offset;
                 var ty = to.Y;
 
-                // Der Biegeradius darf die halbe Spannweite nicht überschreiten: Bei zwei benachbarten
-                // Schichten liegen nur GapY zwischen den Knoten, ein fester Wert schöbe die
-                // Kontrollpunkte aneinander vorbei und die Kante liefe als S-Schlaufe.
+                // The bend radius must not exceed half the span: with two adjacent
+                // layers there is only GapY between the nodes, a fixed value would push the
+                // control points past each other and the edge would run as an S-loop.
                 var bend = Math.Min(GraphMetrics.EdgeBend, Math.Abs(ty - sy) / 2);
 
                 var path = $"M {N(sx)} {N(sy)} C {N(sx)} {N(sy + bend)} "
                     + $"{N(tx)} {N(ty - bend)} {N(tx)} {N(ty)}";
 
-                // Der Mittelpunkt einer kubischen Bézier mit senkrechten Kontrollpunkten liegt exakt
-                // zwischen Start und Ziel – kein Näherungswert nötig.
+                // The midpoint of a cubic Bézier with vertical control points lies exactly
+                // between start and target – no approximation needed.
                 return new GraphEdgeRoute(edge.Id, shape, path, (sx + tx) / 2, (sy + ty) / 2, fanIndex, fanCount);
             }
 
@@ -617,7 +618,7 @@ internal static class GraphLayout
 
                 var path = $"M {N(sx)} {N(sy)} Q {N(cx)} {N(cy)} {N(tx)} {N(ty)}";
 
-                // Mittelpunkt der quadratischen Bézier: (P0 + 2·P1 + P2) / 4.
+                // Midpoint of the quadratic Bézier: (P0 + 2·P1 + P2) / 4.
                 return new GraphEdgeRoute(
                     edge.Id, shape, path, (sx + (2 * cx) + tx) / 4, (sy + (2 * cy) + ty) / 4, fanIndex, fanCount);
             }
@@ -636,8 +637,8 @@ internal static class GraphLayout
 
             default:
             {
-                // Rücksprünge laufen im Kanal rechts am Graphen vorbei nach oben. Zwischen die Knoten
-                // gezeichnet würden sie den Fluss verdecken, den der Canvas gerade zeigen soll.
+                // Back-jumps run up past the graph in the lane to the right. Drawn between the nodes
+                // they would obscure the flow that the canvas is meant to show.
                 var sx = from.X + GraphMetrics.NodeWidth;
                 var sy = from.Y + middle + offset;
                 var tx = to.X + GraphMetrics.NodeWidth;
@@ -655,12 +656,12 @@ internal static class GraphLayout
 
     private static string N(double value) => SvgFormat.N(value);
 
-    /// <summary>Fragen und Kanten in eindeutiger Reihenfolge, mit dem Ordinal je Frage.</summary>
+    /// <summary>Questions and edges in unique order, with the ordinal per question.</summary>
     private sealed record GraphOrder(
         QuestionDetail[] Questions,
         Dictionary<Guid, int> Ordinal,
         TransitionDetail[] Edges);
 
-    /// <summary>Die Schicht je Frage und die Menge der von der Einstiegsfrage aus erreichbaren Fragen.</summary>
+    /// <summary>The layer per question and the set of questions reachable from the entry question.</summary>
     private sealed record LayerAssignment(Dictionary<Guid, int> Layer, HashSet<Guid> Reachable);
 }

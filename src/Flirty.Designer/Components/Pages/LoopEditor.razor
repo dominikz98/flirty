@@ -1,5 +1,5 @@
-@* Bewusst NICHT "LoopDetail" genannt: der Komponententyp würde sonst den gleichnamigen
-   Sichttyp Flirty.Runtime.Admin.LoopDetail verdecken (wie bei DialogEditor/QuestionEditor). *@
+@* Deliberately NOT named "LoopDetail": the component type would otherwise shadow the
+   view type Flirty.Runtime.Admin.LoopDetail of the same name (as with DialogEditor/QuestionEditor). *@
 @page "/dialogs/{DialogId:guid}/loops/{LoopId:guid}"
 @rendermode InteractiveServer
 @using Mediator
@@ -7,13 +7,13 @@
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
 
-<PageTitle>Schleife · Flirty Designer</PageTitle>
+<PageTitle>Loop · Flirty Designer</PageTitle>
 
 <p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
 
 @if (_insight is null)
 {
-    <h1>Schleife</h1>
+    <h1>Loop</h1>
 
     @if (_error is not null)
     {
@@ -21,7 +21,7 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
@@ -30,26 +30,25 @@ else
         <span class="mono">@_insight.Loop.CollectionKey</span>
         @if (_insight.Warnings.Count == 0)
         {
-            <span class="badge badge-loop">Schleife</span>
+            <span class="badge badge-loop">Loop</span>
         }
         else
         {
-            <span class="badge badge-draft">@_insight.Warnings.Count Warnung(en)</span>
+            <span class="badge badge-draft">@_insight.Warnings.Count warning(s)</span>
         }
     </h1>
 
     <p class="intro">
-        Schleifenbereich über @_insight.Body.Count Frage(n) im Dialog
+        Loop body over @_insight.Body.Count question(s) in the dialog
         <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
     </p>
 
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
-            Der Dialog ist in Version @_detail.Dialog.Version veröffentlicht: Sein Graph ist <strong>gesperrt</strong>,
-            damit laufende Sessions nicht brechen. Zum Ändern im
-            <a href="@($"dialogs/{DialogId}")">Dialog-Editor</a> eine neue Version anlegen oder den Dialog
-            zurückziehen.
+            The dialog is published in version @_detail.Dialog.Version: its graph is <strong>locked</strong>,
+            so that running sessions do not break. To change it, create a new version in the
+            <a href="@($"dialogs/{DialogId}")">dialog editor</a> or unpublish the dialog.
         </div>
     }
 
@@ -68,21 +67,21 @@ else
     }
 
     <div class="editor">
-        <h2>Loop-Block</h2>
+        <h2>Loop block</h2>
 
         @if (_insight.Body.Count == 0)
         {
             <p class="empty">
-                Kein Schleifenbereich ermittelbar – Einstiegs- oder Breaking Question gehören nicht (mehr)
-                zu diesem Dialog.
+                No loop body determinable – the entry or breaking question no longer belongs to this
+                dialog.
             </p>
         }
         else
         {
             <p class="hint">
-                Der Bereich ergibt sich aus dem Übergangs-Graphen: alle Fragen, die ab der Einstiegsfrage
-                erreichbar sind <em>und</em> von denen aus die Breaking Question erreichbar bleibt. Genau
-                diese Fragen tragen zur Laufzeit einen Iterationsindex.
+                The body follows from the transition graph: all questions reachable from the entry question
+                <em>and</em> from which the breaking question stays reachable. Exactly these questions carry
+                an iteration index at runtime.
             </p>
 
             <ol class="loop-block">
@@ -94,7 +93,7 @@ else
 
                         @if (question.Id == _insight.Loop.EntryQuestionId)
                         {
-                            <span class="badge badge-start">Einstieg</span>
+                            <span class="badge badge-start">Entry</span>
                         }
                         @if (question.Id == _insight.Loop.BreakingQuestionId)
                         {
@@ -107,7 +106,7 @@ else
                                 @foreach (var transition in _insight.LoopBackTransitions)
                                 {
                                     <li>
-                                        <span title="Rücksprung in den Schleifenbereich">↩</span>
+                                        <span title="Back-jump into the loop body">↩</span>
                                         <a href="@($"dialogs/{DialogId}/transitions/{transition.Id}")">
                                             → @QuestionLabel(transition.TargetQuestionId)
                                         </a>
@@ -117,7 +116,7 @@ else
                                 @foreach (var transition in _insight.ExitTransitions)
                                 {
                                     <li>
-                                        <span title="Ausstieg aus dem Schleifenbereich">⇥</span>
+                                        <span title="Exit from the loop body">⇥</span>
                                         <a href="@($"dialogs/{DialogId}/transitions/{transition.Id}")">
                                             → @QuestionLabel(transition.TargetQuestionId)
                                         </a>
@@ -131,8 +130,8 @@ else
             </ol>
 
             <p class="hint">
-                Die Reihenfolge der Übergänge (und damit, welcher zuerst greift) wird in der
-                <a href="@($"dialogs/{DialogId}")">Übergangsliste des Dialogs</a> gepflegt.
+                The order of the transitions (and thus which one applies first) is maintained in the
+                <a href="@($"dialogs/{DialogId}")">transition list of the dialog</a>.
             </p>
         }
     </div>
@@ -144,45 +143,45 @@ else
             <h2>Marker</h2>
 
             <div class="field">
-                <label for="collectionKey">Collection-Schlüssel</label>
+                <label for="collectionKey">Collection key</label>
                 <InputText id="collectionKey" class="input mono" @bind-Value="_form.CollectionKey" />
                 <span class="hint">
-                    Unter diesem Bezeichner liegen die je Iteration gesammelten Antworten der
-                    Einstiegsfrage im Ausdruckskontext – z. B. <code>@(_form.CollectionKey).Count &gt; 0</code>
-                    als Abbruchbedingung. Er muss im Dialog eindeutig sein.
+                    Under this identifier the answers of the entry question collected per iteration are
+                    available in the expression context – e.g. <code>@(_form.CollectionKey).Count &gt; 0</code>
+                    as a break condition. It must be unique within the dialog.
                 </span>
                 <ValidationMessage For="() => _form.CollectionKey" />
             </div>
 
             <div class="field-row">
                 <div class="field">
-                    <label for="entry">Einstiegsfrage</label>
+                    <label for="entry">Entry question</label>
                     <InputSelect id="entry" class="input" @bind-Value="_form.EntryQuestionId">
-                        <option value="">— wählen —</option>
+                        <option value="">— select —</option>
                         @foreach (var question in _detail.Questions)
                         {
                             <option value="@question.Id">@question.Key — @question.Text</option>
                         }
                     </InputSelect>
                     <span class="hint">
-                        Ziel des Rücksprungs. Ihre erneute Beantwortung startet die nächste Iteration, und
-                        genau ihre Antwort landet je Iteration in der Collection.
+                        Target of the back-jump. Answering it again starts the next iteration, and exactly
+                        its answer lands in the collection per iteration.
                     </span>
                     <ValidationMessage For="() => _form.EntryQuestionId" />
                 </div>
 
                 <div class="field">
-                    <label for="breaking">Breaking Question</label>
+                    <label for="breaking">Breaking question</label>
                     <InputSelect id="breaking" class="input" @bind-Value="_form.BreakingQuestionId">
-                        <option value="">— wählen —</option>
+                        <option value="">— select —</option>
                         @foreach (var question in _detail.Questions)
                         {
                             <option value="@question.Id">@question.Key — @question.Text</option>
                         }
                     </InputSelect>
                     <span class="hint">
-                        An ihr entscheidet das normale Branching zwischen Rücksprung und Ausstieg – einen
-                        eigenen Break-Ausdruck gibt es nicht.
+                        At it the normal branching decides between back-jump and exit – there is no
+                        dedicated break expression.
                     </span>
                     <ValidationMessage For="() => _form.BreakingQuestionId" />
                 </div>
@@ -190,48 +189,48 @@ else
         </div>
 
         <div class="actions">
-            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Speichern</button>
-            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Zurücksetzen</button>
+            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Save</button>
+            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Reset</button>
         </div>
     </EditForm>
 
     <div class="editor">
-        <h2>Schleife löschen</h2>
+        <h2>Delete loop</h2>
 
         <p class="hint">
-            Gelöscht wird nur der Marker – die Übergänge und damit der Zyklus bleiben bestehen. Ohne Marker
-            überschreibt die Laufzeit die Antworten des Bereichs, statt sie je Iteration zu sammeln, und
-            <span class="mono">@_insight.Loop.CollectionKey</span> ist in Bedingungen nicht mehr verfügbar.
+            Only the marker is deleted – the transitions and thus the cycle remain. Without the marker the
+            runtime overwrites the answers of the body instead of collecting them per iteration, and
+            <span class="mono">@_insight.Loop.CollectionKey</span> is no longer available in conditions.
         </p>
 
         <div class="actions">
             @if (_confirmDelete)
             {
-                <span class="confirm">Marker wirklich löschen?</span>
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Ja, löschen</button>
-                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Abbrechen</button>
+                <span class="confirm">Really delete marker?</span>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Yes, delete</button>
+                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Cancel</button>
             }
             else
             {
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Löschen</button>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Delete</button>
             }
         </div>
     </div>
 }
 
 @code {
-    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    /// <summary>The primary key of the dialog (from the route).</summary>
     [Parameter]
     public Guid DialogId { get; set; }
 
-    /// <summary>Der Primärschlüssel des bearbeiteten Schleifen-Markers (aus der Route).</summary>
+    /// <summary>The primary key of the edited loop marker (from the route).</summary>
     [Parameter]
     public Guid LoopId { get; set; }
 
     /// <summary>
-    /// Ob der Graph bearbeitbar ist: an einer veröffentlichten Version lehnt die Engine
-    /// Graph-Änderungen mit einem Konflikt ab (<c>DialogPublishedException</c>), damit laufende Sessions
-    /// nicht brechen. Die Sperre spiegelt das in der Oberfläche.
+    /// Whether the graph is editable: on a published version the engine rejects graph changes with a
+    /// conflict (<c>DialogPublishedException</c>), so that running sessions do not break. The lock
+    /// mirrors that in the UI.
     /// </summary>
     private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
     private DialogDetail? _detail;
@@ -257,9 +256,9 @@ else
     }
 
     /// <summary>
-    /// Lädt den Dialog-Graphen und analysiert den bearbeiteten Marker. Ein <c>GetDialogQuery</c> genügt:
-    /// er liefert Fragen (für die Auswahl und den Loop-Block), Übergänge (für Bereich, Rücksprünge und
-    /// Ausstiege) und die übrigen Marker (für die Überlappungs-Prüfung).
+    /// Loads the dialog graph and analyzes the edited marker. A single <c>GetDialogQuery</c> suffices:
+    /// it delivers questions (for the selection and the loop block), transitions (for the body, back-jumps
+    /// and exits) and the other markers (for the overlap check).
     /// </summary>
     private async Task ReloadAsync(bool resetForm = true)
     {
@@ -271,7 +270,7 @@ else
 
         if (_detail is not null && _insight is null)
         {
-            _error = $"Der Dialog '{DialogId}' enthält keine Schleife mit der Id '{LoopId}'.";
+            _error = $"The dialog '{DialogId}' contains no loop with the id '{LoopId}'.";
         }
 
         if (resetForm)
@@ -290,13 +289,13 @@ else
 
     private string QuestionLabel(Guid questionId)
         => _detail?.Questions.FirstOrDefault(question => question.Id == questionId)?.Key
-            ?? $"unbekannt ({questionId})";
+            ?? $"unknown ({questionId})";
 
     private static string Condition(TransitionDetail transition)
         => transition.IsDefault
             ? "— Default —"
             : string.IsNullOrWhiteSpace(transition.Expression)
-                ? "— bedingungslos —"
+                ? "— unconditional —"
                 : transition.Expression;
 
     private async Task SaveAsync()
@@ -306,7 +305,7 @@ else
                     DialogId, LoopId, _form.CollectionKey,
                     _form.EntryQuestionId!.Value, _form.BreakingQuestionId!.Value),
                 token),
-            "Schleife gespeichert.");
+            "Loop saved.");
 
     private async Task DeleteAsync()
     {
@@ -332,12 +331,12 @@ else
     }
 
     /// <summary>
-    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// Runs a writing operation, shows success or error and reloads the graph.
     /// </summary>
-    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
-    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
-    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
-    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    /// <typeparam name="TResult">The result type of the operation.</typeparam>
+    /// <param name="operation">The admin message to execute.</param>
+    /// <param name="successMessage">The message shown on success.</param>
+    /// <returns><see langword="true"/> if the operation succeeded.</returns>
     private async Task<bool> RunAsync<TResult>(
         Func<ISender, CancellationToken, ValueTask<TResult>> operation,
         string successMessage)

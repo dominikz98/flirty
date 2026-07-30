@@ -111,7 +111,7 @@ public sealed class DesignerExpressionContextTests
         var context = DesignerExpressionContext.Build(detail);
 
         Assert.False(variable.IsUsable);
-        Assert.Contains("verdeckt", variable.Note);
+        Assert.Contains("Shadowed", variable.Note);
         Assert.DoesNotContain("now", context.Answers.Keys);
     }
 
@@ -123,7 +123,7 @@ public sealed class DesignerExpressionContextTests
         var variable = DesignerExpressionContext.Describe(detail).First(entry => entry.Name == "vor-name");
 
         Assert.False(variable.IsUsable);
-        Assert.Contains("Bezeichner", variable.Note);
+        Assert.Contains("identifier", variable.Note);
         Assert.DoesNotContain("vor-name", DesignerExpressionContext.Build(detail).Answers.Keys);
     }
 
@@ -135,8 +135,8 @@ public sealed class DesignerExpressionContextTests
     [InlineData("alter", "Number", ">", "18", "alter > 18")]
     [InlineData("alter", "Number", ">", "", "alter > 0")]
     [InlineData("zustimmung", "Boolean", "==", "false", "zustimmung == false")]
-    [InlineData("skills", "List", "Anzahl >", "0", "skills.Count > 0")]
-    [InlineData("skills", "List", "enthält", "csharp", "skills.Contains(\"csharp\")")]
+    [InlineData("skills", "List", "Count >", "0", "skills.Count > 0")]
+    [InlineData("skills", "List", "contains", "csharp", "skills.Contains(\"csharp\")")]
     public void BuildCondition_setzt_den_Baustein_typgerecht_zusammen(
         string name, string kind, string operatorToken, string value, string expected)
     {
@@ -174,7 +174,7 @@ public sealed class DesignerExpressionContextTests
             new ThrowingEvaluator(), "alter > 18", DesignerExpressionContext.Build(Dialog()));
 
         Assert.False(result.IsValid);
-        Assert.Contains("nicht geprüft", result.Error);
+        Assert.Contains("could not be checked", result.Error);
     }
 
     // ---- Testdaten --------------------------------------------------------------------------------

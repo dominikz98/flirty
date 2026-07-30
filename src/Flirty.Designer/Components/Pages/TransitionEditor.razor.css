@@ -1,9 +1,9 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches.
+/* The shared UI primitives live globally in wwwroot/app.css – only page-specific rules here.
 
-   .expr-status und .expr-caret standen bis #103 hier und sind nach wwwroot/app.css gewandert: Der
-   Ausdrucks-Editor ist jetzt die Komponente ExpressionField, und CSS-Isolation reicht ihr
-   Scope-Attribut nicht an Kindkomponenten weiter. Nebenbefund derselben Verschiebung: Der TriggerEditor
-   benutzt beide Klassen seit #42, hat aber keine eigene .razor.css – dort waren sie also wirkungslos. */
+   .expr-status and .expr-caret lived here until #103 and moved to wwwroot/app.css: the expression editor
+   is now the ExpressionField component, and CSS isolation does not carry its scope attribute into child
+   components. A side finding of the same move: the TriggerEditor has used both classes since #42 but has
+   no .razor.css of its own – so there they were without effect. */
 
 h3 {
     margin: 0.75rem 0 0.5rem;

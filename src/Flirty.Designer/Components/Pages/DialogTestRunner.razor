@@ -1,5 +1,5 @@
-@* Bewusst kein Name aus Flirty.Runtime(.Admin): ein gleichnamiger Komponententyp würde den Sichttyp
-   verdecken (dieselbe Konvention wie bei DialogEditor/QuestionEditor/TriggerEditor). *@
+@* Deliberately no name from Flirty.Runtime(.Admin): an equally named component type would shadow the
+   view type (the same convention as with DialogEditor/QuestionEditor/TriggerEditor). *@
 @page "/dialogs/{DialogId:guid}/test"
 @rendermode InteractiveServer
 @using Flirty.Domain
@@ -9,13 +9,13 @@
 @inject FlirtyRuntimeGateway Runtime
 @inject DesignerTriggerLog TriggerLog
 
-<PageTitle>Testlauf · @(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
+<PageTitle>Test run · @(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
 
 <p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
 
 @if (_detail is null)
 {
-    <h1>Testlauf</h1>
+    <h1>Test run</h1>
 
     @if (_error is not null)
     {
@@ -23,32 +23,32 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
 {
     <h1>
-        Testlauf: @_detail.Dialog.Name
+        Test run: @_detail.Dialog.Name
         @if (_detail.Dialog.IsPublished)
         {
-            <span class="badge badge-published">Veröffentlicht</span>
+            <span class="badge badge-published">Published</span>
         }
         else
         {
-            <span class="badge badge-draft">Entwurf</span>
+            <span class="badge badge-draft">Draft</span>
         }
     </h1>
 
     <p class="intro">
-        Spielt den Dialog mit der echten Engine durch – auch als Entwurf, ohne ihn zu veröffentlichen.
+        Plays the dialog through with the real engine – even as a draft, without publishing it.
     </p>
 
     <div class="banner warn">
-        <strong>Der Lauf ist echt.</strong> Er legt in der Datenbank des aktiven Profils eine
-        <code>DialogSession</code> samt Antworten an (Anwenderschlüssel beginnt mit
+        <strong>The run is real.</strong> It creates a
+        <code>DialogSession</code> including answers in the database of the active profile (the user key begins with
         <code>@DialogTestRunner.UserKeyPrefix</code>)@(HasWebhookTrigger
-            ? ", und die am Dialog konfigurierten Webhook-Trigger werden tatsächlich per HTTP zugestellt."
+            ? ", and the webhook triggers configured on the dialog are actually delivered via HTTP."
             : ".")
     </div>
 
@@ -61,11 +61,11 @@ else
         <div class="banner ok">@_message</div>
     }
 
-    @* Zwei Darstellungen DESSELBEN Laufs – kein zweiter Runner. Start, Antwort und Editieren laufen in
-       beiden über dieselben Engine-Aufrufe; der Umschalter wechselt nur, was daraus gezeigt wird. *@
-    <div class="run-views" role="group" aria-label="Darstellung des Laufs">
+    @* Two representations of the SAME run – not a second runner. Start, answer and editing run in
+       both via the same engine calls; the toggle only changes what is shown from it. *@
+    <div class="run-views" role="group" aria-label="Representation of the run">
         <button class="btn @(_graphView ? "" : "is-active")" aria-pressed="@(_graphView ? "false" : "true")"
-                @onclick="() => SetView(false)">Verlauf</button>
+                @onclick="() => SetView(false)">History</button>
         <button class="btn @(_graphView ? "is-active" : "")" aria-pressed="@(_graphView ? "true" : "false")"
                 @onclick="() => SetView(true)">Graph</button>
     </div>
@@ -73,48 +73,48 @@ else
     @if (_state is null)
     {
         <div class="editor">
-            <h2>Lauf starten</h2>
+            <h2>Start run</h2>
 
             @if (_detail.Dialog.StartQuestionId is null)
             {
                 <p class="empty">
-                    Dieser Dialog hat keine Einstiegsfrage – ohne sie gibt es nichts durchzuspielen.
-                    Im Dialog-Editor eine Einstiegsfrage setzen und speichern.
+                    This dialog has no entry question – without it there is nothing to play through.
+                    Set and save an entry question in the dialog editor.
                 </p>
             }
             else
             {
                 <p class="hint">
-                    Beginnt bei der Einstiegsfrage
+                    Begins at the entry question
                     <span class="mono">@QuestionLabel(_detail.Dialog.StartQuestionId.Value)</span>.
-                    Jeder Lauf bekommt einen eigenen Anwenderschlüssel und startet daher frisch.
+                    Every run gets its own user key and therefore starts fresh.
                 </p>
                 <div class="actions">
-                    <button class="btn btn-primary" disabled="@_busy" @onclick="StartRunAsync">Lauf starten</button>
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="StartRunAsync">Start run</button>
                 </div>
             }
         </div>
     }
     else
     {
-        @* Die Verlaufsliste gehört der Listenansicht; die Karte „Aktuelle Frage" darunter steht in
-           BEIDEN – sie ist die Bedienung des Laufs, nicht seine Darstellung. *@
+        @* The history list belongs to the list view; the "Current question" card below it stands in
+           BOTH – it is the operation of the run, not its representation. *@
         @if (!_graphView)
         {
             <div class="editor">
-                <h2>Verlauf</h2>
+                <h2>History</h2>
 
                 @if (_state.Answers.Count == 0)
                 {
-                    <p class="empty">Noch keine Antwort erfasst.</p>
+                    <p class="empty">No answer recorded yet.</p>
                 }
                 else
                 {
                     <ol class="transcript">
                         @foreach (var answer in _state.Answers.OrderBy(entry => entry.Sequence))
                         {
-                            // Lokale Kopien: die Lambdas der Schaltflächen liefen sonst gegen den
-                            // Schleifenzustand nach dem letzten Durchlauf.
+                            // Local copies: otherwise the buttons' lambdas would run against the
+                            // loop state after the last iteration.
                             var entry = answer;
                             var question = QuestionOf(entry.QuestionId);
 
@@ -123,19 +123,19 @@ else
                                     <span class="mono">@entry.QuestionKey</span>
                                     @if (entry.IterationIndex is { } iteration)
                                     {
-                                        <span class="badge badge-loop" title="Antwort innerhalb einer Schleife">
+                                        <span class="badge badge-loop" title="Answer within a loop">
                                             Iteration @(iteration + 1)
                                         </span>
                                     }
                                     <span class="step-time">@entry.AnsweredAt.LocalDateTime.ToString("T")</span>
                                 </div>
 
-                                <div class="step-text">@(question?.Text ?? "Frage gehört nicht mehr zum Dialog")</div>
+                                <div class="step-text">@(question?.Text ?? "Question no longer belongs to the dialog")</div>
                                 <div class="step-value">@AnswerValueCodec.Describe(question, entry.Value)</div>
 
                                 @if (question is null)
                                 {
-                                    <span class="hint">Ohne Frage im Graphen lässt sich diese Antwort nicht editieren.</span>
+                                    <span class="hint">Without a question in the graph this answer cannot be edited.</span>
                                 }
                                 else if (_editing is { } editing && editing.Answer.Sequence == entry.Sequence)
                                 {
@@ -143,20 +143,20 @@ else
                                                  Options="AnswerChoice.From(question.Options)"
                                                  Input="editing.Input"
                                                  OnSubmit="SaveEditAsync"
-                                                 SubmitLabel="Speichern"
+                                                 SubmitLabel="Save"
                                                  Disabled="_busy" />
                                     <div class="actions">
-                                        <button class="btn" disabled="@_busy" @onclick="() => _editing = null">Abbrechen</button>
+                                        <button class="btn" disabled="@_busy" @onclick="() => _editing = null">Cancel</button>
                                     </div>
                                     <span class="hint">
-                                        Beim Speichern werden alle nachgelagerten Antworten verworfen und der Pfad
-                                        ab hier neu berechnet.
+                                        On saving, all downstream answers are discarded and the path
+                                        recomputed from here.
                                     </span>
                                 }
                                 else
                                 {
                                     <button class="btn" disabled="@_busy"
-                                            @onclick="() => StartEdit(entry, question)">Bearbeiten</button>
+                                            @onclick="() => StartEdit(entry, question)">Edit</button>
                                 }
                             </li>
                         }
@@ -168,12 +168,12 @@ else
         <div class="editor">
             @if (_state.CurrentQuestion is { } current)
             {
-                <h2>Aktuelle Frage</h2>
+                <h2>Current question</h2>
 
-                @* Bewusst OHNE Iterations-Badge: der iterationIndex des Kontexts meint die zuletzt
-                   gegebene Antwort auf diese Frage, nicht die bevorstehende – als „laufende Iteration"
-                   gelesen wäre er irreführend. Die exakten Indizes stehen am Verlauf, der rohe Wert
-                   unten im Ausdruckskontext. *@
+                @* Deliberately WITHOUT an iteration badge: the iterationIndex of the context means the last
+                   answer given to this question, not the upcoming one – read as "current iteration"
+                   it would be misleading. The exact indices are in the history, the raw value
+                   below in the expression context. *@
                 <p class="question-text">
                     <span class="mono">@current.Key</span>
                     @current.Text
@@ -191,39 +191,39 @@ else
             }
             else
             {
-                <h2>Ergebnis</h2>
+                <h2>Result</h2>
 
                 <div class="banner ok">
                     @(_state.Status == SessionStatus.Completed
-                        ? "Dialog abgeschlossen – nach der letzten Frage hat kein Übergang mehr gegriffen."
-                        : $"Keine offene Frage mehr (Status: {_state.Status}).")
-                    Frühere Antworten lassen sich oben weiterhin bearbeiten.
+                        ? "Dialog completed – after the last question no transition matched anymore."
+                        : $"No open question anymore (status: {_state.Status}).")
+                    Earlier answers can still be edited above.
                 </div>
             }
 
             <div class="actions">
-                <button class="btn" disabled="@_busy" @onclick="StartRunAsync">Neuen Lauf starten</button>
+                <button class="btn" disabled="@_busy" @onclick="StartRunAsync">Start new run</button>
             </div>
         </div>
 
-        @* Ausdruckskontext und Trigger-Protokoll sind die globalen Tafeln der Listenansicht. In der
-           Graph-Ansicht stehen dieselben Angaben am gewählten Knoten (#104) – dort, wo sie entstehen. *@
+        @* Expression context and trigger log are the global panels of the list view. In the
+           graph view the same details stand at the selected node (#104) – where they arise. *@
         @if (!_graphView)
         {
             <div class="editor">
-                <h2>Ausdruckskontext</h2>
+                <h2>Expression context</h2>
 
                 <p class="hint">
-                    Womit die Übergangs- und Trigger-Bedingungen gerade rechnen – dieselben Bindungen, die die
-                    Engine im Ausdruck sieht. Die Werte sind roher JSON-Text.
+                    What the transition and trigger conditions are computing with right now – the same bindings the
+                    engine sees in the expression. The values are raw JSON text.
                 </p>
 
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Bezeichner</th>
-                            <th>Art</th>
-                            <th>Wert</th>
+                            <th>Identifier</th>
+                            <th>Kind</th>
+                            <th>Value</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -231,11 +231,11 @@ else
                         {
                             <tr>
                                 <td class="mono">@question.Key</td>
-                                <td>Antwort</td>
+                                <td>Answer</td>
                                 <td class="mono">
                                     @(_snapshot is not null && _snapshot.Answers.TryGetValue(question.Key, out var bound)
                                         ? bound
-                                        : "— noch nicht beantwortet —")
+                                        : "— not answered yet —")
                                 </td>
                             </tr>
                         }
@@ -245,15 +245,15 @@ else
 
                             <tr>
                                 <td class="mono">@loop.CollectionKey</td>
-                                <td>Schleife (@entries.Count)</td>
-                                <td class="mono">@(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))</td>
+                                <td>Loop (@entries.Count)</td>
+                                <td class="mono">@(entries.Count == 0 ? "— empty —" : string.Join(", ", entries))</td>
                             </tr>
                         }
                         <tr>
                             <td class="mono">iterationIndex</td>
-                            <td>Kontext</td>
-                            <td class="mono" title="Iterationsindex der zuletzt gegebenen Antwort auf die offene Frage">
-                                @(_snapshot?.IterationIndex?.ToString() ?? "— außerhalb einer Schleife —")
+                            <td>Context</td>
+                            <td class="mono" title="Iteration index of the last answer given to the open question">
+                                @(_snapshot?.IterationIndex?.ToString() ?? "— outside a loop —")
                             </td>
                         </tr>
                     </tbody>
@@ -261,27 +261,27 @@ else
             </div>
 
             <div class="editor">
-                <h2>Trigger</h2>
+                <h2>Triggers</h2>
 
                 <p class="hint">
-                    Oben, was die Engine in diesem Lauf publiziert hat; darunter, was am Dialog konfiguriert
-                    ist. <strong>In-Process</strong>-Einträge stellt die Engine bewusst nicht selbst zu –
-                    dafür hängt die Host-App ihren eigenen <code>INotificationHandler&lt;T&gt;</code> ein.
+                    Above, what the engine has published in this run; below, what is configured on the dialog.
+                    <strong>In-process</strong> entries the engine deliberately does not deliver itself –
+                    for those the host app plugs in its own <code>INotificationHandler&lt;T&gt;</code>.
                 </p>
 
                 @if (TriggerLog.Entries.Count == 0)
                 {
-                    <p class="empty">Noch nichts publiziert.</p>
+                    <p class="empty">Nothing published yet.</p>
                 }
                 else
                 {
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Zeit</th>
-                                <th>Zeitpunkt</th>
-                                <th>Frage</th>
-                                <th>Was</th>
+                                <th>Time</th>
+                                <th>When</th>
+                                <th>Question</th>
+                                <th>What</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -302,7 +302,7 @@ else
 
                 @if (_detail.Triggers.Count == 0)
                 {
-                    <p class="hint">Am Dialog ist kein Trigger konfiguriert.</p>
+                    <p class="hint">No trigger is configured on the dialog.</p>
                 }
                 else
                 {
@@ -313,11 +313,11 @@ else
                                 @TriggerLabels.Describe(trigger.Scope) · @TriggerLabels.Describe(trigger.Kind)
                                 @if (trigger.QuestionId is { } questionId)
                                 {
-                                    <span class="mono">nach @QuestionLabel(questionId)</span>
+                                    <span class="mono">after @QuestionLabel(questionId)</span>
                                 }
                                 @if (!string.IsNullOrWhiteSpace(trigger.Expression))
                                 {
-                                    <span class="mono">wenn @trigger.Expression</span>
+                                    <span class="mono">when @trigger.Expression</span>
                                 }
                             </li>
                         }
@@ -330,14 +330,14 @@ else
     @if (_graphView && _graph is not null)
     {
         <div class="graph-toolbar">
-            <button class="btn" @onclick="() => ZoomAsync(GraphMetrics.ZoomStep)" aria-label="Vergrößern">＋</button>
-            <button class="btn" @onclick="() => ZoomAsync(1 / GraphMetrics.ZoomStep)" aria-label="Verkleinern">－</button>
-            <button class="btn" @onclick="ResetViewAsync">Ansicht zurücksetzen</button>
+            <button class="btn" @onclick="() => ZoomAsync(GraphMetrics.ZoomStep)" aria-label="Zoom in">＋</button>
+            <button class="btn" @onclick="() => ZoomAsync(1 / GraphMetrics.ZoomStep)" aria-label="Zoom out">－</button>
+            <button class="btn" @onclick="ResetViewAsync">Reset view</button>
 
             <span class="hint">
-                Der Graph ist hier nicht bearbeitbar – ein Lauf arbeitet auf genau diesem Graphen.
-                Verschieben und Zoomen gehen; zum Ändern in den
-                <a href="@($"dialogs/{DialogId}/graph")">Graph-Editor</a>.
+                The graph is not editable here – a run works on exactly this graph.
+                Moving and zooming work; to change it go to the
+                <a href="@($"dialogs/{DialogId}/graph")">graph editor</a>.
             </span>
         </div>
 
@@ -367,22 +367,22 @@ else
 }
 
 @code {
-    /// <summary>Der Primärschlüssel des durchzuspielenden Dialogs (aus der Route).</summary>
+    /// <summary>The primary key of the dialog to play through (from the route).</summary>
     [Parameter]
     public Guid DialogId { get; set; }
 
     /// <summary>
-    /// Die anfängliche Darstellung: <c>graph</c> öffnet die Graph-Ansicht (#104), alles andere die
-    /// Verlaufsliste. Nur ein <b>Anfangswert</b> – der Umschalter danach schreibt die Adresse nicht um,
-    /// weil ein Reload den Lauf ohnehin beendet.
+    /// The initial representation: <c>graph</c> opens the graph view (#104), anything else the
+    /// history list. Only an <b>initial value</b> – the toggle afterwards does not rewrite the address,
+    /// because a reload ends the run anyway.
     /// </summary>
     [Parameter, SupplyParameterFromQuery(Name = "view")]
     public string? View { get; set; }
 
     /// <summary>
-    /// Präfix des je Lauf vergebenen Anwenderschlüssels. Macht die im Testlauf entstandenen Sessions in
-    /// der Datenbank erkennbar – der Runner räumt sie bewusst nicht ab (die Engine kennt kein Löschen
-    /// von Sessions).
+    /// Prefix of the user key assigned per run. Makes the sessions created in the test run recognizable in
+    /// the database – the runner deliberately does not clean them up (the engine knows no deletion
+    /// of sessions).
     /// </summary>
     internal const string UserKeyPrefix = "designer-test-";
 
@@ -397,7 +397,7 @@ else
     private bool _busy;
     private Guid _loadedId;
 
-    // ---- Graph-Ansicht (#104) ------------------------------------------------------------------------
+    // ---- Graph view (#104) ---------------------------------------------------------------------------
 
     private bool _graphView;
     private DialogGraphModel? _graph;
@@ -406,17 +406,17 @@ else
     private GraphRunCanvas? _canvas;
 
     /// <summary>
-    /// Der Stand des Trigger-Protokolls <b>vor</b> dem laufenden Schritt. Alles ab diesem Index ist neu
-    /// und blitzt am auslösenden Knoten einmal auf.
+    /// The state of the trigger log <b>before</b> the running step. Everything from this index on is new
+    /// and flashes once at the triggering node.
     /// </summary>
     private int _freshFrom;
 
-    /// <summary>Der Laufzustand – vor dem ersten Lauf der leere.</summary>
+    /// <summary>The run state – before the first run the empty one.</summary>
     private GraphRunOverlay Overlay => _run ?? GraphRunAnalyzer.NotStarted();
 
-    /// <summary>Der gerade editierte Verlaufseintrag samt seinem vorbelegten Eingabezustand.</summary>
-    /// <param name="Answer">Die zu überschreibende Antwort.</param>
-    /// <param name="Input">Der vorbelegte Eingabezustand.</param>
+    /// <summary>The history entry currently being edited together with its pre-filled input state.</summary>
+    /// <param name="Answer">The answer to overwrite.</param>
+    /// <param name="Input">The pre-filled input state.</param>
     private sealed record EditState(SessionAnswerView Answer, AnswerInputModel Input);
 
     private bool HasWebhookTrigger
@@ -439,22 +439,22 @@ else
         _run = null;
         _selection = null;
 
-        // Nur beim Laden des Dialogs: Danach gehört die Ansicht dem Umschalter, nicht der Adresse.
+        // Only when loading the dialog: afterwards the view belongs to the toggle, not the address.
         _graphView = string.Equals(View, "graph", StringComparison.OrdinalIgnoreCase);
 
         var result = await Admin.ExecuteAsync((sender, token) => sender.Send(new GetDialogQuery(DialogId), token));
         _detail = result.Value;
         _error = result.Error;
 
-        // Das Zeichenmodell entsteht EINMAL je geladenem Dialog. Aus dem Markup heraus gerechnet liefe
-        // die ganze Anordnung bei jedem Render erneut – also bei jedem Schritt des Laufs (#101).
+        // The drawing model arises ONCE per loaded dialog. Computed from the markup, the
+        // whole layout would run again on every render – i.e. on every step of the run (#101).
         _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
     }
 
     /// <summary>
-    /// Startet einen neuen Lauf. Der Anwenderschlüssel ist je Lauf frisch – sonst setzte
-    /// <c>StartDialogVersionAsync</c> die noch offene Session des vorigen Laufs fort (Resume), statt neu
-    /// zu beginnen.
+    /// Starts a new run. The user key is fresh per run – otherwise
+    /// <c>StartDialogVersionAsync</c> would continue the still-open session of the previous run (resume) instead of
+    /// starting anew.
     /// </summary>
     private async Task StartRunAsync()
     {
@@ -464,7 +464,7 @@ else
         _selection = null;
         TriggerLog.Clear();
 
-        // Frisches Protokoll: Alles, was dieser Start publiziert, ist neu.
+        // Fresh log: everything this start publishes is new.
         _freshFrom = 0;
 
         try
@@ -481,7 +481,7 @@ else
 
             _error = null;
             _sessionId = started.Value!.SessionId;
-            _message = "Neuer Lauf gestartet.";
+            _message = "New run started.";
             await RefreshAsync();
         }
         finally
@@ -490,7 +490,7 @@ else
         }
     }
 
-    /// <summary>Reicht die Antwort auf die aktuell offene Frage ein.</summary>
+    /// <summary>Submits the answer to the currently open question.</summary>
     private async Task SubmitAsync()
     {
         if (_state?.CurrentQuestion is not { } current || _input is not { CanSubmit: true })
@@ -502,12 +502,12 @@ else
 
         _ = await RunAsync(
             (engine, token) => engine.SubmitAnswerAsync(_sessionId!.Value, current.Id, value, token),
-            result => result.IsCompleted ? "Antwort erfasst – Dialog abgeschlossen." : "Antwort erfasst.");
+            result => result.IsCompleted ? "Answer recorded – dialog completed." : "Answer recorded.");
     }
 
-    /// <summary>Öffnet den Editier-Modus für eine bereits gegebene Antwort.</summary>
-    /// <param name="answer">Die zu überschreibende Antwort.</param>
-    /// <param name="question">Die zugehörige Frage (für Typ und Optionen).</param>
+    /// <summary>Opens the edit mode for an already given answer.</summary>
+    /// <param name="answer">The answer to overwrite.</param>
+    /// <param name="question">The associated question (for type and options).</param>
     private void StartEdit(SessionAnswerView answer, QuestionDetail question)
     {
         _message = null;
@@ -515,8 +515,8 @@ else
     }
 
     /// <summary>
-    /// Überschreibt eine frühere Antwort. Der Iterationsindex wird mitgegeben, damit innerhalb einer
-    /// Schleife genau die angeklickte Iteration getroffen wird und nicht die früheste.
+    /// Overwrites an earlier answer. The iteration index is passed along so that within a
+    /// loop exactly the clicked iteration is hit and not the earliest.
     /// </summary>
     private async Task SaveEditAsync()
     {
@@ -530,7 +530,7 @@ else
         var saved = await RunAsync(
             (engine, token) => engine.EditAnswerAsync(
                 _sessionId!.Value, editing.Answer.QuestionId, value, editing.Answer.IterationIndex, token),
-            result => $"Antwort geändert – {result.InvalidatedAnswers} nachgelagerte Antwort(en) verworfen.");
+            result => $"Answer changed – {result.InvalidatedAnswers} downstream answer(s) discarded.");
 
         if (saved)
         {
@@ -539,21 +539,21 @@ else
     }
 
     /// <summary>
-    /// Führt einen Engine-Schritt aus, meldet Erfolg oder Fehler und liest anschließend den
-    /// Session-Zustand neu – der ist die einzige Quelle für Verlauf, aktuelle Frage und Kontext.
+    /// Runs an engine step, reports success or error and then reads the
+    /// session state anew – which is the only source for history, current question and context.
     /// </summary>
-    /// <typeparam name="TResult">Der Ergebnistyp des Schritts.</typeparam>
-    /// <param name="step">Der auszuführende Engine-Schritt.</param>
-    /// <param name="describe">Formuliert die Erfolgsmeldung aus dem Ergebnis.</param>
-    /// <returns><see langword="true"/>, wenn der Schritt erfolgreich war.</returns>
+    /// <typeparam name="TResult">The result type of the step.</typeparam>
+    /// <param name="step">The engine step to run.</param>
+    /// <param name="describe">Formulates the success message from the result.</param>
+    /// <returns><see langword="true"/> if the step succeeded.</returns>
     private async Task<bool> RunAsync<TResult>(
         Func<IFlirtyEngine, CancellationToken, Task<TResult>> step, Func<TResult, string> describe)
     {
         _busy = true;
         _message = null;
 
-        // Der Stand VOR dem Schritt: Was danach dazukommt, ist das Ergebnis genau dieses Schritts und
-        // blitzt in der Graph-Ansicht am auslösenden Knoten auf.
+        // The state BEFORE the step: what is added afterwards is the result of exactly this step and
+        // flashes in the graph view at the triggering node.
         _freshFrom = TriggerLog.Entries.Count;
 
         try
@@ -577,7 +577,7 @@ else
     }
 
     /// <summary>
-    /// Liest den Session-Zustand neu und baut daraus Verlauf, Eingabefeld und Ausdruckskontext auf.
+    /// Reads the session state anew and builds history, input field and expression context from it.
     /// </summary>
     private async Task RefreshAsync()
     {
@@ -597,30 +597,30 @@ else
         _snapshot = _detail is null ? null : RunExpressionContext.Build(_detail, _state);
         _input = _state.CurrentQuestion is { } current ? AnswerInputModel.For(current) : null;
 
-        // Der Laufzustand entsteht nach JEDEM Schritt neu – auch nach einem Edit, der nachgelagerte
-        // Antworten verwirft: Der Pfad ist aus der Antwortfolge abgeleitet und schrumpft damit von
-        // selbst mit (#104).
+        // The run state arises anew after EVERY step – also after an edit that discards downstream
+        // answers: the path is derived from the answer sequence and thereby shrinks along by
+        // itself (#104).
         _run = _detail is null
             ? null
             : GraphRunAnalyzer.Build(_detail, _state, TriggerLog.Entries, _freshFrom);
     }
 
-    // ---- Graph-Ansicht (#104) ------------------------------------------------------------------------
+    // ---- Graph view (#104) ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Wechselt die Darstellung. Der Lauf selbst bleibt unberührt – auch eine begonnene Bearbeitung, die
-    /// in beiden Ansichten dieselbe ist.
+    /// Switches the representation. The run itself stays untouched – also an editing session already begun, which
+    /// is the same in both views.
     /// </summary>
-    /// <param name="graph"><see langword="true"/> für die Graph-Ansicht.</param>
+    /// <param name="graph"><see langword="true"/> for the graph view.</param>
     private void SetView(bool graph) => _graphView = graph;
 
-    /// <summary>Wählt ein Element auf dem Canvas aus.</summary>
+    /// <summary>Selects an element on the canvas.</summary>
     /// <remarks>
-    /// Eine neue Auswahl beendet eine begonnene Bearbeitung: Das Formular hängt am gewählten Knoten, und
-    /// ein unsichtbar weiterlaufender Entwurf schriebe beim Speichern in eine Antwort, die niemand mehr
-    /// vor sich hat.
+    /// A new selection ends an editing session already begun: the form hangs on the selected node, and
+    /// an invisibly continuing draft would, on saving, write into an answer that no one has
+    /// in front of them anymore.
     /// </remarks>
-    /// <param name="selection">Das gewählte Element.</param>
+    /// <param name="selection">The selected element.</param>
     private void OnSelect(GraphSelection selection)
     {
         _selection = selection;
@@ -628,10 +628,10 @@ else
     }
 
     /// <summary>
-    /// Öffnet den Editier-Modus für die Antwort mit dieser Position – der Weg aus dem Inspector, der
-    /// seine Antworten je Iteration listet.
+    /// Opens the edit mode for the answer with this position – the path from the inspector, which
+    /// lists its answers per iteration.
     /// </summary>
-    /// <param name="sequence">Die <c>Sequence</c> der zu überschreibenden Antwort.</param>
+    /// <param name="sequence">The <c>Sequence</c> of the answer to overwrite.</param>
     private void StartEditAt(int sequence)
     {
         if (_state?.Answers.FirstOrDefault(answer => answer.Sequence == sequence) is not { } target
@@ -660,22 +660,22 @@ else
     }
 
     /// <summary>
-    /// Übernimmt die neue Position eines Knotens, nachdem der Zug im Browser beendet wurde.
+    /// Takes over the new position of a node after the drag ended in the browser.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Verschieben ist auch hier erlaubt – eine Position gehört nicht zum Graphen, der Command läuft ohne
-    /// <c>DialogEditGuard</c> (ADR 0007), und wer einen Lauf verfolgt, will den Graphen erst recht
-    /// ordnen können. Es ist der einzige schreibende Weg dieser Ansicht.
+    /// Moving is allowed here too – a position does not belong to the graph, the command runs without
+    /// <c>DialogEditGuard</c> (ADR 0007), and whoever follows a run wants all the more to be able to
+    /// arrange the graph. It is the only writing path of this view.
     /// </para>
     /// <para>
-    /// Bei Erfolg wird das zurückgegebene Layout in das <b>gepufferte</b> <c>DialogDetail</c> übernommen
-    /// und das Zeichenmodell daraus neu gebaut; bei einem Fehlschlag entsteht es aus dem unveränderten
-    /// Stand, und der Knoten springt sichtbar zurück. Ihn stehen zu lassen behauptete eine Position, die
-    /// es in der Datenbank nicht gibt.
+    /// On success the returned layout is taken over into the <b>buffered</b> <c>DialogDetail</c>
+    /// and the drawing model rebuilt from it; on a failure it arises from the unchanged
+    /// state, and the node springs back visibly. Leaving it in place would claim a position that
+    /// does not exist in the database.
     /// </para>
     /// </remarks>
-    /// <param name="move">Die verschobene Frage und ihre neue Position.</param>
+    /// <param name="move">The moved question and its new position.</param>
     private async Task MoveNodeAsync(NodeMove move)
     {
         if (_busy || _detail is null)
@@ -716,5 +716,5 @@ else
         => _detail?.Questions.FirstOrDefault(question => question.Id == questionId);
 
     private string QuestionLabel(Guid questionId)
-        => QuestionOf(questionId)?.Key ?? $"unbekannt ({questionId})";
+        => QuestionOf(questionId)?.Key ?? $"unknown ({questionId})";
 }
