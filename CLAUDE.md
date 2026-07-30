@@ -715,7 +715,7 @@ The confirmation named three of four warning kinds, and that was not a slip at o
 selection that would have lost every further kind again. And: a reading-width cap is a statement about
 **text**; where a drawing surface stands, it is a false assumption that only shows up at the large window.
 
-**Repository language switch to English (EPIC 12, #112) – in progress.** The whole repo is being
+**Repository language switch to English (EPIC 12, #112) done.** The whole repo is
 switched from German to English (README, guides, ADRs, XML docs, comments, UI, test names). **Stage 1
 (#113) done** – the language convention itself now prescribes English: this file, the six skills, the PR
 template and both workflow files (`ci.yml`/`release.yml`) are English, and the three rules above (§
@@ -748,5 +748,55 @@ the work:
 - **`ReconnectModal` was already English** (pre-empted under #118), so nothing to do there.
 The E2E suite (17 tests) ran green **three times in a row**, and
 `grep -rlE '[äöüßÄÖÜ]' src/Flirty.Designer src/Flirty.Samples src/Flirty.Samples.Web` returns nothing.
-**Open:** stage 3 (#115: XML docs, comments and engine messages in the two packages) and stage 5
-(#117: the 553 test names, last so the renames do not collide).
+
+**Stage 3 (#115) was merged into the wrong branch and had to be restored under #117.** PR #122 was
+merged into `docs/dz/114` instead of `main` – an hour *after* that branch had itself already reached
+`main` via PR #121. Its merge commit `123ddf5` therefore has **no child** and is not an ancestor of
+`origin/main`, while GitHub shows the issue as closed and the EPIC as 4/5. For four days
+`src/Flirty` (108 files), `src/Flirty.AspNetCore` (22) and the three migration projects stayed German,
+and the engine kept returning **German validation messages as the HTTP 400 body** to every consumer.
+The restore was exact, not a re-translation: `main` had never touched those paths since (checked with
+`git log origin/main --not 123ddf5 -- <paths>`), so the files were taken verbatim from `123ddf5`. The
+designer and samples sources were deliberately *not* restored – #116 translated them independently
+afterwards, so there `main` is the newer state. **Mnemonic:** a merged PR is not a landed PR. What
+GitHub calls "Merged" only says the PR reached *its base branch*; whether that base still leads to
+`main` is a separate question, and `git merge-base --is-ancestor` is the only one that answers it.
+The stage-3 content itself is described in the paragraph its PR wrote: the two NuGet packages are
+English throughout, including both `.csproj` `<Description>`s, and the engine's validation messages
+are English from now on – the *contract* (`AnswerValidationResult` shape, status codes,
+ProblemDetails) is unchanged. `ReflectionNotAllowedException` is still detected **by exception type**,
+never by matching localized text.
+
+**Stage 5 (#117) done** – and thereby EPIC 12 completed. All **537** test methods (520 unit + 17 E2E)
+are English; measured, 532 were German and 5 already were not (`LoopFormModelTests`, from #116, was
+the style template). The shape is unchanged – `Subject_does_something`, snake_case-ish – because the
+point of the convention was never the language but that a failing test reads as a sentence in the
+runner output. The transliterations (`ueberlebt`, `fuehrt`, `schliesst`) are gone outright; in English
+there is nothing to work around. Along with the names went ~1100 German comment lines, ~30 local
+variables, the two German helpers and the German test data. Four things worth keeping:
+
+- **The proof is the count, not the compiler.** Two same-named parameterless methods in one class are
+  CS0111, but a `[Fact]` deleted together with its doc comment is no compiler error at all. Baseline
+  and counter-check therefore come from the **TRX**, and from `total`, not `executed` – a
+  `Skip.IfNot` produces a result with outcome `NotExecuted`, so it counts in `total` but not in
+  `executed`, which makes `total` the only number that is the same with and without Docker.
+  `--list-tests` is useless here: without an `xunit.runner.json` the discovery does not pre-enumerate
+  theories, so its count sits ~87 below the run. On top of the two totals runs a **per-class** diff
+  (the 56 test class names are English and were not renamed, so the class is a stable key).
+- **A `<see cref>` onto a test method in another class is a build error when that method is renamed.**
+  CS1574, not a warning – `Directory.Build.targets` adds only CS1591 to `NoWarn`. Two of them exist
+  (`GraphWarningListTests`), and they forced the renaming order.
+- **A German test datum can be load-bearing.** `AnswerValueCodecTests` asserts
+  `error.Contains("Zahl")` against the *core* `AnswerValidator`. With the English message that passes
+  only because the datum `"keine Zahl"` is interpolated back into it. Translating the datum alone
+  would have turned a green test red without anyone touching the assertion.
+- **The EPIC's machine gate has a blind spot.** It filters `*.cs`/`*.razor`/`*.js`/`*.md`/`*.yml`/
+  `*.html`/`*.csproj` – not `*.props`, `*.targets`, `*.runsettings`. Exactly there stood ~30 lines of
+  German, in the files this document calls the *hard build conventions*, and no stage owned them.
+  They went along here; the gate below is the extended one.
+
+The gate over `src docs tests README.md CLAUDE.md .claude .github` plus the four build-configuration
+files returns exactly **one** known hit: the line in the stage-4 paragraph above that quotes the
+search pattern itself. That one is there by construction and is not a finding. Both suites are green
+and count-identical to the baseline (608 unit + 17 E2E), and the E2E suite ran green three times in a
+row.
