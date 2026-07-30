@@ -1,114 +1,113 @@
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Öffentliche Facade über die Dialog-Runtime der Flirty-Engine. Kapselt das Senden der
-/// Mediator-Commands, sodass Host-Apps die Engine bequem nutzen können, ohne selbst
-/// <see cref="Mediator.ISender"/> zu verwenden. Wer die volle Pipeline (inkl. eigener
-/// Behaviors/Notifications) benötigt, kann die Commands weiterhin direkt per
-/// <see cref="Mediator.ISender"/> senden.
+/// Public facade over the dialog runtime of the Flirty engine. Encapsulates the sending of the
+/// Mediator commands so that host apps can use the engine conveniently without using
+/// <see cref="Mediator.ISender"/> themselves. Whoever needs the full pipeline (incl. their own
+/// behaviors/notifications) can still send the commands directly via
+/// <see cref="Mediator.ISender"/>.
 /// </summary>
 public interface IFlirtyEngine
 {
     /// <summary>
-    /// Startet den veröffentlichten Dialog mit dem angegebenen Schlüssel für den Anwender oder setzt
-    /// eine bereits laufende Session fort (Resume) und liefert die aktuell offene Frage.
+    /// Starts the published dialog with the given key for the user, or resumes an already running
+    /// session (resume), and returns the currently open question.
     /// </summary>
-    /// <param name="dialogKey">Der fachliche, stabile Schlüssel des zu startenden Dialogs.</param>
-    /// <param name="externalUserKey">Der fachliche Anwenderschlüssel der Host-App (z. B. Benutzer-Id).</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
-    /// <returns>Die (neue oder fortgesetzte) Session samt aktueller Frage.</returns>
+    /// <param name="dialogKey">The business, stable key of the dialog to start.</param>
+    /// <param name="externalUserKey">The business user key of the host app (e.g. user id).</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The (new or resumed) session along with the current question.</returns>
     /// <exception cref="DialogNotFoundException">
-    /// Kein veröffentlichter Dialog mit dem angegebenen Schlüssel existiert.
+    /// No published dialog with the given key exists.
     /// </exception>
     Task<StartDialogResult> StartDialogAsync(
         string dialogKey, string externalUserKey, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Startet die <b>konkrete Dialogversion</b> mit der angegebenen Id für den Anwender – <b>unabhängig
-    /// vom Veröffentlichungsstatus</b> – oder setzt eine bereits laufende Session dieser Version fort
-    /// (Resume) und liefert die aktuell offene Frage. Gedacht für Vorschau-/Testszenarien, in denen ein
-    /// Entwurf durchgespielt werden soll, bevor er veröffentlicht wird (Designer-Test-Runner, #43).
+    /// Starts the <b>concrete dialog version</b> with the given id for the user – <b>regardless
+    /// of the publication status</b> – or resumes an already running session of this version
+    /// (resume) and returns the currently open question. Intended for preview/test scenarios in which a
+    /// draft is to be played through before it is published (designer test runner, #43).
     /// </summary>
     /// <remarks>
-    /// Für den produktiven Start ist <see cref="StartDialogAsync"/> vorgesehen: Es löst über den fachlichen
-    /// Schlüssel auf und startet ausschließlich veröffentlichte Dialoge.
+    /// For the productive start <see cref="StartDialogAsync"/> is intended: it resolves via the business
+    /// key and starts published dialogs only.
     /// </remarks>
-    /// <param name="dialogId">Der Primärschlüssel der zu startenden Dialogversion.</param>
-    /// <param name="externalUserKey">Der fachliche Anwenderschlüssel der Host-App (z. B. Benutzer-Id).</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
-    /// <returns>Die (neue oder fortgesetzte) Session samt aktueller Frage.</returns>
+    /// <param name="dialogId">The primary key of the dialog version to start.</param>
+    /// <param name="externalUserKey">The business user key of the host app (e.g. user id).</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The (new or resumed) session along with the current question.</returns>
     /// <exception cref="ConfigurationNotFoundException">
-    /// Keine Dialogversion mit der angegebenen <paramref name="dialogId"/> existiert.
+    /// No dialog version with the given <paramref name="dialogId"/> exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Der Dialog besitzt keine Einstiegsfrage bzw. die aktuelle Frage kann nicht aufgelöst werden.
+    /// The dialog has no entry question, or the current question cannot be resolved.
     /// </exception>
     Task<StartDialogResult> StartDialogVersionAsync(
         Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Reicht eine Antwort auf die aktuell offene Frage einer laufenden Session ein: persistiert die
-    /// Antwort, wertet die Übergänge (Branching) aus und liefert die nächste Frage bzw. signalisiert den
-    /// Abschluss des Dialogs.
+    /// Submits an answer to the currently open question of a running session: persists the
+    /// answer, evaluates the transitions (branching) and returns the next question or signals the
+    /// completion of the dialog.
     /// </summary>
-    /// <param name="sessionId">Der Primärschlüssel der laufenden Session.</param>
+    /// <param name="sessionId">The primary key of the running session.</param>
     /// <param name="questionId">
-    /// Die Id der zu beantwortenden Frage; muss der aktuell offenen Frage der Session entsprechen.
+    /// The id of the question to be answered; must correspond to the currently open question of the session.
     /// </param>
-    /// <param name="value">Der abgegebene Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
-    /// <returns>Das Ergebnis mit der nächsten Frage oder dem Abschluss-Signal.</returns>
+    /// <param name="value">The submitted answer value as raw JSON text (format depends on the question type).</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The result with the next question or the completion signal.</returns>
     /// <exception cref="SessionNotFoundException">
-    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// No session with the given <paramref name="sessionId"/> exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Session ist nicht mehr offen, die angegebene Frage ist nicht die aktuell offene, oder das
-    /// Branching ist fehlkonfiguriert.
+    /// The session is no longer open, the given question is not the currently open one, or the
+    /// branching is misconfigured.
     /// </exception>
     Task<SubmitAnswerResult> SubmitAnswerAsync(
         Guid sessionId, Guid questionId, string value, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Liest den aktuellen Zustand einer Session – Status, die (ggf.) aktuell offene Frage und die bisher
-    /// gegebenen Antworten – rein lesend, um eine Befragung z. B. nach einem Reload der Host-App
-    /// wiederherzustellen.
+    /// Reads the current state of a session – status, the (possibly) currently open question and the answers
+    /// given so far – purely reading, in order to restore a survey e.g. after a reload of the host app.
     /// </summary>
-    /// <param name="sessionId">Der Primärschlüssel der abzufragenden Session.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
-    /// <returns>Der Zustand der Session samt aktueller Frage und bisheriger Antworten.</returns>
+    /// <param name="sessionId">The primary key of the session to query.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The state of the session along with the current question and the answers so far.</returns>
     /// <exception cref="SessionNotFoundException">
-    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// No session with the given <paramref name="sessionId"/> exists.
     /// </exception>
     Task<ResumeDialogResult> ResumeDialogAsync(
         Guid sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Editiert die bereits gegebene Antwort auf eine frühere Frage einer Session: überschreibt den Wert,
-    /// verwirft (invalidiert) alle nachgelagerten Antworten und berechnet den Pfad ab der editierten Frage
-    /// über das Branching neu. Eine bereits abgeschlossene Session wird wieder geöffnet, sofern die
-    /// Neuberechnung auf eine nicht-terminale Folgefrage führt.
+    /// Edits the answer already given to an earlier question of a session: overwrites the value,
+    /// discards (invalidates) all downstream answers and recomputes the path from the edited question
+    /// onwards via the branching. An already completed session is reopened if the
+    /// recomputation leads to a non-terminal follow-up question.
     /// </summary>
-    /// <param name="sessionId">Der Primärschlüssel der Session, deren Antwort editiert wird.</param>
+    /// <param name="sessionId">The primary key of the session whose answer is edited.</param>
     /// <param name="questionId">
-    /// Die Id der Frage, deren Antwort überschrieben werden soll; muss zum Dialog gehören und in dieser
-    /// Session bereits beantwortet worden sein (nicht notwendigerweise die aktuell offene Frage).
+    /// The id of the question whose answer is to be overwritten; must belong to the dialog and must already
+    /// have been answered in this session (not necessarily the currently open question).
     /// </param>
-    /// <param name="value">Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
+    /// <param name="value">The new answer value as raw JSON text (format depends on the question type).</param>
     /// <param name="iterationIndex">
-    /// Optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die Antwort einer
-    /// bestimmten Iteration zu editieren; <see langword="null"/> editiert die früheste Antwort der Frage.
+    /// Optional zero-based iteration index to edit, within a loop, the answer of a specific
+    /// iteration; <see langword="null"/> edits the earliest answer of the question.
     /// </param>
-    /// <param name="cancellationToken">Token zum Abbrechen des Vorgangs.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>
-    /// Das Ergebnis mit der neu berechneten Folgefrage bzw. dem Abschluss-Signal und der Anzahl verworfener
-    /// nachgelagerter Antworten.
+    /// The result with the newly computed follow-up question or the completion signal and the number of
+    /// discarded downstream answers.
     /// </returns>
     /// <exception cref="SessionNotFoundException">
-    /// Keine Session mit der angegebenen <paramref name="sessionId"/> existiert.
+    /// No session with the given <paramref name="sessionId"/> exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Session ist abgebrochen, die Frage gehört nicht zum Dialog, die Frage (bzw. die angegebene
-    /// Iteration) wurde noch nicht beantwortet, oder das Branching ist fehlkonfiguriert.
+    /// The session is abandoned, the question does not belong to the dialog, the question (or the given
+    /// iteration) has not yet been answered, or the branching is misconfigured.
     /// </exception>
     Task<EditAnswerResult> EditAnswerAsync(
         Guid sessionId, Guid questionId, string value, int? iterationIndex = null,

@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="DialogLayout"/>. Legt Schlüssel und den eindeutigen Index über
-/// (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) fest – je Element genau eine Position. Die
-/// Beziehung zum <see cref="Dialog"/> wird in <see cref="DialogConfiguration"/> konfiguriert;
-/// <see cref="DialogLayout.ElementId"/> bleibt bewusst ein navigationsloser Guid-Verweis (kein
-/// Fremdschlüssel), wie die Frage-Verweise in <see cref="LoopDefinition"/>.
+/// EF Core configuration for <see cref="DialogLayout"/>. Sets the key and the unique index over
+/// (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) - exactly one position per element. The
+/// relationship to the <see cref="Dialog"/> is configured in <see cref="DialogConfiguration"/>;
+/// <see cref="DialogLayout.ElementId"/> deliberately stays a navigation-less GUID reference (no
+/// foreign key), like the question references in <see cref="LoopDefinition"/>.
 /// </summary>
 internal sealed class DialogLayoutConfiguration : IEntityTypeConfiguration<DialogLayout>
 {
@@ -20,8 +20,8 @@ internal sealed class DialogLayoutConfiguration : IEntityTypeConfiguration<Dialo
         builder.Property(layout => layout.ElementKind)
             .HasConversion<int>();
 
-        // Alle drei Spalten sind non-nullable – die Regel „keine Unique-Indizes über null-fähige
-        // Spalten" (divergente Null-Semantik der Provider, docs/PERSISTENCE.md) ist eingehalten.
+        // All three columns are non-nullable - the rule "no unique indexes over nullable
+        // columns" (divergent null semantics across providers, docs/PERSISTENCE.md) is honored.
         builder.HasIndex(layout => new { layout.DialogId, layout.ElementKind, layout.ElementId })
             .IsUnique();
     }

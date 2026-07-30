@@ -3,17 +3,17 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Standardimplementierung von <see cref="IFlirtyEngine"/>: eine dünne Hülle über
-/// <see cref="ISender"/>, die die Runtime-Commands durch die Mediator-Pipeline
-/// (Logging/Validierung) sendet.
+/// Default implementation of <see cref="IFlirtyEngine"/>: a thin shell over
+/// <see cref="ISender"/> that sends the runtime commands through the Mediator pipeline
+/// (logging/validation).
 /// </summary>
 internal sealed class FlirtyEngine : IFlirtyEngine
 {
     private readonly ISender _sender;
 
-    /// <summary>Erstellt die Facade über den angegebenen <see cref="ISender"/>.</summary>
-    /// <param name="sender">Der Mediator-Sender zum Versenden der Commands.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="sender"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the facade over the given <see cref="ISender"/>.</summary>
+    /// <param name="sender">The Mediator sender for dispatching the commands.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sender"/> is <see langword="null"/>.</exception>
     public FlirtyEngine(ISender sender)
     {
         ArgumentNullException.ThrowIfNull(sender);

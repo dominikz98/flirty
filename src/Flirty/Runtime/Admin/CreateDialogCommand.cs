@@ -6,27 +6,27 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Legt einen neuen (unveröffentlichten) Dialog mit dem fachlichen Schlüssel <see cref="Key"/> an.
-/// Version wird auf <c>1</c> und <c>IsPublished</c> auf <see langword="false"/> gesetzt; die
-/// Einstiegsfrage (<c>StartQuestionId</c>) bleibt zunächst offen und wird per
-/// <see cref="UpdateDialogCommand"/> festgelegt, sobald Fragen existieren.
+/// Creates a new (unpublished) dialog with the business key <see cref="Key"/>.
+/// Version is set to <c>1</c> and <c>IsPublished</c> to <see langword="false"/>; the
+/// entry question (<c>StartQuestionId</c>) stays open at first and is set via
+/// <see cref="UpdateDialogCommand"/> as soon as questions exist.
 /// </summary>
-/// <param name="Key">Der fachliche, stabile Schlüssel des Dialogs (muss eindeutig sein).</param>
-/// <param name="Name">Der Anzeigename des Dialogs.</param>
-/// <param name="Description">Die optionale Beschreibung des Dialogs.</param>
+/// <param name="Key">The business, stable key of the dialog (must be unique).</param>
+/// <param name="Name">The display name of the dialog.</param>
+/// <param name="Description">The optional description of the dialog.</param>
 public sealed record CreateDialogCommand(
     [property: Required] string Key,
     [property: Required] string Name,
     string? Description) : ICommand<DialogSummary>;
 
-/// <summary>Handler für <see cref="CreateDialogCommand"/>.</summary>
+/// <summary>Handler for <see cref="CreateDialogCommand"/>.</summary>
 internal sealed class CreateDialogCommandHandler : ICommandHandler<CreateDialogCommand, DialogSummary>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public CreateDialogCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -34,7 +34,7 @@ internal sealed class CreateDialogCommandHandler : ICommandHandler<CreateDialogC
     }
 
     /// <inheritdoc />
-    /// <exception cref="InvalidOperationException">Es existiert bereits ein Dialog mit diesem Schlüssel.</exception>
+    /// <exception cref="InvalidOperationException">A dialog with this key already exists.</exception>
     public async ValueTask<DialogSummary> Handle(CreateDialogCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -42,7 +42,7 @@ internal sealed class CreateDialogCommandHandler : ICommandHandler<CreateDialogC
         if (await _store.DialogKeyExistsAsync(command.Key, cancellationToken: cancellationToken))
         {
             throw new InvalidOperationException(
-                $"Es existiert bereits ein Dialog mit dem Schlüssel '{command.Key}'.");
+                $"A dialog with the key '{command.Key}' already exists.");
         }
 
         var now = DateTimeOffset.UtcNow;

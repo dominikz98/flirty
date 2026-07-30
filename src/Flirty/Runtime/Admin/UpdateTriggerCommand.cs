@@ -6,19 +6,19 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Aktualisiert die Trigger-Definition <see cref="TriggerId"/> im Dialog <see cref="DialogId"/>
-/// (In-Place). Es gelten dieselben Querfeld-Regeln wie beim Anlegen (siehe
+/// Updates the trigger definition <see cref="TriggerId"/> in the dialog <see cref="DialogId"/>
+/// (in place). The same cross-field rules as on creation apply (see
 /// <see cref="CreateTriggerCommand"/>).
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Trigger gehört.</param>
-/// <param name="TriggerId">Der Primärschlüssel der zu ändernden Trigger-Definition.</param>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
+/// <param name="DialogId">The id of the dialog the trigger belongs to.</param>
+/// <param name="TriggerId">The primary key of the trigger definition to change.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
 /// <param name="QuestionId">
-/// Die Frage, auf die bei <see cref="TriggerScope.AfterQuestion"/> gehört wird; sonst <see langword="null"/>.
+/// The question that is listened to for <see cref="TriggerScope.AfterQuestion"/>; otherwise <see langword="null"/>.
 /// </param>
-/// <param name="Kind">Der Kanal, über den die Host-Anwendung benachrichtigt wird.</param>
-/// <param name="Config">Die kanal-spezifische Konfiguration als JSON (Schema: <see cref="TriggerConfig"/>).</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+/// <param name="Kind">The channel over which the host application is notified.</param>
+/// <param name="Config">The channel-specific configuration as JSON (schema: <see cref="TriggerConfig"/>).</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
 public sealed record UpdateTriggerCommand(
     Guid DialogId,
     Guid TriggerId,
@@ -33,14 +33,14 @@ public sealed record UpdateTriggerCommand(
         => TriggerValidation.Validate(Scope, QuestionId, Kind, Config);
 }
 
-/// <summary>Handler für <see cref="UpdateTriggerCommand"/>.</summary>
+/// <summary>Handler for <see cref="UpdateTriggerCommand"/>.</summary>
 internal sealed class UpdateTriggerCommandHandler : ICommandHandler<UpdateTriggerCommand, TriggerDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public UpdateTriggerCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -49,14 +49,14 @@ internal sealed class UpdateTriggerCommandHandler : ICommandHandler<UpdateTrigge
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Kein Trigger mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No trigger with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<TriggerDetail> Handle(UpdateTriggerCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var trigger = await _store.GetTriggerAsync(command.TriggerId, cancellationToken);

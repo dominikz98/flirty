@@ -3,58 +3,58 @@ using System.ComponentModel.DataAnnotations;
 namespace Flirty.Validation;
 
 /// <summary>
-/// Wird geworfen, wenn eine eingereichte Antwort die fachliche Validierung
-/// (<see cref="IAnswerValidator"/>) nicht besteht – etwa ein typwidriger Wert, eine unbekannte Auswahl
-/// oder ein Regelverstoß (Länge/Bereich/Muster). Leitet von <see cref="ValidationException"/> ab,
-/// damit Host-Apps sie zusammen mit den Pipeline-Validierungsfehlern (DataAnnotations) über
-/// <c>catch (ValidationException)</c> behandeln können, und trägt zusätzlich die
-/// <see cref="QuestionId"/> und die einzelnen <see cref="Errors"/>.
+/// Thrown when a submitted answer fails the domain validation
+/// (<see cref="IAnswerValidator"/>) – for example a type-mismatched value, an unknown selection
+/// or a rule violation (length/range/pattern). Derives from <see cref="ValidationException"/>,
+/// so that host apps can handle it together with the pipeline validation errors (DataAnnotations) via
+/// <c>catch (ValidationException)</c>, and additionally carries the
+/// <see cref="QuestionId"/> and the individual <see cref="Errors"/>.
 /// </summary>
 public sealed class AnswerValidationException : ValidationException
 {
-    /// <summary>Erstellt die Ausnahme ohne weitere Angaben.</summary>
+    /// <summary>Creates the exception without further details.</summary>
     public AnswerValidationException()
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit der angegebenen Meldung.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
+    /// <summary>Creates the exception with the given message.</summary>
+    /// <param name="message">The error message describing the cause.</param>
     public AnswerValidationException(string message)
         : base(message)
     {
     }
 
-    /// <summary>Erstellt die Ausnahme mit Meldung und auslösender Ausnahme.</summary>
-    /// <param name="message">Die Fehlermeldung, die die Ursache beschreibt.</param>
-    /// <param name="innerException">Die Ausnahme, die diese Ausnahme ausgelöst hat.</param>
+    /// <summary>Creates the exception with a message and a triggering exception.</summary>
+    /// <param name="message">The error message describing the cause.</param>
+    /// <param name="innerException">The exception that triggered this exception.</param>
     public AnswerValidationException(string message, Exception innerException)
         : base(message, innerException)
     {
     }
 
     /// <summary>
-    /// Die Id der Frage, deren Antwort ungültig war, oder <see langword="null"/>, wenn sie nicht
-    /// bekannt ist.
+    /// The id of the question whose answer was invalid, or <see langword="null"/> if it is not
+    /// known.
     /// </summary>
     public Guid? QuestionId { get; init; }
 
-    /// <summary>Die einzelnen Verstöße (menschlesbar), die zur Ablehnung geführt haben.</summary>
+    /// <summary>The individual violations (human-readable) that led to the rejection.</summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
 
     /// <summary>
-    /// Erstellt eine <see cref="AnswerValidationException"/> für die angegebene
-    /// <paramref name="questionId"/> mit den einzelnen <paramref name="errors"/> und einer daraus
-    /// zusammengesetzten Meldung.
+    /// Creates an <see cref="AnswerValidationException"/> for the given
+    /// <paramref name="questionId"/> with the individual <paramref name="errors"/> and a message
+    /// composed from them.
     /// </summary>
-    /// <param name="questionId">Die Id der Frage, deren Antwort abgelehnt wurde.</param>
-    /// <param name="errors">Die einzelnen Verstöße.</param>
-    /// <returns>Die vorbereitete Ausnahme mit gesetzter <see cref="QuestionId"/> und <see cref="Errors"/>.</returns>
+    /// <param name="questionId">The id of the question whose answer was rejected.</param>
+    /// <param name="errors">The individual violations.</param>
+    /// <returns>The prepared exception with <see cref="QuestionId"/> and <see cref="Errors"/> set.</returns>
     public static AnswerValidationException For(Guid questionId, IReadOnlyList<string> errors)
     {
         ArgumentNullException.ThrowIfNull(errors);
 
         return new AnswerValidationException(
-            $"Die Antwort auf die Frage '{questionId}' ist ungültig: {string.Join("; ", errors)}")
+            $"The answer to the question '{questionId}' is invalid: {string.Join("; ", errors)}")
         {
             QuestionId = questionId,
             Errors = [.. errors],

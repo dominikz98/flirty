@@ -4,19 +4,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Persistence;
 
 /// <summary>
-/// Standardimplementierung von <see cref="IDialogStore"/> über einen scoped
-/// <see cref="FlirtyDbContext"/>. Der Dialog-Graph wird ungetrackt und per Split-Query geladen
-/// (vier Geschwister-Collections würden sonst ein kartesisches Produkt erzeugen), die Session
-/// getrackt (nur eine Collection), damit Submit/Edit-Mutationen über
-/// <see cref="SaveChangesAsync"/> greifen.
+/// Default implementation of <see cref="IDialogStore"/> over a scoped
+/// <see cref="FlirtyDbContext"/>. The dialog graph is loaded untracked and via a split query
+/// (four sibling collections would otherwise produce a cartesian product), the session
+/// tracked (only one collection), so that submit/edit mutations take effect via
+/// <see cref="SaveChangesAsync"/>.
 /// </summary>
 internal sealed class DialogStore : IDialogStore
 {
     private readonly FlirtyDbContext _context;
 
-    /// <summary>Erstellt den Store über den angegebenen <see cref="FlirtyDbContext"/>.</summary>
-    /// <param name="context">Der scoped EF-Core-Kontext der Flirty-Engine.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="context"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the store over the given <see cref="FlirtyDbContext"/>.</summary>
+    /// <param name="context">The scoped EF Core context of the Flirty engine.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <see langword="null"/>.</exception>
     public DialogStore(FlirtyDbContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -45,10 +45,10 @@ internal sealed class DialogStore : IDialogStore
     public async Task<DialogSession?> FindActiveSessionAsync(
         Guid dialogId, string externalUserKey, CancellationToken cancellationToken = default)
     {
-        // Ein Anwender hat pro Dialog erwartungsgemäß höchstens eine laufende Session; die Kandidaten
-        // werden gefiltert geladen und die neueste client-seitig gewählt. Bewusst nicht in SQL sortiert:
-        // SQLite kann DateTimeOffset (als TEXT gespeichert) nicht in ORDER BY übersetzen – client-seitige
-        // Sortierung bleibt über alle drei Provider portabel.
+        // A user has, as expected, at most one running session per dialog; the candidates
+        // are loaded filtered and the newest chosen client-side. Deliberately not sorted in SQL:
+        // SQLite cannot translate DateTimeOffset (stored as TEXT) into ORDER BY - client-side
+        // sorting stays portable across all three providers.
         var candidates = await _context.DialogSessions
             .Include(session => session.Answers)
             .Where(session => session.DialogId == dialogId
@@ -84,9 +84,9 @@ internal sealed class DialogStore : IDialogStore
         => _context.SaveChangesAsync(cancellationToken);
 
     /// <summary>
-    /// Basis-Query für den vollständigen Dialog-Graphen: ungetrackt (unveränderliche Konfiguration)
-    /// und als Split-Query, um das kartesische Produkt über die vier Geschwister-Collections
-    /// (Fragen/Optionen, Übergänge, Schleifen, Trigger) zu vermeiden.
+    /// Base query for the full dialog graph: untracked (immutable configuration)
+    /// and as a split query, to avoid the cartesian product over the four sibling collections
+    /// (questions/options, transitions, loops, triggers).
     /// </summary>
     private IQueryable<Dialog> DialogGraph()
         => _context.Dialogs

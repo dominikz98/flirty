@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="LoopDefinition"/>. Legt den Schlüssel fest. Die Beziehung
-/// zum <see cref="Dialog"/> wird in <see cref="DialogConfiguration"/> konfiguriert;
-/// <see cref="LoopDefinition.EntryQuestionId"/> und <see cref="LoopDefinition.BreakingQuestionId"/>
-/// bleiben bewusst navigationslose Guid-Verweise (kein Fremdschlüssel).
+/// EF Core configuration for <see cref="LoopDefinition"/>. Sets the key. The relationship
+/// to the <see cref="Dialog"/> is configured in <see cref="DialogConfiguration"/>;
+/// <see cref="LoopDefinition.EntryQuestionId"/> and <see cref="LoopDefinition.BreakingQuestionId"/>
+/// deliberately stay navigation-less GUID references (no foreign key).
 /// </summary>
 internal sealed class LoopDefinitionConfiguration : IEntityTypeConfiguration<LoopDefinition>
 {

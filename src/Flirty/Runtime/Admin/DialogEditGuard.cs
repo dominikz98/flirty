@@ -4,30 +4,30 @@ using Flirty.Persistence;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Gemeinsame Vorbedingung aller Commands, die den <b>Konfigurationsgraphen</b> eines Dialogs ändern
-/// (Fragen, Antwortoptionen, Übergänge, Schleifen-Marker, Trigger): Eine <b>veröffentlichte</b> Version
-/// ist unveränderlich. Ohne diese Schranke schlagen Änderungen sofort in laufende Sessions durch – die
-/// pinnen zwar ihre <see cref="DialogSession.DialogVersion"/>, laden ihren Graphen aber über die
-/// <see cref="Dialog.Id"/>, also aus derselben Zeile, die das Admin-CRUD verändert.
+/// Shared precondition of all commands that change the <b>configuration graph</b> of a dialog
+/// (questions, answer options, transitions, loop markers, triggers): a <b>published</b> version
+/// is immutable. Without this barrier, changes would immediately affect running sessions – they
+/// do pin their <see cref="DialogSession.DialogVersion"/>, but load their graph via the
+/// <see cref="Dialog.Id"/>, i.e. from the same row that the admin CRUD changes.
 /// </summary>
 /// <remarks>
-/// Bewusst eine Hilfsmethode statt eines <c>IPipelineBehavior</c>: die Prüfung braucht einen
-/// Datenbankzugriff und soll nur an den 16 Graph-Commands laufen, nicht an jeder Nachricht. Sie steht
-/// am Anfang des jeweiligen Handlers, <b>bevor</b> Kind-Elemente aufgelöst werden – so gewinnt die
-/// verständliche Konflikt-Meldung gegenüber einem Not-Found aus einer Folgeprüfung.
+/// Deliberately a helper method rather than an <c>IPipelineBehavior</c>: the check needs a
+/// database access and should run only on the 16 graph commands, not on every message. It stands
+/// at the start of the respective handler, <b>before</b> child elements are resolved – so that the
+/// understandable conflict message wins over a not-found from a subsequent check.
 /// </remarks>
 internal static class DialogEditGuard
 {
     /// <summary>
-    /// Stellt sicher, dass der Dialog <paramref name="dialogId"/> existiert und <b>nicht</b>
-    /// veröffentlicht ist.
+    /// Ensures that the dialog <paramref name="dialogId"/> exists and is <b>not</b>
+    /// published.
     /// </summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <param name="dialogId">Der Primärschlüssel des betroffenen Dialogs.</param>
-    /// <param name="cancellationToken">Token zum Abbrechen der Abfrage.</param>
-    /// <returns>Der getrackte Dialog, damit der Aufrufer ihn weiterverwenden kann.</returns>
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit dieser Id existiert.</exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht und damit gesperrt.</exception>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <param name="dialogId">The primary key of the affected dialog.</param>
+    /// <param name="cancellationToken">Token to cancel the query.</param>
+    /// <returns>The tracked dialog, so that the caller can continue to use it.</returns>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with this id exists.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published and therefore locked.</exception>
     public static async Task<Dialog> EnsureEditableAsync(
         IDialogAdminStore store, Guid dialogId, CancellationToken cancellationToken)
     {
@@ -42,11 +42,11 @@ internal static class DialogEditGuard
     }
 
     /// <summary>
-    /// Stellt sicher, dass der bereits geladene <paramref name="dialog"/> nicht veröffentlicht ist.
-    /// Für Handler, die den Dialog ohnehin in der Hand haben (kein zweiter Datenbankzugriff).
+    /// Ensures that the already loaded <paramref name="dialog"/> is not published.
+    /// For handlers that hold the dialog anyway (no second database access).
     /// </summary>
-    /// <param name="dialog">Der geladene Dialog.</param>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht und damit gesperrt.</exception>
+    /// <param name="dialog">The loaded dialog.</param>
+    /// <exception cref="DialogPublishedException">The dialog is published and therefore locked.</exception>
     public static void EnsureEditable(Dialog dialog)
     {
         ArgumentNullException.ThrowIfNull(dialog);

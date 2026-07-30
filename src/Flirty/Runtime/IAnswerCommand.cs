@@ -1,19 +1,19 @@
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Interner Marker für Runtime-Commands, die eine Antwort auf eine Frage einer Session einreichen
-/// (<see cref="SubmitAnswerCommand"/>, <see cref="EditAnswerCommand"/>). Das
-/// <c>AnswerValidationPipelineBehavior</c> nutzt ihn, um vor dem Handler die betroffene Frage
-/// aufzulösen und den Antwortwert fachlich zu validieren.
+/// Internal marker for runtime commands that submit an answer to a question of a session
+/// (<see cref="SubmitAnswerCommand"/>, <see cref="EditAnswerCommand"/>). The
+/// <c>AnswerValidationPipelineBehavior</c> uses it to resolve the affected question
+/// before the handler and to validate the answer value against the business rules.
 /// </summary>
 internal interface IAnswerCommand
 {
-    /// <summary>Der Primärschlüssel der Session, in der geantwortet wird.</summary>
+    /// <summary>The primary key of the session in which the answer is given.</summary>
     Guid SessionId { get; }
 
-    /// <summary>Die Id der beantworteten Frage.</summary>
+    /// <summary>The id of the answered question.</summary>
     Guid QuestionId { get; }
 
-    /// <summary>Der abgegebene Antwortwert als roher JSON-Text.</summary>
+    /// <summary>The submitted answer value as raw JSON text.</summary>
     string Value { get; }
 }

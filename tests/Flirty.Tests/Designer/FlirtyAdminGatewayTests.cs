@@ -65,7 +65,7 @@ public sealed class FlirtyAdminGatewayTests
                 sender.Send(new GetDialogQuery(Guid.NewGuid()), token));
 
             Assert.False(result.Success);
-            Assert.Contains("Kein Dialog", result.Error);
+            Assert.Contains("No dialog", result.Error);
         });
     }
 

@@ -155,7 +155,7 @@ public sealed class FlirtyRuntimeGatewayTests
                 (engine, token) => engine.ResumeDialogAsync(Guid.NewGuid(), token));
 
             Assert.False(result.Success);
-            Assert.Contains("Session", result.Error, StringComparison.Ordinal);
+            Assert.Contains("session", result.Error, StringComparison.Ordinal);
         });
     }
 
@@ -169,7 +169,7 @@ public sealed class FlirtyRuntimeGatewayTests
                 engine.StartDialogVersionAsync(Guid.NewGuid(), "designer-test-1", token));
 
             Assert.False(result.Success);
-            Assert.Contains("Dialog", result.Error, StringComparison.Ordinal);
+            Assert.Contains("dialog", result.Error, StringComparison.Ordinal);
         });
     }
 

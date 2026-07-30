@@ -1,22 +1,22 @@
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Ergebnis von <see cref="EditAnswerCommand"/> bzw. <see cref="IFlirtyEngine.EditAnswerAsync"/>: gibt an,
-/// ob der Dialog nach der Neuberechnung abgeschlossen ist, liefert andernfalls die nun als Nächstes zu
-/// beantwortende Frage und meldet, wie viele nachgelagerte Antworten dabei verworfen (invalidiert) wurden.
+/// Result of <see cref="EditAnswerCommand"/> or <see cref="IFlirtyEngine.EditAnswerAsync"/>: indicates
+/// whether the dialog is completed after the recomputation, otherwise delivers the question now to be
+/// answered next and reports how many downstream answers were discarded (invalidated) in the process.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der betroffenen <see cref="Flirty.Domain.DialogSession"/>.</param>
+/// <param name="SessionId">The primary key of the affected <see cref="Flirty.Domain.DialogSession"/>.</param>
 /// <param name="IsCompleted">
-/// <see langword="true"/>, wenn der Dialog nach der Neuberechnung abgeschlossen ist (die editierte Frage
-/// ist terminal); andernfalls <see langword="false"/>.
+/// <see langword="true"/> if the dialog is completed after the recomputation (the edited question
+/// is terminal); otherwise <see langword="false"/>.
 /// </param>
 /// <param name="NextQuestion">
-/// Die nach der Neuberechnung als Nächstes zu präsentierende Frage oder <see langword="null"/>, wenn der
-/// Dialog abgeschlossen ist (<paramref name="IsCompleted"/> ist dann <see langword="true"/>).
+/// The question to be presented next after the recomputation, or <see langword="null"/> if the
+/// dialog is completed (<paramref name="IsCompleted"/> is then <see langword="true"/>).
 /// </param>
 /// <param name="InvalidatedAnswers">
-/// Anzahl der wegen der Editierung verworfenen nachgelagerten Antworten (alle Antworten nach der
-/// editierten Frage); <c>0</c>, wenn keine nachgelagerte Antwort existierte.
+/// Number of downstream answers discarded because of the edit (all answers after the
+/// edited question); <c>0</c> if no downstream answer existed.
 /// </param>
 public sealed record EditAnswerResult(
     Guid SessionId, bool IsCompleted, QuestionView? NextQuestion, int InvalidatedAnswers);

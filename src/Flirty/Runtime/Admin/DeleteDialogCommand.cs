@@ -5,27 +5,27 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Löscht den Dialog <see cref="Id"/> samt seinem gesamten Konfigurationsgraphen (Fragen, Optionen,
-/// Übergänge, Schleifen, Trigger werden per Datenbank-Cascade mit entfernt).
+/// Deletes the dialog <see cref="Id"/> together with its entire configuration graph (questions, options,
+/// transitions, loops, triggers are removed via database cascade).
 /// </summary>
 /// <remarks>
-/// Solange <b>laufende</b> Sessions (<see cref="SessionStatus.InProgress"/>) auf dieser Dialogversion
-/// stehen, wird das Löschen abgelehnt: Ihre Zeilen überleben den Dialog (keine Fremdschlüssel-Cascade
-/// von <c>DialogSessions</c> auf <c>Dialogs</c>), wären danach aber weder fortsetzbar noch lesbar – jeder
-/// Zugriff endet in einem Konflikt, weil die gepinnte Dialogversion fehlt. Wer trotzdem löschen will,
-/// beendet die Sessions vorher mit <see cref="AbandonDialogSessionsCommand"/>.
+/// As long as <b>running</b> sessions (<see cref="SessionStatus.InProgress"/>) stand on this dialog
+/// version, the deletion is rejected: their rows survive the dialog (no foreign-key cascade from
+/// <c>DialogSessions</c> to <c>Dialogs</c>), but would afterwards be neither resumable nor readable –
+/// every access ends in a conflict because the pinned dialog version is missing. To delete anyway, end
+/// the sessions first with <see cref="AbandonDialogSessionsCommand"/>.
 /// </remarks>
-/// <param name="Id">Der Primärschlüssel des zu löschenden Dialogs.</param>
+/// <param name="Id">The primary key of the dialog to delete.</param>
 public sealed record DeleteDialogCommand(Guid Id) : ICommand<Unit>;
 
-/// <summary>Handler für <see cref="DeleteDialogCommand"/>.</summary>
+/// <summary>Handler for <see cref="DeleteDialogCommand"/>.</summary>
 internal sealed class DeleteDialogCommandHandler : ICommandHandler<DeleteDialogCommand, Unit>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public DeleteDialogCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -33,9 +33,9 @@ internal sealed class DeleteDialogCommandHandler : ICommandHandler<DeleteDialogC
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Auf dieser Dialogversion laufen noch Sessions (Anzahl in der Meldung).
+    /// Sessions are still running on this dialog version (count in the message).
     /// </exception>
     public async ValueTask<Unit> Handle(DeleteDialogCommand command, CancellationToken cancellationToken)
     {
@@ -48,9 +48,10 @@ internal sealed class DeleteDialogCommandHandler : ICommandHandler<DeleteDialogC
         if (activeSessions > 0)
         {
             throw new InvalidOperationException(
-                $"Auf dem Dialog '{dialog.Key}' (Version {dialog.Version}) laufen noch {activeSessions} "
-              + "Session(s). Sie würden das Löschen überleben, wären danach aber weder fortsetzbar noch "
-              + "lesbar. Beende sie zuerst (AbandonDialogSessions) oder warte ihren Abschluss ab.");
+                $"On the dialog '{dialog.Key}' (version {dialog.Version}) {activeSessions} session(s) "
+              + "are still running. They would survive the deletion but would afterwards be neither "
+              + "resumable nor readable. End them first (AbandonDialogSessions) or wait for them to "
+              + "complete.");
         }
 
         _store.Remove(dialog);

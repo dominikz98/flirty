@@ -4,41 +4,41 @@ using Flirty.Domain;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Gemeinsame Querfeld-Prüfungen von <see cref="CreateTriggerCommand"/> und
-/// <see cref="UpdateTriggerCommand"/>. Beide Commands rufen sie über <see cref="IValidatableObject"/>
-/// auf; das <c>ValidationPipelineBehavior</c> führt sie damit vor dem Handler aus und meldet Verstöße
-/// als <see cref="ValidationException"/> (in der WebAPI: HTTP 400).
+/// Shared cross-field checks of <see cref="CreateTriggerCommand"/> and
+/// <see cref="UpdateTriggerCommand"/>. Both commands invoke them via <see cref="IValidatableObject"/>;
+/// the <c>ValidationPipelineBehavior</c> thereby runs them before the handler and reports violations
+/// as a <see cref="ValidationException"/> (in the WebAPI: HTTP 400).
 /// </summary>
 /// <remarks>
-/// Bewusst hier und nicht im Handler: Die Regeln beschreiben die <b>Anfrage</b>, nicht den Zustand der
-/// Datenbank. Der Frage-Verweis bleibt – wie bei <see cref="Transition"/> und
-/// <see cref="LoopDefinition"/> – FK-los und wird <b>nicht</b> auf Existenz geprüft; geprüft wird nur,
-/// ob er zum <see cref="TriggerScope"/> passt.
+/// Deliberately here and not in the handler: the rules describe the <b>request</b>, not the state of the
+/// database. The question reference stays – as with <see cref="Transition"/> and
+/// <see cref="LoopDefinition"/> – FK-free and is <b>not</b> checked for existence; only whether
+/// it matches the <see cref="TriggerScope"/> is checked.
 /// </remarks>
 internal static class TriggerValidation
 {
     /// <summary>
-    /// Prüft, ob Zeitpunkt, Frage-Verweis, Kanal und Konfiguration zueinander passen.
+    /// Checks whether point in time, question reference, channel and configuration match one another.
     /// </summary>
-    /// <param name="scope">Der Zeitpunkt, zu dem der Trigger auslösen soll.</param>
-    /// <param name="questionId">Der Frage-Verweis (nur bei <see cref="TriggerScope.AfterQuestion"/> erlaubt).</param>
-    /// <param name="kind">Der Kanal, über den ausgelöst wird.</param>
-    /// <param name="config">Die kanal-spezifische Konfiguration als JSON.</param>
-    /// <returns>Die gefundenen Verstöße (leer, wenn alles stimmig ist).</returns>
+    /// <param name="scope">The point in time at which the trigger should fire.</param>
+    /// <param name="questionId">The question reference (allowed only for <see cref="TriggerScope.AfterQuestion"/>).</param>
+    /// <param name="kind">The channel over which it fires.</param>
+    /// <param name="config">The channel-specific configuration as JSON.</param>
+    /// <returns>The violations found (empty if everything is consistent).</returns>
     public static IEnumerable<ValidationResult> Validate(
         TriggerScope scope, Guid? questionId, TriggerKind kind, string? config)
     {
         if (scope == TriggerScope.AfterQuestion && questionId is null)
         {
             yield return new ValidationResult(
-                "Ein Trigger mit dem Zeitpunkt 'AfterQuestion' braucht eine Frage (QuestionId).",
+                "A trigger with the point in time 'AfterQuestion' needs a question (QuestionId).",
                 [nameof(TriggerDefinition.QuestionId)]);
         }
 
         if (scope != TriggerScope.AfterQuestion && questionId is not null)
         {
             yield return new ValidationResult(
-                $"Der Zeitpunkt '{scope}' bezieht sich nicht auf eine einzelne Frage – QuestionId muss leer sein.",
+                $"The point in time '{scope}' does not refer to a single question – QuestionId must be empty.",
                 [nameof(TriggerDefinition.QuestionId)]);
         }
 

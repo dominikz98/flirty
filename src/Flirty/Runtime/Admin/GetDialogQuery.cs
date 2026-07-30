@@ -5,20 +5,20 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Liest den Dialog <see cref="Id"/> samt seinem Konfigurationsgraphen (Fragen inkl. Optionen,
-/// Übergänge, Schleifen-Marker und Trigger) sowie den gespeicherten Canvas-Positionen. Rein lesend.
+/// Reads the dialog <see cref="Id"/> along with its configuration graph (questions incl. options,
+/// transitions, loop markers and triggers) as well as the stored canvas positions. Purely reading.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel des abzufragenden Dialogs.</param>
+/// <param name="Id">The primary key of the dialog to query.</param>
 public sealed record GetDialogQuery([property: Required] Guid Id) : IQuery<DialogDetail>;
 
-/// <summary>Handler für <see cref="GetDialogQuery"/>.</summary>
+/// <summary>Handler for <see cref="GetDialogQuery"/>.</summary>
 internal sealed class GetDialogQueryHandler : IQueryHandler<GetDialogQuery, DialogDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public GetDialogQueryHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -26,7 +26,7 @@ internal sealed class GetDialogQueryHandler : IQueryHandler<GetDialogQuery, Dial
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     public async ValueTask<DialogDetail> Handle(GetDialogQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);

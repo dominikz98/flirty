@@ -9,46 +9,46 @@ using Microsoft.AspNetCore.Routing;
 namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
-/// Stellt die Erweiterungsmethode <see cref="MapFlirtyAdminEndpoints"/> bereit, die die optionalen
-/// Admin-CRUD-Endpunkte der Flirty-Dialog-Engine (Verwaltung von Dialogen, Fragen, Optionen,
-/// Übergängen und Schleifen-Markern) als Minimal-API-Route-Gruppe registriert. Wie die Laufzeit-Endpunkte sind sie eine
-/// dünne Schicht über die Mediator-Commands (Versand per <see cref="ISender"/>). Der Namespace
-/// <c>Microsoft.AspNetCore.Builder</c> ist bewusst gewählt, damit die Methode ohne zusätzliches
-/// <c>using</c> auffindbar ist.
+/// Provides the extension method <see cref="MapFlirtyAdminEndpoints"/>, which registers the optional
+/// admin-CRUD endpoints of the Flirty dialog engine (management of dialogs, questions, options,
+/// transitions and loop markers) as a minimal-API route group. Like the runtime endpoints they are a
+/// thin layer over the Mediator commands (dispatch via <see cref="ISender"/>). The namespace
+/// <c>Microsoft.AspNetCore.Builder</c> is chosen deliberately so that the method is discoverable without an
+/// additional <c>using</c>.
 /// </summary>
 public static class FlirtyAdminEndpointRouteBuilderExtensions
 {
     /// <summary>
-    /// Registriert die optionalen Admin-CRUD-Endpunkte unter dem angegebenen <paramref name="prefix"/>:
+    /// Registers the optional admin-CRUD endpoints under the given <paramref name="prefix"/>:
     /// <list type="bullet">
-    /// <item><description><c>POST/GET {prefix}/dialogs</c>, <c>GET/PUT/DELETE {prefix}/dialogs/{id}</c> – Dialoge verwalten.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{id}/publish</c> bzw. <c>/unpublish</c> – Veröffentlichung steuern.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{id}/versions</c> – neue Version als Entwurf aus dieser ableiten.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{id}/abandon-sessions</c> – laufende Sessions dieser Version beenden.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/questions</c>, <c>PUT/DELETE .../questions/{questionId}</c> – Fragen verwalten.</description></item>
-    /// <item><description><c>POST .../questions/{questionId}/options</c>, <c>PUT/DELETE .../options/{optionId}</c> – Antwortoptionen verwalten.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – Übergänge verwalten.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/loops</c>, <c>PUT/DELETE .../loops/{loopId}</c> – Schleifen-Marker verwalten.</description></item>
-    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/triggers</c>, <c>PUT/DELETE .../triggers/{triggerId}</c> – Trigger verwalten.</description></item>
-    /// <item><description><c>PUT/DELETE {prefix}/dialogs/{dialogId}/layout</c> – Canvas-Positionen setzen bzw. verwerfen.</description></item>
+    /// <item><description><c>POST/GET {prefix}/dialogs</c>, <c>GET/PUT/DELETE {prefix}/dialogs/{id}</c> – manage dialogs.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{id}/publish</c> or <c>/unpublish</c> – control publication.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{id}/versions</c> – derive a new version as a draft from this one.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{id}/abandon-sessions</c> – end running sessions of this version.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/questions</c>, <c>PUT/DELETE .../questions/{questionId}</c> – manage questions.</description></item>
+    /// <item><description><c>POST .../questions/{questionId}/options</c>, <c>PUT/DELETE .../options/{optionId}</c> – manage answer options.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/transitions</c>, <c>PUT/DELETE .../transitions/{transitionId}</c> – manage transitions.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/loops</c>, <c>PUT/DELETE .../loops/{loopId}</c> – manage loop markers.</description></item>
+    /// <item><description><c>POST {prefix}/dialogs/{dialogId}/triggers</c>, <c>PUT/DELETE .../triggers/{triggerId}</c> – manage triggers.</description></item>
+    /// <item><description><c>PUT/DELETE {prefix}/dialogs/{dialogId}/layout</c> – set or discard canvas positions.</description></item>
     /// </list>
-    /// Voraussetzung ist ein zuvor per <c>services.AddFlirty(...)</c> registrierter Flirty-Stack. Von der
-    /// Engine geworfene Ausnahmen werden über denselben Endpunkt-Filter wie bei den Laufzeit-Endpunkten
-    /// auf <c>ProblemDetails</c> abgebildet (404 für unbekannte Elemente, 400 für ungültige Anfragen,
-    /// 409 für Schlüssel-/Zustandskonflikte). Da die Endpunkte schreibend sind, empfiehlt sich eine
-    /// Absicherung per <c>RequireAuthorization()</c> auf der zurückgegebenen Gruppe.
+    /// The prerequisite is a Flirty stack previously registered via <c>services.AddFlirty(...)</c>. Exceptions
+    /// thrown by the engine are mapped onto <c>ProblemDetails</c> via the same endpoint filter as the runtime
+    /// endpoints (404 for unknown elements, 400 for invalid requests, 409 for key/state conflicts). Since the
+    /// endpoints are write endpoints, securing them via <c>RequireAuthorization()</c> on the returned group is
+    /// recommended.
     /// </summary>
-    /// <param name="endpoints">Der Endpunkt-Router der Host-App (z. B. die <see cref="WebApplication"/>).</param>
+    /// <param name="endpoints">The endpoint router of the host app (e.g. the <see cref="WebApplication"/>).</param>
     /// <param name="prefix">
-    /// Das Routen-Präfix, unter dem die Endpunkte registriert werden (Standard: <c>"/flirty/admin"</c>).
+    /// The route prefix under which the endpoints are registered (default: <c>"/flirty/admin"</c>).
     /// </param>
     /// <returns>
-    /// Die erzeugte <see cref="RouteGroupBuilder"/>, um die Gruppe weiter zu konfigurieren (z. B.
+    /// The created <see cref="RouteGroupBuilder"/>, to configure the group further (e.g.
     /// <c>RequireAuthorization()</c>).
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="endpoints"/> ist <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="endpoints"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="prefix"/> ist <see langword="null"/>, leer oder nur Leerraum.
+    /// <paramref name="prefix"/> is <see langword="null"/>, empty or only whitespace.
     /// </exception>
     /// <example>
     /// <code>
@@ -130,8 +130,8 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             return TypedResults.Ok(result.ToResponse());
         });
 
-        // Neue Version aus einer bestehenden ableiten: der vorgesehene Weg, einen veröffentlichten
-        // Dialog weiterzuentwickeln, ohne laufende Sessions zu brechen.
+        // Derive a new version from an existing one: the intended way to evolve a published
+        // dialog without breaking running sessions.
         group.MapPost("/dialogs/{id:guid}/versions", async (
             Guid id, ISender sender, CancellationToken cancellationToken) =>
         {
@@ -317,22 +317,22 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Registriert die Endpunkte für die Canvas-Positionen des Designers.
+    /// Registers the endpoints for the designer's canvas positions.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b><c>PUT</c> ist hier ein Merge, kein Ersatz.</b> Gesetzt werden nur die im Körper genannten
-    /// Elemente; nicht genannte Zeilen bleiben stehen. Grund: Eine Zieh-Geste im Designer verschiebt
-    /// meist ein einzelnes Element und soll dafür nicht das gesamte Layout mitschicken müssen. Ein
-    /// vollständiges Verwerfen leistet <c>DELETE</c>.
+    /// <b><c>PUT</c> is a merge here, not a replacement.</b> Only the elements named in the body are set;
+    /// rows not named remain in place. Reason: a drag gesture in the designer usually moves a single
+    /// element and should not have to send the entire layout for that. A full discard is done by
+    /// <c>DELETE</c>.
     /// </para>
     /// <para>
-    /// Beide Endpunkte greifen <b>auch bei veröffentlichtem Dialog</b> und liefern kein 409 –
-    /// Koordinaten sind kein Teil des Graphen (ADR 0007). Die Publish-Sperre der übrigen
-    /// Graph-Endpunkte bleibt davon unberührt.
+    /// Both endpoints work <b>even for a published dialog</b> and return no 409 –
+    /// coordinates are not part of the graph (ADR 0007). The publish lock of the other
+    /// graph endpoints is unaffected by this.
     /// </para>
     /// </remarks>
-    /// <param name="group">Die Admin-Route-Gruppe.</param>
+    /// <param name="group">The admin route group.</param>
     private static void MapLayoutEndpoints(RouteGroupBuilder group)
     {
         group.MapPut("/dialogs/{dialogId:guid}/layout", async (

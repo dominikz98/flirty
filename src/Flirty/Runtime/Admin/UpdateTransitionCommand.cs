@@ -4,15 +4,15 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Aktualisiert den Übergang <see cref="TransitionId"/> im Dialog <see cref="DialogId"/> (In-Place).
+/// Updates the transition <see cref="TransitionId"/> in the dialog <see cref="DialogId"/> (in place).
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Übergang gehört.</param>
-/// <param name="TransitionId">Der Primärschlüssel des zu ändernden Übergangs.</param>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="DialogId">The id of the dialog the transition belongs to.</param>
+/// <param name="TransitionId">The primary key of the transition to change.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record UpdateTransitionCommand(
     Guid DialogId,
     Guid TransitionId,
@@ -22,14 +22,14 @@ public sealed record UpdateTransitionCommand(
     int Priority,
     bool IsDefault) : ICommand<TransitionDetail>;
 
-/// <summary>Handler für <see cref="UpdateTransitionCommand"/>.</summary>
+/// <summary>Handler for <see cref="UpdateTransitionCommand"/>.</summary>
 internal sealed class UpdateTransitionCommandHandler : ICommandHandler<UpdateTransitionCommand, TransitionDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public UpdateTransitionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -38,15 +38,15 @@ internal sealed class UpdateTransitionCommandHandler : ICommandHandler<UpdateTra
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Kein Übergang mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No transition with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<TransitionDetail> Handle(
         UpdateTransitionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var transition = await _store.GetTransitionAsync(command.TransitionId, cancellationToken);
