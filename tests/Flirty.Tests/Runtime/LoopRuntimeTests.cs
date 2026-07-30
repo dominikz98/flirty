@@ -9,11 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert die Loop-Runtime (Issue #29) end-to-end über <see cref="SubmitAnswerCommandHandler"/> und
-/// <see cref="EditAnswerCommandHandler"/> gegen eine echte SQLite-Datenbank (in-memory): die Zuordnung von
-/// <see cref="SessionAnswer.LoopInstanceId"/>/<see cref="SessionAnswer.IterationIndex"/> über mehrere
-/// Iterationen, das Verlassen des Zyklus über die Breaking Question, collection- und iterationsindex-
-/// getriebene Break-Bedingungen sowie das gezielte Editieren einer Iteration.
+/// Verifies the loop runtime (issue #29) end-to-end over <see cref="SubmitAnswerCommandHandler"/> and
+/// <see cref="EditAnswerCommandHandler"/> against a real SQLite database (in-memory): the assignment
+/// of <see cref="SessionAnswer.LoopInstanceId"/>/<see cref="SessionAnswer.IterationIndex"/> across
+/// several iterations, leaving the cycle over the breaking question, collection- and
+/// iteration-index-driven break conditions as well as editing one specific iteration.
 /// </summary>
 public sealed class LoopRuntimeTests : IDisposable
 {
@@ -21,8 +21,8 @@ public sealed class LoopRuntimeTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public LoopRuntimeTests()
     {
@@ -37,12 +37,12 @@ public sealed class LoopRuntimeTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
 
-    /// <summary>Legt den Loop-Dialog samt einer laufenden Session an der Einstiegsfrage an.</summary>
+    /// <summary>Creates the loop dialog together with a running session on the entry question.</summary>
     private (Guid SessionId, LoopDialogIds Ids) SeedLoopSession(string loopBackExpression = "more == \"yes\"")
     {
         var dialogId = Guid.NewGuid();
@@ -66,7 +66,7 @@ public sealed class LoopRuntimeTests : IDisposable
         return (sessionId, ids);
     }
 
-    /// <summary>Reicht eine Antwort über den <see cref="SubmitAnswerCommandHandler"/> in eigenem Kontext ein.</summary>
+    /// <summary>Submits an answer over the <see cref="SubmitAnswerCommandHandler"/> in its own context.</summary>
     private async Task<SubmitAnswerResult> SubmitAsync(Guid sessionId, Guid questionId, string value)
     {
         using var context = CreateContext();
@@ -75,7 +75,7 @@ public sealed class LoopRuntimeTests : IDisposable
         return await handler.Handle(new SubmitAnswerCommand(sessionId, questionId, value), default);
     }
 
-    /// <summary>Editiert eine Antwort über den <see cref="EditAnswerCommandHandler"/> in eigenem Kontext.</summary>
+    /// <summary>Edits an answer over the <see cref="EditAnswerCommandHandler"/> in its own context.</summary>
     private async Task<EditAnswerResult> EditAsync(Guid sessionId, Guid questionId, string value, int? iterationIndex = null)
     {
         using var context = CreateContext();
@@ -90,15 +90,15 @@ public sealed class LoopRuntimeTests : IDisposable
         return context.DialogSessions.Include(session => session.Answers).Single(session => session.Id == sessionId);
     }
 
-    // ---- Mehrere Iterationen ----------------------------------------------------------------
+    // ---- Several iterations -----------------------------------------------------------------
 
     /// <summary>
-    /// Zwei Durchläufe der Schleife weisen den Antworten dieselbe <see cref="SessionAnswer.LoopInstanceId"/>
-    /// und aufsteigende Iterationsindizes (0, 1) je Frage zu; die <see cref="SessionAnswer.Sequence"/> läuft
-    /// über alle Iterationen fort.
+    /// Two passes through the loop assign the answers the same
+    /// <see cref="SessionAnswer.LoopInstanceId"/> and ascending iteration indexes (0, 1) per question;
+    /// the <see cref="SessionAnswer.Sequence"/> keeps running across all iterations.
     /// </summary>
     [Fact]
-    public async Task Handle_mehrere_Iterationen_weist_Instanz_und_Index_zu()
+    public async Task Handle_several_iterations_assigns_the_instance_and_the_index()
     {
         var (sessionId, ids) = SeedLoopSession();
 
@@ -113,16 +113,16 @@ public sealed class LoopRuntimeTests : IDisposable
             .Where(answer => answer.QuestionId == ids.PositionQuestionId)
             .OrderBy(answer => answer.Sequence)
             .ToList();
-        var mores = session.Answers
+        var moreAnswers = session.Answers
             .Where(answer => answer.QuestionId == ids.MoreQuestionId)
             .OrderBy(answer => answer.Sequence)
             .ToList();
 
         Assert.Equal(["A", "B"], positions.Select(answer => answer.Value.Trim('"')));
         Assert.Equal([0, 1], positions.Select(answer => answer.IterationIndex));
-        Assert.Equal([0, 1], mores.Select(answer => answer.IterationIndex));
+        Assert.Equal([0, 1], moreAnswers.Select(answer => answer.IterationIndex));
 
-        // Alle Loop-Antworten teilen dieselbe (nicht-null) Instanz-Id.
+        // All loop answers share the same (non-null) instance id.
         var instanceIds = session.Answers
             .Where(answer => answer.LoopInstanceId is not null)
             .Select(answer => answer.LoopInstanceId!.Value)
@@ -132,14 +132,14 @@ public sealed class LoopRuntimeTests : IDisposable
         Assert.Equal([0, 1, 2, 3], session.Answers.OrderBy(answer => answer.Sequence).Select(answer => answer.Sequence));
     }
 
-    // ---- Breaking Question ------------------------------------------------------------------
+    // ---- Breaking question ------------------------------------------------------------------
 
     /// <summary>
-    /// Die Breaking Question verlässt den Zyklus (Exit-Übergang) auf die nachgelagerte Frage; die dort
-    /// gegebene Antwort trägt keine Loop-Felder mehr und der Dialog schließt normal ab.
+    /// The breaking question leaves the cycle (exit transition) towards the downstream question; the
+    /// answer given there no longer carries loop fields and the dialog completes normally.
     /// </summary>
     [Fact]
-    public async Task Handle_Breaking_Question_verlaesst_Zyklus_und_setzt_normalen_Fluss_fort()
+    public async Task Handle_the_breaking_question_leaves_the_cycle_and_continues_the_normal_flow()
     {
         var (sessionId, ids) = SeedLoopSession();
 
@@ -160,15 +160,15 @@ public sealed class LoopRuntimeTests : IDisposable
         Assert.Equal(SessionStatus.Completed, session.Status);
     }
 
-    // ---- Collection im Kontext --------------------------------------------------------------
+    // ---- Collection in the context ----------------------------------------------------------
 
     /// <summary>
-    /// Eine collection-getriebene Break-Bedingung (<c>positions.Count &lt; 2</c>) sieht die je Iteration
-    /// gesammelten Einstiegsantworten: die Schleife läuft, bis zwei Positionen erfasst sind, und verlässt
-    /// den Zyklus dann ohne explizites „nein".
+    /// A collection-driven break condition (<c>positions.Count &lt; 2</c>) sees the entry answers
+    /// collected per iteration: the loop runs until two positions are recorded and then leaves the
+    /// cycle without an explicit "no".
     /// </summary>
     [Fact]
-    public async Task Break_Bedingung_sieht_gesammelte_Collection()
+    public async Task The_break_condition_sees_the_collected_collection()
     {
         var (sessionId, ids) = SeedLoopSession(loopBackExpression: "positions.Count < 2");
 
@@ -186,11 +186,11 @@ public sealed class LoopRuntimeTests : IDisposable
     }
 
     /// <summary>
-    /// Eine iterationsindex-getriebene Break-Bedingung (<c>iterationIndex &lt; 1</c>) verlässt den Zyklus
-    /// nach genau zwei Iterationen (Index 0 und 1).
+    /// An iteration-index-driven break condition (<c>iterationIndex &lt; 1</c>) leaves the cycle after
+    /// exactly two iterations (index 0 and 1).
     /// </summary>
     [Fact]
-    public async Task Break_Bedingung_sieht_Iterationsindex()
+    public async Task The_break_condition_sees_the_iteration_index()
     {
         var (sessionId, ids) = SeedLoopSession(loopBackExpression: "iterationIndex < 1");
 
@@ -203,14 +203,14 @@ public sealed class LoopRuntimeTests : IDisposable
         Assert.Equal(ids.SummaryQuestionId, afterSecond.NextQuestion!.Id);
     }
 
-    // ---- Edit in Iteration ------------------------------------------------------------------
+    // ---- Edit within an iteration -----------------------------------------------------------
 
     /// <summary>
-    /// Das Editieren einer bestimmten Iteration (<c>IterationIndex: 1</c>) überschreibt gezielt deren
-    /// Einstiegsantwort, verwirft die nachgelagerten Antworten und berechnet den Pfad neu.
+    /// Editing one specific iteration (<c>IterationIndex: 1</c>) overwrites exactly that iteration's
+    /// entry answer, discards the downstream answers and recomputes the path.
     /// </summary>
     [Fact]
-    public async Task Handle_Edit_in_Iteration_ueberschreibt_gezielt_und_invalidiert()
+    public async Task Handle_an_edit_within_an_iteration_overwrites_exactly_that_one_and_invalidates()
     {
         var (sessionId, ids) = SeedLoopSession();
         await SubmitAsync(sessionId, ids.PositionQuestionId, "\"A\"");   // Iteration 0 (seq 0)
@@ -234,11 +234,11 @@ public sealed class LoopRuntimeTests : IDisposable
     }
 
     /// <summary>
-    /// Ohne <c>IterationIndex</c> editiert der Handler – rückwärtskompatibel – die früheste Antwort der
-    /// Frage (Iteration 0) und verwirft alle nachgelagerten Iterationen.
+    /// Without an <c>IterationIndex</c> the handler edits – backwards compatibly – the earliest answer
+    /// of the question (iteration 0) and discards all downstream iterations.
     /// </summary>
     [Fact]
-    public async Task Handle_Edit_ohne_IterationIndex_trifft_frueheste_Antwort()
+    public async Task Handle_an_edit_without_an_IterationIndex_hits_the_earliest_answer()
     {
         var (sessionId, ids) = SeedLoopSession();
         await SubmitAsync(sessionId, ids.PositionQuestionId, "\"A\"");   // Iteration 0 (seq 0)
@@ -257,9 +257,9 @@ public sealed class LoopRuntimeTests : IDisposable
         Assert.Equal(0, remaining.IterationIndex);
     }
 
-    /// <summary>Der Verweis auf eine nicht vorhandene Iteration beim Editieren wird abgelehnt.</summary>
+    /// <summary>Referring to an iteration that does not exist while editing is rejected.</summary>
     [Fact]
-    public async Task Handle_Edit_nicht_existente_Iteration_wirft_InvalidOperationException()
+    public async Task Handle_an_edit_of_a_non_existent_iteration_throws_InvalidOperationException()
     {
         var (sessionId, ids) = SeedLoopSession();
         await SubmitAsync(sessionId, ids.PositionQuestionId, "\"A\"");

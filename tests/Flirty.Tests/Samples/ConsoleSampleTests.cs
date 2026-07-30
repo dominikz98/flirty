@@ -8,23 +8,23 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.Samples;
 
 /// <summary>
-/// Prüft das Console-Single-Project-Sample (#44) end-to-end: reines Console-Setup ohne ASP.NET, ein
-/// programmatisch geseedeter Dialog wird über die Facade durchgespielt (inkl. Branching) und der
-/// eigene <see cref="INotificationHandler{TNotification}"/> reagiert auf die von der Engine (seit #31)
-/// publizierte Abschluss-Notification.
+/// Checks the console single-project sample (#44) end-to-end: a pure console setup without ASP.NET,
+/// a programmatically seeded dialog is played through via the facade (incl. branching), and the
+/// host's own <see cref="INotificationHandler{TNotification}"/> reacts to the completion notification
+/// published by the engine (since #31).
 /// </summary>
 public sealed class ConsoleSampleTests
 {
     /// <summary>
-    /// Der Sample-Runner spielt den dev-Zweig durch und schließt den Dialog ab; die Engine publiziert
-    /// beim Abschluss die Notification, sodass der eigene Handler die Abschluss-Zusammenfassung schreibt
-    /// (Beleg, dass <c>Publish</c> ihn ausgelöst hat).
+    /// The sample runner plays the dev branch through and completes the dialog; on completion the
+    /// engine publishes the notification, so the host's own handler writes the completion summary
+    /// (proof that <c>Publish</c> triggered it).
     /// </summary>
     [Fact]
-    public async Task Sample_spielt_Dialog_durch_und_loest_eigenen_NotificationHandler_aus()
+    public async Task Sample_plays_the_dialog_through_and_fires_the_hosts_own_NotificationHandler()
     {
-        // Shared-Cache-in-memory: solange die keep-alive-Verbindung offen ist, teilen sich alle
-        // DI-erzeugten FlirtyDbContext-Instanzen dieselbe in-memory-Datenbank.
+        // Shared-cache in-memory: as long as the keep-alive connection stays open, all
+        // DI-created FlirtyDbContext instances share the same in-memory database.
         const string connectionString = "Data Source=FlirtyConsoleSampleTest;Mode=Memory;Cache=Shared";
         using var keepAlive = new SqliteConnection(connectionString);
         keepAlive.Open();
@@ -61,13 +61,13 @@ public sealed class ConsoleSampleTests
             result = await runner.RunAsync(SampleDialogFactory.DialogKey, "test-user");
         }
 
-        // Dialog abgeschlossen.
+        // Dialog completed.
         Assert.True(result.Completed);
 
-        // Branching nahm den dev-Pfad: nach 'role' wurde 'language' (nicht 'product') gefragt.
+        // Branching took the dev path: after 'role' the question asked was 'language', not 'product'.
         Assert.Equal(new[] { "role", "language" }, result.AskedQuestionKeys);
 
-        // Beleg, dass der eigene INotificationHandler per Publish ausgelöst wurde.
+        // Proof that the host's own INotificationHandler was triggered via Publish.
         var output = handlerOutput.ToString();
         Assert.Contains("Dialog 'onboarding' completed", output);
         Assert.Contains("role = \"dev\"", output);

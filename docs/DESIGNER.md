@@ -1149,37 +1149,37 @@ smoke test, **#105** completes the coverage.
 - `DesignerAppFixture` hosts `DesignerApp` in-process on a free Kestrel port and creates beforehand an
   **active** connection profile against a freshly migrated SQLite temp database (profile file and DB
   lie in a temp ContentRoot, not in the repo).
-- `DesignerE2ETests.Dialog_mit_Branching_und_Schleife_anlegen_und_speichern` – the acceptance criterion
+- `DesignerE2ETests.Create_and_save_a_dialog_with_branching_and_a_loop` – the acceptance criterion
   of the issue: create a dialog → three questions → answer options in the question editor → entry question → three
   transitions → condition `more == "yes"` including **live validation** → mark a loop over the
   back-jump suggestion → publish. A concluding **reload** re-renders everything from
   the database and thus proves the persistence.
-- `DesignerE2ETests.Testlauf_spielt_die_Schleife_mit_der_echten_Engine_durch` – the test runner (#43)
+- `DesignerE2ETests.Test_run_plays_the_loop_through_with_the_real_engine` – the test runner (#43)
   on the same (unpublished) dialog: two iterations, exit, completion; checked are the
   `Iteration 2` badge of the history and the collected collection in the expression context.
-- `DesignerE2ETests.Graph_Ansicht_zeigt_den_Ablauf_und_fuehrt_in_den_Frage_Editor` – the smoke test of the
+- `DesignerE2ETests.Graph_view_shows_the_flow_and_leads_into_the_question_editor` – the smoke test of the
   graph view (#101): the canvas binds its JS module, draws three nodes and three edges, marks
   entry and completion, frames the loop and hangs the trigger chip on exactly the question after which it
   fires; the selection opens the inspector and leads into the existing question editor.
-- `DesignerE2ETests.Graph_Knoten_verschieben_ueberlebt_den_Reload` – the smoke test of the
+- `DesignerE2ETests.Graph_node_move_survives_the_reload` – the smoke test of the
   layout persistence (#102) on the **published** dialog: drag a node, reload (the server renders the
   position from the database), "Reset layout" – afterwards the node lies again on its
   auto-layout position. That the dialog is published proves at the same time the guard exception from
   ADR 0007: no error message appears.
-- `DesignerE2ETests.Graph_Palette_und_Port_legen_Fragen_und_Uebergang_an`,
-  `…Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade` and
-  `…Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` – the gestures and the read mode from #103:
+- `DesignerE2ETests.Graph_palette_and_port_create_questions_and_a_transition`,
+  `…Graph_inspector_edits_a_question_a_transition_and_deletes_with_the_cascade` and
+  `…Graph_gestures_are_disabled_on_a_published_dialog` – the gestures and the read mode from #103:
   palette drag and port connection, the complete inspector path (save fields, connect, toggle default,
   delete with a visible cascade), the **list parity** and "moving works, 409 stays
   out".
-- `DesignerE2ETests.Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor` – the test run in the graph (#104)
+- `DesignerE2ETests.Test_run_in_the_graph_highlights_the_path_taken` – the test run in the graph (#104)
   on the same (unpublished) dialog: toggle, start the run, two iterations; checked are
   visited nodes with their answer value, the open question, the number of taken edges after every
   step, "2 iterations" on the loop frame and the `⚡` chip on the node. Afterwards the inspector path
   (bindings and answers per iteration at the selected node), an **edit** that lets the path shrink visibly
   – and at the end toggling twice: "History" shows the same run, "Graph" binds the canvas
   anew. Switching back is at the same time the probe that releasing the JS binding does not tear the circuit.
-- `DesignerE2ETests.Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload` – the
+- `DesignerE2ETests.Graph_creation_flow_on_the_canvas_survives_publishing_and_the_reload` – the
   creation flow from #105, exclusively via gestures: drag a building block from the palette, drag **twice from the port
   into the void** (question *and* transition from one motion – the only branch that runs through "no node under
   the pointer"), condition `choice == "yes"` in the inspector including **live validation**, the
@@ -1187,7 +1187,7 @@ smoke test, **#105** completes the coverage.
   – and after the **reload** everything comes from the database, including the position
   (compared is the `transform`, which stands in *user coordinates* and is thereby independent of the
   scaling of the SVG).
-- `DesignerE2ETests.Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an` – the two gestures that #103
+- `DesignerE2ETests.Graph_inspector_creates_a_trigger_and_a_loop_at_the_cycle` – the two gestures that #103
   had left open: mark a **back-jump** created via the port as a loop over the suggestion *at the edge*
   (the collection key is pre-filled with `choice_list`) and create a trigger at exactly
   one question – the chip afterwards hangs there and not on all. At the end reload and

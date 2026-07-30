@@ -47,7 +47,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// (after reloading, every field comes from the database).
     /// </summary>
     [SkippableFact]
-    public async Task Dialog_mit_Branching_und_Schleife_anlegen_und_speichern()
+    public async Task Create_and_save_a_dialog_with_branching_and_a_loop()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -78,7 +78,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// exit and completion.
     /// </summary>
     [SkippableFact]
-    public async Task Testlauf_spielt_die_Schleife_mit_der_echten_Engine_durch()
+    public async Task Test_run_plays_the_loop_through_with_the_real_engine()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -129,7 +129,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Ansicht_zeigt_den_Ablauf_und_fuehrt_in_den_Frage_Editor()
+    public async Task Graph_view_shows_the_flow_and_leads_into_the_question_editor()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -188,7 +188,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Knoten_verschieben_ueberlebt_den_Reload()
+    public async Task Graph_node_move_survives_the_reload()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -256,7 +256,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Palette_und_Port_legen_Fragen_und_Uebergang_an()
+    public async Task Graph_palette_and_port_create_questions_and_a_transition()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
@@ -312,7 +312,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// deleted question the edge that hung on it disappears – reported as a count, not asserted.
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Inspector_bearbeitet_Frage_Uebergang_und_loescht_mit_Kaskade()
+    public async Task Graph_inspector_edits_a_question_a_transition_and_deletes_with_the_cascade()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
@@ -399,7 +399,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// Moving continues to work (ADR 0007) – and produces no error message.
     /// </summary>
     [SkippableFact]
-    public async Task Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert()
+    public async Task Graph_gestures_are_disabled_on_a_published_dialog()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -445,7 +445,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor()
+    public async Task Test_run_in_the_graph_highlights_the_path_taken()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -570,7 +570,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload()
+    public async Task Graph_creation_flow_on_the_canvas_survives_publishing_and_the_reload()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);
@@ -697,7 +697,7 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// immediately in the dialog editor too, because they are the same commands.
     /// </remarks>
     [SkippableFact]
-    public async Task Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an()
+    public async Task Graph_inspector_creates_a_trigger_and_a_loop_at_the_cycle()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeEmptyDialogAsync(session);

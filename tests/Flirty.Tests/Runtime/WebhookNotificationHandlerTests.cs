@@ -10,20 +10,20 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Prüft den eingebauten <see cref="WebhookNotificationHandler"/> (#33, seit #42 auch
-/// <see cref="TriggerDefinition"/>-getrieben) isoliert: Scope-Filterung, HTTP-Zustellung
-/// (Methode/URL/Header/Body), die am Dialog konfigurierten Trigger samt Bedingung sowie
-/// Best-effort-Fehlerbehandlung und das Wiederholen bei transienten Fehlern über die
-/// Standard-Resilience-Pipeline. Es wird bewusst keine Mock-Bibliothek genutzt, sondern ein
-/// handgeschriebener <see cref="RecordingHttpMessageHandler"/> als <c>HttpMessageHandler</c>-Spy.
+/// Checks the built-in <see cref="WebhookNotificationHandler"/> (#33, since #42 also
+/// <see cref="TriggerDefinition"/>-driven) in isolation: scope filtering, HTTP delivery
+/// (method/URL/header/body), the triggers configured on the dialog incl. their condition as well as
+/// best-effort error handling and the retry on transient failures over the standard resilience
+/// pipeline. No mocking library is used, deliberately – instead a hand-written
+/// <see cref="RecordingHttpMessageHandler"/> serves as the <c>HttpMessageHandler</c> spy.
 /// </summary>
 public sealed class WebhookNotificationHandlerTests
 {
     private const string TargetUrl = "https://example.test/hook";
 
-    /// <summary>Ein passender Scope liefert genau einen POST mit Event-Header und JSON-Body.</summary>
+    /// <summary>A matching scope produces exactly one POST with the event header and a JSON body.</summary>
     [Fact]
-    public async Task Liefert_bei_passendem_Scope_einen_POST_mit_Event_Header_und_Body()
+    public async Task Delivers_one_POST_with_the_event_header_and_a_body_on_a_matching_scope()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(
@@ -39,9 +39,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Contains("onboarding", request.Body);
     }
 
-    /// <summary>Notifications ohne passende Scope-Registrierung lösen keine Zustellung aus.</summary>
+    /// <summary>Notifications without a matching scope registration trigger no delivery.</summary>
     [Fact]
-    public async Task Liefert_nichts_wenn_kein_Scope_passt()
+    public async Task Delivers_nothing_when_no_scope_matches()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(
@@ -53,9 +53,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Empty(spy.Requests);
     }
 
-    /// <summary>Registrierungen ohne <c>Scope</c> (alter String-Overload) werden nicht ausgeliefert.</summary>
+    /// <summary>Registrations without a <c>Scope</c> (the old string overload) are not delivered.</summary>
     [Fact]
-    public async Task Ignoriert_Registrierungen_ohne_Scope()
+    public async Task Ignores_registrations_without_a_scope()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(spy, [new FlirtyWebhookRegistration("order-created", TargetUrl)]);
@@ -65,9 +65,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Empty(spy.Requests);
     }
 
-    /// <summary>Mehrere Registrierungen desselben Scopes werden alle bedient.</summary>
+    /// <summary>Several registrations of the same scope are all served.</summary>
     [Fact]
-    public async Task Liefert_an_mehrere_Ziele_desselben_Scopes()
+    public async Task Delivers_to_several_targets_of_the_same_scope()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(spy,
@@ -83,23 +83,23 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Contains(spy.Requests, request => request.Url?.ToString() == "https://example.test/b");
     }
 
-    /// <summary>Ein Fehlerstatus (nach erschöpften Retries) wird geloggt, aber nicht geworfen.</summary>
+    /// <summary>An error status (after the retries are exhausted) is logged but not thrown.</summary>
     [Fact]
-    public async Task Fehlerstatus_wird_geschluckt()
+    public async Task An_error_status_is_swallowed()
     {
         var spy = new RecordingHttpMessageHandler(HttpStatusCode.InternalServerError);
         var handler = CreateHandler(
             spy, [new FlirtyWebhookRegistration("OnDialogCompleted", TargetUrl, TriggerScope.OnDialogCompleted)]);
 
-        // Kein Wurf: der auslösende Command darf nicht scheitern.
+        // No throw: the triggering command must not fail.
         await handler.Handle(new DialogCompletedNotification(Guid.NewGuid(), "onboarding", []), CancellationToken.None);
 
         Assert.Single(spy.Requests);
     }
 
-    /// <summary>Eine Transport-Ausnahme wird geloggt, aber nicht geworfen.</summary>
+    /// <summary>A transport exception is logged but not thrown.</summary>
     [Fact]
-    public async Task Ausnahme_wird_geschluckt()
+    public async Task An_exception_is_swallowed()
     {
         var spy = RecordingHttpMessageHandler.Throwing();
         var handler = CreateHandler(
@@ -111,9 +111,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Null(exception);
     }
 
-    /// <summary>Ein transienter Fehler (503) wird über die Resilience-Pipeline wiederholt.</summary>
+    /// <summary>A transient failure (503) is retried over the resilience pipeline.</summary>
     [Fact]
-    public async Task Wiederholt_bei_transientem_Fehler()
+    public async Task Retries_on_a_transient_failure()
     {
         var spy = new RecordingHttpMessageHandler(HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
         var handler = CreateHandler(
@@ -123,13 +123,13 @@ public sealed class WebhookNotificationHandlerTests
 
         await handler.Handle(new DialogCompletedNotification(Guid.NewGuid(), "onboarding", []), CancellationToken.None);
 
-        // Erster Versuch 503 -> Retry -> zweiter Versuch 200: genau zwei Zustellversuche.
+        // First attempt 503 -> retry -> second attempt 200: exactly two delivery attempts.
         Assert.Equal(2, spy.Requests.Count);
     }
 
-    /// <summary>Ein am Dialog konfigurierter Webhook-Trigger (#42) wird ausgeliefert – mit Ereignisname im Header.</summary>
+    /// <summary>A webhook trigger configured on the dialog (#42) is delivered – with the event name in the header.</summary>
     [Fact]
-    public async Task Liefert_am_Dialog_konfigurierte_Webhook_Trigger_aus()
+    public async Task Delivers_the_webhook_triggers_configured_on_the_dialog()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(
@@ -148,9 +148,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Equal("order-created", request.Trigger);
     }
 
-    /// <summary>In-Process-Trigger sind Marker für die Host-App und werden nicht zugestellt.</summary>
+    /// <summary>In-process triggers are markers for the host app and are not delivered.</summary>
     [Fact]
-    public async Task Ignoriert_InProcess_Trigger()
+    public async Task Ignores_in_process_triggers()
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(
@@ -166,9 +166,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Empty(spy.Requests);
     }
 
-    /// <summary>Bei <c>AfterQuestion</c> zählt der Frage-Bezug: nur der Trigger der beantworteten Frage feuert.</summary>
+    /// <summary>For <c>AfterQuestion</c> the question reference counts: only the trigger of the answered question fires.</summary>
     [Fact]
-    public async Task Filtert_AfterQuestion_Trigger_auf_die_Frage()
+    public async Task Filters_AfterQuestion_triggers_down_to_the_question()
     {
         var questionId = Guid.NewGuid();
         var spy = new RecordingHttpMessageHandler();
@@ -191,11 +191,11 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Contains(spy.Requests, request => request.Url?.ToString() == "https://example.test/alle");
     }
 
-    /// <summary>Unlesbare oder unvollständige Konfiguration wird übersprungen, nicht geworfen.</summary>
+    /// <summary>Unreadable or incomplete configuration is skipped, not thrown.</summary>
     [Theory]
     [InlineData("kein json")]
     [InlineData("{\"name\":\"ohne-url\"}")]
-    public async Task Ueberspringt_Trigger_mit_unbrauchbarer_Konfiguration(string config)
+    public async Task Skips_a_trigger_with_an_unusable_configuration(string config)
     {
         var spy = new RecordingHttpMessageHandler();
         var handler = CreateHandler(
@@ -208,11 +208,11 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Empty(spy.Requests);
     }
 
-    /// <summary>Die Bedingung eines Triggers entscheidet über die Zustellung (echte Ausdrucks-Engine).</summary>
+    /// <summary>A trigger's condition decides the delivery (the real expression engine).</summary>
     [Theory]
     [InlineData("role == \"dev\"", 1)]
     [InlineData("role == \"pm\"", 0)]
-    public async Task Wertet_die_Bedingung_eines_Triggers_aus(string expression, int expectedRequests)
+    public async Task Evaluates_the_condition_of_a_trigger(string expression, int expectedRequests)
     {
         var spy = new RecordingHttpMessageHandler();
         var store = StoreWithSession(
@@ -228,11 +228,11 @@ public sealed class WebhookNotificationHandlerTests
     }
 
     /// <summary>
-    /// Eine nicht auswertbare Bedingung (unbekannter Bezeichner – z. B. eine Antwort, die es beim
-    /// Dialogstart noch nicht gibt) überspringt das Ziel, statt den auslösenden Command zu brechen.
+    /// A condition that cannot be evaluated (an unknown identifier – e.g. an answer that does not yet
+    /// exist at dialog start) skips the target instead of breaking the triggering command.
     /// </summary>
     [Fact]
-    public async Task Ueberspringt_Trigger_mit_nicht_auswertbarer_Bedingung()
+    public async Task Skips_a_trigger_with_a_condition_that_cannot_be_evaluated()
     {
         var spy = new RecordingHttpMessageHandler();
         var store = StoreWithSession(
@@ -249,9 +249,9 @@ public sealed class WebhookNotificationHandlerTests
         Assert.Empty(spy.Requests);
     }
 
-    /// <summary>Der Konstruktor lehnt jedes <see langword="null"/>-Argument ab.</summary>
+    /// <summary>The constructor rejects every <see langword="null"/> argument.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Argumenten()
+    public void Constructor_throws_on_null_arguments()
     {
         var factory = CreateHttpClientFactory(new RecordingHttpMessageHandler(), withResilience: false);
         IReadOnlyList<FlirtyWebhookRegistration> registrations = [];
@@ -279,7 +279,7 @@ public sealed class WebhookNotificationHandlerTests
             store ?? new StubDialogStore(),
             NullLogger<WebhookNotificationHandler>.Instance);
 
-    /// <summary>Baut eine Trigger-Definition für die Store-Attrappe.</summary>
+    /// <summary>Builds a trigger definition for the store stub.</summary>
     private static TriggerDefinition Trigger(
         TriggerScope scope,
         string config,
@@ -298,8 +298,8 @@ public sealed class WebhookNotificationHandlerTests
         };
 
     /// <summary>
-    /// Baut eine Store-Attrappe mit einem echten Dialog samt Session und einer Antwort auf <c>role</c>
-    /// (<c>"dev"</c>) – Grundlage für die Bedingungs-Tests gegen die echte Ausdrucks-Engine.
+    /// Builds a store stub with a real dialog incl. a session and one answer to <c>role</c>
+    /// (<c>"dev"</c>) – the basis for the condition tests against the real expression engine.
     /// </summary>
     private static StubDialogStore StoreWithSession(IReadOnlyList<TriggerDefinition> triggers, out Guid sessionId)
     {
@@ -336,14 +336,14 @@ public sealed class WebhookNotificationHandlerTests
 
         if (withResilience)
         {
-            // Deterministisch: Zero-Delay macht das exponentielle Backoff sofort (0 * 2^n = 0).
+            // Deterministic: a zero delay makes the exponential backoff immediate (0 * 2^n = 0).
             builder.AddStandardResilienceHandler(options => options.Retry.Delay = TimeSpan.Zero);
         }
 
         return services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
     }
 
-    /// <summary>Test-Doppel für <see cref="IExpressionEvaluator"/>; wird bei ausdruckslosen Tests nie aufgerufen.</summary>
+    /// <summary>Test double for <see cref="IExpressionEvaluator"/>; never called in tests without an expression.</summary>
     private sealed class UnusedExpressionEvaluator : IExpressionEvaluator
     {
         public bool Evaluate(string expression, ExpressionContext context) => throw new NotSupportedException();
@@ -353,9 +353,9 @@ public sealed class WebhookNotificationHandlerTests
     }
 
     /// <summary>
-    /// Test-Doppel für <see cref="IDialogStore"/>: liefert die konfigurierten Trigger (nach Scope
-    /// gefiltert – wie die echte Abfrage) sowie optional Session und Dialog für die Kontext-Bildung.
-    /// Alles Übrige wirft: der Webhook-Handler darf es nicht anfassen.
+    /// Test double for <see cref="IDialogStore"/>: returns the configured triggers (filtered by scope
+    /// – like the real query) plus optionally a session and a dialog for building the context.
+    /// Everything else throws: the webhook handler must not touch it.
     /// </summary>
     private sealed class StubDialogStore : IDialogStore
     {

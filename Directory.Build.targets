@@ -1,47 +1,47 @@
 <Project>
 
   <!--
-    Doku-PFLICHT ("alle sichtbare API dokumentiert") wird nur für die veröffentlichbaren
-    Library-Packages als Build-Fehler erzwungen. GenerateDocumentationFile steht bewusst in
-    Directory.Build.props (muss früh gesetzt sein); hier wird nur noch entschieden, ob fehlende
-    Docs (CS1591) den Build brechen oder unterdrückt werden. In .targets ausgewertet, weil
-    IsPackable erst im jeweiligen .csproj gesetzt wird.
+    The doc REQUIREMENT ("every visible API is documented") is enforced as a build error only for the
+    publishable library packages. GenerateDocumentationFile deliberately lives in
+    Directory.Build.props (it has to be set early); here it is only decided whether missing docs
+    (CS1591) break the build or are suppressed. Evaluated in .targets, because IsPackable is only set
+    in the respective .csproj.
   -->
   <PropertyGroup Condition="'$(IsPackable)' == 'true'">
-    <!-- CS1591 = fehlender XML-Kommentar für sichtbaren Typ/Member -> Build-Fehler.
-         (TreatWarningsAsErrors greift ohnehin; explizit zur Dokumentation der Konvention.) -->
+    <!-- CS1591 = a missing XML comment on a visible type/member -> build error.
+         (TreatWarningsAsErrors applies anyway; explicit here to document the convention.) -->
     <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsPackable)' != 'true'">
-    <!-- Apps/Tests/Designer müssen keine XML-Docs tragen: fehlende Docs nicht als Fehler. -->
+    <!-- Apps/tests/designer need carry no XML docs: missing docs are not an error there. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <!--
-    Paket-Verdrahtung nur für veröffentlichbare Packages. In .targets (nach dem .csproj), damit
-    das dort gesetzte IsPackable ausgewertet werden kann – gleiches Muster wie CS1591 oben.
+    Package wiring only for publishable packages. In .targets (after the .csproj), so that the
+    IsPackable set there can be evaluated – the same pattern as CS1591 above.
   -->
   <PropertyGroup Condition="'$(IsPackable)' == 'true'">
-    <!-- Symbolpakete (.snupkg) für Debugging. -->
+    <!-- Symbol packages (.snupkg) for debugging. -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <!-- Deterministische Pfade nur im CI (SourceLink); lokal aus, damit Pack warnungsfrei bleibt. -->
+    <!-- Deterministic paths only on CI (SourceLink); off locally, so that pack stays warning-free. -->
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
 
-    <!-- Datum-basierte NuGet-Version JJJJMM.Revision (z.B. 202604.1).
-         Revision via -p:BuildRevision=N (CI-Build-Nummer) überschreibbar. -->
+    <!-- Date-based NuGet version YYYYMM.Revision (e.g. 202604.1).
+         The revision can be overridden via -p:BuildRevision=N (the CI build number). -->
     <BuildRevision Condition="'$(BuildRevision)' == ''">1</BuildRevision>
     <Version>$([System.DateTime]::UtcNow.ToString(yyyyMM)).$(BuildRevision)</Version>
-    <!-- AssemblyVersion/FileVersion-Segmente sind UInt16 (max 65535) -> JJJJMM passt nicht.
-         Deshalb entkoppelt zu Jahr.Monat.Revision.0 (z.B. 2026.07.1.0).
-         Monat als "MM" (nicht "M": ein einzelnes "M" ist der Standard-Spezifizierer Monat+Tag). -->
+    <!-- AssemblyVersion/FileVersion segments are UInt16 (max 65535) -> YYYYMM does not fit.
+         Hence decoupled to year.month.revision.0 (e.g. 2026.07.1.0).
+         The month as "MM" (not "M": a single "M" is the standard specifier month+day). -->
     <AssemblyVersion>$([System.DateTime]::UtcNow.ToString(yyyy)).$([System.DateTime]::UtcNow.ToString(MM)).$(BuildRevision).0</AssemblyVersion>
     <FileVersion>$(AssemblyVersion)</FileVersion>
   </PropertyGroup>
 
-  <!-- README + Icon aus dem Repo-Root ins Paket. $(MSBuildThisFileDirectory) = Root (Ablage dieser Datei). -->
+  <!-- README + icon from the repo root into the package. $(MSBuildThisFileDirectory) = root (where this file lives). -->
   <ItemGroup Condition="'$(IsPackable)' == 'true'">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
     <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" Visible="false" />

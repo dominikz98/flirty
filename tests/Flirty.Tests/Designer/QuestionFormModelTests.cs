@@ -8,18 +8,18 @@ using Flirty.Validation;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für das <see cref="QuestionFormModel"/> (#39): die Abbildung zwischen den Eingabefeldern des
-/// Frage-Editors und dem als JSON gespeicherten <see cref="Question.ValidationRules"/>. Kern ist, dass
-/// das erzeugte JSON exakt das ist, was der <see cref="AnswerValidator"/> der Engine liest – und dass
-/// unbekannte Regeln nicht stillschweigend verloren gehen.
+/// Tests for the <see cref="QuestionFormModel"/> (#39): the mapping between the question editor's
+/// input fields and the <see cref="Question.ValidationRules"/> stored as JSON. The core is that the
+/// produced JSON is exactly what the engine's <see cref="AnswerValidator"/> reads – and that unknown
+/// rules are not silently lost.
 /// </summary>
 public sealed class QuestionFormModelTests
 {
     [Fact]
-    public void From_liest_bekannte_Regeln_in_die_strukturierten_Felder()
+    public void From_reads_known_rules_into_the_structured_fields()
     {
         var model = QuestionFormModel.From(
-            Frage(QuestionType.FreeText, """{"minLength":2,"maxLength":50,"pattern":"^[a-z]+$"}"""));
+            Question(QuestionType.FreeText, """{"minLength":2,"maxLength":50,"pattern":"^[a-z]+$"}"""));
 
         Assert.False(model.UseRawJson);
         Assert.Equal(2, model.MinLength);
@@ -30,9 +30,9 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void From_liest_Regeln_case_insensitiv_wie_der_AnswerValidator()
+    public void From_reads_rules_case_insensitively_like_the_AnswerValidator()
     {
-        var model = QuestionFormModel.From(Frage(QuestionType.Number, """{"Min":1,"MAX":9}"""));
+        var model = QuestionFormModel.From(Question(QuestionType.Number, """{"Min":1,"MAX":9}"""));
 
         Assert.False(model.UseRawJson);
         Assert.Equal(1m, model.Min);
@@ -40,9 +40,9 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void From_ohne_Regeln_laesst_alle_Felder_leer()
+    public void From_without_rules_leaves_all_fields_empty()
     {
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, validationRules: null));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, validationRules: null));
 
         Assert.False(model.UseRawJson);
         Assert.Null(model.RawJson);
@@ -51,33 +51,33 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void From_faellt_bei_unbekannten_Feldern_auf_Roh_JSON_zurueck()
+    public void From_falls_back_to_raw_JSON_on_unknown_fields()
     {
-        const string rules = """{"minLength":2,"eigeneRegel":true}""";
+        const string rules = """{"minLength":2,"ownRule":true}""";
 
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, rules));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, rules));
 
         Assert.True(model.UseRawJson);
         Assert.Equal(rules, model.RawJson);
-        // Die strukturierten Felder bleiben leer: sonst würde ein Speichern "eigeneRegel" verwerfen.
+        // The structured fields stay empty: otherwise saving would discard "ownRule".
         Assert.Null(model.MinLength);
     }
 
     [Fact]
-    public void From_faellt_bei_ungueltigem_JSON_auf_Roh_JSON_zurueck()
+    public void From_falls_back_to_raw_JSON_on_invalid_JSON()
     {
         const string rules = "{ kein JSON";
 
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, rules));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, rules));
 
         Assert.True(model.UseRawJson);
         Assert.Equal(rules, model.RawJson);
     }
 
     [Fact]
-    public void TryBuildValidationRules_liefert_null_ohne_gesetzte_Regel()
+    public void TryBuildValidationRules_returns_null_without_a_rule_set()
     {
-        var model = new QuestionFormModel { Key = "vorname", Text = "Name?", Type = QuestionType.FreeText };
+        var model = new QuestionFormModel { Key = "firstname", Text = "Name?", Type = QuestionType.FreeText };
 
         Assert.True(model.TryBuildValidationRules(out var json, out var error));
         Assert.Null(json);
@@ -85,11 +85,11 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_serialisiert_camelCase_ohne_Nullwerte()
+    public void TryBuildValidationRules_serializes_camelCase_without_null_values()
     {
         var model = new QuestionFormModel
         {
-            Key = "vorname",
+            Key = "firstname",
             Text = "Name?",
             Type = QuestionType.FreeText,
             MaxLength = 50,
@@ -100,14 +100,14 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_uebernimmt_nur_typrelevante_Regeln()
+    public void TryBuildValidationRules_takes_over_only_type_relevant_rules()
     {
-        // Der Typ wurde von FreeText auf Number umgestellt: Längen und Muster wertet die Engine dann
-        // nicht mehr aus und dürfen nicht als wirkungsloser Ballast im JSON stehen bleiben.
+        // The type was switched from FreeText to Number: lengths and patterns are then no longer
+        // evaluated by the engine and must not stay in the JSON as ineffective ballast.
         var model = new QuestionFormModel
         {
-            Key = "alter",
-            Text = "Wie alt?",
+            Key = "age",
+            Text = "How old?",
             Type = QuestionType.Number,
             MinLength = 2,
             MaxLength = 50,
@@ -121,7 +121,7 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_ignoriert_Regeln_bei_typen_ohne_Regelunterstuetzung()
+    public void TryBuildValidationRules_ignores_rules_for_types_without_rule_support()
     {
         var model = new QuestionFormModel
         {
@@ -137,11 +137,11 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_meldet_ungueltiges_Muster()
+    public void TryBuildValidationRules_reports_an_invalid_pattern()
     {
         var model = new QuestionFormModel
         {
-            Key = "vorname",
+            Key = "firstname",
             Text = "Name?",
             Type = QuestionType.FreeText,
             Pattern = "[",
@@ -153,11 +153,11 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_meldet_vertauschte_Laengen()
+    public void TryBuildValidationRules_reports_swapped_lengths()
     {
         var model = new QuestionFormModel
         {
-            Key = "vorname",
+            Key = "firstname",
             Text = "Name?",
             Type = QuestionType.FreeText,
             MinLength = 10,
@@ -169,12 +169,12 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_meldet_vertauschte_Grenzen()
+    public void TryBuildValidationRules_reports_swapped_bounds()
     {
         var model = new QuestionFormModel
         {
-            Key = "alter",
-            Text = "Wie alt?",
+            Key = "age",
+            Text = "How old?",
             Type = QuestionType.Number,
             Min = 99m,
             Max = 18m,
@@ -185,28 +185,28 @@ public sealed class QuestionFormModelTests
     }
 
     [Fact]
-    public void TryBuildValidationRules_reicht_unbekannte_Felder_des_Roh_JSON_unveraendert_durch()
+    public void TryBuildValidationRules_passes_unknown_fields_of_the_raw_JSON_through_unchanged()
     {
-        const string rules = """{"minLength":2,"eigeneRegel":true}""";
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, rules));
+        const string rules = """{"minLength":2,"ownRule":true}""";
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, rules));
 
         Assert.True(model.TryBuildValidationRules(out var json, out _));
         Assert.Equal(rules, json);
     }
 
     [Fact]
-    public void TryBuildValidationRules_meldet_unlesbares_Roh_JSON()
+    public void TryBuildValidationRules_reports_unreadable_raw_JSON()
     {
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, "{ kein JSON"));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, "{ kein JSON"));
 
         Assert.False(model.TryBuildValidationRules(out _, out var error));
         Assert.Contains("valid JSON", error);
     }
 
     [Fact]
-    public void TryBuildValidationRules_entfernt_die_Regeln_bei_geleertem_Roh_JSON()
+    public void TryBuildValidationRules_removes_the_rules_when_the_raw_JSON_is_emptied()
     {
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, """{"eigeneRegel":true}"""));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, """{"ownRule":true}"""));
         model.RawJson = "   ";
 
         Assert.True(model.TryBuildValidationRules(out var json, out _));
@@ -214,16 +214,16 @@ public sealed class QuestionFormModelTests
     }
 
     /// <summary>
-    /// Kernprobe: Das im Designer erzeugte JSON muss der <see cref="AnswerValidator"/> der Engine
-    /// tatsächlich anwenden. Bindet Serialisierung (Designer) und Deserialisierung (Core) aneinander –
-    /// ein Auseinanderlaufen der Feldnamen fiele sonst erst zur Laufzeit auf.
+    /// The core check: the engine's <see cref="AnswerValidator"/> has to actually apply the JSON
+    /// produced in the designer. Ties serialization (designer) and deserialization (core) together –
+    /// otherwise a drift in the field names would only show up at runtime.
     /// </summary>
     [Fact]
-    public void TryBuildValidationRules_erzeugt_JSON_das_der_AnswerValidator_anwendet()
+    public void TryBuildValidationRules_produces_JSON_the_AnswerValidator_applies()
     {
         var model = new QuestionFormModel
         {
-            Key = "vorname",
+            Key = "firstname",
             Text = "Name?",
             Type = QuestionType.FreeText,
             MinLength = 2,
@@ -233,7 +233,7 @@ public sealed class QuestionFormModelTests
 
         Assert.True(model.TryBuildValidationRules(out var json, out _));
 
-        var question = new Question { Key = "vorname", Text = "Name?", Type = QuestionType.FreeText, ValidationRules = json };
+        var question = new Question { Key = "firstname", Text = "Name?", Type = QuestionType.FreeText, ValidationRules = json };
         var validator = new AnswerValidator();
 
         Assert.True(validator.Validate(question, "\"abc\"").IsValid);
@@ -243,15 +243,15 @@ public sealed class QuestionFormModelTests
     }
 
     /// <summary>
-    /// Gegenprobe zur Kernprobe für den numerischen Zweig.
+    /// The counter-check to the core check, for the numeric branch.
     /// </summary>
     [Fact]
-    public void TryBuildValidationRules_erzeugt_Zahlgrenzen_die_der_AnswerValidator_anwendet()
+    public void TryBuildValidationRules_produces_number_bounds_the_AnswerValidator_applies()
     {
         var model = new QuestionFormModel
         {
-            Key = "alter",
-            Text = "Wie alt?",
+            Key = "age",
+            Text = "How old?",
             Type = QuestionType.Number,
             Min = 18m,
             Max = 99m,
@@ -259,7 +259,7 @@ public sealed class QuestionFormModelTests
 
         Assert.True(model.TryBuildValidationRules(out var json, out _));
 
-        var question = new Question { Key = "alter", Text = "Wie alt?", Type = QuestionType.Number, ValidationRules = json };
+        var question = new Question { Key = "age", Text = "How old?", Type = QuestionType.Number, ValidationRules = json };
         var validator = new AnswerValidator();
 
         Assert.True(validator.Validate(question, "42").IsValid);
@@ -268,24 +268,24 @@ public sealed class QuestionFormModelTests
     }
 
     /// <summary>
-    /// Roundtrip: gespeicherte Regeln einlesen, unverändert wieder erzeugen und dabei bei den vom
-    /// Core-Typ <see cref="ValidationRules"/> vorgegebenen Feldnamen bleiben.
+    /// Round trip: read stored rules in, produce them again unchanged and stay with the field names
+    /// dictated by the core type <see cref="ValidationRules"/>.
     /// </summary>
     [Fact]
-    public void From_und_TryBuildValidationRules_sind_verlustfrei()
+    public void From_and_TryBuildValidationRules_are_lossless()
     {
         const string rules = """{"minLength":2,"maxLength":50,"pattern":"^[a-z]+$"}""";
-        var model = QuestionFormModel.From(Frage(QuestionType.FreeText, rules));
+        var model = QuestionFormModel.From(Question(QuestionType.FreeText, rules));
 
         Assert.True(model.TryBuildValidationRules(out var json, out _));
 
         var original = JsonSerializer.Deserialize<ValidationRules>(rules);
-        var wiederhergestellt = JsonSerializer.Deserialize<ValidationRules>(json!);
+        var restored = JsonSerializer.Deserialize<ValidationRules>(json!);
 
-        Assert.Equal(original, wiederhergestellt);
+        Assert.Equal(original, restored);
     }
 
-    // ---- Schlüssel-Vorschlag für Gesten auf dem Canvas (#103) ---------------------------------------
+    // ---- Key suggestion for gestures on the canvas (#103) ------------------------------------------
 
     [Theory]
     [InlineData(QuestionType.FreeText, "text")]
@@ -294,22 +294,22 @@ public sealed class QuestionFormModelTests
     [InlineData(QuestionType.Boolean, "yesno")]
     [InlineData(QuestionType.SingleChoice, "choice")]
     [InlineData(QuestionType.MultiChoice, "multi")]
-    public void SuggestKey_nutzt_einen_Stamm_je_Fragetyp(QuestionType type, string erwartet)
-        => Assert.Equal(erwartet, QuestionFormModel.SuggestKey(type, Dialog()));
+    public void SuggestKey_uses_one_stem_per_question_type(QuestionType type, string expected)
+        => Assert.Equal(expected, QuestionFormModel.SuggestKey(type, Dialog()));
 
     [Fact]
-    public void SuggestKey_haengt_bei_Belegung_eine_Zahl_an()
+    public void SuggestKey_appends_a_number_when_the_key_is_taken()
     {
-        var detail = Dialog(Frage(QuestionType.FreeText, null) with { Key = "text" });
+        var detail = Dialog(Question(QuestionType.FreeText, null) with { Key = "text" });
 
         Assert.Equal("text2", QuestionFormModel.SuggestKey(QuestionType.FreeText, detail));
     }
 
     [Fact]
-    public void SuggestKey_weicht_auch_einem_Collection_Schluessel_aus()
+    public void SuggestKey_also_avoids_a_collection_key()
     {
-        // Ein Frage-Schlüssel, der einen CollectionKey doppelt, wird im Ausdruckskontext von ihm
-        // verdeckt – die Geste erzeugte sonst auf der Stelle eine Warnung.
+        // A question key that duplicates a CollectionKey is shadowed by it in the expression context –
+        // the gesture would otherwise produce a warning on the spot.
         var detail = Dialog() with
         {
             Loops = [new LoopDetail(Guid.NewGuid(), Guid.NewGuid(), "text", Guid.NewGuid(), Guid.NewGuid())],
@@ -319,45 +319,45 @@ public sealed class QuestionFormModelTests
     }
 
     /// <summary>
-    /// Anders als <c>LoopFormModel.SuggestCollectionKey</c> darf hier <b>nie</b> leer herauskommen: Der
-    /// Vorschlag trägt eine Geste, die sofort schreibt – ein leerer Schlüssel ließe sie am
-    /// <c>CreateQuestionCommand</c> scheitern.
+    /// Unlike <c>LoopFormModel.SuggestCollectionKey</c>, this must <b>never</b> come out empty: the
+    /// suggestion carries a gesture that writes immediately – an empty key would make it fail at the
+    /// <c>CreateQuestionCommand</c>.
     /// </summary>
     [Fact]
-    public void SuggestKey_liefert_auch_bei_vielen_Kollisionen_einen_freien_Schluessel()
+    public void SuggestKey_returns_a_free_key_even_with_many_collisions()
     {
-        var belegt = Enumerable.Range(1, 5)
-            .Select(index => Frage(QuestionType.Number, null) with { Key = index == 1 ? "number" : $"number{index}" })
+        var taken = Enumerable.Range(1, 5)
+            .Select(index => Question(QuestionType.Number, null) with { Key = index == 1 ? "number" : $"number{index}" })
             .ToArray();
 
-        var vorschlag = QuestionFormModel.SuggestKey(QuestionType.Number, Dialog(belegt));
+        var suggestion = QuestionFormModel.SuggestKey(QuestionType.Number, Dialog(taken));
 
-        Assert.Equal("number6", vorschlag);
-        Assert.DoesNotContain(vorschlag, belegt.Select(frage => frage.Key));
+        Assert.Equal("number6", suggestion);
+        Assert.DoesNotContain(suggestion, taken.Select(frage => frage.Key));
     }
 
     /// <summary>
-    /// Der Vorschlag muss als Ausdrucks-Variable bindbar sein – Frage-Schlüssel werden im
-    /// Musterkontext des Branching-Editors gebunden.
+    /// The suggestion has to be bindable as an expression variable – question keys are bound in the
+    /// branching editor's sample context.
     /// </summary>
     [Theory]
     [InlineData(QuestionType.FreeText)]
     [InlineData(QuestionType.Boolean)]
     [InlineData(QuestionType.MultiChoice)]
-    public void SuggestKey_ist_immer_ein_bindbarer_Bezeichner(QuestionType type)
+    public void SuggestKey_is_always_a_bindable_identifier(QuestionType type)
     {
-        var vorschlag = QuestionFormModel.SuggestKey(type, Dialog());
+        var suggestion = QuestionFormModel.SuggestKey(type, Dialog());
 
-        Assert.NotEqual(string.Empty, vorschlag);
-        Assert.True(DesignerExpressionContext.IsBindable(vorschlag));
+        Assert.NotEqual(string.Empty, suggestion);
+        Assert.True(DesignerExpressionContext.IsBindable(suggestion));
     }
 
-    /// <summary>Baut eine Frage-Sicht, wie sie der <c>GetDialogQuery</c> liefert.</summary>
-    /// <param name="type">Der Fragetyp.</param>
-    /// <param name="validationRules">Die gespeicherten Regeln als JSON.</param>
-    /// <returns>Die Frage-Sicht.</returns>
-    private static QuestionDetail Frage(QuestionType type, string? validationRules)
-        => new(Guid.NewGuid(), Guid.NewGuid(), "vorname", "Wie heißt du?", type, 0, true, validationRules, []);
+    /// <summary>Builds a question view the way the <c>GetDialogQuery</c> returns it.</summary>
+    /// <param name="type">The question type.</param>
+    /// <param name="validationRules">The stored rules as JSON.</param>
+    /// <returns>The question view.</returns>
+    private static QuestionDetail Question(QuestionType type, string? validationRules)
+        => new(Guid.NewGuid(), Guid.NewGuid(), "firstname", "What is your name?", type, 0, true, validationRules, []);
 
     private static DialogDetail Dialog(params QuestionDetail[] questions)
         => new(

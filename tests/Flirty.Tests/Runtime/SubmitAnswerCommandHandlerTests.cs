@@ -10,11 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert den <see cref="SubmitAnswerCommandHandler"/> (Issue #26) gegen eine echte SQLite-Datenbank
-/// (in-memory): Persistenz der Antwort, Branching über den <see cref="IExpressionEvaluator"/> (bedingter
-/// und Default-Übergang), fortlaufende <see cref="SessionAnswer.Sequence"/>, den Abschluss an einer
-/// terminalen Frage sowie die Fehlerfälle (unbekannte/abgeschlossene Session, falsche Frage,
-/// fehlkonfiguriertes Branching, <c>null</c>-Abhängigkeiten).
+/// Verifies the <see cref="SubmitAnswerCommandHandler"/> (issue #26) against a real SQLite database
+/// (in-memory): persistence of the answer, branching over the <see cref="IExpressionEvaluator"/>
+/// (conditional and default transition), the continuous <see cref="SessionAnswer.Sequence"/>,
+/// completion at a terminal question as well as the error cases (unknown or completed session, wrong
+/// question, misconfigured branching, <c>null</c> dependencies).
 /// </summary>
 public sealed class SubmitAnswerCommandHandlerTests : IDisposable
 {
@@ -22,8 +22,8 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public SubmitAnswerCommandHandlerTests()
     {
@@ -38,7 +38,7 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
@@ -49,7 +49,7 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     private static SubmitAnswerCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
         => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher);
 
-    /// <summary>Legt den Branching-Dialog samt einer laufenden Session an der Start-Frage an.</summary>
+    /// <summary>Creates the branching dialog together with a running session on the entry question.</summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedBranchingSession(string externalUserKey = "user-1")
     {
         var dialogId = Guid.NewGuid();
@@ -73,11 +73,11 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         return (sessionId, ids);
     }
 
-    // ---- Persistenz -------------------------------------------------------------------------
+    // ---- Persistence ------------------------------------------------------------------------
 
-    /// <summary>Eine Antwort wird als <see cref="SessionAnswer"/> (Wert, Sequenz, Zeitpunkt) persistiert.</summary>
+    /// <summary>An answer is persisted as a <see cref="SessionAnswer"/> (value, sequence, timestamp).</summary>
     [Fact]
-    public async Task Handle_persistiert_Antwort()
+    public async Task Handle_persists_the_answer()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -96,9 +96,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         Assert.NotEqual(default, answer.AnsweredAt);
     }
 
-    /// <summary>Über mehrere Antworten hinweg wird die <see cref="SessionAnswer.Sequence"/> fortgeschrieben.</summary>
+    /// <summary>Across several answers the <see cref="SessionAnswer.Sequence"/> keeps counting up.</summary>
     [Fact]
-    public async Task Handle_schreibt_Sequence_fortlaufend()
+    public async Task Handle_writes_the_sequence_continuously()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -108,7 +108,7 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
                 new SubmitAnswerCommand(sessionId, ids.RoleQuestionId, "\"dev\""), default);
         }
 
-        // Nach dem ersten Submit steht die Session auf devDetail (terminal) – zweiter Submit schließt ab.
+        // After the first submit the session sits on devDetail (terminal) – the second submit completes.
         using (var second = CreateContext())
         {
             await CreateHandler(second).Handle(
@@ -122,9 +122,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
 
     // ---- Branching --------------------------------------------------------------------------
 
-    /// <summary>Trifft der bedingte Ausdruck zu, schaltet die Session auf dessen Zielfrage weiter.</summary>
+    /// <summary>If the conditional expression matches, the session advances to its target question.</summary>
     [Fact]
-    public async Task Handle_bedingter_Uebergang_fuehrt_zur_Zielfrage()
+    public async Task Handle_a_conditional_transition_leads_to_its_target_question()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -146,9 +146,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         Assert.Equal(SessionStatus.InProgress, session.Status);
     }
 
-    /// <summary>Trifft kein bedingter Übergang zu, greift der Default-Übergang.</summary>
+    /// <summary>If no conditional transition matches, the default transition takes effect.</summary>
     [Fact]
-    public async Task Handle_ohne_Treffer_greift_Default_Uebergang()
+    public async Task Handle_without_a_match_the_default_transition_takes_effect()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -166,9 +166,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
 
     // ---- Completion -------------------------------------------------------------------------
 
-    /// <summary>Eine terminale Frage (ohne ausgehende Übergänge) schließt den Dialog ab.</summary>
+    /// <summary>A terminal question (without outgoing transitions) completes the dialog.</summary>
     [Fact]
-    public async Task Handle_terminale_Frage_schliesst_Dialog_ab()
+    public async Task Handle_a_terminal_question_completes_the_dialog()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -195,11 +195,11 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         Assert.Null(session.CurrentQuestionId);
     }
 
-    // ---- Fehlerfälle ------------------------------------------------------------------------
+    // ---- Error cases ------------------------------------------------------------------------
 
-    /// <summary>Eine unbekannte Session führt zu einer <see cref="SessionNotFoundException"/>.</summary>
+    /// <summary>An unknown session leads to a <see cref="SessionNotFoundException"/>.</summary>
     [Fact]
-    public async Task Handle_unbekannte_Session_wirft_SessionNotFoundException()
+    public async Task Handle_an_unknown_session_throws_SessionNotFoundException()
     {
         var unknownSession = Guid.NewGuid();
         using var act = CreateContext();
@@ -211,9 +211,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         Assert.Equal(unknownSession, exception.SessionId);
     }
 
-    /// <summary>Eine nicht mehr laufende Session nimmt keine Antworten an.</summary>
+    /// <summary>A session that is no longer running accepts no answers.</summary>
     [Fact]
-    public async Task Handle_abgeschlossene_Session_wirft_InvalidOperationException()
+    public async Task Handle_a_completed_session_throws_InvalidOperationException()
     {
         var (sessionId, ids) = SeedBranchingSession();
         using (var complete = CreateContext())
@@ -230,9 +230,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
                 new SubmitAnswerCommand(sessionId, ids.RoleQuestionId, "\"dev\""), default));
     }
 
-    /// <summary>Eine andere als die aktuell offene Frage wird abgelehnt (Editieren ist #28).</summary>
+    /// <summary>Any question other than the currently open one is rejected (editing is #28).</summary>
     [Fact]
-    public async Task Handle_falsche_Frage_wirft_InvalidOperationException()
+    public async Task Handle_the_wrong_question_throws_InvalidOperationException()
     {
         var (sessionId, ids) = SeedBranchingSession();
         using var act = CreateContext();
@@ -242,9 +242,9 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
                 new SubmitAnswerCommand(sessionId, ids.DevQuestionId, "\"C#\""), default));
     }
 
-    /// <summary>Vorhandene Übergänge ohne Treffer und ohne Default gelten als Fehlkonfiguration.</summary>
+    /// <summary>Existing transitions with no match and no default count as a misconfiguration.</summary>
     [Fact]
-    public async Task Handle_kein_Treffer_ohne_Default_wirft_InvalidOperationException()
+    public async Task Handle_no_match_without_a_default_throws_InvalidOperationException()
     {
         var dialogId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -291,24 +291,24 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
                 new SubmitAnswerCommand(sessionId, questionId, "\"other\""), default));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Store()
+    public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(
             () => new SubmitAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher()));
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Evaluator ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> evaluator.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Evaluator()
+    public void Constructor_throws_on_a_null_evaluator()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => new SubmitAnswerCommandHandler(new DialogStore(context), null!, new SpyPublisher()));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Publisher()
+    public void Constructor_throws_on_a_null_publisher()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
@@ -316,14 +316,15 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
                 new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!));
     }
 
-    // ---- Trigger-Notifications --------------------------------------------------------------
+    // ---- Trigger notifications --------------------------------------------------------------
 
     /// <summary>
-    /// Beim Weiterschalten werden – in dieser Reihenfolge – <see cref="AnswerSubmittedNotification"/> und
-    /// <see cref="QuestionAnsweredNotification"/> (mit der Folgefrage, nicht abgeschlossen) publiziert.
+    /// On advancing, <see cref="AnswerSubmittedNotification"/> and
+    /// <see cref="QuestionAnsweredNotification"/> (carrying the follow-up question, not completed) are
+    /// published – in that order.
     /// </summary>
     [Fact]
-    public async Task Handle_Weiterschalten_publiziert_AnswerSubmitted_und_QuestionAnswered()
+    public async Task Handle_advancing_publishes_AnswerSubmitted_and_QuestionAnswered()
     {
         var (sessionId, ids) = SeedBranchingSession();
 
@@ -354,12 +355,12 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// Beim Abschluss werden <see cref="AnswerSubmittedNotification"/>, eine abschließende
-    /// <see cref="QuestionAnsweredNotification"/> und die <see cref="DialogCompletedNotification"/>
-    /// (samt aller Antworten) publiziert.
+    /// On completion, <see cref="AnswerSubmittedNotification"/>, a final
+    /// <see cref="QuestionAnsweredNotification"/> and the <see cref="DialogCompletedNotification"/>
+    /// (carrying all answers) are published.
     /// </summary>
     [Fact]
-    public async Task Handle_Abschluss_publiziert_AnswerSubmitted_QuestionAnswered_und_DialogCompleted()
+    public async Task Handle_completion_publishes_AnswerSubmitted_QuestionAnswered_and_DialogCompleted()
     {
         var (sessionId, ids) = SeedBranchingSession();
         using (var first = CreateContext())

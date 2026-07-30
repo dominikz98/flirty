@@ -4,10 +4,10 @@ using Flirty.Expressions;
 namespace Flirty.Tests.Expressions;
 
 /// <summary>
-/// Verifiziert das Kontext-Modell aus Issue #22: den unveränderlichen <see cref="ExpressionContext"/>
-/// (Guard auf die Session, leere Default-Sammlungen, Zugriff auf Antworten nach Frage-Schlüssel und
-/// auf Loop-Collections nach <c>CollectionKey</c>) sowie die Implementier- und Nutzbarkeit des
-/// <see cref="IExpressionEvaluator"/>-Vertrags.
+/// Verifies the context model from issue #22: the immutable <see cref="ExpressionContext"/> (guard on
+/// the session, empty default collections, access to answers by question key and to loop collections
+/// by <c>CollectionKey</c>) as well as the implementability and usability of the
+/// <see cref="IExpressionEvaluator"/> contract.
 /// </summary>
 public sealed class ExpressionContextTests
 {
@@ -22,7 +22,7 @@ public sealed class ExpressionContextTests
     };
 
     [Fact]
-    public void Konstruktor_ohne_Answers_und_Collections_setzt_leere_nicht_null_Werte()
+    public void Constructor_without_answers_and_collections_sets_empty_non_null_values()
     {
         var context = new ExpressionContext(NewSession(), DateTimeOffset.UnixEpoch);
 
@@ -34,13 +34,13 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void Konstruktor_mit_null_Session_wirft_ArgumentNullException()
+    public void Constructor_with_a_null_session_throws_ArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => new ExpressionContext(null!, DateTimeOffset.UnixEpoch));
     }
 
     [Fact]
-    public void Session_und_Now_werden_uebernommen()
+    public void Session_and_Now_are_taken_over()
     {
         var session = NewSession();
         var now = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero);
@@ -52,7 +52,7 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void Antworten_sind_nach_QuestionKey_zugreifbar()
+    public void Answers_are_accessible_by_QuestionKey()
     {
         var answers = new Dictionary<string, string?>
         {
@@ -67,7 +67,7 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void Loop_Collection_ist_nach_CollectionKey_zugreifbar()
+    public void Loop_collection_is_accessible_by_CollectionKey()
     {
         var collections = new Dictionary<string, IReadOnlyList<string?>>
         {
@@ -81,7 +81,7 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void IterationIndex_ist_ausserhalb_einer_Schleife_null()
+    public void IterationIndex_is_null_outside_a_loop()
     {
         var context = new ExpressionContext(NewSession(), DateTimeOffset.UnixEpoch);
 
@@ -89,7 +89,7 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void IterationIndex_wird_innerhalb_einer_Schleife_uebernommen()
+    public void IterationIndex_is_taken_over_inside_a_loop()
     {
         var context = new ExpressionContext(NewSession(), DateTimeOffset.UnixEpoch, iterationIndex: 2);
 
@@ -97,7 +97,7 @@ public sealed class ExpressionContextTests
     }
 
     [Fact]
-    public void Fake_Evaluator_erhaelt_Ausdruck_und_Kontext()
+    public void Fake_evaluator_receives_the_expression_and_the_context()
     {
         var evaluator = new SpyExpressionEvaluator();
         var context = new ExpressionContext(NewSession(), DateTimeOffset.UnixEpoch);
@@ -110,8 +110,8 @@ public sealed class ExpressionContextTests
     }
 
     /// <summary>
-    /// Minimaler Test-Fake, der belegt, dass der <see cref="IExpressionEvaluator"/>-Vertrag von
-    /// außerhalb des Cores implementier- und aufrufbar ist (Signatur-Smoke-Test für Issue #34).
+    /// Minimal test fake proving that the <see cref="IExpressionEvaluator"/> contract can be
+    /// implemented and called from outside the core (signature smoke test for issue #34).
     /// </summary>
     private sealed class SpyExpressionEvaluator : IExpressionEvaluator
     {

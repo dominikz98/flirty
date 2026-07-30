@@ -5,15 +5,15 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für das <see cref="TriggerFormModel"/> (#42): die Abbildung zwischen den Eingabefeldern des
-/// Trigger-Editors und der als JSON gespeicherten <see cref="TriggerDefinition.Config"/>. Kern ist,
-/// dass gegen den Core-Typ <see cref="TriggerConfig"/> serialisiert wird (kein Duplikat) und dass
-/// unbekannte Felder nicht stillschweigend verloren gehen.
+/// Tests for the <see cref="TriggerFormModel"/> (#42): the mapping between the trigger editor's input
+/// fields and the <see cref="TriggerDefinition.Config"/> stored as JSON. The core is that
+/// serialization goes against the core type <see cref="TriggerConfig"/> (no duplicate) and that
+/// unknown fields are not silently lost.
 /// </summary>
 public sealed class TriggerFormModelTests
 {
     [Fact]
-    public void From_liest_die_bekannte_Konfiguration_in_die_Einzelfelder()
+    public void From_reads_the_known_configuration_into_the_individual_fields()
     {
         var model = TriggerFormModel.From(
             Trigger("""{"url":"https://host.example/hook","name":"order-created"}"""));
@@ -24,7 +24,7 @@ public sealed class TriggerFormModelTests
     }
 
     [Fact]
-    public void From_faellt_bei_unbekannten_Feldern_auf_Roh_JSON_zurueck()
+    public void From_falls_back_to_raw_JSON_on_unknown_fields()
     {
         const string config = """{"url":"https://host.example/hook","retries":3}""";
 
@@ -35,16 +35,16 @@ public sealed class TriggerFormModelTests
     }
 
     [Fact]
-    public void From_faellt_bei_ungueltigem_JSON_auf_Roh_JSON_zurueck()
+    public void From_falls_back_to_raw_JSON_on_invalid_JSON()
     {
-        var model = TriggerFormModel.From(Trigger("kein json"));
+        var model = TriggerFormModel.From(Trigger("not json"));
 
         Assert.True(model.UseRawJson);
-        Assert.Equal("kein json", model.RawJson);
+        Assert.Equal("not json", model.RawJson);
     }
 
     [Fact]
-    public void TryBuildConfig_schreibt_das_JSON_des_Core_Typs()
+    public void TryBuildConfig_writes_the_JSON_of_the_core_type()
     {
         var model = new TriggerFormModel
         {
@@ -61,7 +61,7 @@ public sealed class TriggerFormModelTests
     }
 
     [Fact]
-    public void TryBuildConfig_meldet_eine_fehlende_Webhook_URL()
+    public void TryBuildConfig_reports_a_missing_webhook_URL()
     {
         var model = new TriggerFormModel { Kind = TriggerKind.Webhook, Name = "ohne-url" };
 
@@ -70,7 +70,7 @@ public sealed class TriggerFormModelTests
     }
 
     [Fact]
-    public void TryBuildConfig_erhaelt_im_Roh_Modus_fremde_Felder()
+    public void TryBuildConfig_preserves_foreign_fields_in_raw_mode()
     {
         const string config = """{"url":"https://host.example/hook","retries":3}""";
         var model = TriggerFormModel.From(Trigger(config));
@@ -80,7 +80,7 @@ public sealed class TriggerFormModelTests
     }
 
     [Fact]
-    public void TryBuildConfig_prueft_auch_im_Roh_Modus_gegen_den_Kanal()
+    public void TryBuildConfig_checks_against_the_channel_in_raw_mode_too()
     {
         var model = TriggerFormModel.From(Trigger("""{"name":"ohne-url","retries":3}"""));
 
@@ -90,27 +90,27 @@ public sealed class TriggerFormModelTests
     }
 
     /// <summary>
-    /// Der Frage-Bezug gilt nur für <see cref="TriggerScope.AfterQuestion"/> – sonst weisen die
-    /// Admin-Commands die Anfrage mit 400 zurück.
+    /// The question reference applies only to <see cref="TriggerScope.AfterQuestion"/> – otherwise
+    /// the admin commands reject the request with a 400.
     /// </summary>
     [Fact]
-    public void NormalizedQuestionId_verwirft_den_Bezug_ausserhalb_von_AfterQuestion()
+    public void NormalizedQuestionId_discards_the_reference_outside_AfterQuestion()
     {
         var questionId = Guid.NewGuid();
 
-        var gebunden = new TriggerFormModel { Scope = TriggerScope.AfterQuestion, QuestionId = questionId };
-        var ungebunden = new TriggerFormModel { Scope = TriggerScope.AfterAnswer, QuestionId = questionId };
+        var bound = new TriggerFormModel { Scope = TriggerScope.AfterQuestion, QuestionId = questionId };
+        var unbound = new TriggerFormModel { Scope = TriggerScope.AfterAnswer, QuestionId = questionId };
 
-        Assert.Equal(questionId, gebunden.NormalizedQuestionId());
-        Assert.Null(ungebunden.NormalizedQuestionId());
+        Assert.Equal(questionId, bound.NormalizedQuestionId());
+        Assert.Null(unbound.NormalizedQuestionId());
     }
 
-    /// <summary>Ein leerer Ausdruck landet als <see langword="null"/> in der Spalte, nicht als "".</summary>
+    /// <summary>An empty expression lands in the column as <see langword="null"/>, not as "".</summary>
     [Theory]
     [InlineData(null, null)]
     [InlineData("   ", null)]
     [InlineData("  role == \"dev\"  ", "role == \"dev\"")]
-    public void NormalizedExpression_normalisiert_den_Ausdruck(string? input, string? expected)
+    public void NormalizedExpression_normalizes_the_expression(string? input, string? expected)
     {
         var model = new TriggerFormModel { Expression = input };
 

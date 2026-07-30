@@ -9,12 +9,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// End-to-End-Nachweis für die am Dialog konfigurierten Trigger (#42): ein über den Designer/die
-/// Admin-API angelegter <see cref="TriggerDefinition"/> mit <see cref="TriggerKind.Webhook"/> wird beim
-/// Durchlaufen eines Dialogs tatsächlich zugestellt. Anders als
-/// <see cref="WebhookNotificationHandlerTests"/> (Handler isoliert) läuft hier der ganze Weg:
-/// <see cref="IFlirtyEngine"/> → Command-Handler → <c>IPublisher</c> → Webhook-Handler →
-/// <see cref="IDialogStore"/> (echte SQLite-Datenbank) → HTTP.
+/// End-to-end proof for the triggers configured on the dialog (#42): a
+/// <see cref="TriggerDefinition"/> with <see cref="TriggerKind.Webhook"/> created over the
+/// designer/the admin API really is delivered while a dialog is played through. Unlike
+/// <see cref="WebhookNotificationHandlerTests"/> (handler in isolation), the whole path runs here:
+/// <see cref="IFlirtyEngine"/> -> command handler -> <c>IPublisher</c> -> webhook handler ->
+/// <see cref="IDialogStore"/> (real SQLite database) -> HTTP.
 /// </summary>
 public sealed class DialogTriggerDispatchTests : IDisposable
 {
@@ -23,7 +23,7 @@ public sealed class DialogTriggerDispatchTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
-    /// <summary>Öffnet eine SQLite-in-memory-Verbindung und erzeugt das Schema einmalig.</summary>
+    /// <summary>Opens a SQLite in-memory connection and creates the schema once.</summary>
     public DialogTriggerDispatchTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -37,15 +37,15 @@ public sealed class DialogTriggerDispatchTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     /// <summary>
-    /// Ein Webhook-Trigger auf <see cref="TriggerScope.OnDialogCompleted"/> wird beim Abschluss des
-    /// Dialogs zugestellt – ohne jede <c>o.AddWebhook(...)</c>-Registrierung im Code.
+    /// A webhook trigger on <see cref="TriggerScope.OnDialogCompleted"/> is delivered when the dialog
+    /// completes – without any <c>o.AddWebhook(...)</c> registration in code.
     /// </summary>
     [Fact]
-    public async Task Konfigurierter_Trigger_wird_beim_Abschluss_zugestellt()
+    public async Task A_configured_trigger_is_delivered_on_completion()
     {
         var spy = await RunBranchingDialogAsync(
             Trigger(TriggerScope.OnDialogCompleted, $"{{\"url\":\"{TargetUrl}\",\"name\":\"fertig\"}}"));
@@ -58,9 +58,9 @@ public sealed class DialogTriggerDispatchTests : IDisposable
         Assert.Contains("branching", request.Body);
     }
 
-    /// <summary>Eine zutreffende Bedingung wird gegen die echten Antworten der Session ausgewertet.</summary>
+    /// <summary>A matching condition is evaluated against the session's real answers.</summary>
     [Fact]
-    public async Task Konfigurierter_Trigger_mit_zutreffender_Bedingung_wird_zugestellt()
+    public async Task A_configured_trigger_with_a_matching_condition_is_delivered()
     {
         var spy = await RunBranchingDialogAsync(
             Trigger(TriggerScope.OnDialogCompleted, $"{{\"url\":\"{TargetUrl}\"}}", "role == \"dev\""));
@@ -68,9 +68,9 @@ public sealed class DialogTriggerDispatchTests : IDisposable
         Assert.Single(spy.Requests);
     }
 
-    /// <summary>Trifft die Bedingung nicht zu, wird nichts zugestellt.</summary>
+    /// <summary>If the condition does not match, nothing is delivered.</summary>
     [Fact]
-    public async Task Konfigurierter_Trigger_mit_nicht_zutreffender_Bedingung_bleibt_stumm()
+    public async Task A_configured_trigger_with_a_non_matching_condition_stays_silent()
     {
         var spy = await RunBranchingDialogAsync(
             Trigger(TriggerScope.OnDialogCompleted, $"{{\"url\":\"{TargetUrl}\"}}", "role == \"pm\""));
@@ -79,11 +79,11 @@ public sealed class DialogTriggerDispatchTests : IDisposable
     }
 
     /// <summary>
-    /// Ein <see cref="TriggerScope.AfterQuestion"/>-Trigger feuert nur nach seiner Frage – die zweite,
-    /// abschließende Antwort löst ihn nicht aus.
+    /// An <see cref="TriggerScope.AfterQuestion"/> trigger fires only after its own question – the
+    /// second, completing answer does not set it off.
     /// </summary>
     [Fact]
-    public async Task AfterQuestion_Trigger_feuert_nur_nach_seiner_Frage()
+    public async Task AfterQuestion_trigger_fires_only_after_its_own_question()
     {
         var dialogId = Guid.NewGuid();
         BranchingDialogIds ids;
@@ -98,16 +98,17 @@ public sealed class DialogTriggerDispatchTests : IDisposable
 
         var spy = await PlayThroughAsync();
 
-        // Zwei Antworten (role, devDetail), aber nur die erste passt zum Frage-Bezug des Triggers.
+        // Two answers (role, devDetail), but only the first matches the trigger's question reference.
         Assert.Single(spy.Requests);
         Assert.Equal("AfterQuestion", Assert.Single(spy.Requests).Event);
     }
 
     /// <summary>
-    /// Seedet den Branching-Dialog samt <paramref name="trigger"/> und spielt ihn bis zum Abschluss durch.
+    /// Seeds the branching dialog together with <paramref name="trigger"/> and plays it through to
+    /// completion.
     /// </summary>
-    /// <param name="trigger">Die zu seedende Trigger-Definition.</param>
-    /// <returns>Der HTTP-Spy mit den aufgezeichneten Zustellungen.</returns>
+    /// <param name="trigger">The trigger definition to seed.</param>
+    /// <returns>The HTTP spy with the recorded deliveries.</returns>
     private async Task<RecordingHttpMessageHandler> RunBranchingDialogAsync(TriggerDefinition trigger)
     {
         var dialogId = Guid.NewGuid();
@@ -123,10 +124,10 @@ public sealed class DialogTriggerDispatchTests : IDisposable
     }
 
     /// <summary>
-    /// Spielt den zuvor geseedeten Branching-Dialog über die Facade bis zum Abschluss durch
-    /// (<c>role = "dev"</c> → <c>devDetail</c> → Abschluss).
+    /// Plays the previously seeded branching dialog through to completion over the facade
+    /// (<c>role = "dev"</c> -> <c>devDetail</c> -> completion).
     /// </summary>
-    /// <returns>Der HTTP-Spy mit den aufgezeichneten Zustellungen.</returns>
+    /// <returns>The HTTP spy with the recorded deliveries.</returns>
     private async Task<RecordingHttpMessageHandler> PlayThroughAsync()
     {
         var spy = new RecordingHttpMessageHandler();
@@ -136,8 +137,8 @@ public sealed class DialogTriggerDispatchTests : IDisposable
             .AddFlirty();
         services.AddDbContext<FlirtyDbContext>(options => options.UseSqlite(_connection));
 
-        // Denselben Named-Client wie die Engine erneut konfigurieren: der zuletzt gesetzte
-        // Primary-Handler gewinnt -> die Zustellung landet im Spy statt im Netz.
+        // Configure the same named client the engine uses once more: the primary handler set last
+        // wins -> the delivery lands in the spy instead of on the network.
         services
             .AddHttpClient(WebhookNotificationHandler.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => spy);

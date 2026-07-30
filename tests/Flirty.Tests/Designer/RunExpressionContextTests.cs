@@ -12,11 +12,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="RunExpressionContext"/> des Test-Runners (#43). Kernprobe ist der Abgleich
-/// mit dem Core-<c>SessionExpressionContextBuilder</c>: Der Designer rechnet die Bindungen nach, weil der
-/// Builder <c>internal</c> ist und eine <see cref="Dialog"/>-Entity mit Navigationen braucht – der Runner
-/// hat nur <see cref="DialogDetail"/> und <see cref="ResumeDialogResult"/>. Auseinanderlaufen dürfen die
-/// beiden trotzdem nicht, sonst zeigte der Runner andere Werte, als die Engine tatsächlich auswertet.
+/// Tests for the test runner's <see cref="RunExpressionContext"/> (#43). The core check is the match
+/// against the core <c>SessionExpressionContextBuilder</c>: the designer recomputes the bindings,
+/// because the builder is <c>internal</c> and needs a <see cref="Dialog"/> entity with navigations –
+/// the runner has only <see cref="DialogDetail"/> and <see cref="ResumeDialogResult"/>. They must not
+/// drift apart nonetheless, otherwise the runner would show different values than the engine
+/// actually evaluates.
 /// </summary>
 public sealed class RunExpressionContextTests : IDisposable
 {
@@ -24,8 +25,8 @@ public sealed class RunExpressionContextTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public RunExpressionContextTests()
     {
@@ -40,67 +41,67 @@ public sealed class RunExpressionContextTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
 
     /// <summary>
-    /// Der Abgleich mit der Engine – geprüft an jedem Punkt eines echten Durchlaufs mit zwei Iterationen:
-    /// Antworten je Frage-Schlüssel, gesammelte Loop-Collection und Iterationsindex müssen in beiden
-    /// Implementierungen identisch sein.
+    /// The match against the engine – checked at every point of a real run with two iterations:
+    /// answers per question key, the gathered loop collection and the iteration index have to be
+    /// identical in both implementations.
     /// </summary>
     [Fact]
-    public async Task Build_stimmt_an_jedem_Schritt_mit_dem_SessionExpressionContextBuilder_ueberein()
+    public async Task Build_matches_the_SessionExpressionContextBuilder_at_every_step()
     {
         var (sessionId, ids) = SeedLoopSession();
 
         AssertMatchesEngine(sessionId);
 
         // Iteration 1
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Entwickler\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Developer\"");
         AssertMatchesEngine(sessionId);
         await SubmitAsync(sessionId, ids.MoreQuestionId, "\"yes\"");
         AssertMatchesEngine(sessionId);
 
         // Iteration 2
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architekt\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architect\"");
         AssertMatchesEngine(sessionId);
         await SubmitAsync(sessionId, ids.MoreQuestionId, "\"no\"");
         AssertMatchesEngine(sessionId);
 
-        // Abschluss (keine offene Frage mehr)
+        // Completion (no open question left)
         await SubmitAsync(sessionId, ids.SummaryQuestionId, "\"fertig\"");
         AssertMatchesEngine(sessionId);
     }
 
     /// <summary>
-    /// Die Collection sammelt die Antworten der Einstiegsfrage je Iteration – das ist der Wert, den der
-    /// Runner unter dem <c>CollectionKey</c> anzeigt.
+    /// The collection gathers the entry question's answers per iteration – that is the value the
+    /// runner shows under the <c>CollectionKey</c>.
     /// </summary>
     [Fact]
-    public async Task Build_sammelt_die_Antworten_je_Iteration_unter_dem_CollectionKey()
+    public async Task Build_gathers_the_answers_per_iteration_under_the_collection_key()
     {
         var (sessionId, ids) = SeedLoopSession();
 
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Entwickler\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Developer\"");
         await SubmitAsync(sessionId, ids.MoreQuestionId, "\"yes\"");
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architekt\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architect\"");
 
         var snapshot = BuildSnapshot(sessionId);
 
-        Assert.Equal(["\"Entwickler\"", "\"Architekt\""], snapshot.Collections["positions"]);
+        Assert.Equal(["\"Developer\"", "\"Architect\""], snapshot.Collections["positions"]);
 
-        // Unter dem Frage-Schlüssel steht die Antwort der AKTUELLEN Iteration, nicht die erste.
-        Assert.Equal("\"Architekt\"", snapshot.Answers["position"]);
+        // Under the question key stands the answer of the CURRENT iteration, not the first one.
+        Assert.Equal("\"Architect\"", snapshot.Answers["position"]);
     }
 
     /// <summary>
-    /// Vor der ersten Iteration ist die Collection leer, aber <b>gebunden</b> – sonst wäre
-    /// <c>positions.Count &gt; 0</c> im Ausdruck ein unbekannter Bezeichner.
+    /// Before the first iteration the collection is empty but <b>bound</b> – otherwise
+    /// <c>positions.Count &gt; 0</c> would be an unknown identifier in the expression.
     /// </summary>
     [Fact]
-    public void Build_bindet_die_Collection_auch_vor_der_ersten_Iteration()
+    public void Build_binds_the_collection_even_before_the_first_iteration()
     {
         var (sessionId, _) = SeedLoopSession();
 
@@ -112,43 +113,43 @@ public sealed class RunExpressionContextTests : IDisposable
     }
 
     /// <summary>
-    /// Der Iterationsindex bezieht sich auf die aktuell offene Frage – und zwar auf deren <b>zuletzt
-    /// gegebene</b> Antwort, nicht auf die bevorstehende. Das ist die Semantik von
-    /// <c>LoopResolver.ResolveIterationIndex</c> und damit genau der Wert, den eine Bedingung an dieser
-    /// Stelle auswertet; der Runner zeigt ihn deshalb nur als Kontext-Bindung und nicht als „laufende
-    /// Iteration" an der Frage selbst.
+    /// The iteration index refers to the currently open question – and there to its <b>most recently
+    /// given</b> answer, not to the upcoming one. That is the semantics of
+    /// <c>LoopResolver.ResolveIterationIndex</c> and therefore exactly the value a condition evaluates
+    /// at this point; that is why the runner shows it only as a context binding and not as a "current
+    /// iteration" on the question itself.
     /// </summary>
     [Fact]
-    public async Task Build_liefert_den_Iterationsindex_der_letzten_Antwort_auf_die_offene_Frage()
+    public async Task Build_returns_the_iteration_index_of_the_last_answer_to_the_open_question()
     {
         var (sessionId, ids) = SeedLoopSession();
 
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Entwickler\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Developer\"");
         await SubmitAsync(sessionId, ids.MoreQuestionId, "\"yes\"");
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architekt\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Architect\"");
 
-        // Offen ist "more". Beantwortet wurde sie bisher nur einmal – in Iteration 0.
+        // The open question is "more". It has been answered only once so far – in iteration 0.
         Assert.Equal(0, BuildSnapshot(sessionId).IterationIndex);
 
-        // Nach dem zweiten "more" (Iteration 1) ist "summary" offen – die liegt außerhalb der Schleife.
+        // After the second "more" (iteration 1) the open question is "summary" – that lies outside the loop.
         await SubmitAsync(sessionId, ids.MoreQuestionId, "\"no\"");
         Assert.Null(BuildSnapshot(sessionId).IterationIndex);
     }
 
     /// <summary>
-    /// Antworten auf Fragen, die es im Dialog nicht (mehr) gibt, werden ignoriert – wie im Core, der
-    /// über die Frage-Schlüssel des Graphen abbildet.
+    /// Answers to questions that (no longer) exist in the dialog are ignored – as in the core, which
+    /// maps over the graph's question keys.
     /// </summary>
     [Fact]
-    public async Task Build_ignoriert_Antworten_ohne_Frage_im_Graphen()
+    public async Task Build_ignores_answers_without_a_question_in_the_graph()
     {
         var (sessionId, ids) = SeedLoopSession();
-        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Entwickler\"");
+        await SubmitAsync(sessionId, ids.PositionQuestionId, "\"Developer\"");
 
         var detail = LoadDetail(sessionId);
         var state = LoadState(sessionId);
 
-        // Den Graphen künstlich um die beantwortete Frage kürzen.
+        // Artificially shorten the graph by the answered question.
         var reduced = detail with
         {
             Questions = [.. detail.Questions.Where(question => question.Id != ids.PositionQuestionId)],
@@ -157,17 +158,17 @@ public sealed class RunExpressionContextTests : IDisposable
         Assert.DoesNotContain("position", RunExpressionContext.Build(reduced, state).Answers);
     }
 
-    // ---- Aufbau ------------------------------------------------------------------------------
+    // ---- Setup -------------------------------------------------------------------------------
 
     /// <summary>
-    /// Baut beide Kontexte auf demselben Zustand und vergleicht sie. Der Core-Builder bekommt dieselbe
-    /// „aktuelle Frage", die auch der Runner sieht (<see cref="ResumeDialogResult.CurrentQuestion"/>).
+    /// Builds both contexts on the same state and compares them. The core builder gets the same
+    /// "current question" the runner sees (<see cref="ResumeDialogResult.CurrentQuestion"/>).
     /// </summary>
-    /// <param name="sessionId">Die zu vergleichende Session.</param>
+    /// <param name="sessionId">The session to compare.</param>
     private void AssertMatchesEngine(Guid sessionId)
     {
         var state = LoadState(sessionId);
-        var vomDesigner = RunExpressionContext.Build(LoadDetail(sessionId), state);
+        var fromDesigner = RunExpressionContext.Build(LoadDetail(sessionId), state);
 
         using var context = CreateContext();
         var session = context.DialogSessions
@@ -175,22 +176,22 @@ public sealed class RunExpressionContextTests : IDisposable
             .Single(entity => entity.Id == sessionId);
         var dialog = LoadDialog(context, session.DialogId);
 
-        var vonDerEngine = SessionExpressionContextBuilder.Build(
+        var fromEngine = SessionExpressionContextBuilder.Build(
             dialog, session, state.CurrentQuestion?.Id);
 
-        Assert.Equal(vonDerEngine.Answers, vomDesigner.Answers);
-        Assert.Equal(vonDerEngine.IterationIndex, vomDesigner.IterationIndex);
+        Assert.Equal(fromEngine.Answers, fromDesigner.Answers);
+        Assert.Equal(fromEngine.IterationIndex, fromDesigner.IterationIndex);
         Assert.Equal(
-            vonDerEngine.Collections.ToDictionary(entry => entry.Key, entry => entry.Value.ToList()),
-            vomDesigner.Collections.ToDictionary(entry => entry.Key, entry => entry.Value.ToList()));
+            fromEngine.Collections.ToDictionary(entry => entry.Key, entry => entry.Value.ToList()),
+            fromDesigner.Collections.ToDictionary(entry => entry.Key, entry => entry.Value.ToList()));
     }
 
     private RunExpressionSnapshot BuildSnapshot(Guid sessionId)
         => RunExpressionContext.Build(LoadDetail(sessionId), LoadState(sessionId));
 
-    /// <summary>Liest den Session-Zustand über dieselbe Query, die auch der Runner nutzt.</summary>
-    /// <param name="sessionId">Die zu lesende Session.</param>
-    /// <returns>Der Zustand.</returns>
+    /// <summary>Reads the session state over the same query the runner uses.</summary>
+    /// <param name="sessionId">The session to read.</param>
+    /// <returns>The state.</returns>
     private ResumeDialogResult LoadState(Guid sessionId)
     {
         using var context = CreateContext();
@@ -201,9 +202,9 @@ public sealed class RunExpressionContextTests : IDisposable
             .GetResult();
     }
 
-    /// <summary>Liest den Dialog-Graphen in derselben navigationsfreien Sicht, die der Runner nutzt.</summary>
-    /// <param name="sessionId">Die Session, deren gepinnte Dialogversion geladen wird.</param>
-    /// <returns>Die Sicht auf den Dialog.</returns>
+    /// <summary>Reads the dialog graph in the same navigation-free view the runner uses.</summary>
+    /// <param name="sessionId">The session whose pinned dialog version is loaded.</param>
+    /// <returns>The view of the dialog.</returns>
     private DialogDetail LoadDetail(Guid sessionId)
     {
         using var context = CreateContext();
@@ -220,8 +221,8 @@ public sealed class RunExpressionContextTests : IDisposable
             .Include(dialog => dialog.Triggers)
             .Single(dialog => dialog.Id == dialogId);
 
-    /// <summary>Legt den Loop-Dialog samt einer laufenden Session an der Einstiegsfrage an.</summary>
-    /// <returns>Die Session-Id und die Frage-Ids des Dialogs.</returns>
+    /// <summary>Creates the loop dialog together with a running session on the entry question.</summary>
+    /// <returns>The session id and the dialog's question ids.</returns>
     private (Guid SessionId, LoopDialogIds Ids) SeedLoopSession()
     {
         var dialogId = Guid.NewGuid();
@@ -244,10 +245,10 @@ public sealed class RunExpressionContextTests : IDisposable
         return (sessionId, ids);
     }
 
-    /// <summary>Reicht eine Antwort über den echten Handler in eigenem Kontext ein.</summary>
-    /// <param name="sessionId">Die laufende Session.</param>
-    /// <param name="questionId">Die zu beantwortende Frage.</param>
-    /// <param name="value">Der rohe JSON-Antwortwert.</param>
+    /// <summary>Submits an answer over the real handler in its own context.</summary>
+    /// <param name="sessionId">The running session.</param>
+    /// <param name="questionId">The question to answer.</param>
+    /// <param name="value">The raw JSON answer value.</param>
     private async Task SubmitAsync(Guid sessionId, Guid questionId, string value)
     {
         using var context = CreateContext();

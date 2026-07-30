@@ -5,19 +5,20 @@ using Flirty.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für die <see cref="ConnectionProfileOperations"/> (#37): Test-Connection und Migrate gegen eine
-/// echte SQLite-Datei im Temp-Verzeichnis. Belegt Test-/Migrate-Buttons der Profil-Verwaltung ohne Docker.
+/// Tests for the <see cref="ConnectionProfileOperations"/> (#37): test-connection and migrate against
+/// a real SQLite file in the temp directory. Proves the test/migrate buttons of the profile
+/// management without Docker.
 /// </summary>
 public sealed class ConnectionProfileOperationsTests
 {
     private readonly ConnectionProfileOperations _operations = new();
 
     [Fact]
-    public async Task TestConnectionAsync_liefert_Erfolg_fuer_migriertes_SQLite_Profil()
+    public async Task TestConnectionAsync_returns_success_for_a_migrated_SQLite_profile()
     {
         await RunWithTempDbAsync(async profile =>
         {
-            // SQLite meldet CanConnect erst dann true, wenn die Datei existiert -> zuerst anlegen.
+            // SQLite reports CanConnect as true only once the file exists -> create it first.
             await _operations.ApplyMigrationsAsync(profile);
 
             var result = await _operations.TestConnectionAsync(profile);
@@ -26,7 +27,7 @@ public sealed class ConnectionProfileOperationsTests
     }
 
     [Fact]
-    public async Task TestConnectionAsync_liefert_Fehler_bei_ungueltiger_Verbindungszeichenfolge()
+    public async Task TestConnectionAsync_returns_an_error_for_an_invalid_connection_string()
     {
         var profile = new ConnectionProfile
         {
@@ -42,7 +43,7 @@ public sealed class ConnectionProfileOperationsTests
     }
 
     [Fact]
-    public async Task ApplyMigrationsAsync_legt_Schema_an_und_meldet_angewendete_Migration()
+    public async Task ApplyMigrationsAsync_creates_the_schema_and_reports_the_applied_migration()
     {
         await RunWithTempDbAsync(async profile =>
         {
@@ -66,7 +67,7 @@ public sealed class ConnectionProfileOperationsTests
         {
             Name = "Temp",
             Provider = FlirtyDatabaseProvider.Sqlite,
-            // Pooling=False: sonst hält der SQLite-Connection-Pool die Datei offen und der Cleanup scheitert.
+            // Pooling=False: otherwise the SQLite connection pool keeps the file open and the cleanup fails.
             ConnectionString = $"Data Source={dbPath};Pooling=False",
         };
 

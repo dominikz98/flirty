@@ -3,18 +3,18 @@ using Flirty.Domain;
 namespace Flirty.Tests.Domain;
 
 /// <summary>
-/// Prüft den öffentlichen Schema-Typ <see cref="TriggerConfig"/> (#42): das Lesen des gespeicherten
-/// JSON, das Schreiben im camelCase-Format und die kanal-abhängige Prüfung der Pflichtfelder. Der Typ
-/// ist die eine Quelle des <see cref="TriggerDefinition.Config"/>-Schemas – Admin-Commands,
-/// Webhook-Auslieferung und Designer hängen daran.
+/// Checks the public schema type <see cref="TriggerConfig"/> (#42): reading the stored JSON, writing
+/// it in camelCase and the channel-dependent check of the required fields. The type is the single
+/// source of the <see cref="TriggerDefinition.Config"/> schema – admin commands, webhook delivery and
+/// the designer all hang on it.
 /// </summary>
 public sealed class TriggerConfigTests
 {
-    /// <summary>Bekannte Felder werden case-insensitiv gelesen.</summary>
+    /// <summary>Known fields are read case-insensitively.</summary>
     [Theory]
     [InlineData("{\"url\":\"https://host.example/hook\",\"name\":\"order-created\"}")]
     [InlineData("{\"Url\":\"https://host.example/hook\",\"Name\":\"order-created\"}")]
-    public void TryParse_liest_die_bekannten_Felder(string json)
+    public void TryParse_reads_the_known_fields(string json)
     {
         Assert.True(TriggerConfig.TryParse(json, out var config, out var error));
         Assert.Null(error);
@@ -22,33 +22,33 @@ public sealed class TriggerConfigTests
         Assert.Equal("order-created", config.Name);
     }
 
-    /// <summary>Ein leerer Text gilt als leere Konfiguration (kein Fehler).</summary>
+    /// <summary>An empty text counts as an empty configuration (not an error).</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void TryParse_behandelt_leere_Eingabe_als_leere_Konfiguration(string? json)
+    public void TryParse_treats_empty_input_as_an_empty_configuration(string? json)
     {
         Assert.True(TriggerConfig.TryParse(json, out var config, out _));
         Assert.Null(config.Url);
         Assert.Null(config.Name);
     }
 
-    /// <summary>Kaputtes JSON und Nicht-Objekte werden mit deutscher Meldung abgelehnt.</summary>
+    /// <summary>Broken JSON and non-objects are rejected with a message.</summary>
     [Theory]
-    [InlineData("kein json")]
+    [InlineData("not json")]
     [InlineData("[1, 2]")]
-    [InlineData("\"nur ein Text\"")]
-    public void TryParse_lehnt_ungueltiges_JSON_ab(string json)
+    [InlineData("\"just a text\"")]
+    public void TryParse_rejects_invalid_JSON(string json)
     {
         Assert.False(TriggerConfig.TryParse(json, out var config, out var error));
         Assert.Null(config);
         Assert.NotNull(error);
     }
 
-    /// <summary>Unbekannte Felder brechen das Lesen nicht – sie werden beim Schreiben aber verworfen.</summary>
+    /// <summary>Unknown fields do not break reading – but they are dropped when writing.</summary>
     [Fact]
-    public void TryParse_ignoriert_unbekannte_Felder()
+    public void TryParse_ignores_unknown_fields()
     {
         Assert.True(
             TriggerConfig.TryParse("{\"url\":\"https://host.example/hook\",\"retries\":3}", out var config, out _));
@@ -57,18 +57,18 @@ public sealed class TriggerConfigTests
         Assert.DoesNotContain("retries", config.ToJson(), StringComparison.Ordinal);
     }
 
-    /// <summary>Geschrieben wird camelCase; nicht gesetzte Felder fehlen im JSON.</summary>
+    /// <summary>Writing produces camelCase; unset fields are absent from the JSON.</summary>
     [Fact]
-    public void ToJson_schreibt_camelCase_ohne_leere_Felder()
+    public void ToJson_writes_camelCase_without_empty_fields()
     {
         var json = new TriggerConfig { Url = "https://host.example/hook" }.ToJson();
 
         Assert.Equal("{\"url\":\"https://host.example/hook\"}", json);
     }
 
-    /// <summary>Ein Round-Trip erhält die bekannten Felder.</summary>
+    /// <summary>A round trip preserves the known fields.</summary>
     [Fact]
-    public void ToJson_und_TryParse_sind_verlustfrei()
+    public void ToJson_and_TryParse_are_lossless()
     {
         var original = new TriggerConfig { Name = "order-created", Url = "https://host.example/hook" };
 
@@ -76,14 +76,14 @@ public sealed class TriggerConfigTests
         Assert.Equal(original, roundTrip);
     }
 
-    /// <summary>Ein Webhook braucht eine absolute http-/https-URL.</summary>
+    /// <summary>A webhook needs an absolute http/https URL.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("nicht-absolut")]
-    [InlineData("/relativ/hook")]
+    [InlineData("not-absolute")]
+    [InlineData("/relative/hook")]
     [InlineData("ftp://host.example/hook")]
-    public void TryValidate_lehnt_untaugliche_Webhook_URLs_ab(string? url)
+    public void TryValidate_rejects_unusable_webhook_URLs(string? url)
     {
         var config = new TriggerConfig { Url = url };
 
@@ -91,11 +91,11 @@ public sealed class TriggerConfigTests
         Assert.NotNull(error);
     }
 
-    /// <summary>Eine absolute http-/https-URL wird akzeptiert.</summary>
+    /// <summary>An absolute http/https URL is accepted.</summary>
     [Theory]
     [InlineData("https://host.example/hook")]
     [InlineData("http://localhost:5000/flirty/hook")]
-    public void TryValidate_akzeptiert_absolute_Webhook_URLs(string url)
+    public void TryValidate_accepts_absolute_webhook_URLs(string url)
     {
         var config = new TriggerConfig { Url = url };
 
@@ -103,11 +103,11 @@ public sealed class TriggerConfigTests
         Assert.Null(error);
     }
 
-    /// <summary>In-Process-Trigger brauchen keine URL – sie stellen nichts zu.</summary>
+    /// <summary>In-process triggers need no URL – they deliver nothing.</summary>
     [Fact]
-    public void TryValidate_verlangt_bei_InProcess_keine_URL()
+    public void TryValidate_requires_no_URL_for_InProcess()
     {
-        var config = new TriggerConfig { Name = "abschluss" };
+        var config = new TriggerConfig { Name = "completion" };
 
         Assert.True(config.TryValidate(TriggerKind.InProcess, out var error));
         Assert.Null(error);

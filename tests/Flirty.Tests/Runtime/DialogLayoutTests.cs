@@ -10,25 +10,25 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert die Layout-Persistenz (#102): den Batch-Upsert
-/// (<see cref="SetDialogLayoutCommandHandler"/>), das Zurücksetzen
-/// (<see cref="ResetDialogLayoutCommandHandler"/>) und – als Kern der Stufe – die beiden
-/// <b>Handarbeits-Zweige</b>, die man beim nächsten Elementtyp vergisst: das Mitklonen in
-/// <see cref="CreateDialogVersionCommandHandler"/> und das Aufräumen in
+/// Verifies the layout persistence (#102): the batch upsert
+/// (<see cref="SetDialogLayoutCommandHandler"/>), the reset
+/// (<see cref="ResetDialogLayoutCommandHandler"/>) and – as the core of this stage – the two
+/// <b>manual branches</b> one forgets with the next element kind: cloning along in
+/// <see cref="CreateDialogVersionCommandHandler"/> and cleaning up in
 /// <see cref="DeleteQuestionCommandHandler"/>.
 /// </summary>
 /// <remarks>
-/// Die wichtigste Zusicherung ist <c>SetDialogLayout_aendert_auch_ein_veroeffentlichtes_Layout</c>:
-/// Der Layout-Command läuft bewusst <b>nicht</b> unter <see cref="DialogEditGuard"/> (ADR 0007). Ohne
-/// diesen Test wäre das eine Behauptung im Kommentar – und ein versehentlich ergänzter Guard fiele
-/// erst im Browser auf.
+/// The most important assurance is <c>SetDialogLayout_changes_a_published_layout_too</c>: the layout
+/// command deliberately does <b>not</b> run under the <see cref="DialogEditGuard"/> (ADR 0007).
+/// Without this test that would be a claim in a comment – and an accidentally added guard would only
+/// show up in the browser.
 /// </remarks>
 public sealed class DialogLayoutTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
-    /// <summary>Öffnet die SQLite-in-memory-Verbindung und legt das Schema an.</summary>
+    /// <summary>Opens the SQLite in-memory connection and creates the schema.</summary>
     public DialogLayoutTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -42,19 +42,20 @@ public sealed class DialogLayoutTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
 
-    // ---- Setzen und Zurücksetzen --------------------------------------------------------------
+    // ---- Setting and resetting ----------------------------------------------------------------
 
     /// <summary>
-    /// Ein zweiter Aufruf für dasselbe Element aktualisiert die Zeile, statt eine zweite anzulegen –
-    /// sonst liefe der Unique-Index über (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) auf.
+    /// A second call for the same element updates the row instead of creating a second one –
+    /// otherwise the unique index over (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) would
+    /// trip.
     /// </summary>
     [Fact]
-    public async Task SetDialogLayout_legt_an_und_aktualisiert_bestehende_Positionen()
+    public async Task SetDialogLayout_creates_and_updates_existing_positions()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
@@ -74,7 +75,7 @@ public sealed class DialogLayoutTests : IDisposable
                 default);
         }
 
-        // Die Antwort trägt das VOLLSTÄNDIGE Layout, damit der Aufrufer seinen Stand ersetzen kann.
+        // The response carries the COMPLETE layout, so the caller can replace its own state.
         Assert.Equal(2, result.Count);
 
         using var assert = CreateContext();
@@ -87,11 +88,11 @@ public sealed class DialogLayoutTests : IDisposable
     }
 
     /// <summary>
-    /// Nicht genannte Elemente bleiben stehen: Eine Zieh-Geste verschiebt ein Element und darf nicht
-    /// die Positionen aller übrigen verwerfen.
+    /// Elements that are not named stay put: a drag gesture moves one element and must not discard
+    /// the positions of all the others.
     /// </summary>
     [Fact]
-    public async Task SetDialogLayout_laesst_nicht_genannte_Positionen_unangetastet()
+    public async Task SetDialogLayout_leaves_positions_it_does_not_name_untouched()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
@@ -118,19 +119,19 @@ public sealed class DialogLayoutTests : IDisposable
     }
 
     /// <summary>
-    /// <b>Die Zusage dieser Stufe:</b> Verschieben funktioniert auch bei veröffentlichtem Dialog und
-    /// quittiert nicht mit einem Konflikt. Koordinaten sind kein Teil des Graphen (ADR 0007) – die
-    /// Publish-Sperre aus ADR 0005 endet an dieser Tabelle.
+    /// <b>This stage's promise:</b> moving works on a published dialog too and does not answer with a
+    /// conflict. Coordinates are not part of the graph (ADR 0007) – the publish lock from ADR 0005
+    /// ends at this table.
     /// </summary>
     [Fact]
-    public async Task SetDialogLayout_aendert_auch_ein_veroeffentlichtes_Layout()
+    public async Task SetDialogLayout_changes_a_published_layout_too()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out var questionId));
 
         using (var check = CreateContext())
         {
-            // Vorbedingung: Der Dialog ist wirklich veröffentlicht – sonst prüfte der Test nichts.
+            // Precondition: the dialog really is published – otherwise the test would check nothing.
             Assert.True(check.Dialogs.Single(dialog => dialog.Id == dialogId).IsPublished);
         }
 
@@ -147,11 +148,11 @@ public sealed class DialogLayoutTests : IDisposable
     }
 
     /// <summary>
-    /// Die Gegenprobe zur vorigen: Eine echte Graph-Änderung bleibt am selben veröffentlichten Dialog
-    /// gesperrt. Ohne sie belegte der Layout-Test nur, dass irgendwo ein Guard fehlt.
+    /// The counter-check to the previous one: a real graph change stays locked on that same published
+    /// dialog. Without it, the layout test would only prove that a guard is missing somewhere.
     /// </summary>
     [Fact]
-    public async Task Graph_Aenderung_bleibt_am_selben_veroeffentlichten_Dialog_gesperrt()
+    public async Task Graph_change_stays_locked_on_the_same_published_dialog()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out var questionId));
@@ -164,9 +165,9 @@ public sealed class DialogLayoutTests : IDisposable
                 .Handle(new DeleteQuestionCommand(dialogId, questionId), default));
     }
 
-    /// <summary>Ohne Dialog gibt es kein Layout – die Meldung ist ein Not-Found, kein Konflikt.</summary>
+    /// <summary>Without a dialog there is no layout – the report is a not-found, not a conflict.</summary>
     [Fact]
-    public async Task SetDialogLayout_fuer_unbekannten_Dialog_wirft_NotFound()
+    public async Task SetDialogLayout_for_an_unknown_dialog_throws_NotFound()
     {
         using var act = CreateContext();
 
@@ -176,12 +177,12 @@ public sealed class DialogLayoutTests : IDisposable
     }
 
     /// <summary>
-    /// Anfrage-Regeln liegen am Command (<see cref="IValidatableObject"/>) und ergeben eine 400 – hier
-    /// geprüft über denselben Validator, den das <c>ValidationPipelineBehavior</c> aufruft.
+    /// Request rules live on the command (<see cref="IValidatableObject"/>) and produce a 400 –
+    /// checked here over the same validator the <c>ValidationPipelineBehavior</c> calls.
     /// </summary>
     [Theory]
-    [MemberData(nameof(UngueltigeBatches))]
-    public void SetDialogLayout_mit_unstimmigem_Batch_ist_ungueltig(DialogLayoutEntry[] entries)
+    [MemberData(nameof(InvalidBatches))]
+    public void SetDialogLayout_with_an_inconsistent_batch_is_invalid(DialogLayoutEntry[] entries)
     {
         var command = new SetDialogLayoutCommand(Guid.NewGuid(), entries);
         var results = new List<ValidationResult>();
@@ -191,8 +192,8 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.NotEmpty(results);
     }
 
-    /// <summary>Die drei Anfrage-Regeln: leer, doppeltes Element, negative Koordinate.</summary>
-    public static TheoryData<DialogLayoutEntry[]> UngueltigeBatches()
+    /// <summary>The three request rules: empty, duplicate element, negative coordinate.</summary>
+    public static TheoryData<DialogLayoutEntry[]> InvalidBatches()
     {
         var element = Guid.NewGuid();
         var data = new TheoryData<DialogLayoutEntry[]>();
@@ -204,9 +205,9 @@ public sealed class DialogLayoutTests : IDisposable
         return data;
     }
 
-    /// <summary>Zurücksetzen verwirft alle Zeilen des Dialogs; danach greift wieder das Auto-Layout.</summary>
+    /// <summary>Resetting discards all rows of the dialog; afterwards the auto-layout applies again.</summary>
     [Fact]
-    public async Task ResetDialogLayout_entfernt_alle_Zeilen_des_Dialogs()
+    public async Task ResetDialogLayout_removes_all_rows_of_the_dialog()
     {
         var dialogId = Guid.NewGuid();
         var otherId = Guid.NewGuid();
@@ -229,20 +230,20 @@ public sealed class DialogLayoutTests : IDisposable
         using var assert = CreateContext();
         Assert.Empty(assert.Set<DialogLayout>().Where(row => row.DialogId == dialogId));
 
-        // Der zweite Dialog behält seine Position – zurückgesetzt wird genau einer.
+        // The second dialog keeps its position – exactly one is reset.
         Assert.Single(assert.Set<DialogLayout>().Where(row => row.DialogId == otherId));
     }
 
-    // ---- Handarbeits-Zweig 1: Klonen ----------------------------------------------------------
+    // ---- Manual branch 1: cloning -------------------------------------------------------------
 
     /// <summary>
-    /// <b>Akzeptanzkriterium „Klonen":</b> Die abgeleitete Version liegt genauso. Geprüft wird gegen die
-    /// <b>umgeschriebene</b> <c>ElementId</c> – dass irgendeine Zeile existiert, wäre keine Aussage:
-    /// <c>CreateDialogVersionCommand</c> vergibt jeder Frage eine neue Guid, eine unübersetzte Zeile
-    /// zeigte ins Leere.
+    /// <b>Acceptance criterion "cloning":</b> the derived version is laid out the same way. Checked
+    /// against the <b>rewritten</b> <c>ElementId</c> – that some row exists would say nothing:
+    /// <c>CreateDialogVersionCommand</c> assigns every question a new Guid, so an untranslated row
+    /// would point into the void.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_schreibt_das_Layout_auf_die_geklonten_Frage_Ids_um()
+    public async Task CreateDialogVersion_rewrites_the_layout_onto_the_cloned_question_ids()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
@@ -265,31 +266,31 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.Equal(120, layout.X);
         Assert.Equal(240, layout.Y);
 
-        // Die Zeile zeigt auf die KOPIE der Einstiegsfrage, nicht mehr auf das Original.
+        // The row points at the COPY of the entry question, no longer at the original.
         Assert.NotEqual(ids.RoleQuestionId, layout.ElementId);
 
         var roleCopy = Assert.Single(copy.Questions, question => question.Key == "role");
         Assert.Equal(roleCopy.Id, layout.ElementId);
 
-        // Die Quelle behält ihre eigene Zeile.
+        // The source keeps its own row.
         using var assert = CreateContext();
         Assert.Equal(ids.RoleQuestionId, Assert.Single(
             assert.Set<DialogLayout>().Where(row => row.DialogId == dialogId)).ElementId);
     }
 
     /// <summary>
-    /// Eine Zeile ohne Element wird beim Klonen <b>verworfen</b>, nicht unverändert übernommen: Sie hat
-    /// in der Kopie kein Ziel und trüge sich sonst durch jede Folgeversion.
+    /// A row without an element is <b>discarded</b> while cloning, not carried over unchanged: it has
+    /// no target in the copy and would otherwise be dragged through every follow-up version.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_verwirft_eine_Position_ohne_Element()
+    public async Task CreateDialogVersion_discards_a_position_without_an_element()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
 
         using (var act = CreateContext())
         {
-            // Ein Verweis, den es im Dialog nicht gibt – der Command prüft ElementId bewusst nicht.
+            // A reference that does not exist in the dialog – the command deliberately does not check ElementId.
             await Handler(act).Handle(
                 new SetDialogLayoutCommand(dialogId, [Entry(Guid.NewGuid(), 10, 10)]), default);
         }
@@ -304,19 +305,19 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.Empty(copy.Layout);
     }
 
-    // ---- Handarbeits-Zweig 2: Aufräumen -------------------------------------------------------
+    // ---- Manual branch 2: cleaning up ---------------------------------------------------------
 
     /// <summary>
-    /// <b>Akzeptanzkriterium „Aufräumen":</b> Mit der Frage verschwindet ihre Position.
-    /// <c>ElementId</c> ist FK-los, die Datenbank räumt hier also nichts ab.
+    /// <b>Acceptance criterion "cleaning up":</b> the position disappears together with the question.
+    /// <c>ElementId</c> is FK-free, so the database clears nothing here.
     /// </summary>
     [Fact]
-    public async Task DeleteQuestion_entfernt_die_Layout_Zeile_der_Frage()
+    public async Task DeleteQuestion_removes_the_layout_row_of_the_question()
     {
         var dialogId = Guid.NewGuid();
 
-        // Als Entwurf: Das Löschen einer Frage ist eine Graph-Änderung und am veröffentlichten Dialog
-        // gesperrt (ADR 0005) – geprüft wird hier der Aufräum-Zweig, nicht der Guard.
+        // As a draft: deleting a question is a graph change and is locked on a published dialog
+        // (ADR 0005) – what is checked here is the cleanup branch, not the guard.
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids), published: false);
 
         using (var act = CreateContext())
@@ -338,9 +339,9 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.Equal(ids.RoleQuestionId, Assert.Single(remaining).ElementId);
     }
 
-    /// <summary>Das Löschen des Dialogs räumt das Layout per Datenbank-Cascade ab.</summary>
+    /// <summary>Deleting the dialog clears the layout via the database cascade.</summary>
     [Fact]
-    public async Task DeleteDialog_entfernt_das_Layout_per_Cascade()
+    public async Task DeleteDialog_removes_the_layout_by_cascade()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
@@ -361,11 +362,11 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.Empty(assert.Set<DialogLayout>());
     }
 
-    // ---- Lesen --------------------------------------------------------------------------------
+    // ---- Reading ------------------------------------------------------------------------------
 
-    /// <summary>Der Designer bekommt die Positionen über dieselbe Abfrage wie den Graphen.</summary>
+    /// <summary>The designer gets the positions over the same query as the graph.</summary>
     [Fact]
-    public async Task GetDialog_liefert_das_Layout_mit()
+    public async Task GetDialog_carries_the_layout_along()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
@@ -386,7 +387,7 @@ public sealed class DialogLayoutTests : IDisposable
         Assert.Equal(99, layout.Y);
     }
 
-    // ---- Helfer -------------------------------------------------------------------------------
+    // ---- Helpers ------------------------------------------------------------------------------
 
     private static DialogLayoutEntry Entry(Guid questionId, int x, int y)
         => new(LayoutElementKind.Question, questionId, x, y);

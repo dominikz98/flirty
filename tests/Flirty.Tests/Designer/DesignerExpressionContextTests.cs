@@ -7,30 +7,30 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den Musterkontext des Branching-Editors (#40). Kern ist, dass die <b>echte</b> Engine
-/// (<see cref="DynamicExpressoExpressionEvaluator"/>) gegen diesen Kontext genau die Ausdrücke annimmt,
-/// die auch zur Laufzeit funktionieren – und Tippfehler ablehnt, statt sie bis in eine laufende Session
-/// durchzureichen.
+/// Tests for the branching editor's sample context (#40). The core is that the <b>real</b> engine
+/// (<see cref="DynamicExpressoExpressionEvaluator"/>) accepts against this context exactly the
+/// expressions that also work at runtime – and rejects typos instead of passing them on into a
+/// running session.
 /// </summary>
 public sealed class DesignerExpressionContextTests
 {
     private static readonly IExpressionEvaluator Evaluator = new DynamicExpressoExpressionEvaluator();
 
     [Theory]
-    [InlineData("alter > 18")]                          // Zahl
-    [InlineData("alter >= 18.5")]                       // Zahl gegen Dezimalliteral
-    [InlineData("role == \"dev\"")]                     // Einfachauswahl (Zeichenkette)
-    [InlineData("zustimmung")]                          // Wahrheitswert direkt
-    [InlineData("zustimmung == true")]                  // Wahrheitswert im Vergleich
-    [InlineData("bemerkung.Length > 3")]                // Freitext als Zeichenkette
-    [InlineData("sprachen.Count > 0")]                  // Mehrfachauswahl als Liste
-    [InlineData("skills.Count > 0")]                    // Loop-Collection
-    [InlineData("geburtstag == \"2026-01-01\"")]        // Datum liegt als Zeichenkette vor
-    [InlineData("now.Year >= 2026")]                    // reservierte Kontext-Variable
-    [InlineData("iterationIndex == 0")]                 // Iterationsindex (int?)
-    [InlineData("session.ExternalUserKey == \"kunde\"")] // Session
-    [InlineData("role == \"dev\" && alter > 18")]       // Verknüpfung
-    public void Validate_gueltiger_Ausdruck_gegen_den_Musterkontext(string expression)
+    [InlineData("age > 18")]                          // number
+    [InlineData("age >= 18.5")]                       // number against a decimal literal
+    [InlineData("role == \"dev\"")]                     // single choice (string)
+    [InlineData("consent")]                          // boolean used directly
+    [InlineData("consent == true")]                  // boolean in a comparison
+    [InlineData("remark.Length > 3")]                // free text as a string
+    [InlineData("languages.Count > 0")]                  // multi choice as a list
+    [InlineData("skills.Count > 0")]                    // loop collection
+    [InlineData("birthday == \"2026-01-01\"")]        // a date is present as a string
+    [InlineData("now.Year >= 2026")]                    // reserved context variable
+    [InlineData("iterationIndex == 0")]                 // iteration index (int?)
+    [InlineData("session.ExternalUserKey == \"customer\"")] // Session
+    [InlineData("role == \"dev\" && age > 18")]       // combination
+    public void Validate_a_valid_expression_against_the_sample_context(string expression)
     {
         var result = DesignerExpressionContext.Validate(Evaluator, expression, DesignerExpressionContext.Build(Dialog()));
 
@@ -38,7 +38,7 @@ public sealed class DesignerExpressionContextTests
     }
 
     [Fact]
-    public void Validate_meldet_Tippfehler_im_Frage_Schluessel_mit_Position()
+    public void Validate_reports_a_typo_in_the_question_key_with_a_position()
     {
         var result = DesignerExpressionContext.Validate(
             Evaluator, "rolle == \"dev\"", DesignerExpressionContext.Build(Dialog()));
@@ -49,7 +49,7 @@ public sealed class DesignerExpressionContextTests
     }
 
     [Fact]
-    public void Validate_leerer_Ausdruck_ist_gueltig()
+    public void Validate_an_empty_expression_is_valid()
     {
         var result = DesignerExpressionContext.Validate(Evaluator, null, DesignerExpressionContext.Build(Dialog()));
 
@@ -57,35 +57,35 @@ public sealed class DesignerExpressionContextTests
     }
 
     /// <summary>
-    /// Die Laufzeit bindet Datumsantworten als Zeichenkette (der Wert ist roher JSON-Text). Der
-    /// Musterkontext muss dasselbe tun – sonst würde der Designer einen Vergleich durchwinken, der in
-    /// einer laufenden Session scheitert.
+    /// At runtime, date answers are bound as a string (the value is raw JSON text). The sample
+    /// context has to do the same – otherwise the designer would wave through a comparison that fails
+    /// in a running session.
     /// </summary>
     [Fact]
-    public void Validate_lehnt_Datumsvergleich_mit_now_ab_wie_die_Laufzeit()
+    public void Validate_rejects_a_date_comparison_with_now_like_the_runtime_does()
     {
         var result = DesignerExpressionContext.Validate(
-            Evaluator, "geburtstag < now", DesignerExpressionContext.Build(Dialog()));
+            Evaluator, "birthday < now", DesignerExpressionContext.Build(Dialog()));
 
         Assert.False(result.IsValid);
     }
 
     [Fact]
-    public void Build_bindet_Loop_Collections_auch_ohne_Iteration()
+    public void Build_binds_loop_collections_even_without_an_iteration()
     {
         var context = DesignerExpressionContext.Build(Dialog());
 
-        // Wie der LoopResolver zur Laufzeit: der Schlüssel ist stets gebunden, vor der ersten Iteration leer.
+        // Like the LoopResolver at runtime: the key is always bound, and empty before the first iteration.
         Assert.True(context.Collections.ContainsKey("skills"));
         Assert.Empty(context.Collections["skills"]);
     }
 
     [Fact]
-    public void Describe_liefert_Frage_Collection_und_Kontext_Bezeichner()
+    public void Describe_returns_question_collection_and_context_identifiers()
     {
         var variables = DesignerExpressionContext.Describe(Dialog());
 
-        Assert.Equal(ExpressionValueKind.Number, variables.Single(variable => variable.Name == "alter").Kind);
+        Assert.Equal(ExpressionValueKind.Number, variables.Single(variable => variable.Name == "age").Kind);
         Assert.Equal(ExpressionValueKind.List, variables.Single(variable => variable.Name == "skills").Kind);
         Assert.Contains(variables, variable => variable.Name == "now");
         Assert.Contains(variables, variable => variable.Name == "session");
@@ -94,16 +94,15 @@ public sealed class DesignerExpressionContextTests
             variable => Assert.True(
                 DesignerExpressionContext.Validate(
                     Evaluator, variable.Example, DesignerExpressionContext.Build(Dialog())).IsValid,
-                $"Das Beispiel „{variable.Example}“ ist nicht gültig."));
+                $"The example '{variable.Example}' is not valid."));
     }
 
     /// <summary>
-    /// Ein Frage-Schlüssel wie <c>now</c> wird zur Laufzeit von der reservierten Kontext-Variable
-    /// verdeckt (der Evaluator setzt sie zuletzt) – die Referenztabelle muss das sagen, statt ihn als
-    /// nutzbar anzubieten.
+    /// A question key such as <c>now</c> is shadowed at runtime by the reserved context variable (the
+    /// evaluator sets it last) – the reference table has to say so instead of offering it as usable.
     /// </summary>
     [Fact]
-    public void Describe_markiert_von_reservierten_Namen_verdeckte_Schluessel()
+    public void Describe_marks_keys_shadowed_by_reserved_names()
     {
         var detail = Dialog(Question("now", QuestionType.FreeText));
 
@@ -116,7 +115,7 @@ public sealed class DesignerExpressionContextTests
     }
 
     [Fact]
-    public void Describe_markiert_Schluessel_die_keine_Bezeichner_sind()
+    public void Describe_marks_keys_that_are_not_identifiers()
     {
         var detail = Dialog(Question("vor-name", QuestionType.FreeText));
 
@@ -127,17 +126,17 @@ public sealed class DesignerExpressionContextTests
         Assert.DoesNotContain("vor-name", DesignerExpressionContext.Build(detail).Answers.Keys);
     }
 
-    // Die Wertart kommt als Name statt als Enum: ExpressionValueKind ist internal, taugt also nicht als
-    // Parametertyp einer public Testmethode (CS0051).
+    // The value kind arrives as a name instead of an enum: ExpressionValueKind is internal, so it is
+    // no good as the parameter type of a public test method (CS0051).
     [Theory]
     [InlineData("role", "Text", "==", "dev", "role == \"dev\"")]
     [InlineData("role", "Text", "==", "\"quoted\"", "role == \"\\\"quoted\\\"\"")]
-    [InlineData("alter", "Number", ">", "18", "alter > 18")]
-    [InlineData("alter", "Number", ">", "", "alter > 0")]
-    [InlineData("zustimmung", "Boolean", "==", "false", "zustimmung == false")]
+    [InlineData("age", "Number", ">", "18", "age > 18")]
+    [InlineData("age", "Number", ">", "", "age > 0")]
+    [InlineData("consent", "Boolean", "==", "false", "consent == false")]
     [InlineData("skills", "List", "Count >", "0", "skills.Count > 0")]
     [InlineData("skills", "List", "contains", "csharp", "skills.Contains(\"csharp\")")]
-    public void BuildCondition_setzt_den_Baustein_typgerecht_zusammen(
+    public void BuildCondition_assembles_the_building_block_type_correctly(
         string name, string kind, string operatorToken, string value, string expected)
     {
         var variable = new ExpressionVariable(
@@ -146,9 +145,9 @@ public sealed class DesignerExpressionContextTests
         Assert.Equal(expected, DesignerExpressionContext.BuildCondition(variable, operatorToken, value));
     }
 
-    /// <summary>Auch ein aus Nutzereingaben zusammengesetzter Baustein muss kompilierbar sein.</summary>
+    /// <summary>A building block assembled from user input has to be compilable too.</summary>
     [Fact]
-    public void BuildCondition_erzeugt_einen_kompilierbaren_Ausdruck_auch_mit_Anfuehrungszeichen()
+    public void BuildCondition_produces_a_compilable_expression_even_with_quotation_marks()
     {
         var variable = DesignerExpressionContext.Describe(Dialog()).First(entry => entry.Name == "role");
         var condition = DesignerExpressionContext.BuildCondition(variable, "==", "de\"v");
@@ -159,29 +158,29 @@ public sealed class DesignerExpressionContextTests
     }
 
     [Fact]
-    public void Append_verknuepft_nur_einen_vorhandenen_Ausdruck()
+    public void Append_only_combines_with_an_existing_expression()
     {
-        Assert.Equal("alter > 18", DesignerExpressionContext.Append(null, "alter > 18", "&&"));
+        Assert.Equal("age > 18", DesignerExpressionContext.Append(null, "age > 18", "&&"));
         Assert.Equal(
-            "role == \"dev\" && alter > 18",
-            DesignerExpressionContext.Append("role == \"dev\"", "alter > 18", "&&"));
+            "role == \"dev\" && age > 18",
+            DesignerExpressionContext.Append("role == \"dev\"", "age > 18", "&&"));
     }
 
     [Fact]
-    public void Validate_faengt_Ausnahmen_einer_fremden_Engine_ab()
+    public void Validate_catches_exceptions_from_a_foreign_engine()
     {
         var result = DesignerExpressionContext.Validate(
-            new ThrowingEvaluator(), "alter > 18", DesignerExpressionContext.Build(Dialog()));
+            new ThrowingEvaluator(), "age > 18", DesignerExpressionContext.Build(Dialog()));
 
         Assert.False(result.IsValid);
         Assert.Contains("could not be checked", result.Error);
     }
 
-    // ---- Testdaten --------------------------------------------------------------------------------
+    // ---- Test data --------------------------------------------------------------------------------
 
     /// <summary>
-    /// Baut einen Dialog-Graphen mit je einer Frage pro Typ und einer Schleife (Collection
-    /// <c>skills</c>) – optional um weitere Fragen ergänzt.
+    /// Builds a dialog graph with one question per type and a loop (collection <c>skills</c>) –
+    /// optionally extended by further questions.
     /// </summary>
     private static DialogDetail Dialog(params QuestionDetail[] additional)
     {
@@ -190,11 +189,11 @@ public sealed class DesignerExpressionContextTests
         var questions = new List<QuestionDetail>
         {
             Question("role", QuestionType.SingleChoice, dialogId, "dev"),
-            Question("alter", QuestionType.Number, dialogId),
-            Question("zustimmung", QuestionType.Boolean, dialogId),
-            Question("bemerkung", QuestionType.FreeText, dialogId),
-            Question("geburtstag", QuestionType.Date, dialogId),
-            Question("sprachen", QuestionType.MultiChoice, dialogId, "de"),
+            Question("age", QuestionType.Number, dialogId),
+            Question("consent", QuestionType.Boolean, dialogId),
+            Question("remark", QuestionType.FreeText, dialogId),
+            Question("birthday", QuestionType.Date, dialogId),
+            Question("languages", QuestionType.MultiChoice, dialogId, "de"),
         };
         questions.AddRange(additional);
 
@@ -221,7 +220,7 @@ public sealed class DesignerExpressionContextTests
             questionId, dialogId ?? Guid.NewGuid(), key, $"Frage {key}?", type, 0, false, null, options);
     }
 
-    /// <summary>Handgeschriebenes TestDouble: eine Engine, die beim Prüfen wirft (kein Mocking-Framework).</summary>
+    /// <summary>Hand-written test double: an engine that throws while checking (no mocking framework).</summary>
     private sealed class ThrowingEvaluator : IExpressionEvaluator
     {
         public bool Evaluate(string expression, ExpressionContext context)

@@ -398,7 +398,7 @@ and can only be corrected with the next published version. The rules are in
 **Test-run findings (#97) fixed** – a second manual pass (build, both suites, both
 samples, designer via Playwright, a custom dialog end-to-end) produced seven points; the engine
 itself was clean. The most important: **a reproducibly red E2E test**
-(`Editieren_der_Verzweigungsfrage_wechselt_den_Zweig`) – not a product bug, but a race in the test.
+(`Editing_the_branching_question_switches_the_branch`) – not a product bug, but a race in the test.
 `FillAndSendAsync` returns immediately, the following edit overtook the still-flying submit, the
 server discarded one answer too few (1 instead of 2). Fixed at **both** ends: the chat UI locks the
 ✏️ buttons for the duration of a request (`setBusy`), and the test makes the precondition visible with
@@ -629,12 +629,12 @@ rendered picture (here via a Playwright screenshot in the existing E2E run) cost
 
 **Canvas E2E (#105) done** – stage 5 of EPIC 11 and thereby **EPIC 11 / M5 completed**. The
 cut deliberately deviates from the issue text: of the "three tests" named there, two already passed as
-smoke tests from #101–#104 (`Testlauf_im_Graphen_hebt_den_gelaufenen_Pfad_hervor` = test run,
-`Graph_Gesten_sind_bei_veroeffentlichtem_Dialog_deaktiviert` + `Graph_Knoten_verschieben_ueberlebt_den_Reload`
+smoke tests from #101–#104 (`Test_run_in_the_graph_highlights_the_path_taken` = test run,
+`Graph_gestures_are_disabled_on_a_published_dialog` + `Graph_node_move_survives_the_reload`
 = read mode). Added were the two that `docs/DESIGNER.md` had named "deliberately open for #105":
-`Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload` (palette drag, **twice
+`Graph_creation_flow_on_the_canvas_survives_publishing_and_the_reload` (palette drag, **twice
 dragging into the void**, a condition with live validation, default, entry question, moving, publishing,
-reload incl. positions) and `Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an`. The suite thereby
+reload incl. positions) and `Graph_inspector_creates_a_trigger_and_a_loop_at_the_cycle`. The suite thereby
 comprises 17 tests and ran green three times in a row. Four things that tipped the scales:
 
 - **The creation flow uncovered a real gap: the entry question could not be set on the canvas at all.**

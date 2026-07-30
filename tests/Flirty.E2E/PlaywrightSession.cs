@@ -17,7 +17,7 @@ public sealed class PlaywrightSession : IAsyncDisposable
         Browser = browser;
     }
 
-    /// <summary>Der gestartete (headless) Chromium-Browser.</summary>
+    /// <summary>The started (headless) Chromium browser.</summary>
     public IBrowser Browser { get; }
 
     /// <summary>
@@ -57,7 +57,7 @@ public sealed class PlaywrightSession : IAsyncDisposable
     /// Opens a page in a fresh browser context (empty localStorage, its own cookies) – so every test
     /// starts with a clean state.
     /// </summary>
-    /// <returns>Die neue Seite.</returns>
+    /// <returns>The new page.</returns>
     public async Task<IPage> NewPageAsync()
     {
         var context = await Browser.NewContextAsync();

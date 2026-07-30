@@ -7,10 +7,11 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="TransitionWarningAnalyzer"/> – die Übergangs-Warnungen, die bis #101 privat
-/// im <c>DialogEditor</c> lagen und seither auch die Graph-Ansicht speisen. Zwei Dinge werden hier
-/// festgenagelt: die <b>Wortlaute</b> (Listenansicht und E2E-Suite hängen daran) und die <b>Verortung</b>
-/// am Knoten bzw. an der Kante (ohne sie kann der Canvas die Befunde nicht am betroffenen Element zeigen).
+/// Tests for the <see cref="TransitionWarningAnalyzer"/> – the transition warnings that lived
+/// privately in the <c>DialogEditor</c> until #101 and have fed the graph view since. Two things are
+/// nailed down here: the <b>wordings</b> (the list view and the E2E suite hang on them) and the
+/// <b>placement</b> on the node or on the edge (without it the canvas cannot show the findings at the
+/// element that causes them).
 /// </summary>
 public sealed class TransitionWarningAnalyzerTests
 {
@@ -20,11 +21,11 @@ public sealed class TransitionWarningAnalyzerTests
     private static readonly Guid OtherTargetId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
     /// <summary>
-    /// Ohne Default und ohne bedingungslosen Übergang kann zur Laufzeit gar nichts greifen. Die Warnung
-    /// hängt an der <b>Frage</b> – kein einzelner Übergang ist schuld.
+    /// Without a default and without an unconditional transition, nothing can take effect at runtime.
+    /// The warning hangs on the <b>question</b> – no single transition is to blame.
     /// </summary>
     [Fact]
-    public void Analyze_meldet_fehlenden_Default_an_der_Ausgangsfrage()
+    public void Analyze_reports_a_missing_default_on_the_source_question()
     {
         IReadOnlyList<TransitionDetail> outgoing = [Transition(0, expression: "a == 1")];
 
@@ -36,9 +37,9 @@ public sealed class TransitionWarningAnalyzerTests
         Assert.Contains("No default transition", warning.Text, StringComparison.Ordinal);
     }
 
-    /// <summary>Mehrere Defaults sind eine Eigenschaft der Gruppe, also der Frage.</summary>
+    /// <summary>Several defaults are a property of the group, so of the question.</summary>
     [Fact]
-    public void Analyze_meldet_mehrere_Defaults_an_der_Ausgangsfrage()
+    public void Analyze_reports_several_defaults_on_the_source_question()
     {
         IReadOnlyList<TransitionDetail> outgoing =
         [
@@ -54,11 +55,11 @@ public sealed class TransitionWarningAnalyzerTests
     }
 
     /// <summary>
-    /// Die ignorierte Bedingung ist die Eigenschaft <b>eines</b> Übergangs – die Warnung muss auf dessen
-    /// Kante zeigen, nicht auf die Frage. Genau das braucht der Canvas.
+    /// The ignored condition is the property of <b>one</b> transition – the warning has to point at
+    /// its edge, not at the question. That is exactly what the canvas needs.
     /// </summary>
     [Fact]
-    public void Analyze_meldet_die_ignorierte_Bedingung_am_betroffenen_Default_Uebergang()
+    public void Analyze_reports_the_ignored_condition_on_the_affected_default_transition()
     {
         var decorated = Transition(1, expression: "a == 1", isDefault: true, target: OtherTargetId);
         IReadOnlyList<TransitionDetail> outgoing = [Transition(0, expression: "b == 2"), decorated];
@@ -73,11 +74,11 @@ public sealed class TransitionWarningAnalyzerTests
     }
 
     /// <summary>
-    /// Ein bedingungsloser Nicht-Default greift immer und verdeckt alles Nachfolgende. Auch das ist eine
-    /// Kanten-Aussage – die Position im Text ist 1-basiert wie in der Listenansicht.
+    /// An unconditional non-default always takes effect and shadows everything after it. That is an
+    /// edge statement too – the position in the text is 1-based, as in the list view.
     /// </summary>
     [Fact]
-    public void Analyze_meldet_den_verdeckenden_bedingungslosen_Uebergang_an_der_Kante()
+    public void Analyze_reports_the_shadowing_unconditional_transition_on_the_edge()
     {
         var blocking = Transition(0);
         IReadOnlyList<TransitionDetail> outgoing = [blocking, Transition(1, isDefault: true, target: OtherTargetId)];
@@ -94,12 +95,12 @@ public sealed class TransitionWarningAnalyzerTests
     }
 
     /// <summary>
-    /// Der wichtigste Test des Umbaus aus #101: Die vier deutschen Volltexte sind Vertrag. Der
-    /// <c>DialogEditor</c> zeigt sie unverändert an, die E2E-Suite und die Publish-Rückfrage hängen
-    /// daran. Wer hier etwas umformuliert, ändert die Oberfläche – und muss es bewusst tun.
+    /// The most important test of the rework from #101: the four full texts are a contract. The
+    /// <c>DialogEditor</c> shows them unchanged, the E2E suite and the publish confirmation hang on
+    /// them. Whoever rewords something here changes the UI – and has to do so deliberately.
     /// </summary>
     [Fact]
-    public void Analyze_liefert_die_bisherigen_Wortlaute_unveraendert()
+    public void Analyze_returns_the_existing_wordings_unchanged()
     {
         IReadOnlyList<TransitionDetail> outgoing =
         [
@@ -120,9 +121,9 @@ public sealed class TransitionWarningAnalyzerTests
             texts);
     }
 
-    /// <summary>Der stimmige Verzweigungs-Dialog der Engine erzeugt keine Warnung.</summary>
+    /// <summary>The engine's consistent branching dialog produces no warning.</summary>
     [Fact]
-    public void Analyze_meldet_nichts_fuer_einen_stimmigen_Graphen()
+    public void Analyze_reports_nothing_for_a_consistent_graph()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _));
 
@@ -130,19 +131,19 @@ public sealed class TransitionWarningAnalyzerTests
     }
 
     /// <summary>
-    /// Über den ganzen Graphen läuft die Prüfung in Fragen-Reihenfolge; Fragen ohne ausgehende Übergänge
-    /// enden regulär und sind kein Befund. Beides muss so bleiben, weil der <c>DialogEditor</c> die
-    /// Reihenfolge unverändert als Liste zeigt.
+    /// Across the whole graph the check runs in question order; questions without outgoing
+    /// transitions end regularly and are no finding. Both have to stay that way, because the
+    /// <c>DialogEditor</c> shows the order unchanged as a list.
     /// </summary>
     [Fact]
-    public void Analyze_ueber_den_Dialog_folgt_der_Fragenreihenfolge_und_ueberspringt_Endfragen()
+    public void Analyze_over_the_dialog_follows_the_question_order_and_skips_terminal_questions()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
 
-        // Der Default fällt weg -> die Startfrage hat nur noch eine bedingte Kante.
+        // The default is dropped -> the entry question has only a conditional edge left.
         dialog.Transitions.Remove(dialog.Transitions.First(transition => transition.IsDefault));
 
-        // Und die bislang terminale Frage bekommt ebenfalls eine unvollständige Gruppe.
+        // And the question that used to be terminal gets an incomplete group too.
         dialog.Transitions.Add(new Transition
         {
             Id = Guid.NewGuid(),
@@ -160,11 +161,11 @@ public sealed class TransitionWarningAnalyzerTests
     }
 
     /// <summary>
-    /// Übergänge mit unbekannter Ausgangsfrage werden nie ausgewertet und haben keinen Knoten, an dem
-    /// eine Warnung hängen könnte – sie bleiben hier außen vor und werden getrennt ausgewiesen.
+    /// Transitions with an unknown source question are never evaluated and have no node a warning
+    /// could hang on – they stay out of this here and are reported separately.
     /// </summary>
     [Fact]
-    public void Analyze_ueber_den_Dialog_ignoriert_verwaiste_Uebergaenge()
+    public void Analyze_over_the_dialog_ignores_orphaned_transitions()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
         dialog.Transitions.Add(new Transition
@@ -179,9 +180,9 @@ public sealed class TransitionWarningAnalyzerTests
         Assert.Empty(TransitionWarningAnalyzer.Analyze(AdminProjection.ToDetail(dialog)));
     }
 
-    /// <summary>Die ausgehenden Übergänge kommen in Auswertungsreihenfolge, nicht in Speicherreihenfolge.</summary>
+    /// <summary>The outgoing transitions come in evaluation order, not in storage order.</summary>
     [Fact]
-    public void Outgoing_sortiert_nach_Prioritaet()
+    public void Outgoing_sorts_by_priority()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
         foreach (var transition in dialog.Transitions)

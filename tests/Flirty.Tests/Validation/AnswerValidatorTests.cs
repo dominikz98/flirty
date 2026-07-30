@@ -4,10 +4,10 @@ using Flirty.Validation;
 namespace Flirty.Tests.Validation;
 
 /// <summary>
-/// Verifiziert den <see cref="AnswerValidator"/> (Issue #30) isoliert: die Typprüfung je
-/// <see cref="QuestionType"/>, die typ-skopierten <see cref="ValidationRules"/>
-/// (Länge/Bereich/Muster), die Options-Membership der Auswahl-Typen, den toleranten Fallback für
-/// rohe (Nicht-JSON-)Werte sowie die Fehlkonfigurations-Fälle.
+/// Verifies the <see cref="AnswerValidator"/> (issue #30) in isolation: the type check per
+/// <see cref="QuestionType"/>, the type-scoped <see cref="ValidationRules"/>
+/// (length/range/pattern), the option membership of the choice types, the tolerant fallback for raw
+/// (non-JSON) values as well as the misconfiguration cases.
 /// </summary>
 public sealed class AnswerValidatorTests
 {
@@ -21,7 +21,7 @@ public sealed class AnswerValidatorTests
             Id = Guid.NewGuid(),
             DialogId = Guid.NewGuid(),
             Key = "q",
-            Text = "Frage?",
+            Text = "Question?",
             Type = type,
             ValidationRules = validationRules,
         };
@@ -46,15 +46,15 @@ public sealed class AnswerValidatorTests
     // ---- FreeText ----------------------------------------------------------------------------
 
     [Fact]
-    public void FreeText_akzeptiert_beliebigen_Text()
-        => Assert.True(_validator.Validate(NewQuestion(QuestionType.FreeText), "\"Hallo Welt\"").IsValid);
+    public void FreeText_accepts_arbitrary_text()
+        => Assert.True(_validator.Validate(NewQuestion(QuestionType.FreeText), "\"Hello world\"").IsValid);
 
     [Fact]
-    public void FreeText_akzeptiert_rohen_NichtJson_Text_tolerant()
-        => Assert.True(_validator.Validate(NewQuestion(QuestionType.FreeText), "Hallo Welt").IsValid);
+    public void FreeText_accepts_raw_non_JSON_text_tolerantly()
+        => Assert.True(_validator.Validate(NewQuestion(QuestionType.FreeText), "Hello world").IsValid);
 
     [Fact]
-    public void FreeText_zu_kurz_verletzt_MinLength()
+    public void FreeText_too_short_violates_MinLength()
     {
         var result = _validator.Validate(NewQuestion(QuestionType.FreeText, "{\"minLength\":5}"), "\"ab\"");
         Assert.False(result.IsValid);
@@ -62,53 +62,53 @@ public sealed class AnswerValidatorTests
     }
 
     [Fact]
-    public void FreeText_zu_lang_verletzt_MaxLength()
+    public void FreeText_too_long_violates_MaxLength()
     {
         var result = _validator.Validate(NewQuestion(QuestionType.FreeText, "{\"maxLength\":3}"), "\"abcd\"");
         Assert.False(result.IsValid);
     }
 
     [Fact]
-    public void FreeText_innerhalb_der_Laengengrenzen_ist_gueltig()
+    public void FreeText_within_the_length_bounds_is_valid()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.FreeText, "{\"minLength\":2,\"maxLength\":5}"), "\"abc\"").IsValid);
 
     [Fact]
-    public void FreeText_passendes_Muster_ist_gueltig()
+    public void FreeText_a_matching_pattern_is_valid()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.FreeText, "{\"pattern\":\"^[a-z]+$\"}"), "\"abc\"").IsValid);
 
     [Fact]
-    public void FreeText_nicht_passendes_Muster_ist_ungueltig()
+    public void FreeText_a_non_matching_pattern_is_invalid()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.FreeText, "{\"pattern\":\"^[a-z]+$\"}"), "\"ABC123\"").IsValid);
 
     // ---- Number ------------------------------------------------------------------------------
 
     [Fact]
-    public void Number_akzeptiert_JsonZahl()
+    public void Number_accepts_a_JSON_number()
         => Assert.True(_validator.Validate(NewQuestion(QuestionType.Number), "42").IsValid);
 
     [Fact]
-    public void Number_akzeptiert_numerischen_String()
+    public void Number_accepts_a_numeric_string()
         => Assert.True(_validator.Validate(NewQuestion(QuestionType.Number), "\"3.5\"").IsValid);
 
     [Fact]
-    public void Number_lehnt_NichtZahl_ab()
-        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Number), "\"keine-zahl\"").IsValid);
+    public void Number_rejects_a_non_number()
+        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Number), "\"not-a-number\"").IsValid);
 
     [Fact]
-    public void Number_unter_Minimum_ist_ungueltig()
+    public void Number_below_the_minimum_is_invalid()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.Number, "{\"min\":1,\"max\":10}"), "0").IsValid);
 
     [Fact]
-    public void Number_ueber_Maximum_ist_ungueltig()
+    public void Number_above_the_maximum_is_invalid()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.Number, "{\"min\":1,\"max\":10}"), "20").IsValid);
 
     [Fact]
-    public void Number_im_Bereich_ist_gueltig()
+    public void Number_within_the_range_is_valid()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.Number, "{\"min\":1,\"max\":10}"), "5").IsValid);
 
@@ -118,75 +118,75 @@ public sealed class AnswerValidatorTests
     [InlineData("true")]
     [InlineData("false")]
     [InlineData("\"true\"")]
-    public void Boolean_akzeptiert_Wahrheitswerte(string value)
+    public void Boolean_accepts_truth_values(string value)
         => Assert.True(_validator.Validate(NewQuestion(QuestionType.Boolean), value).IsValid);
 
     [Fact]
-    public void Boolean_lehnt_NichtBoolean_ab()
-        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Boolean), "\"vielleicht\"").IsValid);
+    public void Boolean_rejects_a_non_boolean()
+        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Boolean), "\"maybe\"").IsValid);
 
     // ---- Date --------------------------------------------------------------------------------
 
     [Fact]
-    public void Date_akzeptiert_IsoDatum()
+    public void Date_accepts_an_ISO_date()
         => Assert.True(_validator.Validate(NewQuestion(QuestionType.Date), "\"2026-07-17\"").IsValid);
 
     [Fact]
-    public void Date_lehnt_NichtDatum_ab()
-        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Date), "\"kein-datum\"").IsValid);
+    public void Date_rejects_a_non_date()
+        => Assert.False(_validator.Validate(NewQuestion(QuestionType.Date), "\"not-a-date\"").IsValid);
 
     // ---- SingleChoice ------------------------------------------------------------------------
 
     [Fact]
-    public void SingleChoice_akzeptiert_bekannte_Option()
+    public void SingleChoice_accepts_a_known_option()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.SingleChoice, null, "dev", "pm"), "\"dev\"").IsValid);
 
     [Fact]
-    public void SingleChoice_akzeptiert_bekannte_Option_als_rohen_String()
+    public void SingleChoice_accepts_a_known_option_as_a_raw_string()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.SingleChoice, null, "dev", "pm"), "dev").IsValid);
 
     [Fact]
-    public void SingleChoice_lehnt_unbekannte_Option_ab()
+    public void SingleChoice_rejects_an_unknown_option()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.SingleChoice, null, "dev", "pm"), "\"lead\"").IsValid);
 
     // ---- MultiChoice -------------------------------------------------------------------------
 
     [Fact]
-    public void MultiChoice_akzeptiert_bekannte_Teilmenge()
+    public void MultiChoice_accepts_a_known_subset()
         => Assert.True(_validator.Validate(
             NewQuestion(QuestionType.MultiChoice, null, "a", "b", "c"), "[\"a\",\"c\"]").IsValid);
 
     [Fact]
-    public void MultiChoice_lehnt_unbekanntes_Element_ab()
+    public void MultiChoice_rejects_an_unknown_element()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.MultiChoice, null, "a", "b"), "[\"a\",\"x\"]").IsValid);
 
     [Fact]
-    public void MultiChoice_lehnt_NichtArray_ab()
+    public void MultiChoice_rejects_a_non_array()
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.MultiChoice, null, "a", "b"), "\"a\"").IsValid);
 
-    // ---- Fehlkonfiguration / Argumente -------------------------------------------------------
+    // ---- Misconfiguration / arguments --------------------------------------------------------
 
     [Fact]
-    public void Kaputtes_ValidationRules_Json_wirft_InvalidOperationException()
+    public void Broken_ValidationRules_JSON_throws_InvalidOperationException()
         => Assert.Throws<InvalidOperationException>(
-            () => _validator.Validate(NewQuestion(QuestionType.FreeText, "{ kein json"), "\"x\""));
+            () => _validator.Validate(NewQuestion(QuestionType.FreeText, "{ not json"), "\"x\""));
 
     [Fact]
-    public void Ungueltiges_Regex_Muster_wirft_InvalidOperationException()
+    public void An_invalid_regex_pattern_throws_InvalidOperationException()
         => Assert.Throws<InvalidOperationException>(
             () => _validator.Validate(NewQuestion(QuestionType.FreeText, "{\"pattern\":\"[\"}"), "\"x\""));
 
     [Fact]
-    public void Validate_wirft_bei_null_Frage()
+    public void Validate_throws_on_a_null_question()
         => Assert.Throws<ArgumentNullException>(() => _validator.Validate(null!, "\"x\""));
 
     [Fact]
-    public void Validate_wirft_bei_null_Wert()
+    public void Validate_throws_on_a_null_value()
         => Assert.Throws<ArgumentNullException>(
             () => _validator.Validate(NewQuestion(QuestionType.FreeText), null!));
 }

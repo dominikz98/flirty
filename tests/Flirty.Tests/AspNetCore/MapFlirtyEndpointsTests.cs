@@ -7,18 +7,18 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.AspNetCore;
 
 /// <summary>
-/// Integrationstests für <c>MapFlirtyEndpoints</c> (#35): fahren die vier Endpunkte über einen
-/// In-Process-<c>TestServer</c> mit echten HTTP-Aufrufen gegen eine SQLite-in-memory-Datenbank
-/// (Docker-frei). Geprüft werden der Happy-Path (Start/Answer/Resume/Edit inkl. End-to-End-Abschluss)
-/// sowie das Fehler-Mapping der Engine-Ausnahmen auf HTTP-Statuscodes (404/400/409).
+/// Integration tests for <c>MapFlirtyEndpoints</c> (#35): drive the four endpoints over an in-process
+/// <c>TestServer</c> with real HTTP calls against a SQLite in-memory database (Docker-free). Checked
+/// are the happy path (start/answer/resume/edit incl. end-to-end completion) as well as the error
+/// mapping of the engine exceptions onto HTTP status codes (404/400/409).
 /// </summary>
 public sealed class MapFlirtyEndpointsTests
 {
-    // ---- Happy-Path ----
+    // ---- Happy path ----
 
-    /// <summary>Ein Neu-Start liefert 201 mit Location-Header, neuer Session und der ersten Frage.</summary>
+    /// <summary>A fresh start returns 201 with a Location header, a new session and the first question.</summary>
     [Fact]
-    public async Task Start_liefert_201_mit_Session_und_erster_Frage()
+    public async Task Start_returns_201_with_the_session_and_the_first_question()
     {
         await using var host = await StartBranchingHostAsync();
 
@@ -36,9 +36,9 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Contains($"/flirty/sessions/{body.SessionId}", response.Headers.Location?.ToString());
     }
 
-    /// <summary>Eine Antwort auf die offene Frage liefert 200 und schaltet auf die Folgefrage weiter.</summary>
+    /// <summary>An answer to the open question returns 200 and advances to the follow-up question.</summary>
     [Fact]
-    public async Task Answer_schaltet_zur_naechsten_Frage()
+    public async Task Answer_advances_to_the_next_question()
     {
         await using var host = await StartBranchingHostAsync();
         var start = await StartSessionAsync(host);
@@ -55,9 +55,9 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal("devDetail", body.NextQuestion.Key);
     }
 
-    /// <summary>Der End-to-End-Durchlauf (Start -> dev -> Freitext) schließt den Dialog ab.</summary>
+    /// <summary>The end-to-end run (start -> dev -> free text) completes the dialog.</summary>
     [Fact]
-    public async Task Antwort_auf_terminale_Frage_schliesst_den_Dialog_ab()
+    public async Task Answer_to_a_terminal_question_completes_the_dialog()
     {
         await using var host = await StartBranchingHostAsync();
         var start = await StartSessionAsync(host);
@@ -76,9 +76,9 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Null(body.NextQuestion);
     }
 
-    /// <summary>Das Lesen des Zustands liefert 200 mit Status, aktueller Frage und bisherigen Antworten.</summary>
+    /// <summary>Reading the state returns 200 with the status, the current question and the answers so far.</summary>
     [Fact]
-    public async Task Resume_liefert_Status_aktuelle_Frage_und_Antworten()
+    public async Task Resume_returns_the_status_the_current_question_and_the_answers()
     {
         await using var host = await StartBranchingHostAsync();
         var start = await StartSessionAsync(host);
@@ -97,9 +97,9 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal("\"dev\"", answer.Value);
     }
 
-    /// <summary>Das Editieren einer früheren Antwort berechnet den Pfad neu und meldet verworfene Antworten.</summary>
+    /// <summary>Editing an earlier answer recomputes the path and reports the discarded answers.</summary>
     [Fact]
-    public async Task Edit_berechnet_Pfad_neu_und_meldet_invalidierte_Antworten()
+    public async Task Edit_recomputes_the_path_and_reports_the_invalidated_answers()
     {
         await using var host = await StartBranchingHostAsync();
         var start = await StartSessionAsync(host);
@@ -107,8 +107,8 @@ public sealed class MapFlirtyEndpointsTests
         var afterDev = await SubmitAnswerAsync(host, start.SessionId, roleQuestionId, "\"dev\"");
         await SubmitAnswerAsync(host, start.SessionId, afterDev.NextQuestion!.Id, "\"C#\"");
 
-        // Von "dev" auf "pm" umeditieren: der dev-Zweig (devDetail-Antwort) wird verworfen, der Pfad
-        // führt neu auf pmDetail.
+        // Edit from "dev" to "pm": the dev branch (the devDetail answer) is discarded and the path
+        // now leads to pmDetail.
         var response = await host.Client.PutAsJsonAsync(
             $"/flirty/sessions/{start.SessionId}/answers/{roleQuestionId}",
             new EditAnswerRequest("\"pm\""));
@@ -122,11 +122,11 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal(1, body.InvalidatedAnswers);
     }
 
-    // ---- Fehlerfälle ----
+    // ---- Error cases ----
 
-    /// <summary>Der Start eines unbekannten Dialogs wird auf 404 abgebildet.</summary>
+    /// <summary>Starting an unknown dialog is mapped to 404.</summary>
     [Fact]
-    public async Task Start_mit_unbekanntem_Dialog_liefert_404()
+    public async Task Start_with_an_unknown_dialog_returns_404()
     {
         await using var host = await StartBranchingHostAsync();
 
@@ -136,9 +136,9 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>Das Lesen einer unbekannten Session wird auf 404 abgebildet.</summary>
+    /// <summary>Reading an unknown session is mapped to 404.</summary>
     [Fact]
-    public async Task Resume_einer_unbekannten_Session_liefert_404()
+    public async Task Resume_of_an_unknown_session_returns_404()
     {
         await using var host = await StartBranchingHostAsync();
 
@@ -147,16 +147,16 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>Eine Antwort auf eine nicht (mehr) offene Frage wird auf 409 abgebildet.</summary>
+    /// <summary>An answer to a question that is no longer open is mapped to 409.</summary>
     [Fact]
-    public async Task Answer_auf_nicht_offene_Frage_liefert_409()
+    public async Task Answer_to_a_question_that_is_not_open_returns_409()
     {
         await using var host = await StartBranchingHostAsync();
         var start = await StartSessionAsync(host);
         var roleQuestionId = start.CurrentQuestion.Id;
         await SubmitAnswerAsync(host, start.SessionId, roleQuestionId, "\"dev\"");
 
-        // Die Startfrage ist nach dem Weiterschalten nicht mehr die aktuell offene Frage.
+        // After advancing, the entry question is no longer the currently open question.
         var response = await host.Client.PostAsJsonAsync(
             $"/flirty/sessions/{start.SessionId}/answers",
             new SubmitAnswerRequest(roleQuestionId, "\"dev\""));
@@ -164,27 +164,27 @@ public sealed class MapFlirtyEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    /// <summary>Ein fehlender Pflichtwert (DialogKey) wird über die Pipeline-Validierung auf 400 abgebildet.</summary>
+    /// <summary>A missing required value (DialogKey) is mapped to 400 by the pipeline validation.</summary>
     [Fact]
-    public async Task Start_ohne_DialogKey_liefert_400()
+    public async Task Start_without_a_DialogKey_returns_400()
     {
         await using var host = await StartBranchingHostAsync();
 
-        // dialogKey wird bewusst weggelassen -> [Required] im StartDialogCommand schlägt an.
+        // dialogKey is deliberately omitted -> [Required] on the StartDialogCommand kicks in.
         var response = await host.Client.PostAsJsonAsync(
             "/flirty/sessions", new { externalUserKey = "user-1" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    // ---- Infrastruktur ----
+    // ---- Infrastructure ----
 
-    /// <summary>Startet einen TestServer, der den Branching-Dialog (#26) geseedet hat.</summary>
+    /// <summary>Starts a TestServer that has the branching dialog (#26) seeded.</summary>
     private static Task<FlirtyTestHost> StartBranchingHostAsync()
         => FlirtyTestHost.StartAsync(context =>
             context.Dialogs.Add(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _)));
 
-    /// <summary>Startet über den Endpunkt eine Session und gibt die Antwort zurück.</summary>
+    /// <summary>Starts a session over the endpoint and returns the response.</summary>
     private static async Task<StartSessionResponse> StartSessionAsync(FlirtyTestHost host)
     {
         var response = await host.Client.PostAsJsonAsync(
@@ -193,7 +193,7 @@ public sealed class MapFlirtyEndpointsTests
         return (await response.Content.ReadFromJsonAsync<StartSessionResponse>())!;
     }
 
-    /// <summary>Reicht über den Endpunkt eine Antwort ein und gibt die Antwort zurück.</summary>
+    /// <summary>Submits an answer over the endpoint and returns the response.</summary>
     private static async Task<SubmitAnswerResponse> SubmitAnswerAsync(
         FlirtyTestHost host, Guid sessionId, Guid questionId, string value)
     {

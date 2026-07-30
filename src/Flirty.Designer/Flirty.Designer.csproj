@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <!-- Core-Engine + alle drei Migrations-Assemblies: für die Multi-DB-Connection-Profile (#37) muss
-       zur Laufzeit je Provider die passende MigrationsAssembly (Sqlite/PostgreSql/SqlServer) ladbar sein.
-       Bei ProjectReference greift die NuGet-Bündelung der Migrations-DLLs nicht (docs/PERSISTENCE.md),
-       daher werden alle drei explizit referenziert (analog Flirty.Samples.Web, das nur SQLite braucht). -->
+  <!-- Core engine + all three migration assemblies: for the multi-DB connection profiles (#37) the
+       matching MigrationsAssembly (Sqlite/PostgreSql/SqlServer) has to be loadable per provider at
+       runtime. With a ProjectReference the NuGet bundling of the migration DLLs does not apply
+       (docs/PERSISTENCE.md), so all three are referenced explicitly (like Flirty.Samples.Web, which
+       needs only SQLite). -->
   <ItemGroup>
     <ProjectReference Include="..\Flirty\Flirty.csproj" />
     <ProjectReference Include="..\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
@@ -11,8 +12,8 @@
     <ProjectReference Include="..\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
   </ItemGroup>
 
-  <!-- Interna (Store/Factory/Operationen) für die xUnit-Service-Tests sichtbar machen (#37) und für die
-       Playwright-E2E (#46), deren Fixture das Connection-Profil mit den echten Typen seedet. -->
+  <!-- Make the internals (store/factory/operations) visible to the xUnit service tests (#37) and to
+       the Playwright E2E (#46), whose fixture seeds the connection profile with the real types. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Flirty.Tests" />
     <InternalsVisibleTo Include="Flirty.E2E" />

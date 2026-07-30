@@ -14,31 +14,32 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 
-  <!-- DI-Container, Logging und IHttpClientFactory/AddHttpClient (Mediator-Pipeline + Webhook-Handler-
-       Tests, #33) kommen seit #35 über den FrameworkReference Microsoft.AspNetCore.App (Shared
-       Framework) und dürfen daher NICHT mehr explizit referenziert werden (sonst NU1510 -> Fehler bei
-       TreatWarningsAsErrors). Nur Standard-Resilience (Retry/Timeout) liegt außerhalb des Shared
-       Frameworks und bleibt explizit; Version zentral. -->
+  <!-- The DI container, logging and IHttpClientFactory/AddHttpClient (mediator pipeline + webhook
+       handler tests, #33) have come over the FrameworkReference Microsoft.AspNetCore.App (shared
+       framework) since #35 and must therefore NOT be referenced explicitly any more (otherwise
+       NU1510 -> an error under TreatWarningsAsErrors). Only the standard resilience (retry/timeout)
+       lies outside the shared framework and stays explicit; version pinned centrally. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
   </ItemGroup>
 
-  <!-- SQLite als Test-Host für die FlirtyDbContext-Tests (in-memory, #18); der Provider kommt seit
-       #19 auch transitiv über Flirty, die explizite Referenz bleibt zur Klarheit. Version zentral. -->
+  <!-- SQLite as the test host for the FlirtyDbContext tests (in-memory, #18); since #19 the provider
+       also comes transitively over Flirty, the explicit reference stays for clarity. Version pinned
+       centrally. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 
-  <!-- ASP.NET Core + In-Process-TestServer für die MapFlirtyEndpoints-Integrationstests (#35):
-       Der FrameworkReference stellt WebApplication/TestServer bereit (kommt NICHT transitiv über die
-       Projektreferenz auf Flirty.AspNetCore), TestHost liefert UseTestServer()/GetTestClient(). -->
+  <!-- ASP.NET Core + in-process TestServer for the MapFlirtyEndpoints integration tests (#35): the
+       FrameworkReference provides WebApplication/TestServer (it does NOT come transitively over the
+       project reference to Flirty.AspNetCore), TestHost supplies UseTestServer()/GetTestClient(). -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
-  <!-- Testcontainers: reale PostgreSQL-/SQL-Server-Datenbanken für die Provider-Migrationstests (#19).
-       Brauchen ein laufendes Docker; ohne Docker werden die betroffenen Tests zur Laufzeit übersprungen. -->
+  <!-- Testcontainers: real PostgreSQL/SQL Server databases for the provider migration tests (#19).
+       They need a running Docker; without Docker the affected tests skip themselves at runtime. -->
   <ItemGroup>
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.MsSql" />
@@ -49,28 +50,29 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <!-- Root-README ins Testausgabeverzeichnis kopieren: PackageReadmeTests (#52) prüft daran die
-       nuget.org-Regeln (nur absolute Links, Bilder von freigegebenen Hosts) – die README wird über
-       PackageReadmeFile in beide Pakete gepackt. Muster wie die wwwroot-Kopie in Flirty.E2E. -->
+  <!-- Copy the root README into the test output directory: PackageReadmeTests (#52) checks the
+       nuget.org rules against it (absolute links only, images from allow-listed hosts) – the README
+       is packed into both packages via PackageReadmeFile. Same pattern as the wwwroot copy in
+       Flirty.E2E. -->
   <ItemGroup>
     <Content Include="..\..\README.md" Link="README.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Core + die drei provider-getrennten Migrations-Assemblies (#19): Letztere liefern die
-       InitialCreate-Migrationen, die die Tests via Database.Migrate() gegen jeden Provider anwenden. -->
+  <!-- The core + the three provider-separated migration assemblies (#19): the latter supply the
+       InitialCreate migrations the tests apply via Database.Migrate() against each provider. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flirty\Flirty.csproj" />
-    <!-- WebAPI-Endpunkte (#35): MapFlirtyEndpoints + DTOs, getestet über den In-Process-TestServer. -->
+    <!-- WebAPI endpoints (#35): MapFlirtyEndpoints + DTOs, tested over the in-process TestServer. -->
     <ProjectReference Include="..\..\src\Flirty.AspNetCore\Flirty.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.PostgreSql\Flirty.Migrations.PostgreSql.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />
-    <!-- Console-Sample (#44): der ConsoleSampleTests spielt den Sample-Runner end-to-end durch. -->
+    <!-- Console sample (#44): ConsoleSampleTests plays the sample runner through end-to-end. -->
     <ProjectReference Include="..\..\src\Flirty.Samples\Flirty.Samples.csproj" />
-    <!-- Web-Sample (#45): WebSampleTests spielt die Sample-Komposition über den In-Process-TestServer durch. -->
+    <!-- Web sample (#45): WebSampleTests plays the sample composition through over the in-process TestServer. -->
     <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
-    <!-- Designer (#37): Service-Tests der Connection-Profil-Verwaltung (Store/Factory/Operationen);
-         Interna via InternalsVisibleTo("Flirty.Tests") im Designer sichtbar. -->
+    <!-- Designer (#37): service tests of the connection-profile management (store/factory/
+         operations); the internals are visible via InternalsVisibleTo("Flirty.Tests") in the designer. -->
     <ProjectReference Include="..\..\src\Flirty.Designer\Flirty.Designer.csproj" />
   </ItemGroup>
 

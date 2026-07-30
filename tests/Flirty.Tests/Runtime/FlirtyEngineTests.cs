@@ -11,9 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert die öffentliche Facade <see cref="IFlirtyEngine"/> (Issue #25) end-to-end durch die
-/// Mediator-Pipeline: DI-Registrierung, Start eines Dialogs über die Facade (Facade → <c>ISender</c>
-/// → Handler → <see cref="IDialogStore"/> → EF Core) und die deklarative Command-Validierung.
+/// Verifies the public facade <see cref="IFlirtyEngine"/> (issue #25) end-to-end through the mediator
+/// pipeline: DI registration, starting a dialog over the facade (facade -> <c>ISender</c> -> handler
+/// -> <see cref="IDialogStore"/> -> EF Core) and the declarative command validation.
 /// </summary>
 public sealed class FlirtyEngineTests : IDisposable
 {
@@ -21,8 +21,8 @@ public sealed class FlirtyEngineTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public FlirtyEngineTests()
     {
@@ -37,7 +37,7 @@ public sealed class FlirtyEngineTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private ServiceProvider BuildProvider()
@@ -47,9 +47,9 @@ public sealed class FlirtyEngineTests : IDisposable
             .AddDbContext<FlirtyDbContext>(options => options.UseSqlite(_connection))
             .BuildServiceProvider();
 
-    /// <summary>Die Facade startet einen veröffentlichten Dialog und liefert Session + erste Frage.</summary>
+    /// <summary>The facade starts a published dialog and returns the session plus the first question.</summary>
     [Fact]
-    public async Task StartDialogAsync_startet_Dialog_ueber_die_Facade()
+    public async Task StartDialogAsync_starts_dialog_via_facade()
     {
         var dialogId = Guid.NewGuid();
         Guid questionId;
@@ -71,9 +71,9 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.Equal(2, result.CurrentQuestion.Options.Count);
     }
 
-    /// <summary>Ein leerer <c>DialogKey</c> wird durch das <c>ValidationPipelineBehavior</c> abgewiesen.</summary>
+    /// <summary>An empty <c>DialogKey</c> is rejected by the <c>ValidationPipelineBehavior</c>.</summary>
     [Fact]
-    public async Task StartDialogAsync_leerer_DialogKey_wird_von_der_Pipeline_abgewiesen()
+    public async Task StartDialogAsync_an_empty_DialogKey_is_rejected_by_the_pipeline()
     {
         using var provider = BuildProvider();
         using var scope = provider.CreateScope();
@@ -83,9 +83,9 @@ public sealed class FlirtyEngineTests : IDisposable
             async () => await engine.StartDialogAsync(string.Empty, "user-1"));
     }
 
-    /// <summary>Die Facade reicht eine Antwort ein und liefert über das Branching die nächste Frage.</summary>
+    /// <summary>The facade submits an answer and returns the next question via branching.</summary>
     [Fact]
-    public async Task SubmitAnswerAsync_reicht_Antwort_ein_und_liefert_naechste_Frage()
+    public async Task SubmitAnswerAsync_submits_the_answer_and_returns_the_next_question()
     {
         var dialogId = Guid.NewGuid();
         BranchingDialogIds ids;
@@ -107,9 +107,9 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.Equal(ids.DevQuestionId, result.NextQuestion.Id);
     }
 
-    /// <summary>Ein <c>null</c>-Antwortwert wird durch das <c>ValidationPipelineBehavior</c> abgewiesen.</summary>
+    /// <summary>A <c>null</c> answer value is rejected by the <c>ValidationPipelineBehavior</c>.</summary>
     [Fact]
-    public async Task SubmitAnswerAsync_null_Value_wird_von_der_Pipeline_abgewiesen()
+    public async Task SubmitAnswerAsync_a_null_value_is_rejected_by_the_pipeline()
     {
         using var provider = BuildProvider();
         using var scope = provider.CreateScope();
@@ -120,11 +120,11 @@ public sealed class FlirtyEngineTests : IDisposable
     }
 
     /// <summary>
-    /// Die Facade liest nach Start und einer eingereichten Antwort den Session-Zustand: Status, die nun
-    /// aktuelle Frage und die bisher gegebene Antwort.
+    /// After a start and one submitted answer the facade reads the session state: status, the now
+    /// current question and the answer given so far.
     /// </summary>
     [Fact]
-    public async Task ResumeDialogAsync_liefert_Zustand_und_bisherige_Antworten()
+    public async Task ResumeDialogAsync_returns_the_state_and_the_previous_answers()
     {
         var dialogId = Guid.NewGuid();
         BranchingDialogIds ids;
@@ -153,9 +153,9 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.Equal("\"dev\"", answer.Value);
     }
 
-    /// <summary>Eine unbekannte Session lässt <c>ResumeDialogAsync</c> mit <see cref="SessionNotFoundException"/> fehlschlagen.</summary>
+    /// <summary>An unknown session makes <c>ResumeDialogAsync</c> fail with <see cref="SessionNotFoundException"/>.</summary>
     [Fact]
-    public async Task ResumeDialogAsync_unbekannte_Session_wirft_SessionNotFoundException()
+    public async Task ResumeDialogAsync_an_unknown_session_throws_SessionNotFoundException()
     {
         using var provider = BuildProvider();
         using var scope = provider.CreateScope();
@@ -166,11 +166,11 @@ public sealed class FlirtyEngineTests : IDisposable
     }
 
     /// <summary>
-    /// Die Facade editiert eine frühere Antwort einer bereits abgeschlossenen Session, berechnet den Pfad
-    /// neu (dev-Zweig → pm-Zweig), öffnet die Session wieder und meldet die verworfene nachgelagerte Antwort.
+    /// The facade edits an earlier answer of an already completed session, recomputes the path (dev
+    /// branch -> pm branch), reopens the session and reports the discarded downstream answer.
     /// </summary>
     [Fact]
-    public async Task EditAnswerAsync_ueberschreibt_und_berechnet_Pfad_neu()
+    public async Task EditAnswerAsync_overwrites_and_recomputes_the_path()
     {
         var dialogId = Guid.NewGuid();
         BranchingDialogIds ids;
@@ -184,7 +184,7 @@ public sealed class FlirtyEngineTests : IDisposable
         using var scope = provider.CreateScope();
         var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
 
-        // dev-Zweig vollständig durchlaufen (role → devDetail → Abschluss).
+        // Walk the dev branch completely (role -> devDetail -> completion).
         var start = await engine.StartDialogAsync("branching", "user-1");
         var afterRole = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
         await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
@@ -198,12 +198,12 @@ public sealed class FlirtyEngineTests : IDisposable
     }
 
     /// <summary>
-    /// Die Facade durchläuft eine Schleife über mehrere Iterationen (Loop-Back bei <c>more == "yes"</c>,
-    /// Exit bei <c>"no"</c>), macht die Iterationen über <c>ResumeDialogAsync</c> sichtbar und editiert
-    /// anschließend gezielt die erste Iteration (Issue #29).
+    /// The facade walks a loop across several iterations (loop back on <c>more == "yes"</c>, exit on
+    /// <c>"no"</c>), makes the iterations visible over <c>ResumeDialogAsync</c> and then edits exactly
+    /// the first iteration (issue #29).
     /// </summary>
     [Fact]
-    public async Task LoopRuntime_durchlaeuft_Iterationen_und_editiert_gezielt_ueber_die_Facade()
+    public async Task LoopRuntime_walks_the_iterations_and_edits_one_specifically_over_the_facade()
     {
         var dialogId = Guid.NewGuid();
         LoopDialogIds ids;
@@ -236,9 +236,9 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.True(edited.InvalidatedAnswers > 0);
     }
 
-    /// <summary>Ein <c>null</c>-Antwortwert wird bei <c>EditAnswerAsync</c> durch die Pipeline abgewiesen.</summary>
+    /// <summary>A <c>null</c> answer value is rejected by the pipeline on <c>EditAnswerAsync</c> too.</summary>
     [Fact]
-    public async Task EditAnswerAsync_null_Value_wird_von_der_Pipeline_abgewiesen()
+    public async Task EditAnswerAsync_a_null_value_is_rejected_by_the_pipeline()
     {
         using var provider = BuildProvider();
         using var scope = provider.CreateScope();
@@ -248,9 +248,9 @@ public sealed class FlirtyEngineTests : IDisposable
             async () => await engine.EditAnswerAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
     }
 
-    /// <summary><c>AddFlirty()</c> registriert <see cref="IFlirtyEngine"/> als <see cref="FlirtyEngine"/>.</summary>
+    /// <summary><c>AddFlirty()</c> registers <see cref="IFlirtyEngine"/> as <see cref="FlirtyEngine"/>.</summary>
     [Fact]
-    public void AddFlirty_registriert_IFlirtyEngine()
+    public void AddFlirty_registers_IFlirtyEngine()
     {
         using var provider = new ServiceCollection()
             .AddFlirty()
@@ -263,9 +263,9 @@ public sealed class FlirtyEngineTests : IDisposable
         Assert.IsType<FlirtyEngine>(engine);
     }
 
-    /// <summary><c>AddFlirty()</c> registriert den Default-<see cref="IExpressionEvaluator"/> (#26).</summary>
+    /// <summary><c>AddFlirty()</c> registers the default <see cref="IExpressionEvaluator"/> (#26).</summary>
     [Fact]
-    public void AddFlirty_registriert_IExpressionEvaluator()
+    public void AddFlirty_registers_IExpressionEvaluator()
     {
         using var provider = new ServiceCollection()
             .AddFlirty()

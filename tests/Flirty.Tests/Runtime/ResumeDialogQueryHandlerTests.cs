@@ -8,11 +8,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert den <see cref="ResumeDialogQueryHandler"/> (Issue #27) gegen eine echte SQLite-Datenbank
-/// (in-memory): das Lesen von Status, aktueller Frage und bisherigen Antworten einer laufenden Session,
-/// die chronologische Ordnung der Antworten nach <see cref="SessionAnswer.Sequence"/>, das Verhalten bei
-/// abgeschlossener Session (keine offene Frage) sowie die Fehlerfälle (unbekannte Session,
-/// <c>null</c>-Store).
+/// Verifies the <see cref="ResumeDialogQueryHandler"/> (issue #27) against a real SQLite database
+/// (in-memory): reading status, current question and previous answers of a running session, the
+/// chronological order of the answers by <see cref="SessionAnswer.Sequence"/>, the behaviour on a
+/// completed session (no open question) as well as the error cases (unknown session, <c>null</c>
+/// store).
 /// </summary>
 public sealed class ResumeDialogQueryHandlerTests : IDisposable
 {
@@ -20,8 +20,8 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public ResumeDialogQueryHandlerTests()
     {
@@ -36,7 +36,7 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
@@ -44,16 +44,16 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
     private static ResumeDialogQueryHandler CreateHandler(FlirtyDbContext context)
         => new(new DialogStore(context));
 
-    // ---- Zustand lesen ----------------------------------------------------------------------
+    // ---- Reading the state ------------------------------------------------------------------
 
     /// <summary>
-    /// Eine laufende Session liefert ihren Status, die aktuell offene Frage und die bisherigen Antworten
-    /// (samt aufgelöstem fachlichen Frage-Schlüssel).
+    /// A running session returns its status, the currently open question and the previous answers
+    /// (including the resolved business question key).
     /// </summary>
     [Fact]
-    public async Task Handle_laufende_Session_liefert_Status_aktuelle_Frage_und_Antworten()
+    public async Task Handle_a_running_session_returns_status_current_question_and_answers()
     {
-        // Session steht (nach Antwort "dev" auf role) auf der Folgefrage devDetail.
+        // After answering role with "dev", the session sits on the follow-up question devDetail.
         var (sessionId, ids) = SeedBranchingSession(
             SessionStatus.InProgress,
             selectCurrentQuestion: dialogIds => dialogIds.DevQuestionId,
@@ -78,9 +78,9 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
         Assert.Equal(0, answer.Sequence);
     }
 
-    /// <summary>Die bisherigen Antworten werden aufsteigend nach <see cref="SessionAnswer.Sequence"/> geliefert.</summary>
+    /// <summary>The previous answers are returned ascending by <see cref="SessionAnswer.Sequence"/>.</summary>
     [Fact]
-    public async Task Handle_antworten_sind_nach_Sequence_geordnet()
+    public async Task Handle_the_answers_are_ordered_by_Sequence()
     {
         var (sessionId, _) = SeedBranchingSession(
             SessionStatus.Completed,
@@ -99,11 +99,11 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// Eine abgeschlossene Session liefert <c>null</c> als aktuelle Frage, den Status
-    /// <see cref="SessionStatus.Completed"/> und dennoch alle bisherigen Antworten.
+    /// A completed session returns <c>null</c> as the current question, the status
+    /// <see cref="SessionStatus.Completed"/> and nevertheless all previous answers.
     /// </summary>
     [Fact]
-    public async Task Handle_abgeschlossene_Session_liefert_null_CurrentQuestion()
+    public async Task Handle_a_completed_session_returns_a_null_CurrentQuestion()
     {
         var (sessionId, _) = SeedBranchingSession(
             SessionStatus.Completed,
@@ -121,11 +121,11 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
         Assert.Equal(2, result.Answers.Count);
     }
 
-    // ---- Fehlerfälle ------------------------------------------------------------------------
+    // ---- Error cases ------------------------------------------------------------------------
 
-    /// <summary>Eine unbekannte Session führt zu einer <see cref="SessionNotFoundException"/>.</summary>
+    /// <summary>An unknown session leads to a <see cref="SessionNotFoundException"/>.</summary>
     [Fact]
-    public async Task Handle_unbekannte_Session_wirft_SessionNotFoundException()
+    public async Task Handle_an_unknown_session_throws_SessionNotFoundException()
     {
         var unknownSession = Guid.NewGuid();
         using var act = CreateContext();
@@ -136,19 +136,20 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
         Assert.Equal(unknownSession, exception.SessionId);
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Store()
+    public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(() => new ResumeDialogQueryHandler(null!));
 
-    // ---- Testdaten-Helfer -------------------------------------------------------------------
+    // ---- Test-data helpers ------------------------------------------------------------------
 
     /// <summary>
-    /// Legt den Branching-Dialog samt einer Session im angegebenen Zustand an. Die aktuell offene Frage
-    /// wird über <paramref name="selectCurrentQuestion"/> aus den Dialog-Frage-Ids gewählt. Es wird stets
-    /// die <c>role</c>-Antwort (Sequenz 0) angehängt; mit <paramref name="withDetailAnswer"/> zusätzlich
-    /// die <c>devDetail</c>-Antwort (Sequenz 1). <paramref name="answersUnsorted"/> kehrt die
-    /// Einfüge-Reihenfolge um, um die Sortierung im Handler zu prüfen.
+    /// Creates the branching dialog together with a session in the given state. The currently open
+    /// question is chosen from the dialog's question ids via <paramref name="selectCurrentQuestion"/>.
+    /// The <c>role</c> answer (sequence 0) is always appended; with
+    /// <paramref name="withDetailAnswer"/> the <c>devDetail</c> answer (sequence 1) as well.
+    /// <paramref name="answersUnsorted"/> reverses the insertion order, to check the sorting in the
+    /// handler.
     /// </summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedBranchingSession(
         SessionStatus status,
