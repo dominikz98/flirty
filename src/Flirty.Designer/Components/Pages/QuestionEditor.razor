@@ -1,5 +1,5 @@
-@* Bewusst NICHT "QuestionDetail" genannt: der Komponententyp würde sonst den gleichnamigen
-   Sichttyp Flirty.Runtime.Admin.QuestionDetail verdecken (wie bei DialogEditor/DialogDetail). *@
+@* Deliberately NOT named "QuestionDetail": the component type would otherwise shadow the
+   view type Flirty.Runtime.Admin.QuestionDetail of the same name (as with DialogEditor/DialogDetail). *@
 @page "/dialogs/{DialogId:guid}/questions/{QuestionId:guid}"
 @rendermode InteractiveServer
 @using Mediator
@@ -8,13 +8,13 @@
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
 
-<PageTitle>@(_question?.Key ?? "Frage") · Flirty Designer</PageTitle>
+<PageTitle>@(_question?.Key ?? "Question") · Flirty Designer</PageTitle>
 
 <p class="back"><a href="@($"dialogs/{DialogId}")">← @(_detail?.Dialog.Name ?? "Dialog")</a></p>
 
 @if (_question is null)
 {
-    <h1>Frage</h1>
+    <h1>Question</h1>
 
     @if (_error is not null)
     {
@@ -22,7 +22,7 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
@@ -31,23 +31,22 @@ else
         @_question.Key
         @if (_detail!.Dialog.StartQuestionId == QuestionId)
         {
-            <span class="badge badge-start">Einstiegsfrage</span>
+            <span class="badge badge-start">Entry question</span>
         }
     </h1>
 
     <p class="intro">
-        Position @(_position + 1) von @_detail.Questions.Count im Dialog
+        Position @(_position + 1) of @_detail.Questions.Count in the dialog
         <a href="@($"dialogs/{DialogId}")">@_detail.Dialog.Name</a> ·
-        Typ @QuestionTypeLabels.Describe(_question.Type)
+        Type @QuestionTypeLabels.Describe(_question.Type)
     </p>
 
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
-            Der Dialog ist in Version @_detail.Dialog.Version veröffentlicht: Sein Graph ist <strong>gesperrt</strong>,
-            damit laufende Sessions nicht brechen. Zum Ändern im
-            <a href="@($"dialogs/{DialogId}")">Dialog-Editor</a> eine neue Version anlegen oder den Dialog
-            zurückziehen.
+            The dialog is published in version @_detail.Dialog.Version: its graph is <strong>locked</strong>,
+            so that running sessions do not break. To change it, create a new version in the
+            <a href="@($"dialogs/{DialogId}")">dialog editor</a> or unpublish the dialog.
         </div>
     }
 
@@ -64,131 +63,131 @@ else
         <DataAnnotationsValidator />
 
         <div class="editor">
-            <h2>Frage</h2>
+            <h2>Question</h2>
 
             <div class="field">
-                <label for="key">Schlüssel</label>
+                <label for="key">Key</label>
                 <InputText id="key" class="input" @bind-Value="_form.Key" />
                 <span class="hint">
-                    Fachlicher, stabiler Schlüssel – im Dialog eindeutig und im Ausdruckskontext des
-                    Branchings sichtbar. Ein Umbenennen bricht Bedingungen, die ihn verwenden.
+                    Business-level, stable key – unique within the dialog and visible in the expression
+                    context of branching. Renaming it breaks conditions that use it.
                 </span>
                 <ValidationMessage For="() => _form.Key" />
             </div>
 
             <div class="field">
-                <label for="text">Fragetext</label>
+                <label for="text">Question text</label>
                 <InputTextArea id="text" class="input" rows="3" @bind-Value="_form.Text" />
                 <ValidationMessage For="() => _form.Text" />
             </div>
 
             <div class="field">
-                <label for="type">Typ</label>
+                <label for="type">Type</label>
                 <InputSelect id="type" class="input" @bind-Value="_form.Type">
                     @foreach (var type in Enum.GetValues<QuestionType>())
                     {
                         <option value="@type">@QuestionTypeLabels.Describe(type)</option>
                     }
                 </InputSelect>
-                <span class="hint">Der Typ bestimmt, wie die Antwort geparst und validiert wird.</span>
+                <span class="hint">The type determines how the answer is parsed and validated.</span>
             </div>
 
             <div class="field check">
                 <InputCheckbox id="required" @bind-Value="_form.IsRequired" />
-                <label for="required">Antwort erforderlich</label>
+                <label for="required">Answer required</label>
             </div>
 
             <div class="field">
-                <label>Reihenfolge</label>
+                <label>Order</label>
                 <span class="hint">
-                    Position @(_position + 1) – änderbar über die Pfeile in der
-                    <a href="@($"dialogs/{DialogId}")">Fragenliste des Dialogs</a>.
+                    Position @(_position + 1) – changeable via the arrows in the
+                    <a href="@($"dialogs/{DialogId}")">question list of the dialog</a>.
                 </span>
             </div>
         </div>
 
         <div class="editor">
-            <h2>Validierung</h2>
+            <h2>Validation</h2>
 
             @if (_form.UseRawJson)
             {
                 <div class="banner warn">
-                    Die gespeicherten Regeln enthalten unbekannte Felder oder sind kein gültiges
-                    JSON-Objekt. Sie werden deshalb roh bearbeitet, damit nichts verloren geht.
-                    Bekannt sind <code>minLength</code>, <code>maxLength</code>, <code>min</code>,
-                    <code>max</code> und <code>pattern</code>.
+                    The saved rules contain unknown fields or are not a valid JSON object. They are
+                    therefore edited raw, so that nothing is lost. Known fields are
+                    <code>minLength</code>, <code>maxLength</code>, <code>min</code>,
+                    <code>max</code> and <code>pattern</code>.
                 </div>
 
                 <div class="field">
-                    <label for="rawRules">Regeln (JSON)</label>
+                    <label for="rawRules">Rules (JSON)</label>
                     <InputTextArea id="rawRules" class="input mono" rows="5" @bind-Value="_form.RawJson" />
-                    <span class="hint">Leeren, um die Regeln zu entfernen.</span>
+                    <span class="hint">Clear to remove the rules.</span>
                 </div>
             }
             else if (_form.Type == QuestionType.FreeText)
             {
                 <div class="field">
-                    <label for="minLength">Mindestlänge (Zeichen)</label>
+                    <label for="minLength">Minimum length (characters)</label>
                     <InputNumber id="minLength" class="input" @bind-Value="_form.MinLength" />
                 </div>
 
                 <div class="field">
-                    <label for="maxLength">Maximallänge (Zeichen)</label>
+                    <label for="maxLength">Maximum length (characters)</label>
                     <InputNumber id="maxLength" class="input" @bind-Value="_form.MaxLength" />
                 </div>
 
                 <div class="field">
-                    <label for="pattern">Muster (regulärer Ausdruck)</label>
+                    <label for="pattern">Pattern (regular expression)</label>
                     <InputText id="pattern" class="input mono" @bind-Value="_form.Pattern" />
                     <span class="hint">
-                        Teiltreffer – für eine Vollprüfung verankern (z. B. <code>^[A-Za-z ]+$</code>).
-                        Das Muster wird beim Speichern übersetzt; ein ungültiger Ausdruck wird abgelehnt.
+                        Partial match – anchor it for a full check (e.g. <code>^[A-Za-z ]+$</code>).
+                        The pattern is compiled on save; an invalid expression is rejected.
                     </span>
                 </div>
             }
             else if (_form.Type == QuestionType.Number)
             {
                 <div class="field">
-                    <label for="min">Minimum (inklusiv)</label>
+                    <label for="min">Minimum (inclusive)</label>
                     <InputNumber id="min" class="input" @bind-Value="_form.Min" />
                 </div>
 
                 <div class="field">
-                    <label for="max">Maximum (inklusiv)</label>
+                    <label for="max">Maximum (inclusive)</label>
                     <InputNumber id="max" class="input" @bind-Value="_form.Max" />
                 </div>
             }
             else
             {
                 <p class="hint">
-                    Für diesen Fragetyp gibt es keine konfigurierbaren Regeln – geprüft wird der Wert
-                    selbst (bei Auswahl-Typen gegen die Antwortoptionen unten).
+                    This question type has no configurable rules – the value itself is checked
+                    (for choice types against the answer options below).
                 </p>
             }
         </div>
 
         <div class="actions">
-            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Speichern</button>
-            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Zurücksetzen</button>
+            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Save</button>
+            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Reset</button>
         </div>
     </EditForm>
 
     @if (QuestionTypeLabels.UsesOptions(_question.Type) || _question.Options.Count > 0)
     {
         <div class="editor">
-            <h2>Antwortoptionen</h2>
+            <h2>Answer options</h2>
 
             @if (!QuestionTypeLabels.UsesOptions(_question.Type))
             {
                 <div class="banner warn">
-                    Der Fragetyp @QuestionTypeLabels.Describe(_question.Type) wertet keine Antwortoptionen
-                    aus – die folgenden Optionen bleiben wirkungslos und können gelöscht werden.
+                    The question type @QuestionTypeLabels.Describe(_question.Type) does not evaluate answer
+                    options – the following options have no effect and can be deleted.
                 </div>
             }
             else if (_question.Options.Count == 0)
             {
                 <div class="banner warn">
-                    Ohne Optionen ist keine Antwort auf diese Frage gültig.
+                    Without options no answer to this question is valid.
                 </div>
             }
 
@@ -198,17 +197,17 @@ else
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Schlüssel</th>
-                            <th>Beschriftung</th>
-                            <th>Wert</th>
-                            <th>Aktionen</th>
+                            <th>Key</th>
+                            <th>Label</th>
+                            <th>Value</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @for (var index = 0; index < _question.Options.Count; index++)
                         {
-                            // Lokale Kopien: die Lambdas liefen sonst gegen den Schleifenzustand
-                            // nach dem letzten Durchlauf.
+                            // Local copies: otherwise the lambdas would run against the loop state
+                            // after the last iteration.
                             var position = index;
                             var option = _question.Options[index];
 
@@ -218,27 +217,27 @@ else
                                 <td>@option.Label</td>
                                 <td class="mono">@option.Value</td>
                                 <td class="row-actions">
-                                    <button class="btn" title="Nach oben"
+                                    <button class="btn" title="Move up"
                                             disabled="@(_busy || !Editable || position == 0)"
                                             @onclick="() => MoveOptionAsync(position, position - 1)">↑</button>
-                                    <button class="btn" title="Nach unten"
+                                    <button class="btn" title="Move down"
                                             disabled="@(_busy || !Editable || position == _question.Options.Count - 1)"
                                             @onclick="() => MoveOptionAsync(position, position + 1)">↓</button>
                                     <button class="btn" disabled="@(_busy || !Editable)"
-                                            @onclick="() => StartEditOption(option)">Bearbeiten</button>
+                                            @onclick="() => StartEditOption(option)">Edit</button>
 
                                     @if (_confirmDeleteOptionId == option.Id)
                                     {
-                                        <span class="confirm">Option löschen?</span>
+                                        <span class="confirm">Delete option?</span>
                                         <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                @onclick="() => DeleteOptionAsync(option)">Ja, löschen</button>
+                                                @onclick="() => DeleteOptionAsync(option)">Yes, delete</button>
                                         <button class="btn" disabled="@(_busy || !Editable)"
-                                                @onclick="() => _confirmDeleteOptionId = null">Abbrechen</button>
+                                                @onclick="() => _confirmDeleteOptionId = null">Cancel</button>
                                     }
                                     else
                                     {
                                         <button class="btn btn-danger" disabled="@(_busy || !Editable)"
-                                                @onclick="() => _confirmDeleteOptionId = option.Id">Löschen</button>
+                                                @onclick="() => _confirmDeleteOptionId = option.Id">Delete</button>
                                     }
                                 </td>
                             </tr>
@@ -250,7 +249,7 @@ else
             @if (_optionForm is null)
             {
                 <div class="actions">
-                    <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateOption">Neue Option</button>
+                    <button class="btn btn-primary" disabled="@(_busy || !Editable)" @onclick="StartCreateOption">New option</button>
                 </div>
             }
             else
@@ -258,36 +257,36 @@ else
                 <EditForm Model="_optionForm" OnValidSubmit="SaveOptionAsync">
                     <DataAnnotationsValidator />
 
-                    <h3>@(_editedOptionId is null ? "Neue Option" : "Option bearbeiten")</h3>
+                    <h3>@(_editedOptionId is null ? "New option" : "Edit option")</h3>
 
                     <div class="field-row">
                         <div class="field">
-                            <label for="optionKey">Schlüssel</label>
+                            <label for="optionKey">Key</label>
                             <InputText id="optionKey" class="input" @bind-Value="_optionForm.Key" />
                             <ValidationMessage For="() => _optionForm.Key" />
                         </div>
 
                         <div class="field">
-                            <label for="optionLabel">Beschriftung</label>
+                            <label for="optionLabel">Label</label>
                             <InputText id="optionLabel" class="input" @bind-Value="_optionForm.Label" />
                             <ValidationMessage For="() => _optionForm.Label" />
                         </div>
 
                         <div class="field">
-                            <label for="optionValue">Wert</label>
+                            <label for="optionValue">Value</label>
                             <InputText id="optionValue" class="input" @bind-Value="_optionForm.Value" />
                             <ValidationMessage For="() => _optionForm.Value" />
                         </div>
                     </div>
 
                     <span class="hint">
-                        Gespeichert und validiert wird der <em>Wert</em>; die Beschriftung ist reiner
-                        Anzeigetext für die Host-UI.
+                        The <em>value</em> is what gets saved and validated; the label is pure
+                        display text for the host UI.
                     </span>
 
                     <div class="actions">
-                        <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Speichern</button>
-                        <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="CancelEditOption">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Save</button>
+                        <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="CancelEditOption">Cancel</button>
                     </div>
                 </EditForm>
             }
@@ -295,41 +294,41 @@ else
     }
 
     <div class="editor">
-        <h2>Frage löschen</h2>
+        <h2>Delete question</h2>
 
         <p class="hint">
-            Mit der Frage verschwinden ihre Antwortoptionen und alle Übergänge, die sie als Ausgangs-
-            oder Zielfrage verwenden. Ist sie die Einstiegsfrage, wird diese zurückgesetzt.
+            Deleting the question also removes its answer options and all transitions that use it as source
+            or target question. If it is the entry question, that is reset.
         </p>
 
         <div class="actions">
             @if (_confirmDelete)
             {
-                <span class="confirm">Frage „@_question.Key“ wirklich löschen?</span>
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Ja, löschen</button>
-                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Abbrechen</button>
+                <span class="confirm">Really delete question "@_question.Key"?</span>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Yes, delete</button>
+                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Cancel</button>
             }
             else
             {
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Löschen</button>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Delete</button>
             }
         </div>
     </div>
 }
 
 @code {
-    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    /// <summary>The primary key of the dialog (from the route).</summary>
     [Parameter]
     public Guid DialogId { get; set; }
 
-    /// <summary>Der Primärschlüssel der bearbeiteten Frage (aus der Route).</summary>
+    /// <summary>The primary key of the edited question (from the route).</summary>
     [Parameter]
     public Guid QuestionId { get; set; }
 
     /// <summary>
-    /// Ob der Graph bearbeitbar ist: an einer veröffentlichten Version lehnt die Engine
-    /// Graph-Änderungen mit einem Konflikt ab (<c>DialogPublishedException</c>), damit laufende Sessions
-    /// nicht brechen. Die Sperre spiegelt das in der Oberfläche.
+    /// Whether the graph is editable: on a published version the engine rejects graph changes with a
+    /// conflict (<c>DialogPublishedException</c>), so that running sessions do not break. The lock
+    /// mirrors that in the UI.
     /// </summary>
     private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
     private DialogDetail? _detail;
@@ -362,9 +361,9 @@ else
     }
 
     /// <summary>
-    /// Lädt den Dialog-Graphen und greift die bearbeitete Frage heraus. Ein <c>GetDialogQuery</c> genügt:
-    /// er liefert Fragen inklusive Optionen und dazu die Dialog-Metadaten für Titel, Einstiegsfrage und
-    /// Veröffentlichungs-Hinweis.
+    /// Loads the dialog graph and picks out the edited question. A single <c>GetDialogQuery</c> suffices:
+    /// it delivers questions including options plus the dialog metadata for the title, entry question and
+    /// publication hint.
     /// </summary>
     private async Task ReloadAsync(bool resetForm = true)
     {
@@ -383,7 +382,7 @@ else
 
         if (_detail is not null && _question is null)
         {
-            _error = $"Der Dialog '{DialogId}' enthält keine Frage mit der Id '{QuestionId}'.";
+            _error = $"The dialog '{DialogId}' contains no question with the id '{QuestionId}'.";
         }
 
         if (resetForm)
@@ -401,9 +400,9 @@ else
     }
 
     /// <summary>
-    /// Speichert Metadaten und Validierungsregeln in einem <c>UpdateQuestionCommand</c>. Ungültige Regeln
-    /// (kaputtes Muster, vertauschte Grenzen, unlesbares Roh-JSON) werden vorher abgefangen – die Engine
-    /// bemerkte sie sonst erst beim Validieren einer Antwort zur Laufzeit.
+    /// Saves metadata and validation rules in a single <c>UpdateQuestionCommand</c>. Invalid rules
+    /// (a broken pattern, swapped bounds, unreadable raw JSON) are caught beforehand – otherwise the
+    /// engine would only notice them when validating an answer at runtime.
     /// </summary>
     private async Task SaveAsync()
     {
@@ -420,7 +419,7 @@ else
                     DialogId, QuestionId, _form.Key, _form.Text, _form.Type, _question!.Order,
                     _form.IsRequired, rules),
                 token),
-            "Frage gespeichert.");
+            "Question saved.");
     }
 
     private async Task DeleteAsync()
@@ -446,7 +445,7 @@ else
         }
     }
 
-    // ---- Antwortoptionen --------------------------------------------------------------------------
+    // ---- Answer options ---------------------------------------------------------------------------
 
     private void StartCreateOption()
     {
@@ -485,7 +484,7 @@ else
                     new UpdateAnswerOptionCommand(
                         DialogId, QuestionId, optionId, model.Key, model.Label, model.Value, order),
                     token),
-                $"Option „{model.Key}“ gespeichert.",
+                $"Option \"{model.Key}\" saved.",
                 resetForm: false);
         }
         else
@@ -496,7 +495,7 @@ else
                     new CreateAnswerOptionCommand(
                         DialogId, QuestionId, model.Key, model.Label, model.Value, order),
                     token),
-                $"Option „{model.Key}“ angelegt.",
+                $"Option \"{model.Key}\" created.",
                 resetForm: false);
         }
 
@@ -512,17 +511,16 @@ else
 
         await RunAsync<Unit>(
             (sender, token) => sender.Send(new DeleteAnswerOptionCommand(DialogId, QuestionId, option.Id), token),
-            $"Option „{option.Key}“ gelöscht.",
+            $"Option \"{option.Key}\" deleted.",
             resetForm: false);
     }
 
     /// <summary>
-    /// Verschiebt eine Option um eine Position. Wie bei den Fragen wird der <b>Positionsindex</b> als
-    /// neue <c>Order</c> geschrieben (repariert doppelte/lückenhafte Werte); alle Updates laufen in
-    /// einem Gateway-Aufruf.
+    /// Moves an option by one position. As with the questions, the <b>position index</b> is written as
+    /// the new <c>Order</c> (repairs duplicate/gapped values); all updates run in a single gateway call.
     /// </summary>
-    /// <param name="from">Die aktuelle Position der Option.</param>
-    /// <param name="to">Die Zielposition.</param>
+    /// <param name="from">The current position of the option.</param>
+    /// <param name="to">The target position.</param>
     private async Task MoveOptionAsync(int from, int to)
     {
         if (_question is null || to < 0 || to >= _question.Options.Count)
@@ -556,21 +554,21 @@ else
 
                 return Unit.Value;
             },
-            "Reihenfolge der Optionen geändert.",
+            "Order of options changed.",
             resetForm: false);
     }
 
     /// <summary>
-    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// Runs a writing operation, shows success or error and reloads the graph.
     /// </summary>
-    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
-    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
-    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
+    /// <typeparam name="TResult">The result type of the operation.</typeparam>
+    /// <param name="operation">The admin message to execute.</param>
+    /// <param name="successMessage">The message shown on success.</param>
     /// <param name="resetForm">
-    /// Ob das Frage-Formular vom Serverstand überschrieben werden soll. Bei Options-Operationen bewusst
-    /// <see langword="false"/>, damit dort noch nicht gespeicherte Eingaben erhalten bleiben.
+    /// Whether the question form should be overwritten from the server state. For option operations
+    /// deliberately <see langword="false"/>, so that not-yet-saved input there is preserved.
     /// </param>
-    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    /// <returns><see langword="true"/> if the operation succeeded.</returns>
     private async Task<bool> RunAsync<TResult>(
         Func<ISender, CancellationToken, ValueTask<TResult>> operation,
         string successMessage,

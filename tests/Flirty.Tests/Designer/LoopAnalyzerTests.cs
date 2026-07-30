@@ -88,7 +88,7 @@ public sealed class LoopAnalyzerTests
 
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
-        Assert.Contains(insight.Warnings, warning => warning.Contains("kein Zyklus", StringComparison.Ordinal));
+        Assert.Contains(insight.Warnings, warning => warning.Contains("no cycle", StringComparison.Ordinal));
     }
 
     /// <summary>Ohne Übergang aus dem Bereich heraus lässt sich die Schleife nie verlassen.</summary>
@@ -103,7 +103,7 @@ public sealed class LoopAnalyzerTests
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
         Assert.Empty(insight.ExitTransitions);
-        Assert.Contains(insight.Warnings, warning => warning.Contains("Endlosschleife", StringComparison.Ordinal));
+        Assert.Contains(insight.Warnings, warning => warning.Contains("infinite loop", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public sealed class LoopAnalyzerTests
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
         Assert.NotEmpty(insight.ExitTransitions);
-        Assert.Contains(insight.Warnings, warning => warning.Contains("nie geprüft", StringComparison.Ordinal));
+        Assert.Contains(insight.Warnings, warning => warning.Contains("never evaluated", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public sealed class LoopAnalyzerTests
         Assert.All(
             LoopAnalyzer.Analyze(detail),
             insight => Assert.Contains(
-                insight.Warnings, warning => warning.Contains("überschneidet", StringComparison.Ordinal)));
+                insight.Warnings, warning => warning.Contains("overlaps", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class LoopAnalyzerTests
 
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
-        Assert.Contains(insight.Warnings, warning => warning.Contains("verdeckt", StringComparison.Ordinal));
+        Assert.Contains(insight.Warnings, warning => warning.Contains("shadows", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -202,7 +202,7 @@ public sealed class LoopAnalyzerTests
         var insight = Assert.Single(LoopAnalyzer.Analyze(detail));
 
         Assert.Contains(
-            insight.Warnings, warning => warning.Contains("nicht referenzierbar", StringComparison.Ordinal));
+            insight.Warnings, warning => warning.Contains("not referenceable", StringComparison.Ordinal));
     }
 
     /// <summary>Zeigt der Marker auf eine gelöschte Frage, bleibt der Bereich leer und wird gemeldet.</summary>
@@ -217,7 +217,7 @@ public sealed class LoopAnalyzerTests
 
         Assert.Empty(insight.Body);
         Assert.Null(insight.EntryQuestion);
-        Assert.Contains(insight.Warnings, warning => warning.Contains("Einstiegsfrage", StringComparison.Ordinal));
+        Assert.Contains(insight.Warnings, warning => warning.Contains("entry question", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -268,7 +268,7 @@ public sealed class LoopAnalyzerTests
 
         var warning = Assert.Single(
             insight.TargetedWarnings,
-            candidate => candidate.Text.Contains("nie geprüft", StringComparison.Ordinal));
+            candidate => candidate.Text.Contains("never evaluated", StringComparison.Ordinal));
         Assert.Equal(GraphElementKind.Transition, warning.Kind);
         Assert.Equal(loopBack.Id, warning.ElementId);
         Assert.Equal(ids.MoreQuestionId, warning.QuestionId);

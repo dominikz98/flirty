@@ -1,6 +1,6 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* The shared UI primitives live globally in wwwroot/app.css – only page-specific rules here. */
 
-/* Verlauf des Laufs: je Antwort ein Schritt. */
+/* History of the run: one step per answer. */
 .transcript {
     margin: 0.5rem 0 0;
     padding-left: 1.5rem;
@@ -11,8 +11,8 @@
     padding-left: 0.5rem;
 }
 
-/* Antworten innerhalb einer Schleife bekommen dieselbe Klammer wie der Loop-Block im Loop-Editor,
-   damit die Iterationen als zusammengehöriger Bereich lesbar sind. */
+/* Answers within a loop get the same bracket as the loop block in the loop editor,
+   so the iterations read as one coherent range. */
 .step-loop {
     border-left: 3px solid #8a5a1f;
     margin-left: -0.5rem;
@@ -49,7 +49,7 @@
     font-size: 1.05rem;
 }
 
-/* Eingabezeile der Antwort (Schaltflächen, Textfeld, Checkboxen nebeneinander). */
+/* Answer input row (buttons, text field, checkboxes side by side). */
 ::deep .answer-input {
     display: flex;
     align-items: center;

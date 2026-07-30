@@ -1,5 +1,5 @@
-@* Bewusst NICHT "TriggerDetail" genannt: der Komponententyp würde sonst den gleichnamigen
-   Sichttyp Flirty.Runtime.Admin.TriggerDetail verdecken (wie bei DialogEditor/QuestionEditor). *@
+@* Deliberately NOT named "TriggerDetail": the component type would otherwise shadow the
+   view type Flirty.Runtime.Admin.TriggerDetail of the same name (as with DialogEditor/QuestionEditor). *@
 @page "/dialogs/{DialogId:guid}/triggers/{TriggerId:guid}"
 @rendermode InteractiveServer
 @using Mediator
@@ -24,7 +24,7 @@
     }
     else
     {
-        <p class="empty">Wird geladen …</p>
+        <p class="empty">Loading …</p>
     }
 }
 else
@@ -35,20 +35,19 @@ else
     </h1>
 
     <p class="intro">
-        Trigger im Dialog <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
+        Trigger in the dialog <a href="@($"dialogs/{DialogId}")">@_detail!.Dialog.Name</a>
         @if (_trigger.QuestionId is { } boundQuestionId)
         {
-            <text>· gebunden an die Frage <span class="mono">@QuestionLabel(boundQuestionId)</span></text>
+            <text>· bound to the question <span class="mono">@QuestionLabel(boundQuestionId)</span></text>
         }
     </p>
 
     @if (_detail.Dialog.IsPublished)
     {
         <div class="banner warn">
-            Der Dialog ist in Version @_detail.Dialog.Version veröffentlicht: Sein Graph ist <strong>gesperrt</strong>,
-            damit laufende Sessions nicht brechen. Zum Ändern im
-            <a href="@($"dialogs/{DialogId}")">Dialog-Editor</a> eine neue Version anlegen oder den Dialog
-            zurückziehen.
+            The dialog is published in version @_detail.Dialog.Version: its graph is <strong>locked</strong>,
+            so that running sessions do not break. To change it, create a new version in the
+            <a href="@($"dialogs/{DialogId}")">dialog editor</a> or unpublish the dialog.
         </div>
     }
 
@@ -65,10 +64,10 @@ else
         <DataAnnotationsValidator />
 
         <div class="editor">
-            <h2>Auslöser</h2>
+            <h2>Trigger point</h2>
 
             <div class="field">
-                <label for="scope">Zeitpunkt</label>
+                <label for="scope">Point in time</label>
                 <InputSelect id="scope" class="input" @bind-Value="_form.Scope">
                     @foreach (var scope in Enum.GetValues<TriggerScope>())
                     {
@@ -76,48 +75,48 @@ else
                     }
                 </InputSelect>
                 <span class="hint">
-                    Bestimmt, welche Notification den Trigger auslöst – dieselben vier Zeitpunkte, die die
-                    Engine publiziert.
+                    Determines which notification fires the trigger – the same four points in time that the
+                    engine publishes.
                 </span>
             </div>
 
             @if (TriggerLabels.RequiresQuestion(_form.Scope))
             {
                 <div class="field">
-                    <label for="question">Frage</label>
+                    <label for="question">Question</label>
                     <InputSelect id="question" class="input" @bind-Value="_form.QuestionId">
-                        <option value="">— wählen —</option>
+                        <option value="">— select —</option>
                         @foreach (var question in _detail.Questions)
                         {
                             <option value="@question.Id">@question.Key — @question.Text</option>
                         }
                     </InputSelect>
-                    <span class="hint">Pflicht bei diesem Zeitpunkt: der Trigger löst nur nach dieser Frage aus.</span>
+                    <span class="hint">Required at this point in time: the trigger only fires after this question.</span>
                 </div>
             }
             else
             {
                 <span class="hint">
-                    Dieser Zeitpunkt bezieht sich nicht auf eine einzelne Frage – ein Frage-Bezug wird
-                    beim Speichern entfernt.
+                    This point in time does not relate to a single question – a question reference is
+                    removed on save.
                 </span>
             }
 
             @if (!TriggerLabels.HasAnswers(_form.Scope) && !string.IsNullOrWhiteSpace(_form.Expression))
             {
                 <div class="banner warn">
-                    Beim Dialogstart liegen noch <strong>keine Antworten</strong> vor. Eine Bedingung auf
-                    einen Fragen-Schlüssel lässt sich zur Laufzeit nicht auswerten – der Trigger feuert
-                    dann nicht (der Fehler wird nur protokolliert).
+                    At dialog start there are still <strong>no answers</strong>. A condition on a question
+                    key cannot be evaluated at runtime – the trigger then does not fire (the error is only
+                    logged).
                 </div>
             }
         </div>
 
         <div class="editor">
-            <h2>Kanal</h2>
+            <h2>Channel</h2>
 
             <div class="field">
-                <label for="kind">Kanal</label>
+                <label for="kind">Channel</label>
                 <InputSelect id="kind" class="input" @bind-Value="_form.Kind">
                     @foreach (var kind in Enum.GetValues<TriggerKind>())
                     {
@@ -129,24 +128,24 @@ else
             @if (_form.Kind == TriggerKind.InProcess)
             {
                 <div class="banner warn">
-                    In-Process-Trigger werden von der Engine <strong>nicht</strong> zugestellt: die
-                    Notification wird ohnehin publiziert, behandelt wird sie von einem Handler der
-                    Host-App. Dieser Eintrag dokumentiert die Absicht (und benennt sie).
+                    In-process triggers are <strong>not</strong> delivered by the engine: the notification
+                    is published anyway, and it is handled by a handler of the host app. This entry
+                    documents the intent (and names it).
                     <br />
-                    <code>services.AddFlirtyHandler&lt;DialogCompletedNotification, MeinHandler&gt;();</code>
+                    <code>services.AddFlirtyHandler&lt;DialogCompletedNotification, MyHandler&gt;();</code>
                 </div>
             }
 
             @if (_form.UseRawJson)
             {
                 <div class="banner warn">
-                    Die gespeicherte Konfiguration enthält unbekannte Felder oder ist kein gültiges
-                    JSON-Objekt. Sie wird deshalb roh bearbeitet, damit nichts verloren geht. Bekannt sind
-                    <code>url</code> und <code>name</code>.
+                    The saved configuration contains unknown fields or is not a valid JSON object. It is
+                    therefore edited raw, so that nothing is lost. Known fields are
+                    <code>url</code> and <code>name</code>.
                 </div>
 
                 <div class="field">
-                    <label for="rawConfig">Konfiguration (JSON)</label>
+                    <label for="rawConfig">Configuration (JSON)</label>
                     <InputTextArea id="rawConfig" class="input mono" rows="5" @bind-Value="_form.RawJson" />
                 </div>
             }
@@ -155,90 +154,90 @@ else
                 @if (_form.Kind == TriggerKind.Webhook)
                 {
                     <div class="field">
-                        <label for="url">Ziel-URL</label>
+                        <label for="url">Target URL</label>
                         <InputText id="url" class="input mono" @bind-Value="_form.Url" />
                         <span class="hint">
-                            Absolute http-/https-Adresse. Zugestellt wird ein HTTP-POST mit der
-                            Notification als JSON-Körper (Retry/Timeout inklusive, best-effort).
+                            Absolute http/https address. An HTTP POST with the notification as the JSON body
+                            is delivered (retry/timeout included, best-effort).
                         </span>
                     </div>
                 }
 
                 <div class="field">
-                    <label for="name">Ereignisname (optional)</label>
+                    <label for="name">Event name (optional)</label>
                     <InputText id="name" class="input mono" @bind-Value="_form.Name" />
                     <span class="hint">
-                        Wird als Header <code>X-Flirty-Trigger</code> mitgeliefert; der Zeitpunkt steht
-                        ohnehin in <code>X-Flirty-Event</code>.
+                        Delivered as the header <code>X-Flirty-Trigger</code>; the point in time is in
+                        <code>X-Flirty-Event</code> anyway.
                     </span>
                 </div>
             }
         </div>
 
         <div class="editor">
-            <h2>Bedingung</h2>
+            <h2>Condition</h2>
 
-            @* Eingabefeld, Live-Status, Fehlerstelle, Baustein-Einfüger und Bezeichner-Referenz liegen
-               seit #103 in ExpressionField – vorher stand der Block hier und im TransitionEditor Zeile
-               für Zeile gleich. Nebeneffekt der Zusammenlegung: Der Live-Status ist hier erstmals
-               gestylt (.expr-status/.expr-caret lagen scoped im TransitionEditor). *@
+            @* Input field, live status, error location, snippet inserter and identifier reference have
+               lived in ExpressionField since #103 – previously the block stood here and in the
+               TransitionEditor line for line the same. Side effect of the merge: the live status is styled
+               here for the first time (.expr-status/.expr-caret used to be scoped in the TransitionEditor). *@
             <ExpressionField Detail="_detail"
                              @bind-Value="_form.Expression"
-                             EmptyHint="löst bedingungslos aus"
-                             EmptyMeaning="der Trigger löst immer aus" />
+                             EmptyHint="fires unconditionally"
+                             EmptyMeaning="the trigger always fires" />
 
         </div>
 
         <div class="actions">
-            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Speichern</button>
-            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Zurücksetzen</button>
+            <button type="submit" class="btn btn-primary" disabled="@(_busy || !Editable)">Save</button>
+            <button type="button" class="btn" disabled="@(_busy || !Editable)" @onclick="ResetForm">Reset</button>
         </div>
     </EditForm>
 
     <div class="editor">
-        <h2>Trigger löschen</h2>
+        <h2>Delete trigger</h2>
 
         <p class="hint">
-            Ohne diesen Trigger läuft der Dialog unverändert weiter – es entfällt nur der Rückkanal.
+            Without this trigger the dialog continues unchanged – only the back channel is dropped.
         </p>
 
         <div class="actions">
             @if (_confirmDelete)
             {
-                <span class="confirm">Trigger wirklich löschen?</span>
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Ja, löschen</button>
-                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Abbrechen</button>
+                <span class="confirm">Really delete trigger?</span>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="DeleteAsync">Yes, delete</button>
+                <button class="btn" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = false">Cancel</button>
             }
             else
             {
-                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Löschen</button>
+                <button class="btn btn-danger" disabled="@(_busy || !Editable)" @onclick="() => _confirmDelete = true">Delete</button>
             }
         </div>
     </div>
 }
 
 @code {
-    /// <summary>Der Primärschlüssel des Dialogs (aus der Route).</summary>
+    /// <summary>The primary key of the dialog (from the route).</summary>
     [Parameter]
     public Guid DialogId { get; set; }
 
-    /// <summary>Der Primärschlüssel des bearbeiteten Triggers (aus der Route).</summary>
+    /// <summary>The primary key of the edited trigger (from the route).</summary>
     [Parameter]
     public Guid TriggerId { get; set; }
 
     /// <summary>
-    /// Ob der Graph bearbeitbar ist: an einer veröffentlichten Version lehnt die Engine
-    /// Graph-Änderungen mit einem Konflikt ab (<c>DialogPublishedException</c>), damit laufende Sessions
-    /// nicht brechen. Die Sperre spiegelt das in der Oberfläche.
+    /// Whether the graph is editable: on a published version the engine rejects graph changes with a
+    /// conflict (<c>DialogPublishedException</c>), so that running sessions do not break. The lock
+    /// mirrors that in the UI.
     /// </summary>
     private bool Editable => _detail is not null && !_detail.Dialog.IsPublished;
     private DialogDetail? _detail;
     private TriggerDetail? _trigger;
     private TriggerFormModel _form = new();
     /// <summary>
-    /// Der Musterkontext für die <b>blockierende</b> Prüfung in <see cref="SaveAsync"/>. Die
-    /// Live-Anzeige während der Eingabe leistet <c>ExpressionField</c>; die Entscheidung, ob gespeichert
-    /// wird, bleibt bewusst hier.
+    /// The sample context for the <b>blocking</b> check in <see cref="SaveAsync"/>. The live display
+    /// during input is done by <c>ExpressionField</c>; the decision whether to save deliberately stays
+    /// here.
     /// </summary>
     private ExpressionContext? _context;
     private string? _error;
@@ -261,9 +260,9 @@ else
     }
 
     /// <summary>
-    /// Lädt den Dialog-Graphen und greift den bearbeiteten Trigger heraus. Ein <c>GetDialogQuery</c>
-    /// genügt: er liefert Fragen (für die Auswahl und den Musterkontext), die Loop-Marker (für die
-    /// Collection-Bezeichner im Ausdruck) und die Trigger selbst.
+    /// Loads the dialog graph and picks out the edited trigger. A single <c>GetDialogQuery</c> suffices:
+    /// it delivers questions (for the selection and the sample context), the loop markers (for the
+    /// collection identifiers in the expression) and the triggers themselves.
     /// </summary>
     private async Task ReloadAsync()
     {
@@ -275,7 +274,7 @@ else
 
         if (_detail is not null && _trigger is null)
         {
-            _error = $"Der Dialog '{DialogId}' enthält keinen Trigger mit der Id '{TriggerId}'.";
+            _error = $"The dialog '{DialogId}' contains no trigger with the id '{TriggerId}'.";
         }
 
         if (_detail is not null)
@@ -299,9 +298,9 @@ else
             ?? questionId.ToString();
 
     /// <summary>
-    /// Speichert den Trigger – nachdem Konfiguration und Ausdruck <b>blockierend</b> geprüft wurden. Ein
-    /// ungültiger Ausdruck fiele zur Laufzeit sonst erst beim Auslösen auf (dort wird er protokolliert
-    /// und der Trigger übersprungen – also stillschweigend nichts zugestellt).
+    /// Saves the trigger – after configuration and expression have been checked in a <b>blocking</b> way.
+    /// An invalid expression would otherwise only surface at runtime when firing (where it is logged and
+    /// the trigger skipped – so silently nothing is delivered).
     /// </summary>
     private async Task SaveAsync()
     {
@@ -312,7 +311,7 @@ else
 
         if (TriggerLabels.RequiresQuestion(_form.Scope) && _form.QuestionId is null)
         {
-            _error = "Bitte eine Frage wählen – ein Trigger nach einer bestimmten Frage braucht ihren Bezug.";
+            _error = "Please select a question – a trigger after a specific question needs its reference.";
             _message = null;
             return;
         }
@@ -329,7 +328,7 @@ else
 
         if (!validation.IsValid)
         {
-            _error = $"Die Bedingung ist ungültig: {validation.Error}";
+            _error = $"The condition is invalid: {validation.Error}";
             _message = null;
             return;
         }
@@ -340,7 +339,7 @@ else
                     DialogId, TriggerId, _form.Scope, _form.NormalizedQuestionId(), _form.Kind, config,
                     expression),
                 token),
-            "Trigger gespeichert.");
+            "Trigger saved.");
     }
 
     private async Task DeleteAsync()
@@ -367,12 +366,12 @@ else
     }
 
     /// <summary>
-    /// Führt eine schreibende Operation aus, zeigt Erfolg oder Fehler an und lädt den Graphen neu.
+    /// Runs a writing operation, shows success or error and reloads the graph.
     /// </summary>
-    /// <typeparam name="TResult">Der Ergebnistyp der Operation.</typeparam>
-    /// <param name="operation">Die auszuführende Admin-Nachricht.</param>
-    /// <param name="successMessage">Die bei Erfolg angezeigte Meldung.</param>
-    /// <returns><see langword="true"/>, wenn die Operation erfolgreich war.</returns>
+    /// <typeparam name="TResult">The result type of the operation.</typeparam>
+    /// <param name="operation">The admin message to execute.</param>
+    /// <param name="successMessage">The message shown on success.</param>
+    /// <returns><see langword="true"/> if the operation succeeded.</returns>
     private async Task<bool> RunAsync<TResult>(
         Func<ISender, CancellationToken, ValueTask<TResult>> operation,
         string successMessage)

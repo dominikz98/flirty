@@ -1,6 +1,6 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* The shared UI primitives live globally in wwwroot/app.css – only page-specific rules here. */
 
-/* Gruppenüberschrift je Ausgangsfrage im Abschnitt „Übergänge" (#40). */
+/* Group heading per source question in the "Transitions" section (#40). */
 h3.group {
     display: flex;
     align-items: center;

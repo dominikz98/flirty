@@ -725,6 +725,28 @@ text – flipping the rule first is what makes the rest a one-way street. **Stag
 the 17 `docs/` guides and the 9 ADRs are English; the 8 ADR files were renamed via `git mv` (numbers
 unchanged) and every referrer (this file, the skills, `docs/adr/README.md` and the guides) now points at
 the new English slugs (`docs/adr/0001-migrations-per-provider.md` … `0008-gestures-on-the-canvas.md`).
-**Open:** stage 3 (#115: XML docs, comments and engine messages in the two
-packages), stage 4 (#116: designer and sample UIs, incl. `DisplayCulture` and the English `ReconnectModal`
-handed off from #118) and stage 5 (#117: the 553 test names, last so the renames do not collide).
+**Stage 4 (#116) done** – the designer UI (27 `.razor`, 42 `.cs`, both JS modules, `app.css`), the chat
+UI (`Flirty.Samples.Web`, incl. `app.js` banners and the auto-provisioned demo dialog) and the console
+sample are English; `DesignerApp.DisplayCulture` is now `"en-US"`. Everything moved in **one** commit,
+because the graph warning wordings (`TransitionWarningAnalyzer`, `LoopAnalyzer`, `DialogGraphBuilder`,
+plus `DesignerExpressionContext.IdentifierNote`) are a contract: their exact texts are consumed by the
+list view, the publish confirmation, the canvas **and** asserted verbatim in `tests/Flirty.Tests/Designer`
+and the E2E suite – splitting UI and tests would leave the suite red in between. Four points that shaped
+the work:
+- **`SvgFormat` is unchanged in behavior, not in prose.** The `N()` method and its `de-DE` test stay; only
+  the German XML-doc comments were translated, and reworded to say the guard is against **any**
+  comma-decimal display culture (which stays configurable), not against `de-DE` specifically – with the
+  default now `en-US` the immediate risk is gone, but the guard is not.
+- **The AC's umlaut grep is necessary, not sufficient.** `NavMenu.razor` ("Verbindungen"/"Dialoge") and
+  ~256 more lines carried umlaut-free German; a wordlist sweep alongside the grep is what actually caught
+  them (and two files no agent had been assigned: `Designer/Program.cs`, several `.razor.css`).
+- **#97's German pluralization flips back.** `LoopFormModel.SuggestCollectionKey` now appends `_list`
+  (was `_liste`), covered by the new `LoopFormModelTests`. And `QuestionFormModel.SuggestKey`'s stems are
+  English now (`choice`/`multi`/`number`/`date`/`yesno`/`text`) – that rippled straight into the E2E,
+  where the SingleChoice default key `auswahl` became `choice` and the loop suggestion `auswahl_liste`
+  became `choice_list`.
+- **`ReconnectModal` was already English** (pre-empted under #118), so nothing to do there.
+The E2E suite (17 tests) ran green **three times in a row**, and
+`grep -rlE '[äöüßÄÖÜ]' src/Flirty.Designer src/Flirty.Samples src/Flirty.Samples.Web` returns nothing.
+**Open:** stage 3 (#115: XML docs, comments and engine messages in the two packages) and stage 5
+(#117: the 553 test names, last so the renames do not collide).

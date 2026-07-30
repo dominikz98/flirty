@@ -2,14 +2,14 @@ using Flirty.Domain;
 
 namespace Flirty.Designer.Models;
 
-/// <summary>Eine im Testlauf gegebene Antwort – der Inhalt eines besuchten Knotens.</summary>
-/// <param name="Sequence">Die fortlaufende Position innerhalb der Session (Identität für das Editieren).</param>
+/// <summary>An answer given in the test run – the content of a visited node.</summary>
+/// <param name="Sequence">The running position within the session (identity for editing).</param>
 /// <param name="IterationIndex">
-/// Der nullbasierte Iterationsindex innerhalb einer Schleife oder <see langword="null"/> außerhalb.
+/// The zero-based iteration index within a loop or <see langword="null"/> outside one.
 /// </param>
-/// <param name="Value">Der gespeicherte rohe JSON-Antwortwert – das, womit die Bedingungen rechnen.</param>
-/// <param name="Display">Der lesbare Wert (Options-Beschriftung statt Rohwert, <c>true</c> → „Ja“).</param>
-/// <param name="AnsweredAt">Der Zeitpunkt der Erfassung.</param>
+/// <param name="Value">The stored raw JSON answer value – the one the conditions compute with.</param>
+/// <param name="Display">The readable value (option label instead of raw value, <c>true</c> → "Yes").</param>
+/// <param name="AnsweredAt">The point in time of capture.</param>
 public sealed record GraphRunAnswer(
     int Sequence,
     int? IterationIndex,
@@ -18,42 +18,42 @@ public sealed record GraphRunAnswer(
     DateTimeOffset AnsweredAt);
 
 /// <summary>
-/// Ein im Lauf besuchter Knoten: die Frage samt <b>allen</b> Antworten, die in diesem Lauf auf sie
-/// gegeben wurden – innerhalb einer Schleife also eine je Iteration.
+/// A node visited in the run: the question together with <b>all</b> answers that were given to it
+/// in this run – within a loop therefore one per iteration.
 /// </summary>
-/// <param name="QuestionId">Die besuchte Frage.</param>
-/// <param name="Answers">Die Antworten in der Reihenfolge ihrer <see cref="GraphRunAnswer.Sequence"/>.</param>
+/// <param name="QuestionId">The visited question.</param>
+/// <param name="Answers">The answers in the order of their <see cref="GraphRunAnswer.Sequence"/>.</param>
 /// <param name="IsCurrent">
-/// Ob die Frage gerade offen ist. Das ist unabhängig von <see cref="Answers"/>: Die Einstiegsfrage ist
-/// offen, bevor sie beantwortet wurde, und eine Schleifenfrage ist in der nächsten Iteration erneut offen.
+/// Whether the question is currently open. This is independent of <see cref="Answers"/>: the entry question is
+/// open before it was answered, and a loop question is open again in the next iteration.
 /// </param>
 public sealed record GraphRunVisit(
     Guid QuestionId,
     IReadOnlyList<GraphRunAnswer> Answers,
     bool IsCurrent);
 
-/// <summary>Eine im Lauf gegriffene Kante.</summary>
+/// <summary>An edge taken in the run.</summary>
 /// <remarks>
-/// <see cref="IsAmbiguous"/> ist der ehrliche Teil: Die Engine hält nicht fest, <b>welcher</b> Übergang
-/// gegriffen hat (<c>SessionAnswer</c> trägt keine <c>TransitionId</c>). Abgeleitet wird der Pfad aus der
-/// Antwortfolge, und die kennt nur das Fragenpaar. Gibt es zwischen denselben zwei Fragen mehrere
-/// Übergänge, sind sie damit nicht unterscheidbar – dann sind alle markiert und alle als mehrdeutig
-/// ausgewiesen, statt einen davon zu behaupten.
+/// <see cref="IsAmbiguous"/> is the honest part: the engine does not record <b>which</b> transition
+/// took effect (<c>SessionAnswer</c> carries no <c>TransitionId</c>). The path is derived from the
+/// answer sequence, and it only knows the question pair. If there are several transitions between the same
+/// two questions, they are thereby not distinguishable – then all are marked and all reported as
+/// ambiguous, instead of asserting one of them.
 /// </remarks>
-/// <param name="TransitionId">Der Übergang.</param>
-/// <param name="Count">Wie oft das zugehörige Fragenpaar durchlaufen wurde (in Schleifen mehrfach).</param>
-/// <param name="IsAmbiguous">Ob zwischen demselben Fragenpaar mehrere Übergänge liegen.</param>
+/// <param name="TransitionId">The transition.</param>
+/// <param name="Count">How often the associated question pair was traversed (several times in loops).</param>
+/// <param name="IsAmbiguous">Whether several transitions lie between the same question pair.</param>
 public sealed record GraphRunEdgeUse(Guid TransitionId, int Count, bool IsAmbiguous);
 
-/// <summary>Der Laufzustand einer Schleife – die Zahl am Bereichsrahmen.</summary>
-/// <param name="LoopId">Der Schleifen-Marker.</param>
-/// <param name="CollectionKey">Sein Sammel-Schlüssel.</param>
+/// <summary>The run state of a loop – the number at the range frame.</summary>
+/// <param name="LoopId">The loop marker.</param>
+/// <param name="CollectionKey">Its collection key.</param>
 /// <param name="Iterations">
-/// Die Zahl der Iterationen der <b>jüngsten</b> Schleifen-Instanz (dieselbe Auswahl wie im
-/// Core-<c>LoopResolver</c>); <c>0</c>, solange die Schleife nicht betreten wurde.
+/// The number of iterations of the <b>most recent</b> loop instance (the same selection as in the
+/// core <c>LoopResolver</c>); <c>0</c> as long as the loop was not entered.
 /// </param>
-/// <param name="IsActive">Ob die aktuell offene Frage im Bereich dieser Schleife liegt.</param>
-/// <param name="Body">Die Fragen des Bereichs, in Dialog-Reihenfolge.</param>
+/// <param name="IsActive">Whether the currently open question lies within the body of this loop.</param>
+/// <param name="Body">The questions of the body, in dialog order.</param>
 public sealed record GraphRunLoopState(
     Guid LoopId,
     string CollectionKey,
@@ -62,21 +62,21 @@ public sealed record GraphRunLoopState(
     IReadOnlyList<Guid> Body);
 
 /// <summary>
-/// Ein im Lauf <b>publiziertes</b> Trigger-Ereignis – die Anzeigeform eines Eintrags aus dem
+/// A trigger event <b>published</b> in the run – the display form of an entry from the
 /// <c>DesignerTriggerLog</c>.
 /// </summary>
-/// <param name="OccurredAt">Der Zeitpunkt der Beobachtung.</param>
-/// <param name="Scope">Der zugeordnete Auslöse-Zeitpunkt.</param>
+/// <param name="OccurredAt">The point in time of observation.</param>
+/// <param name="Scope">The associated firing point in time.</param>
 /// <param name="QuestionId">
-/// Die auslösende Frage oder <see langword="null"/>, wenn das Ereignis an keiner Frage hängt (Abschluss)
-/// bzw. die Frage nicht mehr zum Dialog gehört – dann wird es dialogweit gezeigt statt verschwiegen.
+/// The triggering question or <see langword="null"/> if the event is not attached to any question (completion)
+/// or the question no longer belongs to the dialog – then it is shown dialog-wide instead of concealed.
 /// </param>
-/// <param name="Label">Die kurze Beschriftung des Chips.</param>
-/// <param name="Title">Die vollständige Beschreibung für Tooltip und Screenreader.</param>
-/// <param name="Detail">Die Kurzbeschreibung des Ereignisses (wie im Protokoll der Listenansicht).</param>
+/// <param name="Label">The short label of the chip.</param>
+/// <param name="Title">The full description for tooltip and screen reader.</param>
+/// <param name="Detail">The brief description of the event (as in the log of the list view).</param>
 /// <param name="IsFresh">
-/// Ob das Ereignis aus dem <b>letzten</b> Schritt stammt. Trägt das kurze Aufblitzen am auslösenden
-/// Knoten; die Chips bleiben danach stehen.
+/// Whether the event stems from the <b>last</b> step. Carries the short flash at the triggering
+/// node; the chips remain afterwards.
 /// </param>
 public sealed record GraphRunTrigger(
     DateTimeOffset OccurredAt,
@@ -88,27 +88,27 @@ public sealed record GraphRunTrigger(
     bool IsFresh);
 
 /// <summary>
-/// Der Laufzustand über dem Zeichenmodell (#104): besuchte Knoten, gegriffene Kanten, Iterationszahlen
-/// und publizierte Trigger – die Antwort auf „welchen Weg nimmt der Dialog?“.
+/// The run state over the drawing model (#104): visited nodes, taken edges, iteration counts
+/// and published triggers – the answer to "which path does the dialog take?".
 /// </summary>
 /// <remarks>
 /// <para>
-/// Bewusst ein <b>eigenes</b> Modell neben <see cref="DialogGraphModel"/> statt zusätzlicher Felder
-/// darin: Die Editor-Ansicht (#101–#103) kennt keinen Lauf, und der Laufzustand wechselt bei jedem
-/// Schritt, während das Zeichenmodell nur bei einer Graph-Änderung neu entsteht. Gemeinsam sind allein
-/// die Schlüssel – Frage-, Übergangs- und Schleifen-Ids.
+/// Deliberately a <b>dedicated</b> model beside <see cref="DialogGraphModel"/> instead of additional fields
+/// in it: the editor view (#101–#103) knows no run, and the run state changes on every
+/// step, while the drawing model only arises anew on a graph change. Common are only
+/// the keys – question, transition and loop ids.
 /// </para>
 /// <para>
-/// Gebaut wird es von <see cref="Flirty.Designer.Services.GraphRunAnalyzer"/> nach jedem Engine-Schritt.
+/// It is built by <see cref="Flirty.Designer.Services.GraphRunAnalyzer"/> after every engine step.
 /// </para>
 /// </remarks>
-/// <param name="Status">Der Status der Session.</param>
-/// <param name="CurrentQuestionId">Die aktuell offene Frage oder <see langword="null"/>.</param>
-/// <param name="Visits">Die besuchten Knoten in der Reihenfolge ihres ersten Besuchs.</param>
-/// <param name="TakenEdges">Die gegriffenen Kanten.</param>
-/// <param name="Loops">Der Laufzustand je Schleifen-Marker, in der Reihenfolge von <c>DialogDetail.Loops</c>.</param>
-/// <param name="Triggers">Die publizierten Ereignisse in chronologischer Reihenfolge.</param>
-/// <param name="Summary">Der Lauf in Worten – die Alternative zum Bild (Screenreader).</param>
+/// <param name="Status">The status of the session.</param>
+/// <param name="CurrentQuestionId">The currently open question or <see langword="null"/>.</param>
+/// <param name="Visits">The visited nodes in the order of their first visit.</param>
+/// <param name="TakenEdges">The taken edges.</param>
+/// <param name="Loops">The run state per loop marker, in the order of <c>DialogDetail.Loops</c>.</param>
+/// <param name="Triggers">The published events in chronological order.</param>
+/// <param name="Summary">The run in words – the alternative to the picture (screen reader).</param>
 public sealed record GraphRunOverlay(
     SessionStatus Status,
     Guid? CurrentQuestionId,
@@ -118,40 +118,40 @@ public sealed record GraphRunOverlay(
     IReadOnlyList<GraphRunTrigger> Triggers,
     string Summary)
 {
-    /// <summary>Die Zahl der bisher erfassten Antworten – die Schrittzahl des Laufs.</summary>
+    /// <summary>The number of answers captured so far – the step count of the run.</summary>
     public int Steps => Visits.Sum(visit => visit.Answers.Count);
 
-    /// <summary>Findet den Besuch einer Frage.</summary>
-    /// <param name="questionId">Die gesuchte Frage.</param>
-    /// <returns>Der Besuch oder <see langword="null"/>, wenn die Frage im Lauf nicht vorkam.</returns>
+    /// <summary>Finds the visit of a question.</summary>
+    /// <param name="questionId">The question sought.</param>
+    /// <returns>The visit or <see langword="null"/> if the question did not occur in the run.</returns>
     public GraphRunVisit? Visit(Guid questionId)
         => Visits.FirstOrDefault(visit => visit.QuestionId == questionId);
 
-    /// <summary>Findet die Nutzung einer Kante.</summary>
-    /// <param name="transitionId">Der gesuchte Übergang.</param>
-    /// <returns>Die Nutzung oder <see langword="null"/>, wenn der Übergang nicht gegriffen hat.</returns>
+    /// <summary>Finds the use of an edge.</summary>
+    /// <param name="transitionId">The transition sought.</param>
+    /// <returns>The use or <see langword="null"/> if the transition did not take effect.</returns>
     public GraphRunEdgeUse? Edge(Guid transitionId)
         => TakenEdges.FirstOrDefault(edge => edge.TransitionId == transitionId);
 
-    /// <summary>Findet den Laufzustand eines Schleifen-Markers.</summary>
-    /// <param name="loopId">Der gesuchte Marker.</param>
-    /// <returns>Der Zustand oder <see langword="null"/>.</returns>
+    /// <summary>Finds the run state of a loop marker.</summary>
+    /// <param name="loopId">The marker sought.</param>
+    /// <returns>The state or <see langword="null"/>.</returns>
     public GraphRunLoopState? Loop(Guid loopId)
         => Loops.FirstOrDefault(loop => loop.LoopId == loopId);
 
-    /// <summary>Die Ereignisse, die an einer bestimmten Frage hängen.</summary>
-    /// <param name="questionId">Die Frage.</param>
-    /// <returns>Die Ereignisse in chronologischer Reihenfolge.</returns>
+    /// <summary>The events attached to a particular question.</summary>
+    /// <param name="questionId">The question.</param>
+    /// <returns>The events in chronological order.</returns>
     public IReadOnlyList<GraphRunTrigger> TriggersOf(Guid questionId)
         => [.. Triggers.Where(trigger => trigger.QuestionId == questionId)];
 
-    /// <summary>Die Ereignisse ohne Frage-Bezug – Start und Abschluss des Dialogs.</summary>
+    /// <summary>The events without a question reference – start and completion of the dialog.</summary>
     public IReadOnlyList<GraphRunTrigger> DialogTriggers
         => [.. Triggers.Where(trigger => trigger.QuestionId is null)];
 
-    /// <summary>Die Schleifen, in deren Bereich eine Frage liegt.</summary>
-    /// <param name="questionId">Die Frage.</param>
-    /// <returns>Die Schleifen-Zustände.</returns>
+    /// <summary>The loops within whose body a question lies.</summary>
+    /// <param name="questionId">The question.</param>
+    /// <returns>The loop states.</returns>
     public IReadOnlyList<GraphRunLoopState> LoopsOf(Guid questionId)
         => [.. Loops.Where(loop => loop.Body.Contains(questionId))];
 }

@@ -1,7 +1,7 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* The shared UI primitives live globally in wwwroot/app.css – here only page-specific styles. */
 
-/* Der Schleifenbereich als Block (#41): die Fragen in Dialog-Reihenfolge, links eine Klammer, die den
-   Zyklus andeutet. */
+/* The loop body as a block (#41): the questions in dialog order, a bracket on the left hinting at the
+   cycle. */
 .loop-block {
     margin: 0.75rem 0 0;
     padding: 0.5rem 0 0.5rem 1.75rem;
@@ -18,7 +18,7 @@
     color: #555;
 }
 
-/* Rücksprung-/Exit-Übergänge unter der Breaking Question. */
+/* Back-jump/exit transitions under the breaking question. */
 .loop-edges {
     margin: 0.3rem 0 0.6rem;
     padding-left: 0.25rem;

@@ -139,7 +139,7 @@ public sealed class FlirtyRuntimeGatewayTests
                 engine.SubmitAnswerAsync(sessionId, graph.MoreQuestionId, "\"vielleicht\"", token));
 
             Assert.False(rejected.Success);
-            Assert.StartsWith("Antwort ungültig:", rejected.Error, StringComparison.Ordinal);
+            Assert.StartsWith("Answer invalid:", rejected.Error, StringComparison.Ordinal);
             Assert.Contains("vielleicht", rejected.Error, StringComparison.Ordinal);
             Assert.DoesNotContain(graph.MoreQuestionId.ToString(), rejected.Error, StringComparison.Ordinal);
         });
@@ -184,7 +184,7 @@ public sealed class FlirtyRuntimeGatewayTests
                 (engine, token) => engine.StartDialogVersionAsync(Guid.NewGuid(), "designer-test-1", token));
 
             Assert.False(result.Success);
-            Assert.Contains("Verbindungen", result.Error, StringComparison.Ordinal);
+            Assert.Contains("Connections", result.Error, StringComparison.Ordinal);
         });
     }
 

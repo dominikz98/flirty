@@ -3,29 +3,29 @@ using Microsoft.Playwright;
 namespace Flirty.E2E;
 
 /// <summary>
-/// Playwright-E2E der Web-Sample-Chat-UI (#45/#47) gegen ein echtes, in-Prozess gehostetes Kestrel
-/// (<see cref="WebSampleAppFixture"/>). Deckt das Akzeptanzkriterium des Issues in beide Richtungen ab:
-/// <b>Branching</b> (dev-Zweig <i>und</i> Default-Zweig), <b>Loop über Liste</b> (zwei Iterationen inkl.
-/// Abschluss, In-Process-Trigger und vollem Outbound→Inbound-Webhook-Rundlauf), <b>Reload→Resume</b>
-/// mitten in der Schleife sowie das <b>Editieren einer früheren Antwort</b> (Freitext, Verzweigungsfrage,
-/// gezielte Loop-Iteration). Sind keine Playwright-Browser installiert, überspringen sich die Tests
-/// (<see cref="SkippableFactAttribute"/>) – Installation z. B. via
+/// Playwright E2E of the web sample chat UI (#45/#47) against a real, in-process hosted Kestrel
+/// (<see cref="WebSampleAppFixture"/>). Covers the issue's acceptance criterion in both directions:
+/// <b>branching</b> (dev branch <i>and</i> default branch), <b>loop over a list</b> (two iterations
+/// including completion, in-process trigger and a full outbound→inbound webhook round-trip),
+/// <b>reload→resume</b> in the middle of the loop as well as <b>editing an earlier answer</b> (free
+/// text, branching question, targeted loop iteration). If no Playwright browsers are installed, the
+/// tests skip themselves (<see cref="SkippableFactAttribute"/>) – install e.g. via
 /// <c>pwsh tests/Flirty.E2E/bin/Release/net10.0/playwright.ps1 install chromium</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Die Tests teilen sich über die Fixture <b>eine</b> App samt Datenbank, bekommen aber je einen frischen
-/// Browser-Context (leeres <c>localStorage</c> → eigener <c>externalUserKey</c> → eigene Session). Was sie
-/// sich dadurch <i>doch</i> teilen, sind die Singletons hinter den beiden Trigger-Panels
-/// (<c>TriggerLog</c>, <c>WebhookInbox</c>): jeder Test, der den Dialog abschließt, schreibt dort hinein.
-/// Die Panel-Assertions sind deshalb bewusst <c>Contains</c>-basiert und dürfen nicht auf eine Anzahl
-/// umgestellt werden.
+/// The tests share <b>one</b> app including database via the fixture, but each gets a fresh browser
+/// context (empty <c>localStorage</c> → own <c>externalUserKey</c> → own session). What they <i>do</i>
+/// share as a result are the singletons behind the two trigger panels (<c>TriggerLog</c>,
+/// <c>WebhookInbox</c>): every test that completes the dialog writes into them. The panel assertions
+/// are therefore deliberately <c>Contains</c>-based and must not be switched to a count.
 /// </para>
 /// <para>
-/// Die Chat-UI verwirft bei jedem Render den kompletten Verlauf und baut ihn aus dem Server-Zustand neu auf
-/// (<c>refreshAndRender</c>). Es gibt daher stets genau <b>eine</b> Bot-Blase – die offene Frage –, was die
-/// Prüfung „welche Frage steht gerade offen?" über <see cref="CurrentPromptKey"/> exakt macht, und die
-/// Reihenfolge der Antwort-Blasen entspricht der Sequenz auf dem Server.
+/// The chat UI discards the complete history on every render and rebuilds it from the server state
+/// (<c>refreshAndRender</c>). There is therefore always exactly <b>one</b> bot bubble – the open
+/// question –, which makes the check "which question is currently open?" via
+/// <see cref="CurrentPromptKey"/> exact, and the order of the answer bubbles matches the sequence on
+/// the server.
 /// </para>
 /// </remarks>
 public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
@@ -37,14 +37,14 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
 
     private readonly WebSampleAppFixture _fixture;
 
-    /// <summary>Initialisiert den Test mit dem gemeinsam genutzten App-Host.</summary>
-    /// <param name="fixture">Der in-Prozess gehostete Sample-App-Host.</param>
+    /// <summary>Initializes the test with the shared app host.</summary>
+    /// <param name="fixture">The in-process hosted sample app host.</param>
     public WebSampleE2ETests(WebSampleAppFixture fixture) => _fixture = fixture;
 
     /// <summary>
-    /// Der vollständige Durchlauf: dev-Zweig, zwei Schleifen-Iterationen, Abschluss – und der Nachweis,
-    /// dass der Abschluss den In-Process-Handler auslöst <b>und</b> der ausgehende Webhook beim eigenen
-    /// Inbound-Empfänger ankommt (der Rundlauf braucht echtes Kestrel und ist nur hier prüfbar).
+    /// The complete run: dev branch, two loop iterations, completion – and the proof that the
+    /// completion triggers the in-process handler <b>and</b> the outgoing webhook arrives at its own
+    /// inbound receiver (the round-trip needs a real Kestrel and is only checkable here).
     /// </summary>
     [SkippableFact]
     public async Task Durchlauf_Branching_Loop_und_Trigger_Rundlauf()
@@ -52,32 +52,32 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
 
-        // Loop über Liste: zwei skill-Iterationen (Ja = Loop-Back), dann Nein = Exit.
+        // Loop over a list: two skill iterations (Yes = loop-back), then No = exit.
         await FillAndSendAsync(page, "EF Core");
-        await ChooseAsync(page, "Ja");
+        await ChooseAsync(page, "Yes");
         await FillAndSendAsync(page, "Blazor");
-        await ChooseAsync(page, "Nein");
+        await ChooseAsync(page, "No");
 
-        // Abschlussfrage (Boolean) -> Dialog abgeschlossen.
-        await ChooseAsync(page, "Ja");
+        // Final question (Boolean) -> dialog completed.
+        await ChooseAsync(page, "Yes");
 
-        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("abgeschlossen", SlowContains);
+        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
 
-        // Die Iterations-Badges belegen, dass die Schleife wirklich gesammelt hat: beide Loop-Fragen
-        // (Einstieg skill und Breaking Question more) tragen je Durchlauf einen eigenen Index.
+        // The iteration badges prove that the loop really collected: both loop questions (entry skill
+        // and breaking question more) carry their own index per run.
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(
             ["role", "language", "skill #1", "more #1", "skill #2", "more #2", "summary"], SlowText);
         await Assertions.Expect(page.Locator("#skillsList li")).ToHaveTextAsync(["EF Core", "Blazor"], SlowText);
 
-        // In-Process-Handler und Outbound→Inbound-Webhook-Rundlauf werden im Panel sichtbar (Polling).
+        // In-process handler and outbound→inbound webhook round-trip become visible in the panel (polling).
         await Assertions.Expect(page.Locator("#triggersList")).ToContainTextAsync("web-onboarding", SlowContains);
         await Assertions.Expect(page.Locator("#webhooksList")).ToContainTextAsync("OnDialogCompleted", SlowContains);
     }
 
     /// <summary>
-    /// Die Gegenprobe zum dev-Zweig: „Product Manager" trifft keine Bedingung, also greift der
-    /// <c>IsDefault</c>-Übergang auf <c>product</c> – und beide Zweige laufen anschließend in dieselbe
-    /// Schleife.
+    /// The counter-check to the dev branch: "Product Manager" matches no condition, so the
+    /// <c>IsDefault</c> transition to <c>product</c> takes effect – and both branches then run into the
+    /// same loop.
     /// </summary>
     [SkippableFact]
     public async Task Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife()
@@ -88,7 +88,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
 
         await ChooseAsync(page, "Product Manager");
 
-        // Nicht language: die Bedingung role == "dev" trifft nicht, der Default-Übergang greift.
+        // Not language: the condition role == "dev" does not match, the default transition takes effect.
         await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("product", SlowText);
 
         await FillAndSendAsync(page, "Flirty");
@@ -98,9 +98,9 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     }
 
     /// <summary>
-    /// Reload <b>mitten in der Schleife</b>: Nach dem Neuladen kommt der komplette Verlauf über
-    /// <c>GET /flirty/sessions/{id}</c> vom Server – inklusive der Iterationszuordnung der bereits
-    /// gesammelten Antworten und der offenen Frage.
+    /// Reload <b>in the middle of the loop</b>: after reloading, the complete history comes from the
+    /// server via <c>GET /flirty/sessions/{id}</c> – including the iteration assignment of the already
+    /// collected answers and the open question.
     /// </summary>
     [SkippableFact]
     public async Task Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her()
@@ -109,16 +109,17 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         var page = await ArrangeDevBranchAsync(session);
 
         await FillAndSendAsync(page, "EF Core");
-        await ChooseAsync(page, "Ja");
+        await ChooseAsync(page, "Yes");
         await FillAndSendAsync(page, "Blazor");
         await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("more", SlowText);
 
         await page.ReloadAsync();
 
-        // Exakt statt Contains: „Resume" steht auch im Statustext des serverseitigen Resume-Pfads
-        // (POST /flirty/sessions mit isResumed) – geprüft werden soll hier der localStorage-Pfad.
+        // Exact instead of Contains: "resume" also stands in the status text of the server-side resume
+        // path (POST /flirty/sessions with isResumed) – what is to be checked here is the localStorage
+        // path.
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToHaveTextAsync("Session nach Reload wiederhergestellt (Resume).", SlowText);
+            .ToHaveTextAsync("Session restored after reload (resume).", SlowText);
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(
             ["role", "language", "skill #1", "more #1", "skill #2"], SlowText);
         await Assertions.Expect(page.Locator("#skillsList li")).ToHaveTextAsync(["EF Core", "Blazor"], SlowText);
@@ -126,8 +127,8 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     }
 
     /// <summary>
-    /// Editieren einer Freitext-Antwort: Der neue Wert ersetzt den alten, alle <b>nachgelagerten</b>
-    /// Antworten werden verworfen und der Pfad wird ab der editierten Frage neu berechnet.
+    /// Editing a free-text answer: the new value replaces the old one, all <b>downstream</b> answers
+    /// are discarded and the path is recomputed from the edited question onwards.
     /// </summary>
     [SkippableFact]
     public async Task Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten()
@@ -140,30 +141,30 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
 
         await EditAsync(page, "language");
 
-        // Vorbelegt ist der gespeicherte Wert – nicht seine Anzeigeform.
+        // Prefilled is the saved value – not its display form.
         await Assertions.Expect(EditField(page)).ToHaveValueAsync("C#", SlowValue);
         await SaveEditAsync(page, "Rust");
 
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToContainTextAsync("1 nachgelagerte Antwort(en) verworfen", SlowContains);
+            .ToContainTextAsync("1 downstream answer(s) discarded", SlowContains);
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(["role", "language"], SlowText);
         await Assertions.Expect(Bubble(page, "language")).ToContainTextAsync("Rust", SlowContains);
-        await Assertions.Expect(page.Locator("#skillsList")).ToContainTextAsync("Noch keine Fähigkeit erfasst", SlowContains);
+        await Assertions.Expect(page.Locator("#skillsList")).ToContainTextAsync("No skill recorded yet", SlowContains);
 
-        // Der Pfad wurde ab language neu berechnet – die Schleife beginnt von vorn.
+        // The path was recomputed from language onwards – the loop begins from the start.
         await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("skill", SlowText);
     }
 
     /// <summary>
-    /// Der Hauptfall des Issues: die <b>Verzweigungsfrage</b> nachträglich ändern. Aus dev wird pm, also
-    /// berechnet die Engine den Pfad neu und schaltet auf den Default-Zweig – die Antworten des dev-Zweigs
-    /// sind damit hinfällig und werden verworfen.
+    /// The issue's main case: change the <b>branching question</b> afterwards. dev becomes pm, so the
+    /// engine recomputes the path and switches to the default branch – the answers of the dev branch
+    /// are thereby obsolete and get discarded.
     /// </summary>
     /// <remarks>
-    /// Zugleich der Regressionstest zum Fehler, den dieser Test aufgedeckt hat: Das Edit-Formular hat für
-    /// jede Frage ein Textfeld gerendert und dieses mit der <i>Anzeigeform</i> vorbelegt. Bei einer
-    /// Einfachauswahl wurde damit das Label („Product Manager") statt des Werts („pm") gespeichert – der
-    /// <c>AnswerValidator</c> lehnte das mit 400 ab, die Statuszeile zeigte nur „Fehler: 400 …".
+    /// At the same time the regression test for the bug this test uncovered: the edit form rendered a
+    /// text field for every question and prefilled it with the <i>display form</i>. For a single choice
+    /// this saved the label ("Product Manager") instead of the value ("pm") – the
+    /// <c>AnswerValidator</c> rejected that with 400, the status line showed only "Error: 400 …".
     /// </remarks>
     [SkippableFact]
     public async Task Editieren_der_Verzweigungsfrage_wechselt_den_Zweig()
@@ -175,24 +176,24 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await AwaitAnsweredAsync(page);
 
         await EditAsync(page, "role");
-        // Einfachauswahl: das Edit-Formular bietet dieselben Options-Buttons wie die normale Eingabe,
-        // der Klick speichert direkt.
+        // Single choice: the edit form offers the same option buttons as the normal input, the click
+        // saves directly.
         await ChooseAsync(page, "Product Manager");
 
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToContainTextAsync("2 nachgelagerte Antwort(en) verworfen", SlowContains);
+            .ToContainTextAsync("2 downstream answer(s) discarded", SlowContains);
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(["role"], SlowText);
         await Assertions.Expect(Bubble(page, "role")).ToContainTextAsync("Product Manager", SlowContains);
-        await Assertions.Expect(page.Locator("#skillsList")).ToContainTextAsync("Noch keine Fähigkeit erfasst", SlowContains);
+        await Assertions.Expect(page.Locator("#skillsList")).ToContainTextAsync("No skill recorded yet", SlowContains);
 
-        // Der Zweig ist gewechselt: statt language steht jetzt product offen.
+        // The branch has switched: instead of language, product is now open.
         await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("product", SlowText);
     }
 
     /// <summary>
-    /// Editieren innerhalb der Schleife: Die UI schickt den <c>iterationIndex</c> der angeklickten Blase
-    /// mit, sodass gezielt <i>diese</i> Iteration überschrieben wird. Der abgeschlossene Dialog wird dabei
-    /// wieder geöffnet, weil die Neuberechnung auf eine nicht-terminale Frage führt.
+    /// Editing within the loop: the UI sends along the <c>iterationIndex</c> of the clicked bubble, so
+    /// that <i>this</i> iteration specifically is overwritten. The completed dialog is reopened in doing
+    /// so, because the recomputation leads to a non-terminal question.
     /// </summary>
     [SkippableFact]
     public async Task Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration()
@@ -201,35 +202,35 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         var page = await ArrangeDevBranchAsync(session);
 
         await FillAndSendAsync(page, "EF Core");
-        await ChooseAsync(page, "Ja");
+        await ChooseAsync(page, "Yes");
         await FillAndSendAsync(page, "Blazor");
-        await ChooseAsync(page, "Nein");
-        await ChooseAsync(page, "Ja");
-        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("abgeschlossen", SlowContains);
+        await ChooseAsync(page, "No");
+        await ChooseAsync(page, "Yes");
+        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
 
         await EditAsync(page, "skill #2");
         await SaveEditAsync(page, "Rust");
 
-        // Verworfen werden nur die nach der zweiten Iteration gegebenen Antworten (more #2, summary).
+        // Only the answers given after the second iteration are discarded (more #2, summary).
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToContainTextAsync("2 nachgelagerte Antwort(en) verworfen", SlowContains);
+            .ToContainTextAsync("2 downstream answer(s) discarded", SlowContains);
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(
             ["role", "language", "skill #1", "more #1", "skill #2"], SlowText);
 
-        // Iteration 1 bleibt unangetastet, nur Iteration 2 trägt den neuen Wert.
+        // Iteration 1 stays untouched, only iteration 2 carries the new value.
         await Assertions.Expect(page.Locator("#skillsList li")).ToHaveTextAsync(["EF Core", "Rust"], SlowText);
 
-        // Die abgeschlossene Session ist wieder offen – bei der Breaking Question der Schleife.
+        // The completed session is open again – at the breaking question of the loop.
         await Assertions.Expect(page.Locator(".msg--system")).ToHaveCountAsync(0);
         await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("more", SlowText);
     }
 
     /// <summary>
-    /// Die Ja/Nein-Frage am Ende erneut mit „Ja" beantworten: Der Wert muss <b>erhalten</b> bleiben. Der
-    /// Test klingt trivial, ist aber die zweite Hälfte des oben beschriebenen Fehlers – und die
-    /// gefährlichere: Ein Textfeld mit der Anzeigeform „Ja" lief beim Speichern durch
-    /// <c>encodeAnswer</c>, das alles außer <c>"true"</c> auf <c>false</c> abbildet. Die Antwort kippte
-    /// also <b>still</b> auf „Nein", ohne Fehlermeldung.
+    /// Answering the yes/no question at the end again with "Yes": the value must <b>stay preserved</b>.
+    /// The test sounds trivial but is the second half of the bug described above – and the more
+    /// dangerous one: a text field with the display form "Yes" ran through <c>encodeAnswer</c> on
+    /// saving, which maps everything except <c>"true"</c> to <c>false</c>. The answer thus silently
+    /// flipped to "No", without an error message.
     /// </summary>
     [SkippableFact]
     public async Task Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert()
@@ -238,100 +239,99 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         var page = await ArrangeDevBranchAsync(session);
 
         await FillAndSendAsync(page, "EF Core");
-        await ChooseAsync(page, "Nein");
-        await ChooseAsync(page, "Ja");
-        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("abgeschlossen", SlowContains);
+        await ChooseAsync(page, "No");
+        await ChooseAsync(page, "Yes");
+        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
 
         await EditAsync(page, "summary");
-        await ChooseAsync(page, "Ja");
+        await ChooseAsync(page, "Yes");
 
-        // summary ist terminal: es gibt nichts zu verwerfen, die Session bleibt abgeschlossen.
+        // summary is terminal: there is nothing to discard, the session stays completed.
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToContainTextAsync("0 nachgelagerte Antwort(en) verworfen", SlowContains);
-        await Assertions.Expect(Bubble(page, "summary")).ToContainTextAsync("Ja", SlowContains);
-        await Assertions.Expect(Bubble(page, "summary")).Not.ToContainTextAsync("Nein", SlowContains);
-        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("abgeschlossen", SlowContains);
+            .ToContainTextAsync("0 downstream answer(s) discarded", SlowContains);
+        await Assertions.Expect(Bubble(page, "summary")).ToContainTextAsync("Yes", SlowContains);
+        await Assertions.Expect(Bubble(page, "summary")).Not.ToContainTextAsync("No", SlowContains);
+        await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
     }
 
-    // ---- Ablauf-Helfer -------------------------------------------------------------------------------
+    // ---- Flow helpers --------------------------------------------------------------------------------
 
     /// <summary>
-    /// Öffnet die Chat-UI und beantwortet den Einstieg im dev-Zweig (Rolle „Entwickler", Sprache „C#"),
-    /// sodass anschließend die Einstiegsfrage der Schleife offen steht.
+    /// Opens the chat UI and answers the entry in the dev branch (role "Developer", language "C#"), so
+    /// that afterwards the entry question of the loop is open.
     /// </summary>
-    /// <param name="session">Die Browser-Sitzung des Tests.</param>
-    /// <returns>Die Seite mit der geöffneten Chat-UI.</returns>
+    /// <param name="session">The test's browser session.</param>
+    /// <returns>The page with the opened chat UI.</returns>
     private async Task<IPage> ArrangeDevBranchAsync(PlaywrightSession session)
     {
         var page = await session.NewPageAsync();
         await page.GotoAsync(_fixture.BaseUrl);
 
-        await ChooseAsync(page, "Entwickler");
+        await ChooseAsync(page, "Developer");
         await FillAndSendAsync(page, "C#");
 
         return page;
     }
 
-    /// <summary>Füllt das Eingabefeld der Eingabezeile und sendet die Antwort.</summary>
+    /// <summary>Fills the input field of the input line and sends the answer.</summary>
     private static async Task FillAndSendAsync(IPage page, string text)
     {
         await EditField(page).FillAsync(text);
-        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Senden", Exact = true }).ClickAsync();
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
     }
 
     /// <summary>
-    /// Wartet, bis die zuletzt gesendete Antwort serverseitig verbucht ist – erkennbar daran, dass die
-    /// Statuszeile den Sende-Hinweis wieder abgelegt hat und die Editier-Stifte nicht mehr gesperrt sind.
+    /// Waits until the last sent answer is booked server-side – recognizable by the status line having
+    /// dropped the sending hint again and the edit pencils no longer being locked.
     /// </summary>
     /// <remarks>
-    /// Nötig vor einem <see cref="EditAsync"/> direkt nach <see cref="FillAndSendAsync"/>: Ohne das
-    /// Warten überholt der Edit-Aufruf den noch laufenden Submit. Der Server kennt die letzte Antwort
-    /// dann noch nicht, verwirft eine Antwort zu wenig und weist den nachlaufenden Submit mit 409 ab
-    /// („ist nicht die aktuell offene Frage"). Auf schneller Hardware war das reproduzierbar rot (#97).
-    /// Die Chat-UI sperrt die Stifte inzwischen selbst für die Dauer des Requests; dieses Warten hier
-    /// macht die Vorbedingung im Test trotzdem sichtbar, statt sie stillschweigend vorauszusetzen.
+    /// Needed before an <see cref="EditAsync"/> directly after <see cref="FillAndSendAsync"/>: without
+    /// the waiting the edit call overtakes the still-running submit. The server does not yet know the
+    /// last answer then, discards one answer too few and rejects the trailing submit with 409 ("is not
+    /// the currently open question"). On fast hardware this was reproducibly red (#97). The chat UI now
+    /// locks the pencils itself for the duration of the request; this waiting here nevertheless makes
+    /// the precondition visible in the test instead of tacitly presupposing it.
     /// </remarks>
-    /// <param name="page">Die Seite.</param>
-    /// <returns>Ein Task, der abgeschlossen ist, sobald die Antwort verbucht ist.</returns>
+    /// <param name="page">The page.</param>
+    /// <returns>A task that is completed once the answer is booked.</returns>
     private static Task AwaitAnsweredAsync(IPage page)
         => Assertions.Expect(page.Locator("#chatLog .msg__edit:disabled")).ToHaveCountAsync(0, SlowCount);
 
     /// <summary>
-    /// Klickt einen Auswahl-Button der Eingabezeile (Antwortoption bzw. Ja/Nein). Bewusst auf die
-    /// Eingabezeile eingegrenzt: dort erscheinen sowohl die Buttons der offenen Frage als auch die des
-    /// Edit-Formulars.
+    /// Clicks a choice button of the input line (answer option or yes/no). Deliberately narrowed to the
+    /// input line: there both the buttons of the open question and those of the edit form appear.
     /// </summary>
     private static Task ChooseAsync(IPage page, string label)
         => InputArea(page).GetByRole(AriaRole.Button, new() { Name = label, Exact = true }).ClickAsync();
 
-    /// <summary>Öffnet das Edit-Formular über den Stift an der Antwort-Blase.</summary>
-    /// <param name="page">Die Seite.</param>
-    /// <param name="keyBadge">Das Schlüssel-Badge der Blase, z. B. <c>language</c> oder <c>skill #2</c>.</param>
+    /// <summary>Opens the edit form via the pencil on the answer bubble.</summary>
+    /// <param name="page">The page.</param>
+    /// <param name="keyBadge">The key badge of the bubble, e.g. <c>language</c> or <c>skill #2</c>.</param>
     private static Task EditAsync(IPage page, string keyBadge)
         => Bubble(page, keyBadge).Locator(".msg__edit").ClickAsync();
 
-    /// <summary>Überschreibt den Wert im Edit-Formular einer Freitext-/Zahlen-/Datumsfrage und speichert.</summary>
+    /// <summary>Overwrites the value in the edit form of a free-text/number/date question and saves.</summary>
     private static async Task SaveEditAsync(IPage page, string text)
     {
         await EditField(page).FillAsync(text);
-        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Speichern", Exact = true }).ClickAsync();
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).ClickAsync();
     }
 
-    // ---- Locator-Helfer ------------------------------------------------------------------------------
+    // ---- Locator helpers -----------------------------------------------------------------------------
 
-    /// <summary>Die Eingabezeile – trägt je nach Zustand die offene Frage oder das Edit-Formular.</summary>
+    /// <summary>The input line – carries the open question or the edit form depending on state.</summary>
     private static ILocator InputArea(IPage page) => page.Locator(".chat__input");
 
-    /// <summary>Das Texteingabefeld der Eingabezeile.</summary>
+    /// <summary>The text input field of the input line.</summary>
     private static ILocator EditField(IPage page) => InputArea(page).Locator("input.field");
 
-    /// <summary>Die Antwort-Blase zum angegebenen Schlüssel-Badge.</summary>
+    /// <summary>The answer bubble for the given key badge.</summary>
     private static ILocator Bubble(IPage page, string keyBadge)
         => page.Locator($".msg--user:has-text('{keyBadge}')");
 
-    /// <summary>Die Schlüssel-Badges aller Antwort-Blasen in Antwort-Reihenfolge (inkl. Iterations-Index).</summary>
+    /// <summary>The key badges of all answer bubbles in answer order (incl. iteration index).</summary>
     private static ILocator AnsweredKeys(IPage page) => page.Locator(".msg--user .msg__key");
 
-    /// <summary>Das Schlüssel-Badge der aktuell offenen Frage; leer, wenn der Dialog abgeschlossen ist.</summary>
+    /// <summary>The key badge of the currently open question; empty when the dialog is completed.</summary>
     private static ILocator CurrentPromptKey(IPage page) => page.Locator(".msg--bot .msg__key");
 }

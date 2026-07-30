@@ -4,31 +4,31 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// <see cref="IDbContextFactory{TContext}"/>-Implementierung des Designers, die den
-/// <see cref="FlirtyDbContext"/> gegen das jeweils <b>aktive</b> Connection-Profil öffnet (Multi-DB, #37).
-/// Damit laufen die Admin-Commands (via <c>ISender</c>, ab #38) automatisch gegen die gewählte Datenbank.
+/// The designer's <see cref="IDbContextFactory{TContext}"/> implementation, which opens the
+/// <see cref="FlirtyDbContext"/> against the currently <b>active</b> connection profile (multi-DB, #37).
+/// This makes the admin commands (via <c>ISender</c>, since #38) run automatically against the chosen database.
 /// </summary>
 internal sealed class FlirtyDesignerDbContextFactory : IDbContextFactory<FlirtyDbContext>
 {
     private readonly ActiveConnectionProfile _active;
 
-    /// <summary>Erstellt die Factory.</summary>
-    /// <param name="active">Der Zugriff auf das aktive Connection-Profil.</param>
+    /// <summary>Creates the factory.</summary>
+    /// <param name="active">Access to the active connection profile.</param>
     public FlirtyDesignerDbContextFactory(ActiveConnectionProfile active)
     {
         _active = active;
     }
 
     /// <summary>
-    /// Erzeugt einen <see cref="FlirtyDbContext"/> für das aktive Profil.
+    /// Creates a <see cref="FlirtyDbContext"/> for the active profile.
     /// </summary>
-    /// <returns>Ein neuer, vom Aufrufer zu entsorgender Kontext.</returns>
-    /// <exception cref="InvalidOperationException">Es ist kein Profil aktiv.</exception>
+    /// <returns>A new context to be disposed by the caller.</returns>
+    /// <exception cref="InvalidOperationException">No profile is active.</exception>
     public FlirtyDbContext CreateDbContext()
     {
         var profile = _active.Current
             ?? throw new InvalidOperationException(
-                "Es ist kein Connection-Profil aktiv. Bitte zuerst unter „Verbindungen“ ein Profil aktivieren.");
+                "No connection profile is active. Please activate a profile under \"Connections\" first.");
 
         return ConnectionProfileContextBuilder.Create(profile);
     }

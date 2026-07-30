@@ -8,38 +8,37 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Designer;
 
 /// <summary>
-/// Zentrale, wiederverwendbare Komposition des Designers. <see cref="ConfigureServices"/> verdrahtet
-/// Engine, Connection-Profile und Gateways, <see cref="Configure"/> baut die HTTP-Pipeline samt
-/// Blazor-Komponenten auf. Beide werden von <c>Program.cs</c> (echtes Kestrel) und von der
-/// Playwright-E2E (<c>DesignerAppFixture</c>, #46) genutzt, damit App und Test denselben Aufbau teilen.
+/// Central, reusable composition of the designer. <see cref="ConfigureServices"/> wires up the engine,
+/// connection profiles and gateways, <see cref="Configure"/> builds the HTTP pipeline including the Blazor
+/// components. Both are used by <c>Program.cs</c> (real Kestrel) and by the Playwright E2E
+/// (<c>DesignerAppFixture</c>, #46), so app and test share the same setup.
 /// </summary>
 public static class DesignerApp
 {
-    /// <summary>Dateiname der lokalen Profil-Ablage (relativ zum ContentRoot).</summary>
+    /// <summary>File name of the local profile store (relative to the ContentRoot).</summary>
     public const string ConnectionProfilesFileName = "connection-profiles.json";
 
     /// <summary>
-    /// Kultur, in der der Designer Zahlen, Datum und Uhrzeit formatiert. Fest gesetzt, weil die
-    /// Oberfläche durchgängig deutsch ist: Ohne diese Festlegung folgt die Formatierung der Kultur des
-    /// Hosts, und auf einem englischen System stünde „7/27/2026 10:38 AM" mitten im deutschen Text.
-    /// Betrifft nur die <b>Anzeige</b> – die Antwortwerte kodiert <c>AnswerValueCodec</c> unabhängig davon
-    /// invariant.
+    /// Culture in which the designer formats numbers, dates and times. Fixed on purpose: without it the
+    /// formatting follows the host's culture, and the display would then vary from machine to machine.
+    /// Affects only the <b>display</b> – the answer values are encoded invariantly by
+    /// <c>AnswerValueCodec</c> regardless of this.
     /// </summary>
-    public const string DisplayCulture = "de-DE";
+    public const string DisplayCulture = "en-US";
 
     /// <summary>
-    /// Verdrahtet alle Dienste des Designers: Blazor (server-interaktiv), die Flirty-Engine ohne fest
-    /// verdrahteten Provider, die Connection-Profil-Verwaltung samt Kontext-Factory sowie die beiden
-    /// Gateways und das Trigger-Protokoll des Test-Runners.
+    /// Wires up all services of the designer: Blazor (server-interactive), the Flirty engine without a
+    /// hard-wired provider, the connection-profile management including the context factory, and the two
+    /// gateways plus the trigger log of the test runner.
     /// </summary>
-    /// <param name="builder">Der Host-Builder der Web-App.</param>
+    /// <param name="builder">The host builder of the web app.</param>
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        // Anzeige-Kultur des gesamten Werkzeugs festlegen (siehe DisplayCulture). Über die Default-Kultur
-        // des Prozesses statt über RequestLocalization: In Blazor Server läuft das Rendern im Circuit,
-        // nicht in einem HTTP-Request – eine Request-Middleware erreicht es gar nicht.
+        // Set the display culture of the whole tool (see DisplayCulture). Via the process default culture
+        // instead of RequestLocalization: in Blazor Server the rendering runs in the circuit, not in an
+        // HTTP request – a request middleware would not reach it at all.
         var culture = CultureInfo.GetCultureInfo(DisplayCulture);
         CultureInfo.DefaultThreadCurrentCulture = culture;
         CultureInfo.DefaultThreadCurrentUICulture = culture;
@@ -47,12 +46,12 @@ public static class DesignerApp
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        // Flirty-Engine OHNE fest verdrahteten Provider (parameterloses AddFlirty): der FlirtyDbContext wird
-        // stattdessen pro aktivem Connection-Profil über die Designer-Factory erzeugt (Multi-DB, Issue #37).
+        // Flirty engine WITHOUT a hard-wired provider (parameterless AddFlirty): the FlirtyDbContext is
+        // instead created per active connection profile via the designer factory (multi-DB, issue #37).
         builder.Services.AddFlirty();
 
-        // Connection-Profil-Verwaltung: Store (persistiert als JSON im ContentRoot), aktives Profil (pro Circuit),
-        // Factory (IDbContextFactory gegen das aktive Profil) und die Test-/Migrate-Operationen.
+        // Connection-profile management: store (persisted as JSON in the ContentRoot), active profile (per
+        // circuit), factory (IDbContextFactory against the active profile) and the test/migrate operations.
         builder.Services.AddSingleton<IConnectionProfileStore>(sp =>
         {
             var environment = sp.GetRequiredService<IWebHostEnvironment>();
@@ -64,13 +63,13 @@ public static class DesignerApp
         builder.Services.AddScoped<IDbContextFactory<FlirtyDbContext>, FlirtyDesignerDbContextFactory>();
         builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<FlirtyDbContext>>().CreateDbContext());
 
-        // Admin-CRUD (#38): führt die Mediator-Commands/Queries je Operation in einem frischen DI-Scope aus,
-        // damit der FlirtyDbContext nicht über den ganzen Circuit lebt und Profilwechsel sofort greifen.
+        // Admin CRUD (#38): runs the mediator commands/queries per operation in a fresh DI scope, so the
+        // FlirtyDbContext does not live across the whole circuit and profile switches take effect at once.
         builder.Services.AddScoped<FlirtyAdminGateway>();
 
-        // Test-Runner (#43): dasselbe Scope-Muster für die Laufzeit-Operationen (IFlirtyEngine) plus das
-        // Trigger-Protokoll des Laufs. Die vier Handler schreiben hinein, was die Engine publiziert; das
-        // Gateway reicht den Log des Circuits in den jeweiligen Kind-Scope durch.
+        // Test runner (#43): the same scope pattern for the runtime operations (IFlirtyEngine) plus the
+        // trigger log of the run. The four handlers write into it what the engine publishes; the gateway
+        // passes the circuit's log through into the respective child scope.
         builder.Services.AddScoped<DesignerTriggerLog>();
         builder.Services.AddScoped<FlirtyRuntimeGateway>();
         builder.Services
@@ -81,9 +80,9 @@ public static class DesignerApp
     }
 
     /// <summary>
-    /// Baut die HTTP-Pipeline auf und registriert die Blazor-Komponenten (server-interaktiv).
+    /// Builds the HTTP pipeline and registers the Blazor components (server-interactive).
     /// </summary>
-    /// <param name="app">Die gebaute Web-App.</param>
+    /// <param name="app">The built web app.</param>
     public static void Configure(WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);

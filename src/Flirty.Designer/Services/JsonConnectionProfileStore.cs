@@ -5,10 +5,10 @@ using Flirty.Designer.Models;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// <see cref="IConnectionProfileStore"/>-Implementierung, die die Profile als Klartext-JSON in einer
-/// lokalen Datei ablegt. Für ein lokales Entwickler-Werkzeug bewusst einfach gehalten; die Datei kann
-/// Secrets (Passwörter in Verbindungszeichenfolgen) enthalten und ist daher per <c>.gitignore</c>
-/// ausgeschlossen (siehe <c>docs/DESIGNER.md</c>).
+/// <see cref="IConnectionProfileStore"/> implementation that stores the profiles as plain-text JSON in a
+/// local file. Deliberately kept simple for a local developer tool; the file can contain secrets
+/// (passwords in connection strings) and is therefore excluded via <c>.gitignore</c>
+/// (see <c>docs/DESIGNER.md</c>).
 /// </summary>
 internal sealed class JsonConnectionProfileStore : IConnectionProfileStore
 {
@@ -22,8 +22,8 @@ internal sealed class JsonConnectionProfileStore : IConnectionProfileStore
     private readonly object _gate = new();
     private ProfileDocument _document;
 
-    /// <summary>Erstellt den Store und lädt eine ggf. vorhandene Profil-Datei.</summary>
-    /// <param name="filePath">Vollständiger Pfad zur JSON-Datei.</param>
+    /// <summary>Creates the store and loads an existing profile file if present.</summary>
+    /// <param name="filePath">Full path to the JSON file.</param>
     public JsonConnectionProfileStore(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
@@ -131,7 +131,7 @@ internal sealed class JsonConnectionProfileStore : IConnectionProfileStore
         return JsonSerializer.Deserialize<ProfileDocument>(json, SerializerOptions) ?? new ProfileDocument();
     }
 
-    /// <summary>Serialisierungs-Container für die JSON-Datei.</summary>
+    /// <summary>Serialization container for the JSON file.</summary>
     private sealed class ProfileDocument
     {
         public List<ConnectionProfile> Profiles { get; set; } = [];

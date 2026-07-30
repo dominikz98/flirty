@@ -1,50 +1,50 @@
 @*
-    Das Inspector-Panel der Laufansicht (#104).
+    The inspector panel of the run view (#104).
 
-    Es zeigt dieselben drei Dinge wie die Listenansicht des Runners – Antworten samt Iteration,
-    Ausdrucks-Bindungen und publizierte Trigger –, aber am gewählten Element statt global. Genau das ist
-    der Gewinn gegenüber der Liste: Die Frage „womit rechnet die Bedingung an dieser Kante?" wird dort
-    beantwortet, wo sie entsteht.
+    It shows the same three things as the list view of the runner – answers including iteration,
+    expression bindings and published triggers –, but at the selected element instead of globally. That is
+    exactly the gain over the list: the question "what does the condition on this edge compute with?" is
+    answered where it arises.
 
-    Bearbeitet wird hier nur eine Antwort (EditAnswerAsync), nie der Graph: Eine laufende Session
-    arbeitet auf diesem Graphen. Der Weg in die Konfiguration führt über die Editor-Ansicht.
+    Only an answer is edited here (EditAnswerAsync), never the graph: a running session works on this
+    graph. The way into the configuration leads via the editor view.
 *@
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
 @using Flirty.Designer.Services
 
-<aside class="graph-inspector" aria-label="Details zum gewählten Element des Testlaufs">
+<aside class="graph-inspector" aria-label="Details of the selected element of the test run">
     @if (SelectedNode is { } node)
     {
         var question = QuestionOf(node.QuestionId);
         var visit = Run.Visit(node.QuestionId);
 
-        <h2>Frage</h2>
+        <h2>Question</h2>
         <p class="graph-inspector-key mono" id="runInspectorKey">@node.Key</p>
         <p class="graph-inspector-text">@node.FullText</p>
 
         <dl class="graph-facts">
-            <dt>Typ</dt>
+            <dt>Type</dt>
             <dd>@node.TypeLabel</dd>
-            <dt>Im Lauf</dt>
+            <dt>In the run</dt>
             <dd>
                 @(visit switch
                 {
-                    { IsCurrent: true } => "gerade offen",
-                    { Answers.Count: > 0 } => $"{visit.Answers.Count}-mal beantwortet",
-                    _ => "nicht besucht",
+                    { IsCurrent: true } => "currently open",
+                    { Answers.Count: > 0 } => $"answered {visit.Answers.Count} times",
+                    _ => "not visited",
                 })
             </dd>
         </dl>
 
         @if (visit is { Answers.Count: > 0 } && question is not null)
         {
-            <h3 class="graph-inspector-section">Antworten</h3>
+            <h3 class="graph-inspector-section">Answers</h3>
             <ul class="graph-inspector-list run-answers">
                 @foreach (var answer in visit.Answers)
                 {
-                    // Lokale Kopie: Die Lambdas liefen sonst gegen den Schleifenzustand nach dem
-                    // letzten Durchlauf.
+                    // Local copy: the lambdas would otherwise run against the loop state after the last
+                    // iteration.
                     var entry = answer;
 
                     <li>
@@ -57,9 +57,9 @@
                             <span class="step-time">@entry.AnsweredAt.LocalDateTime.ToString("T")</span>
                         </div>
 
-                        @* Der Rohwert ist das, womit die Bedingungen rechnen – die Anzeigeform darüber
-                           ist die Beschriftung. Beides zu zeigen ist der Punkt: Genau diese Verwechslung
-                           hat in #47 die Chat-UI stillschweigend falsche Werte speichern lassen. *@
+                        @* The raw value is what the conditions compute with – the display form above it
+                           is the label. Showing both is the point: exactly this confusion made the chat UI
+                           in #47 silently store wrong values. *@
                         <div class="mono run-answer-raw">@entry.Value</div>
 
                         @if (EditingSequence == entry.Sequence && EditInput is not null)
@@ -68,35 +68,35 @@
                                          Options="AnswerChoice.From(question.Options)"
                                          Input="EditInput"
                                          OnSubmit="SaveEdit"
-                                         SubmitLabel="Speichern"
+                                         SubmitLabel="Save"
                                          Disabled="Busy" />
                             <div class="actions">
                                 <button class="btn" disabled="@Busy" @onclick="() => CancelEdit.InvokeAsync()">
-                                    Abbrechen
+                                    Cancel
                                 </button>
                             </div>
                             <span class="hint">
-                                Beim Speichern werden alle nachgelagerten Antworten verworfen und der Pfad
-                                ab hier neu berechnet.
+                                On saving, all downstream answers are discarded and the path from here is
+                                recomputed.
                             </span>
                         }
                         else
                         {
                             <button class="btn" disabled="@Busy"
-                                    @onclick="() => StartEdit.InvokeAsync(entry.Sequence)">Bearbeiten</button>
+                                    @onclick="() => StartEdit.InvokeAsync(entry.Sequence)">Edit</button>
                         }
                     </li>
                 }
             </ul>
         }
 
-        <h3 class="graph-inspector-section">Bindungen im Ausdruck</h3>
+        <h3 class="graph-inspector-section">Bindings in the expression</h3>
         <dl class="graph-facts">
             <dt class="mono">@node.Key</dt>
             <dd class="mono">
                 @(Snapshot is not null && Snapshot.Answers.TryGetValue(node.Key, out var bound)
                     ? bound
-                    : "— noch nicht beantwortet —")
+                    : "— not yet answered —")
             </dd>
 
             @foreach (var loop in Run.LoopsOf(node.QuestionId))
@@ -104,22 +104,22 @@
                 var entries = Snapshot?.Collections.GetValueOrDefault(loop.CollectionKey) ?? [];
 
                 <dt class="mono">@loop.CollectionKey</dt>
-                <dd class="mono">@(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))</dd>
+                <dd class="mono">@(entries.Count == 0 ? "— empty —" : string.Join(", ", entries))</dd>
             }
 
             @if (visit is { IsCurrent: true })
             {
-                @* Nur an der offenen Frage: Der Wert meint den Index der ZULETZT gegebenen Antwort auf
-                   genau sie (Semantik von LoopResolver.ResolveIterationIndex). An einem anderen Knoten
-                   gezeigt behauptete er etwas über diesen Knoten – und wäre falsch. *@
+                @* Only at the open question: the value means the index of the LAST answer given to exactly
+                   it (semantics of LoopResolver.ResolveIterationIndex). Shown at another node it would
+                   claim something about that node – and would be wrong. *@
                 <dt class="mono">iterationIndex</dt>
-                <dd class="mono">@(Snapshot?.IterationIndex?.ToString() ?? "— außerhalb einer Schleife —")</dd>
+                <dd class="mono">@(Snapshot?.IterationIndex?.ToString() ?? "— outside a loop —")</dd>
             }
         </dl>
 
         @if (Run.TriggersOf(node.QuestionId) is { Count: > 0 } fired)
         {
-            <h3 class="graph-inspector-section">Ausgelöst</h3>
+            <h3 class="graph-inspector-section">Fired</h3>
             <ul class="graph-inspector-list run-events">
                 @foreach (var trigger in fired)
                 {
@@ -131,11 +131,11 @@
             </ul>
         }
 
-        <h3 class="graph-inspector-section">Ausgehende Übergänge</h3>
+        <h3 class="graph-inspector-section">Outgoing transitions</h3>
 
         @if (Outgoing(node.QuestionId) is { Count: 0 })
         {
-            <p class="hint">Keiner – hier endet der Dialog regulär.</p>
+            <p class="hint">None – the dialog ends regularly here.</p>
         }
         else
         {
@@ -160,33 +160,33 @@
     {
         var use = Run.Edge(edge.TransitionId);
 
-        <h2>Übergang</h2>
+        <h2>Transition</h2>
         <p class="graph-inspector-key mono">@QuestionKey(edge.FromQuestionId) → @QuestionKey(edge.TargetQuestionId)</p>
 
         <dl class="graph-facts">
-            <dt>Bedingung</dt>
+            <dt>Condition</dt>
             <dd class="mono">@edge.Label</dd>
-            <dt>Im Lauf</dt>
+            <dt>In the run</dt>
             <dd>@Describe(use)</dd>
         </dl>
 
         @if (use is { IsAmbiguous: true })
         {
             <div class="banner warn">
-                Zwischen diesen beiden Fragen liegen mehrere Übergänge. Welcher davon gegriffen hat, hält
-                die Engine nicht fest – der Pfad wird aus der Antwortfolge abgeleitet, und die kennt nur
-                das Fragenpaar. Markiert sind deshalb alle.
+                There are several transitions between these two questions. Which of them was taken is not
+                recorded by the engine – the path is derived from the answer sequence, and that only knows
+                the question pair. All of them are therefore marked.
             </div>
         }
 
         <div class="actions">
             <button class="btn"
                     @onclick="() => Select.InvokeAsync(new GraphSelection(GraphElementKind.Question, edge.FromQuestionId))">
-                Zur Ausgangsfrage
+                To source question
             </button>
             <button class="btn"
                     @onclick="() => Select.InvokeAsync(new GraphSelection(GraphElementKind.Question, edge.TargetQuestionId))">
-                Zur Zielfrage
+                To target question
             </button>
         </div>
     }
@@ -194,21 +194,21 @@
     {
         var state = Run.Loop(loop.LoopId);
 
-        <h2>Schleife</h2>
+        <h2>Loop</h2>
         <p class="graph-inspector-key mono">@loop.CollectionKey</p>
 
         <dl class="graph-facts">
-            <dt>Einstieg</dt>
-            <dd class="mono">@(string.IsNullOrEmpty(loop.EntryKey) ? "— fehlt —" : loop.EntryKey)</dd>
-            <dt>Breaking Question</dt>
-            <dd class="mono">@(string.IsNullOrEmpty(loop.BreakingKey) ? "— fehlt —" : loop.BreakingKey)</dd>
-            <dt>Im Lauf</dt>
+            <dt>Entry</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.EntryKey) ? "— missing —" : loop.EntryKey)</dd>
+            <dt>Breaking question</dt>
+            <dd class="mono">@(string.IsNullOrEmpty(loop.BreakingKey) ? "— missing —" : loop.BreakingKey)</dd>
+            <dt>In the run</dt>
             <dd>
                 @(state switch
                 {
-                    { Iterations: 0 } or null => "nicht betreten",
-                    { IsActive: true } => $"{state.Iterations} Iteration(en), läuft gerade",
-                    _ => $"{state.Iterations} Iteration(en), verlassen",
+                    { Iterations: 0 } or null => "not entered",
+                    { IsActive: true } => $"{state.Iterations} iteration(s), currently running",
+                    _ => $"{state.Iterations} iteration(s), left",
                 })
             </dd>
             <dt class="mono">@loop.CollectionKey</dt>
@@ -216,29 +216,28 @@
                 @{
                     var entries = Snapshot?.Collections.GetValueOrDefault(loop.CollectionKey) ?? [];
                 }
-                @(entries.Count == 0 ? "— leer —" : string.Join(", ", entries))
+                @(entries.Count == 0 ? "— empty —" : string.Join(", ", entries))
             </dd>
         </dl>
     }
     else
     {
-        <h2>Testlauf</h2>
+        <h2>Test run</h2>
 
         <dl class="graph-facts">
             <dt>Status</dt>
             <dd>@DescribeStatus(Run.Status)</dd>
-            <dt>Schritte</dt>
+            <dt>Steps</dt>
             <dd>@Run.Steps</dd>
         </dl>
 
         <p class="hint">
-            Einen Knoten wählen – dann stehen hier seine Antworten, seine Bindungen und die dort
-            ausgelösten Trigger.
+            Select a node – its answers, its bindings and the triggers fired there then stand here.
         </p>
 
         @if (Run.DialogTriggers is { Count: > 0 } events)
         {
-            <h3 class="graph-inspector-section">Ausgelöst (ohne Frage-Bezug)</h3>
+            <h3 class="graph-inspector-section">Fired (without a question reference)</h3>
             <ul class="graph-inspector-list run-events">
                 @foreach (var trigger in events)
                 {
@@ -250,62 +249,62 @@
             </ul>
         }
 
-        <h3 class="graph-inspector-section">Legende</h3>
+        <h3 class="graph-inspector-section">Legend</h3>
         <ul class="graph-legend">
-            <li><span class="badge badge-current">▶ offen</span> die Frage, die der Lauf gerade stellt</li>
-            <li><span class="badge badge-visited">besucht</span> beantwortet – die Karte zeigt den Wert</li>
-            <li><span class="chip chip-fired">⚡</span> im Lauf publizierter Trigger</li>
-            <li><span class="legend-line is-taken"></span> gegriffener Übergang (dick und durchgezogen)</li>
+            <li><span class="badge badge-current">▶ open</span> the question the run is currently asking</li>
+            <li><span class="badge badge-visited">visited</span> answered – the card shows the value</li>
+            <li><span class="chip chip-fired">⚡</span> trigger published during the run</li>
+            <li><span class="legend-line is-taken"></span> taken transition (thick and solid)</li>
         </ul>
     }
 </aside>
 
 @code {
-    /// <summary>Der gesamte Graph – Nachbarschaft und Beschriftungen des gewählten Elements.</summary>
+    /// <summary>The whole graph – neighbourhood and labels of the selected element.</summary>
     [Parameter, EditorRequired]
     public required DialogGraphModel Model { get; set; }
 
-    /// <summary>Der Dialog samt Graph – Quelle für Fragetyp und Antwortoptionen beim Editieren.</summary>
+    /// <summary>The dialog including graph – source for question type and answer options when editing.</summary>
     [Parameter, EditorRequired]
     public required DialogDetail Detail { get; set; }
 
-    /// <summary>Der Laufzustand.</summary>
+    /// <summary>The run state.</summary>
     [Parameter, EditorRequired]
     public required GraphRunOverlay Run { get; set; }
 
-    /// <summary>Die Ausdrucks-Bindungen des Laufs; <see langword="null"/>, solange keiner läuft.</summary>
+    /// <summary>The expression bindings of the run; <see langword="null"/> as long as none is running.</summary>
     [Parameter]
     public RunExpressionSnapshot? Snapshot { get; set; }
 
-    /// <summary>Das gewählte Element oder <see langword="null"/>.</summary>
+    /// <summary>The selected element or <see langword="null"/>.</summary>
     [Parameter]
     public GraphSelection? Selection { get; set; }
 
-    /// <summary>Ob gerade ein Engine-Schritt läuft.</summary>
+    /// <summary>Whether an engine step is currently running.</summary>
     [Parameter]
     public bool Busy { get; set; }
 
-    /// <summary>Die <c>Sequence</c> der gerade bearbeiteten Antwort oder <see langword="null"/>.</summary>
+    /// <summary>The <c>Sequence</c> of the answer currently being edited or <see langword="null"/>.</summary>
     [Parameter]
     public int? EditingSequence { get; set; }
 
-    /// <summary>Der Eingabezustand der gerade bearbeiteten Antwort.</summary>
+    /// <summary>The input state of the answer currently being edited.</summary>
     [Parameter]
     public AnswerInputModel? EditInput { get; set; }
 
-    /// <summary>Meldet die neue Auswahl.</summary>
+    /// <summary>Reports the new selection.</summary>
     [Parameter]
     public EventCallback<GraphSelection> Select { get; set; }
 
-    /// <summary>Meldet den Wunsch, die Antwort mit dieser <c>Sequence</c> zu bearbeiten.</summary>
+    /// <summary>Reports the wish to edit the answer with this <c>Sequence</c>.</summary>
     [Parameter]
     public EventCallback<int> StartEdit { get; set; }
 
-    /// <summary>Meldet, dass die bearbeitete Antwort gespeichert werden soll.</summary>
+    /// <summary>Reports that the edited answer should be saved.</summary>
     [Parameter]
     public EventCallback SaveEdit { get; set; }
 
-    /// <summary>Meldet den Abbruch der Bearbeitung.</summary>
+    /// <summary>Reports the cancellation of the editing.</summary>
     [Parameter]
     public EventCallback CancelEdit { get; set; }
 
@@ -323,28 +322,28 @@
     private QuestionDetail? QuestionOf(Guid questionId)
         => Detail.Questions.FirstOrDefault(question => question.Id == questionId);
 
-    private string QuestionKey(Guid questionId) => QuestionOf(questionId)?.Key ?? "unbekannt";
+    private string QuestionKey(Guid questionId) => QuestionOf(questionId)?.Key ?? "unknown";
 
     private string TargetKey(GraphEdge edge) => QuestionKey(edge.TargetQuestionId);
 
     private IReadOnlyList<GraphEdge> Outgoing(Guid questionId)
         => [.. Model.Edges.Where(edge => edge.FromQuestionId == questionId).OrderBy(edge => edge.Position)];
 
-    /// <summary>Beschreibt, ob und wie oft eine Kante gegriffen hat.</summary>
+    /// <summary>Describes whether and how often an edge was taken.</summary>
     private static string Describe(GraphRunEdgeUse? use)
         => use switch
         {
-            null => "nicht gegriffen",
-            { IsAmbiguous: true } => $"{use.Count}-mal durchlaufen (mehrdeutig)",
-            { Count: 1 } => "gegriffen",
-            _ => $"{use.Count}-mal gegriffen",
+            null => "not taken",
+            { IsAmbiguous: true } => $"traversed {use.Count} times (ambiguous)",
+            { Count: 1 } => "taken",
+            _ => $"taken {use.Count} times",
         };
 
     private static string DescribeStatus(SessionStatus status) => status switch
     {
-        SessionStatus.InProgress => "läuft",
-        SessionStatus.Completed => "abgeschlossen",
-        SessionStatus.Abandoned => "abgebrochen",
+        SessionStatus.InProgress => "running",
+        SessionStatus.Completed => "completed",
+        SessionStatus.Abandoned => "abandoned",
         _ => status.ToString(),
     };
 }

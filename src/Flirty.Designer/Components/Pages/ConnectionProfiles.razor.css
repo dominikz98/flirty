@@ -1,5 +1,5 @@
-/* Die gemeinsamen UI-Primitiven (.editor, .field, .btn, .data-table, .badge, .msg …) liegen seit #38
-   global in wwwroot/app.css. Hier bleibt nur, was ausschließlich diese Seite betrifft. */
+/* The shared UI primitives (.editor, .field, .btn, .data-table, .badge, .msg …) have lived globally in
+   wwwroot/app.css since #38. Here remains only what concerns this page exclusively. */
 
 .active-row {
     background-color: #eef6ee;

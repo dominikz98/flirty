@@ -49,7 +49,7 @@ public sealed class DialogGraphBuilderTests
         Assert.True(orphan.IsUnreachable);
         Assert.Contains(
             orphan.Warnings,
-            warning => warning.Text.Contains("nicht erreichbar", StringComparison.Ordinal));
+            warning => warning.Text.Contains("Not reachable", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -68,7 +68,7 @@ public sealed class DialogGraphBuilderTests
         Assert.Contains(
             model.DialogWarnings,
             warning => warning.Kind == GraphElementKind.Dialog
-                && warning.Text.Contains("Keine Einstiegsfrage", StringComparison.Ordinal));
+                && warning.Text.Contains("No entry question", StringComparison.Ordinal));
         Assert.All(model.Nodes, node => Assert.False(node.IsUnreachable));
     }
 
@@ -89,7 +89,7 @@ public sealed class DialogGraphBuilderTests
 
         Assert.Contains(
             model.Edge(blocking.Id)!.Warnings,
-            warning => warning.Text.Contains("greift immer", StringComparison.Ordinal));
+            warning => warning.Text.Contains("always matches", StringComparison.Ordinal));
 
         // Und die Gruppen-Warnung bleibt am Knoten: mehrere Defaults sind niemandes Einzelschuld.
         dialog.Transitions.First(transition => transition.IsDefault).IsDefault = true;
@@ -100,7 +100,7 @@ public sealed class DialogGraphBuilderTests
 
         Assert.Contains(
             withTwoDefaults.Node(ids.RoleQuestionId)!.Warnings,
-            warning => warning.Text.Contains("Mehrere Default-Übergänge", StringComparison.Ordinal));
+            warning => warning.Text.Contains("Multiple default transitions", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -120,11 +120,11 @@ public sealed class DialogGraphBuilderTests
         var frame = Assert.Single(model.Loops);
         Assert.Contains(
             frame.Warnings,
-            warning => warning.Text.Contains("nicht referenzierbar", StringComparison.Ordinal));
+            warning => warning.Text.Contains("not referenceable", StringComparison.Ordinal));
 
         Assert.Contains(
             model.Node(ids.MoreQuestionId)!.Warnings,
-            warning => warning.Text.Contains("Endlosschleife", StringComparison.Ordinal));
+            warning => warning.Text.Contains("infinite loop", StringComparison.Ordinal));
     }
 
     /// <summary>Der Rahmen umschließt genau die Knoten des vom <c>LoopAnalyzer</c> berechneten Bereichs.</summary>
@@ -250,19 +250,19 @@ public sealed class DialogGraphBuilderTests
         var model = DialogGraphBuilder.Build(AdminProjection.ToDetail(dialog));
 
         var start = model.Node(ids.RoleQuestionId)!.AriaLabel;
-        Assert.Contains("Frage role", start, StringComparison.Ordinal);
-        Assert.Contains("Einfachauswahl", start, StringComparison.Ordinal);
-        Assert.Contains("Pflichtfrage", start, StringComparison.Ordinal);
-        Assert.Contains("2 Antwortoptionen", start, StringComparison.Ordinal);
-        Assert.Contains("Einstiegsfrage", start, StringComparison.Ordinal);
-        Assert.Contains("2 ausgehende Übergänge", start, StringComparison.Ordinal);
+        Assert.Contains("Question role", start, StringComparison.Ordinal);
+        Assert.Contains("Single choice", start, StringComparison.Ordinal);
+        Assert.Contains("required", start, StringComparison.Ordinal);
+        Assert.Contains("2 answer options", start, StringComparison.Ordinal);
+        Assert.Contains("entry question", start, StringComparison.Ordinal);
+        Assert.Contains("2 outgoing transitions", start, StringComparison.Ordinal);
 
         var terminal = model.Node(ids.PmQuestionId)!.AriaLabel;
-        Assert.Contains("Abschluss, kein ausgehender Übergang", terminal, StringComparison.Ordinal);
+        Assert.Contains("terminal, no outgoing transition", terminal, StringComparison.Ordinal);
         Assert.Contains("optional", terminal, StringComparison.Ordinal);
 
         // Auch Kanten tragen ihre volle Aussage – sie sind nicht fokussierbar, aber vorlesbar.
-        Assert.All(model.Edges, edge => Assert.Contains("Übergang", edge.AriaLabel, StringComparison.Ordinal));
+        Assert.All(model.Edges, edge => Assert.Contains("Transition", edge.AriaLabel, StringComparison.Ordinal));
     }
 
     /// <summary>Die Zusammenfassung ersetzt das Bild für alle, die es nicht sehen.</summary>
@@ -273,10 +273,10 @@ public sealed class DialogGraphBuilderTests
 
         var summary = DialogGraphBuilder.Build(AdminProjection.ToDetail(dialog)).Summary;
 
-        Assert.Contains("3 Fragen", summary, StringComparison.Ordinal);
-        Assert.Contains("3 Übergänge", summary, StringComparison.Ordinal);
-        Assert.Contains("1 Schleife", summary, StringComparison.Ordinal);
-        Assert.Contains("keine Warnungen", summary, StringComparison.Ordinal);
+        Assert.Contains("3 questions", summary, StringComparison.Ordinal);
+        Assert.Contains("3 transitions", summary, StringComparison.Ordinal);
+        Assert.Contains("1 loop", summary, StringComparison.Ordinal);
+        Assert.Contains("no warnings", summary, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -358,7 +358,7 @@ public sealed class DialogGraphBuilderTests
         Assert.Empty(model.Nodes);
         Assert.Empty(model.Edges);
         Assert.Empty(model.DialogWarnings);
-        Assert.Contains("0 Fragen", model.Summary, StringComparison.Ordinal);
+        Assert.Contains("0 questions", model.Summary, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -391,7 +391,7 @@ public sealed class DialogGraphBuilderTests
 
         // Und der Knoten weiß von seiner eigenen Position – daran hängt die Markierung in der Karte.
         Assert.True(model.Node(ids.MoreQuestionId)!.IsPinned);
-        Assert.Contains("eigene Position", model.Node(ids.MoreQuestionId)!.AriaLabel, StringComparison.Ordinal);
+        Assert.Contains("own position", model.Node(ids.MoreQuestionId)!.AriaLabel, StringComparison.Ordinal);
     }
 
     private static TriggerDefinition Trigger(Guid dialogId, TriggerScope scope, Guid? questionId)

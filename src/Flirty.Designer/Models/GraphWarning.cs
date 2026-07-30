@@ -1,100 +1,100 @@
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Die Art eines Graph-Elements – Ziel einer <see cref="GraphWarning"/> und zugleich Art der Auswahl in
-/// <see cref="GraphSelection"/>.
+/// The kind of a graph element – target of a <see cref="GraphWarning"/> and at the same time kind of the
+/// selection in <see cref="GraphSelection"/>.
 /// </summary>
 /// <remarks>
-/// Die beiden Rollen decken sich nicht vollständig: <see cref="Trigger"/> ist ausschließlich auswählbar
-/// (es gibt keine Warnung an einem Trigger), und <see cref="Dialog"/> trägt als Auswahl die
-/// Scope-Marker – die Trigger ohne Frage-Bezug. Ein zweites Enum dafür wäre ein Duplikat mit vier
-/// identischen Werten.
+/// The two roles do not fully overlap: <see cref="Trigger"/> is exclusively selectable
+/// (there is no warning on a trigger), and <see cref="Dialog"/> carries, as a selection, the
+/// scope markers – the triggers without a question reference. A second enum for that would be a duplicate with four
+/// identical values.
 /// </remarks>
 public enum GraphElementKind
 {
     /// <summary>
-    /// Der Dialog als Ganzes: eine Warnung ohne einzelnes Element als Ursache – bzw., als Auswahl, die
-    /// Scope-Marker mit den Triggern ohne Frage-Bezug (#103).
+    /// The dialog as a whole: a warning without a single element as its cause – or, as a selection, the
+    /// scope markers with the triggers without a question reference (#103).
     /// </summary>
     Dialog = 0,
 
-    /// <summary>Eine Frage (Knoten auf dem Canvas).</summary>
+    /// <summary>A question (node on the canvas).</summary>
     Question = 1,
 
-    /// <summary>Ein Übergang (Kante auf dem Canvas).</summary>
+    /// <summary>A transition (edge on the canvas).</summary>
     Transition = 2,
 
-    /// <summary>Ein Schleifen-Marker (Bereichsrahmen auf dem Canvas).</summary>
+    /// <summary>A loop marker (range frame on the canvas).</summary>
     Loop = 3,
 
-    /// <summary>Ein einzelner Trigger (Chip am Knoten oder am Scope-Marker) – nur als Auswahl (#103).</summary>
+    /// <summary>A single trigger (chip at the node or at the scope marker) – only as a selection (#103).</summary>
     Trigger = 4,
 }
 
 /// <summary>
-/// Eine Konfigurationswarnung <b>mit Ortsangabe</b>: derselbe Befund, den der <c>DialogEditor</c> als
-/// Fließtext zeigt, zusätzlich dem Element zugeordnet, das ihn verursacht.
+/// A configuration warning <b>with a location</b>: the same finding that the <c>DialogEditor</c> shows as
+/// running text, additionally assigned to the element that causes it.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Die Graph-Ansicht (#101) muss Warnungen <b>am betroffenen Knoten bzw. an der betroffenen Kante</b>
-/// anzeigen, die Listenansicht braucht weiterhin Fließtext je Ausgangsfrage. Beides aus derselben
-/// Quelle zu speisen ist der ganze Zweck dieses Typs – eine zweite Warnungslogik neben
-/// <see cref="Flirty.Designer.Services.TransitionWarningAnalyzer"/> und
-/// <see cref="Flirty.Designer.Services.LoopAnalyzer"/> würde unweigerlich auseinanderlaufen.
+/// The graph view (#101) must show warnings <b>at the affected node or at the affected edge</b>,
+/// the list view still needs running text per source question. Feeding both from the same
+/// source is the whole purpose of this type – a second warning logic beside
+/// <see cref="Flirty.Designer.Services.TransitionWarningAnalyzer"/> and
+/// <see cref="Flirty.Designer.Services.LoopAnalyzer"/> would inevitably drift apart.
 /// </para>
 /// <para>
-/// <see cref="Text"/> ist bewusst der <b>unveränderte</b> Wortlaut, den der Designer schon immer
-/// gezeigt hat: Die Texte sind Vertrag gegenüber den Tests und der E2E-Suite.
+/// <see cref="Text"/> is deliberately the <b>unchanged</b> wording that the designer has always
+/// shown: the texts are a contract towards the tests and the E2E suite.
 /// </para>
 /// <para>
-/// Der Typ ist <see langword="public"/>, weil Razor-Komponenten <see langword="public"/> generiert
-/// werden und ein <see langword="internal"/> Typ an einem <c>[Parameter]</c> zu CS0053 führt – unter
-/// <c>TreatWarningsAsErrors</c> also zum Buildfehler. Dieselbe Begründung wie bei
+/// The type is <see langword="public"/>, because Razor components are generated <see langword="public"/>
+/// and an <see langword="internal"/> type on a <c>[Parameter]</c> leads to CS0053 – under
+/// <c>TreatWarningsAsErrors</c> therefore to a build error. The same rationale as for
 /// <see cref="AnswerChoice"/>.
 /// </para>
 /// </remarks>
-/// <param name="Kind">Die Art des betroffenen Elements.</param>
+/// <param name="Kind">The kind of the affected element.</param>
 /// <param name="ElementId">
-/// Der Primärschlüssel des betroffenen Elements; <see langword="null"/> bei
+/// The primary key of the affected element; <see langword="null"/> for
 /// <see cref="GraphElementKind.Dialog"/>.
 /// </param>
 /// <param name="QuestionId">
-/// Die Bezugsfrage für Gruppierung und Präfix in der Listenansicht: bei einer Frage identisch zu
-/// <paramref name="ElementId"/>, bei einem Übergang dessen Ausgangsfrage, sonst <see langword="null"/>.
+/// The reference question for grouping and prefix in the list view: for a question identical to
+/// <paramref name="ElementId"/>, for a transition its source question, otherwise <see langword="null"/>.
 /// </param>
-/// <param name="Text">Der Warntext – wortgleich zu dem, was der <c>DialogEditor</c> anzeigt.</param>
+/// <param name="Text">The warning text – word for word the one the <c>DialogEditor</c> displays.</param>
 public sealed record GraphWarning(
     GraphElementKind Kind,
     Guid? ElementId,
     Guid? QuestionId,
     string Text)
 {
-    /// <summary>Eine Warnung, die an einer Frage hängt (Knoten).</summary>
-    /// <param name="questionId">Die betroffene Frage.</param>
-    /// <param name="text">Der Warntext.</param>
-    /// <returns>Die verortete Warnung.</returns>
+    /// <summary>A warning attached to a question (node).</summary>
+    /// <param name="questionId">The affected question.</param>
+    /// <param name="text">The warning text.</param>
+    /// <returns>The located warning.</returns>
     public static GraphWarning ForQuestion(Guid questionId, string text)
         => new(GraphElementKind.Question, questionId, questionId, text);
 
-    /// <summary>Eine Warnung, die an einem Übergang hängt (Kante).</summary>
-    /// <param name="transitionId">Der betroffene Übergang.</param>
-    /// <param name="fromQuestionId">Dessen Ausgangsfrage – die Bezugsfrage der Listenansicht.</param>
-    /// <param name="text">Der Warntext.</param>
-    /// <returns>Die verortete Warnung.</returns>
+    /// <summary>A warning attached to a transition (edge).</summary>
+    /// <param name="transitionId">The affected transition.</param>
+    /// <param name="fromQuestionId">Its source question – the reference question of the list view.</param>
+    /// <param name="text">The warning text.</param>
+    /// <returns>The located warning.</returns>
     public static GraphWarning ForTransition(Guid transitionId, Guid fromQuestionId, string text)
         => new(GraphElementKind.Transition, transitionId, fromQuestionId, text);
 
-    /// <summary>Eine Warnung, die an einem Schleifen-Marker hängt (Bereichsrahmen).</summary>
-    /// <param name="loopId">Der betroffene Marker.</param>
-    /// <param name="text">Der Warntext.</param>
-    /// <returns>Die verortete Warnung.</returns>
+    /// <summary>A warning attached to a loop marker (range frame).</summary>
+    /// <param name="loopId">The affected marker.</param>
+    /// <param name="text">The warning text.</param>
+    /// <returns>The located warning.</returns>
     public static GraphWarning ForLoop(Guid loopId, string text)
         => new(GraphElementKind.Loop, loopId, null, text);
 
-    /// <summary>Eine Warnung, die den Dialog als Ganzes betrifft (kein einzelnes Element).</summary>
-    /// <param name="text">Der Warntext.</param>
-    /// <returns>Die Warnung ohne Elementbezug.</returns>
+    /// <summary>A warning that concerns the dialog as a whole (no single element).</summary>
+    /// <param name="text">The warning text.</param>
+    /// <returns>The warning without an element reference.</returns>
     public static GraphWarning ForDialog(string text)
         => new(GraphElementKind.Dialog, null, null, text);
 }

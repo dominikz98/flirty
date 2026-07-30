@@ -140,8 +140,8 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.Equal(ids.SummaryQuestionId, afterExit.CurrentQuestionId);
 
         // Und die Zusammenfassung – für Screenreader die einzige Fassung der Hervorhebung.
-        Assert.Contains("offene Frage summary", afterExit.Summary, StringComparison.Ordinal);
-        Assert.Contains("positions: 2 Iterationen", afterExit.Summary, StringComparison.Ordinal);
+        Assert.Contains("open question summary", afterExit.Summary, StringComparison.Ordinal);
+        Assert.Contains("positions: 2 iterations", afterExit.Summary, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -269,7 +269,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.Empty(overlay.Loops);
         Assert.Empty(overlay.Triggers);
         Assert.Equal(0, overlay.Steps);
-        Assert.Contains("noch nicht gestartet", overlay.Summary, StringComparison.Ordinal);
+        Assert.Contains("not started yet", overlay.Summary, StringComparison.Ordinal);
     }
 
     // ---- Aufbau --------------------------------------------------------------------------------------

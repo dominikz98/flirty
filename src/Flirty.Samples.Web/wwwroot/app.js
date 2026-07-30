@@ -1,7 +1,7 @@
 "use strict";
 
-// Chat-UI der Web-Sample: konsumiert ausschließlich die HTTP-Endpunkte von Flirty.AspNetCore
-// (POST/GET /flirty/sessions ...) und demonstriert Resume, Edit, Branching, Loop über Liste und Trigger.
+// Chat UI of the web sample: consumes exclusively the HTTP endpoints of Flirty.AspNetCore
+// (POST/GET /flirty/sessions ...) and demonstrates resume, edit, branching, loop over list and triggers.
 
 const QuestionType = { SingleChoice: 0, MultiChoice: 1, FreeText: 2, Number: 3, Date: 4, Boolean: 5 };
 const SessionStatus = { InProgress: 0, Completed: 1, Abandoned: 2 };
@@ -22,10 +22,10 @@ const state = {
     userKey: null,
     sessionId: null,
     questionsById: new Map(), // questionId -> { key, text, type, options }
-    busy: false,              // solange ein Antwort-Request läuft: keine weitere Eingabe annehmen
+    busy: false,              // while an answer request is running: accept no further input
 };
 
-// ---------- HTTP-Helfer ----------
+// ---------- HTTP helpers ----------
 
 async function http(method, url, body) {
     const options = { method, headers: {} };
@@ -36,7 +36,7 @@ async function http(method, url, body) {
     const response = await fetch(url, options);
     if (!response.ok) {
         let detail = "";
-        try { detail = (await response.json()).detail || ""; } catch { /* kein JSON-Body */ }
+        try { detail = (await response.json()).detail || ""; } catch { /* no JSON body */ }
         throw new Error(`${response.status} ${response.statusText}${detail ? " – " + detail : ""}`);
     }
     if (response.status === 204) return null;
@@ -44,7 +44,7 @@ async function http(method, url, body) {
     return text ? JSON.parse(text) : null;
 }
 
-// ---------- Antwortwert-Kodierung (roher JSON-Text je Fragetyp) ----------
+// ---------- Answer value encoding (raw JSON text per question type) ----------
 
 function encodeAnswer(type, rawInput) {
     switch (type) {
@@ -56,15 +56,15 @@ function encodeAnswer(type, rawInput) {
         }
         case QuestionType.MultiChoice:
             return JSON.stringify(Array.isArray(rawInput) ? rawInput : [rawInput]);
-        default: // SingleChoice, FreeText, Date -> JSON-String
+        default: // SingleChoice, FreeText, Date -> JSON string
             return JSON.stringify(String(rawInput));
     }
 }
 
 function decodeForDisplay(question, rawValue) {
     let parsed = rawValue;
-    try { parsed = JSON.parse(rawValue); } catch { /* Wert bleibt roh */ }
-    if (question && question.type === QuestionType.Boolean) return parsed ? "Ja" : "Nein";
+    try { parsed = JSON.parse(rawValue); } catch { /* value stays raw */ }
+    if (question && question.type === QuestionType.Boolean) return parsed ? "Yes" : "No";
     if (question && question.type === QuestionType.SingleChoice && Array.isArray(question.options)) {
         const opt = question.options.find(o => o.value === parsed);
         if (opt) return opt.label;
@@ -73,12 +73,12 @@ function decodeForDisplay(question, rawValue) {
     return String(parsed);
 }
 
-// Der gespeicherte Wert als Text für ein Eingabefeld – im Gegensatz zu decodeForDisplay OHNE Übersetzung
-// in die Anzeigeform (Label statt Wert, "Ja" statt true). Nur so lässt sich das Ergebnis unverändert
-// wieder durch encodeAnswer schicken.
+// The stored value as text for an input field – unlike decodeForDisplay WITHOUT translation
+// into the display form (label instead of value, "Yes" instead of true). Only this way can the result be
+// sent back through encodeAnswer unchanged.
 function decodeRaw(rawValue) {
     let parsed = rawValue;
-    try { parsed = JSON.parse(rawValue); } catch { /* Wert bleibt roh */ }
+    try { parsed = JSON.parse(rawValue); } catch { /* value stays raw */ }
     return Array.isArray(parsed) ? parsed.join(", ") : String(parsed);
 }
 
@@ -113,17 +113,17 @@ function renderAnswerBubble(answer, question) {
     const iter = answer.iterationIndex != null ? ` #${answer.iterationIndex + 1}` : "";
     const bubble = addMessage("msg--user",
         `<span class="msg__key">${answer.questionKey}${iter}</span>${value}` +
-        `<button class="msg__edit" title="Antwort editieren">✏️</button>`);
+        `<button class="msg__edit" title="Edit answer">✏️</button>`);
     const edit = bubble.querySelector(".msg__edit");
     edit.disabled = state.busy;
     edit.addEventListener("click", () => startEditing(answer, question, label));
     return bubble;
 }
 
-// Sperrt bzw. entsperrt die Editier-Schaltflächen für die Dauer eines Requests. Die Eingabezeile wird
-// beim Absenden ohnehin geleert; die Stifte der Antwortblasen blieben ohne das hier klickbar, und ein
-// Edit konnte die noch fliegende Antwort überholen: Der Server verwarf dann zu wenig (er kannte die
-// letzte Antwort noch nicht) und lehnte den nachlaufenden Submit mit 409 ab.
+// Locks and unlocks the edit buttons for the duration of a request. The input line is cleared on submit
+// anyway; without this the pencils of the answer bubbles would stay clickable, and an edit could overtake
+// the still-flying answer: the server then discarded too little (it did not yet know the last answer) and
+// rejected the trailing submit with 409.
 function setBusy(value) {
     state.busy = value;
     for (const button of dom.chatLog.querySelectorAll(".msg__edit")) {
@@ -131,11 +131,11 @@ function setBusy(value) {
     }
 }
 
-// Baut die Eingabesteuerung zu einer Frage in die Eingabezeile: Auswahl-Buttons bei SingleChoice/Boolean,
-// sonst ein typrichtiges Eingabefeld. Bewusst EINE Stelle für die offene Frage und für das Edit-Formular –
-// sonst kennt der eine Pfad die Typen und der andere nicht (genau das war der Fehler: das Edit-Formular
-// hat immer ein Textfeld gerendert und dessen Anzeigeform gespeichert, also "Product Manager" statt "pm").
-// `onSubmit` bekommt immer den ROHEN Antwortwert, so wie ihn encodeAnswer erwartet.
+// Builds the input control for a question into the input line: choice buttons for SingleChoice/Boolean,
+// otherwise a type-correct input field. Deliberately ONE place for the open question and for the edit form –
+// otherwise one path knows the types and the other does not (that was exactly the bug: the edit form
+// always rendered a text field and stored its display form, i.e. "Product Manager" instead of "pm").
+// `onSubmit` always receives the RAW answer value, exactly as encodeAnswer expects it.
 function renderAnswerControls(question, { rawValue, submitLabel, onSubmit, leading = [], trailing = [] }) {
     const controls = [];
     let field = null;
@@ -145,12 +145,12 @@ function renderAnswerControls(question, { rawValue, submitLabel, onSubmit, leadi
             controls.push(button(option.label, () => onSubmit(option.value)));
         }
     } else if (question.type === QuestionType.Boolean) {
-        controls.push(button("Ja", () => onSubmit(true)), button("Nein", () => onSubmit(false)));
+        controls.push(button("Yes", () => onSubmit(true)), button("No", () => onSubmit(false)));
     } else {
         field = document.createElement("input");
         field.className = "field";
         field.type = question.type === QuestionType.Number ? "number" : (question.type === QuestionType.Date ? "date" : "text");
-        field.placeholder = "Antwort eingeben …";
+        field.placeholder = "Enter an answer …";
         if (rawValue !== undefined) field.value = rawValue;
         const send = () => {
             const value = field.value.trim();
@@ -171,7 +171,7 @@ function renderInput(question) {
     }
 
     renderAnswerControls(question, {
-        submitLabel: "Senden",
+        submitLabel: "Send",
         onSubmit: value => submitAnswer(question, value),
     });
 }
@@ -191,10 +191,10 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ---------- Ablauf ----------
+// ---------- Flow ----------
 
 async function loadDialogMeta() {
-    // Demonstriert zusätzlich die Admin-GET-Endpunkte: den Frage-Graphen für hübsche Anzeige laden.
+    // Additionally demonstrates the admin GET endpoints: load the question graph for a nice display.
     const dialogs = await http("GET", "/flirty/admin/dialogs");
     const meta = (dialogs || []).find(d => d.key === DIALOG_KEY);
     if (!meta) return;
@@ -209,7 +209,7 @@ async function startSession() {
     const result = await http("POST", "/flirty/sessions", { dialogKey: DIALOG_KEY, externalUserKey: state.userKey });
     state.sessionId = result.sessionId;
     localStorage.setItem("flirty.sessionId", state.sessionId);
-    await refreshAndRender(result.isResumed ? "Bestehende Session fortgesetzt (Resume)." : "Neue Session gestartet.");
+    await refreshAndRender(result.isResumed ? "Existing session continued (resume)." : "New session started.");
 }
 
 async function refreshAndRender(statusText) {
@@ -222,7 +222,7 @@ async function refreshAndRender(statusText) {
     }
 
     if (stateResponse.status === SessionStatus.Completed || !stateResponse.currentQuestion) {
-        addMessage("msg--system", "✅ Dialog abgeschlossen. Du kannst frühere Antworten weiterhin editieren.");
+        addMessage("msg--system", "✅ Dialog completed. You can still edit earlier answers.");
         renderInput(null);
     } else {
         renderQuestionPrompt(stateResponse.currentQuestion);
@@ -234,20 +234,20 @@ async function refreshAndRender(statusText) {
 }
 
 async function submitAnswer(question, rawInput) {
-    // Eingabesteuerung sofort entfernen: verhindert Doppel-Submit und (im Test) das Treffen des
-    // veralteten Feldes, während der Netzwerk-Roundtrip + Re-Render noch laufen. setBusy sperrt
-    // zusätzlich die Editier-Stifte – sonst überholt ein Edit die noch fliegende Antwort.
+    // Remove the input control immediately: prevents double submit and (in the test) hitting the
+    // stale field while the network round-trip + re-render are still running. setBusy additionally
+    // locks the edit pencils – otherwise an edit overtakes the still-flying answer.
     dom.inputArea.replaceChildren();
     setBusy(true);
-    setStatus("Sende …");
+    setStatus("Sending …");
     try {
         const value = encodeAnswer(question.type, rawInput);
         const result = await http("POST", `/flirty/sessions/${state.sessionId}/answers`, { questionId: question.id, value });
         setBusy(false);
-        await refreshAndRender(result.isCompleted ? "Dialog abgeschlossen – Trigger ausgelöst." : "");
+        await refreshAndRender(result.isCompleted ? "Dialog completed – trigger fired." : "");
     } catch (err) {
         setBusy(false);
-        setStatus("Fehler: " + err.message);
+        setStatus("Error: " + err.message);
     }
 }
 
@@ -256,32 +256,32 @@ function startEditing(answer, question, label) {
 
     const info = document.createElement("span");
     info.className = "pill";
-    info.textContent = `Editiere: ${label}`;
-    const cancel = button("Abbrechen", () => refreshAndRender(""));
+    info.textContent = `Editing: ${label}`;
+    const cancel = button("Cancel", () => refreshAndRender(""));
     cancel.classList.add("btn--ghost");
 
     renderAnswerControls(question || { type, options: [] }, {
-        // Vorbelegt wird der gespeicherte Wert, nicht seine Anzeigeform. Bei einer Auswahl entfällt die
-        // Frage ohnehin: dort speichert der Klick auf die Option direkt deren Wert.
+        // The stored value is prefilled, not its display form. For a choice the question is omitted
+        // anyway: there the click on the option stores its value directly.
         rawValue: decodeRaw(answer.value),
-        submitLabel: "Speichern",
+        submitLabel: "Save",
         leading: [info],
         trailing: [cancel],
         onSubmit: async rawInput => {
             const value = encodeAnswer(type, rawInput);
             dom.inputArea.replaceChildren();
             setBusy(true);
-            setStatus("Speichere …");
+            setStatus("Saving …");
             try {
                 const body = { value };
-                // Innerhalb einer Schleife trägt jede Iteration eine eigene Antwort -> gezielt editieren.
+                // Within a loop each iteration carries its own answer -> edit it specifically.
                 if (answer.iterationIndex != null) body.iterationIndex = answer.iterationIndex;
                 const result = await http("PUT", `/flirty/sessions/${state.sessionId}/answers/${answer.questionId}`, body);
                 setBusy(false);
-                await refreshAndRender(`Antwort editiert – ${result.invalidatedAnswers} nachgelagerte Antwort(en) verworfen.`);
+                await refreshAndRender(`Answer edited – ${result.invalidatedAnswers} downstream answer(s) discarded.`);
             } catch (err) {
                 setBusy(false);
-                setStatus("Fehler: " + err.message);
+                setStatus("Error: " + err.message);
             }
         },
     });
@@ -292,7 +292,7 @@ function renderSkills(answers) {
         .filter(a => a.questionKey === "skill")
         .sort((a, b) => (a.iterationIndex ?? 0) - (b.iterationIndex ?? 0))
         .map(a => decodeForDisplay(state.questionsById.get(a.questionId), a.value));
-    renderList(dom.skillsList, skills.map(s => escapeHtml(s)), "Noch keine Fähigkeit erfasst.");
+    renderList(dom.skillsList, skills.map(s => escapeHtml(s)), "No skill recorded yet.");
 }
 
 async function refreshTriggerPanels() {
@@ -302,12 +302,12 @@ async function refreshTriggerPanels() {
             http("GET", "/demo/webhooks"),
         ]);
         renderList(dom.triggersList,
-            (triggers || []).map(t => `<strong>${escapeHtml(t.dialogKey)}</strong> · ${t.answerCount} Antworten`),
-            "Noch kein Trigger ausgelöst.");
+            (triggers || []).map(t => `<strong>${escapeHtml(t.dialogKey)}</strong> · ${t.answerCount} answers`),
+            "No trigger fired yet.");
         renderList(dom.webhooksList,
-            (webhooks || []).map(w => `<strong>${escapeHtml(w.event)}</strong> empfangen`),
-            "Noch kein Webhook empfangen.");
-    } catch { /* Panel-Aktualisierung ist best-effort */ }
+            (webhooks || []).map(w => `<strong>${escapeHtml(w.event)}</strong> received`),
+            "No webhook received yet.");
+    } catch { /* panel refresh is best-effort */ }
 }
 
 function renderList(container, htmlItems, emptyText) {
@@ -343,19 +343,19 @@ async function boot() {
     try {
         await loadDialogMeta();
     } catch (err) {
-        setStatus("Dialog-Metadaten konnten nicht geladen werden (Provisioning evtl. noch aktiv): " + err.message);
+        setStatus("Dialog metadata could not be loaded (provisioning may still be running): " + err.message);
     }
 
     const stored = localStorage.getItem("flirty.sessionId");
     try {
         if (stored) {
             state.sessionId = stored;
-            await refreshAndRender("Session nach Reload wiederhergestellt (Resume).");
+            await refreshAndRender("Session restored after reload (resume).");
         } else {
             await startSession();
         }
     } catch {
-        // Gespeicherte Session unbekannt (z. B. DB geleert) -> neu starten.
+        // Stored session unknown (e.g. DB cleared) -> start fresh.
         localStorage.removeItem("flirty.sessionId");
         await startSession();
     }

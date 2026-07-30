@@ -3,34 +3,35 @@ using System.Globalization;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Zahlformatierung für SVG-Attribute – die <b>einzige</b> erlaubte Art, im Designer eine Zahl in
-/// SVG-Markup zu schreiben.
+/// Number formatting for SVG attributes – the <b>only</b> allowed way to write a number into SVG markup
+/// in the designer.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>DesignerApp.ConfigureServices</c> setzt <c>CultureInfo.DefaultThreadCurrentCulture</c> auf
-/// <c>de-DE</c> (#95: Datumsformate in deutschem Fließtext). Eine per Interpolation eingesetzte
-/// <see cref="double"/>-Koordinate schreibt damit <c>12,5</c> statt <c>12.5</c> – und da ein Komma in
-/// der SVG-Pfadsyntax ein <b>Trennzeichen</b> ist, wird aus einer Koordinate stillschweigend eine
-/// falsche Zahlenfolge. Es gibt weder eine Ausnahme noch eine Konsolenmeldung, nur ein falsches Bild.
+/// <c>DesignerApp.ConfigureServices</c> sets <c>CultureInfo.DefaultThreadCurrentCulture</c> to the
+/// configurable display culture (<c>DesignerApp.DisplayCulture</c>). If that is a comma-decimal culture,
+/// an interpolated <see cref="double"/> coordinate writes <c>12,5</c> instead of <c>12.5</c> – and since
+/// a comma is a <b>separator</b> in SVG path syntax, a coordinate silently turns into a wrong number
+/// sequence. There is neither an exception nor a console message, only a wrong picture. The guard is
+/// therefore against the display culture, whatever it is set to, not against one specific culture.
 /// </para>
 /// <para>
-/// Betrifft alle numerischen SVG-Attribute: <c>d</c>, <c>transform</c>, <c>viewBox</c>, <c>x</c>/<c>y</c>,
-/// <c>width</c>/<c>height</c>, <c>stroke-dasharray</c>. Beim Review gezielt nach interpolierten
-/// <see cref="double"/>-Werten in <c>.razor</c>-Dateien suchen.
+/// Affects all numeric SVG attributes: <c>d</c>, <c>transform</c>, <c>viewBox</c>, <c>x</c>/<c>y</c>,
+/// <c>width</c>/<c>height</c>, <c>stroke-dasharray</c>. When reviewing, specifically look for interpolated
+/// <see cref="double"/> values in <c>.razor</c> files.
 /// </para>
 /// <para>
-/// Der Typ ist <see langword="public"/>, weil er aus Razor-Markup heraus aufgerufen wird.
+/// The type is <see langword="public"/> because it is called from Razor markup.
 /// </para>
 /// </remarks>
 public static class SvgFormat
 {
     /// <summary>
-    /// Formatiert eine Zahl für ein SVG-Attribut: höchstens zwei Nachkommastellen, Dezimal<b>punkt</b>
-    /// unabhängig von der Kultur des Circuits.
+    /// Formats a number for an SVG attribute: at most two decimal places, a decimal <b>point</b>
+    /// regardless of the circuit's culture.
     /// </summary>
-    /// <param name="value">Der Zahlwert.</param>
-    /// <returns>Die kulturunabhängige Textform.</returns>
+    /// <param name="value">The numeric value.</param>
+    /// <returns>The culture-independent text form.</returns>
     public static string N(double value)
         => value.ToString("0.##", CultureInfo.InvariantCulture);
 }

@@ -1,27 +1,27 @@
 namespace Flirty.Samples.Web;
 
 /// <summary>
-/// Ein Eintrag des <see cref="TriggerLog"/>: hält fest, dass der In-Process-Handler eine
-/// Abschluss-Notification empfangen hat.
+/// An entry of the <see cref="TriggerLog"/>: records that the in-process handler received a
+/// completion notification.
 /// </summary>
-/// <param name="DialogKey">Der fachliche Schlüssel des abgeschlossenen Dialogs.</param>
-/// <param name="SessionId">Die Id der abgeschlossenen Session.</param>
-/// <param name="AnswerCount">Anzahl der zum Abschlusszeitpunkt gegebenen Antworten.</param>
-/// <param name="ReceivedAt">Zeitpunkt, zu dem der Handler die Notification empfangen hat.</param>
+/// <param name="DialogKey">The business key of the completed dialog.</param>
+/// <param name="SessionId">The id of the completed session.</param>
+/// <param name="AnswerCount">Number of answers given at the time of completion.</param>
+/// <param name="ReceivedAt">Time at which the handler received the notification.</param>
 public sealed record TriggerLogEntry(string DialogKey, Guid SessionId, int AnswerCount, DateTimeOffset ReceivedAt);
 
 /// <summary>
-/// Thread-sichere In-Memory-Senke für die vom eigenen <see cref="DemoDialogCompletedHandler"/> empfangenen
-/// In-Process-Trigger. Wird als Singleton registriert und vom Endpunkt <c>GET /demo/triggers</c> gelesen,
-/// damit die Chat-UI die Auslösung des Handlers sichtbar machen kann.
+/// Thread-safe in-memory sink for the in-process triggers received by the own
+/// <see cref="DemoDialogCompletedHandler"/>. Registered as a singleton and read by the endpoint
+/// <c>GET /demo/triggers</c>, so that the chat UI can make the firing of the handler visible.
 /// </summary>
 public sealed class TriggerLog
 {
     private readonly object _gate = new();
     private readonly List<TriggerLogEntry> _entries = [];
 
-    /// <summary>Hängt einen Trigger-Eintrag an das Protokoll an.</summary>
-    /// <param name="entry">Der aufzuzeichnende Eintrag.</param>
+    /// <summary>Appends a trigger entry to the log.</summary>
+    /// <param name="entry">The entry to record.</param>
     public void Add(TriggerLogEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -31,8 +31,8 @@ public sealed class TriggerLog
         }
     }
 
-    /// <summary>Liefert eine Momentaufnahme aller bisher aufgezeichneten Trigger (neueste zuletzt).</summary>
-    /// <returns>Eine unveränderliche Kopie der Einträge.</returns>
+    /// <summary>Returns a snapshot of all triggers recorded so far (newest last).</summary>
+    /// <returns>An immutable copy of the entries.</returns>
     public IReadOnlyList<TriggerLogEntry> Snapshot()
     {
         lock (_gate)

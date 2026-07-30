@@ -1,7 +1,7 @@
-// Beide E2E-Suiten (Chat-UI der Web-Sample, #45/#47, und Designer, #46) sind eigene Testklassen und
-// damit für xUnit eigene Collections – sie liefen also standardmäßig PARALLEL. Jede hostet ein echtes
-// Kestrel und steuert einen eigenen Chromium: auf den zwei Kernen des CI-Runners konkurrieren sie
-// dann um CPU und laufen in Playwright-Timeouts. Aus demselben Grund trennt die Pipeline schon die
-// beiden Test-Assemblies (siehe docs/CI.md); hier gilt es innerhalb der E2E-Assembly.
-// Kosten: nichts – nacheinander braucht die ganze Suite (neun Tests) rund zwanzig Sekunden.
+// Both E2E suites (the web sample's chat UI, #45/#47, and the designer, #46) are separate test classes
+// and thus separate xUnit collections – so they ran in PARALLEL by default. Each hosts a real Kestrel
+// and drives its own Chromium: on the two cores of the CI runner they then compete for CPU and run into
+// Playwright timeouts. For the same reason the pipeline already separates the two test assemblies (see
+// docs/CI.md); here it applies within the E2E assembly.
+// Cost: nothing – run sequentially, the whole suite takes about twenty seconds.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]

@@ -69,7 +69,7 @@ public sealed class ConsoleSampleTests
 
         // Beleg, dass der eigene INotificationHandler per Publish ausgelöst wurde.
         var output = handlerOutput.ToString();
-        Assert.Contains("Dialog 'onboarding' abgeschlossen", output);
+        Assert.Contains("Dialog 'onboarding' completed", output);
         Assert.Contains("role = \"dev\"", output);
         Assert.Contains("language = \"C#\"", output);
     }

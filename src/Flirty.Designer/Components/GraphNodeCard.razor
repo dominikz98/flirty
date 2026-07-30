@@ -1,13 +1,13 @@
 @*
-    Der Inhalt eines Knotens auf dem Graph-Canvas (#101).
+    The content of a node on the graph canvas (#101).
 
-    Bewusst HTML in einem <foreignObject> statt SVG-<text>: Damit ist die Karte eine echte
-    Schaltfläche, und Fokusring, Enter/Leertaste sowie die Screenreader-Rolle kommen von der
-    Plattform statt aus Handarbeit. Blazor unterstützt das – seine Namensraum-Prüfung schließt
-    foreignObject ausdrücklich aus, Kindelemente entstehen also im HTML-Namensraum.
+    Deliberately HTML in a <foreignObject> instead of SVG <text>: this makes the card a real button, and
+    focus ring, Enter/space and the screen-reader role come from the platform instead of from hand work.
+    Blazor supports this – its namespace check explicitly excludes foreignObject, so child elements arise
+    in the HTML namespace.
 
-    Die Klassen liegen global in wwwroot/app.css, nicht in einer isolierten CSS-Datei: CSS-Isolation
-    reicht ihr Scope-Attribut nicht an Kindkomponenten weiter (Kontrast-Befund aus #95).
+    The classes live globally in wwwroot/app.css, not in an isolated CSS file: CSS isolation does not
+    carry its scope attribute on to child components (the contrast finding from #95).
 *@
 @using Flirty.Domain
 
@@ -26,35 +26,35 @@
 
                 @if (Run is { IsCurrent: true })
                 {
-                    <span class="badge badge-current" title="Diese Frage ist im Testlauf gerade offen">
-                        ▶ offen
+                    <span class="badge badge-current" title="This question is currently open in the test run">
+                        ▶ open
                     </span>
                 }
                 @if (LoopIteration is { } iteration)
                 {
-                    <span class="badge badge-loop" title="Iteration, in der diese Frage zuletzt beantwortet wurde">
+                    <span class="badge badge-loop" title="Iteration in which this question was last answered">
                         Iteration @iteration
                     </span>
                 }
                 else if (AnswerCount > 1)
                 {
-                    @* Ein Zyklus OHNE Schleifen-Marker: Die Engine vergibt dann keinen Iterationsindex,
-                       beantwortet wurde die Frage trotzdem mehrfach. „Iteration“ zu behaupten wäre falsch. *@
-                    <span class="badge badge-loop" title="So oft wurde diese Frage im Lauf beantwortet">
-                        @AnswerCount× beantwortet
+                    @* A cycle WITHOUT a loop marker: the engine then assigns no iteration index, yet the
+                       question was answered several times. Claiming "iteration" would be wrong. *@
+                    <span class="badge badge-loop" title="How often this question was answered in the run">
+                        @AnswerCount× answered
                     </span>
                 }
                 @if (Node.IsStart)
                 {
-                    <span class="badge badge-start">Einstieg</span>
+                    <span class="badge badge-start">Entry</span>
                 }
                 @if (Node.IsTerminal)
                 {
-                    <span class="badge badge-terminal">Abschluss</span>
+                    <span class="badge badge-terminal">Terminal</span>
                 }
                 @if (Node.IsUnreachable)
                 {
-                    <span class="badge badge-unreachable">Unerreichbar</span>
+                    <span class="badge badge-unreachable">Unreachable</span>
                 }
                 @if (Node.IsLoopBreaking)
                 {
@@ -70,9 +70,9 @@
 
             <span class="graph-node-text">@Node.Text</span>
 
-            @* Im Lauf ersetzt die gegebene Antwort die Konfigurationszeile (#104): Die Karte ist auf
-               ihre Höhe bemessen und schneidet Überlauf ab – beides passte nicht nebeneinander. Der Typ
-               ist in einem Lauf ohnehin die uninteressantere Angabe und steht weiterhin im Inspector. *@
+            @* In the run the given answer replaces the configuration line (#104): the card is sized to
+               its height and clips overflow – both did not fit side by side. In a run the type is the
+               less interesting piece anyway and still stands in the inspector. *@
             @if (LastAnswer is { } answer)
             {
                 <span class="graph-node-answer" title="@answer.Display">@answer.Display</span>
@@ -83,11 +83,11 @@
                     <span>@Node.TypeLabel</span>
                     @if (Node.IsRequired)
                     {
-                        <span class="graph-node-required">Pflicht</span>
+                        <span class="graph-node-required">Required</span>
                     }
                     @if (Node.UsesOptions)
                     {
-                        <span>@Node.OptionCount Option(en)</span>
+                        <span>@Node.OptionCount option(s)</span>
                     }
                 </span>
             }
@@ -100,18 +100,17 @@
                         <span class="chip @(trigger.Kind == TriggerKind.Webhook ? "chip-webhook" : "chip-inprocess")"
                               title="@trigger.Title">@trigger.Label</span>
                     }
-                    @* Die im Lauf publizierten Ereignisse: Sie blitzen einmal auf und bleiben danach als
-                       Chip stehen.
+                    @* The events published during the run: they flash once and then remain as a chip.
 
-                       Zusammengefasst je Zeitpunkt und nicht je Ereignis: Eine Schleifenfrage sammelt
-                       zwei Einträge PRO Iteration (AfterAnswer und AfterQuestion), und ungebündelt sprengt
-                       die Chip-Reihe nach wenigen Runden die Karte – die schneidet Überlauf ab, der Wert
-                       der Antwort verschwände also. Die Einzelereignisse samt Zeit stehen im Inspector.
+                       Bundled per point in time and not per event: a loop question collects two entries
+                       PER iteration (AfterAnswer and AfterQuestion), and unbundled the chip row bursts the
+                       card after a few rounds – which clips overflow, so the answer value would disappear.
+                       The individual events including their time stand in the inspector.
 
-                       Bewusst OHNE @key: Blazor gleicht dann über die Position ab, ein neuer Zeitpunkt
-                       wird ein neues Element, und dessen Entstehen startet die Animation. Ein Schlüssel
-                       über die Zeit wäre zudem nicht eindeutig – zwei Notifications desselben Schritts
-                       tragen denselben Zeitstempel. *@
+                       Deliberately WITHOUT @key: Blazor then diffs by position, a new point in time
+                       becomes a new element, and its creation starts the animation. A key over the time
+                       would moreover not be unique – two notifications of the same step carry the same
+                       timestamp. *@
                     @foreach (var group in FiredGroups)
                     {
                         <span class="chip chip-fired @(group.IsFresh ? "is-fresh" : "")"
@@ -124,22 +123,22 @@
 
     @if (Editable)
     {
-        @* Der Port ist ein GESCHWISTER der Karte, kein Kind: Ein <button> in einem <button> ist
-           ungültiges HTML, und der äußere verschluckte Klick und Fokus. Er liegt später im Markup und
-           damit über der Karte – der Zeiger trifft ihn zuerst, was das JS-Modul im pointerdown
-           voraussetzt (es prüft .graph-port VOR .graph-node). *@
+        @* The port is a SIBLING of the card, not a child: a <button> inside a <button> is invalid HTML,
+           and the outer one swallowed click and focus. It sits later in the markup and thus over the
+           card – the pointer hits it first, which the JS module assumes in pointerdown (it checks
+           .graph-port BEFORE .graph-node). *@
         <foreignObject x="@SvgFormat.N((GraphMetrics.NodeWidth - GraphMetrics.PortSize) / 2)"
                        y="@SvgFormat.N(GraphMetrics.NodeHeight - (GraphMetrics.PortSize / 2))"
                        width="@SvgFormat.N(GraphMetrics.PortSize)"
                        height="@SvgFormat.N(GraphMetrics.PortSize)">
-            @* Kein disabled bei laufender Geste: Blazor rendert das Attribut sonst mitten in einem Zug
-               neu, und die Pointer-Capture geht dabei verloren. Gesperrt wird über data-busy am <svg>
-               per CSS (pointer-events), was kein Attribut am Knoten anfasst. *@
+            @* No disabled during a running gesture: Blazor otherwise re-renders the attribute mid-drag,
+               and the pointer capture is lost in the process. Locking is done via data-busy on the <svg>
+               through CSS (pointer-events), which touches no attribute on the node. *@
             <button type="button"
                     class="graph-port @(IsLinkSource ? "is-active" : "")"
                     aria-label="@(IsLinkSource
-                        ? $"Verbindung von {Node.Key} läuft – Zielfrage wählen oder erneut betätigen zum Abbrechen"
-                        : $"Übergang von {Node.Key} ziehen – oder betätigen und dann die Zielfrage wählen")"
+                        ? $"Connection from {Node.Key} in progress – choose a target question or activate again to cancel"
+                        : $"Drag a transition from {Node.Key} – or activate and then choose the target question")"
                     aria-pressed="@(IsLinkSource ? "true" : "false")"
                     @onclick="OnStartLink">＋</button>
         </foreignObject>
@@ -147,53 +146,53 @@
 </g>
 
 @code {
-    /// <summary>Der darzustellende Knoten.</summary>
+    /// <summary>The node to render.</summary>
     [Parameter, EditorRequired]
     public required GraphNode Node { get; set; }
 
-    /// <summary>Ob dieser Knoten gerade im Inspector geöffnet ist.</summary>
+    /// <summary>Whether this node is currently opened in the inspector.</summary>
     [Parameter]
     public bool Selected { get; set; }
 
-    /// <summary>Wird ausgelöst, wenn der Knoten gewählt wird.</summary>
+    /// <summary>Raised when the node is selected.</summary>
     [Parameter]
     public EventCallback<Guid> Select { get; set; }
 
     /// <summary>
-    /// Ob der Graph bearbeitbar ist. Bei einer veröffentlichten Version wird der Ausgangs-Port
-    /// <b>nicht gerendert</b> statt deaktiviert: Ein Port, der nichts tut, wäre irritierender als
-    /// keiner – und die Engine lehnte die Geste ohnehin mit einem Konflikt ab.
+    /// Whether the graph is editable. On a published version the outgoing port is <b>not rendered</b>
+    /// instead of disabled: a port that does nothing would be more confusing than none – and the engine
+    /// would reject the gesture with a conflict anyway.
     /// </summary>
     [Parameter]
     public bool Editable { get; set; }
 
-    /// <summary>Ob gerade eine Verbindung von diesem Knoten aus gelegt wird (Tastaturpfad).</summary>
+    /// <summary>Whether a connection is currently being drawn from this node (keyboard path).</summary>
     [Parameter]
     public bool IsLinkSource { get; set; }
 
-    /// <summary>Wird ausgelöst, wenn der Ausgangs-Port betätigt wird – der Zeigerlose Weg zu verbinden.</summary>
+    /// <summary>Raised when the outgoing port is activated – the pointerless way to connect.</summary>
     [Parameter]
     public EventCallback<Guid> StartLink { get; set; }
 
     /// <summary>
-    /// Der Laufzustand dieses Knotens im Testlauf (#104) oder <see langword="null"/> – letzteres sowohl
-    /// außerhalb eines Laufs als auch für Fragen, die der Lauf nicht berührt hat.
+    /// The run state of this node in the test run (#104) or <see langword="null"/> – the latter both
+    /// outside a run and for questions the run did not touch.
     /// </summary>
     [Parameter]
     public GraphRunVisit? Run { get; set; }
 
-    /// <summary>Die an dieser Frage im Lauf publizierten Trigger-Ereignisse.</summary>
+    /// <summary>The trigger events published at this question during the run.</summary>
     [Parameter]
     public IReadOnlyList<GraphRunTrigger> Fired { get; set; } = [];
 
-    /// <summary>Eine Gruppe gleichartiger Ereignisse am selben Knoten.</summary>
-    /// <param name="Label">Der Zeitpunkt (kurz).</param>
-    /// <param name="Count">Wie oft er im Lauf ausgelöst hat.</param>
-    /// <param name="IsFresh">Ob darunter ein Ereignis des letzten Schritts ist.</param>
-    /// <param name="Title">Die vollständige Beschreibung für Tooltip und Screenreader.</param>
+    /// <summary>A group of like events on the same node.</summary>
+    /// <param name="Label">The point in time (short).</param>
+    /// <param name="Count">How often it fired in the run.</param>
+    /// <param name="IsFresh">Whether an event of the last step is among them.</param>
+    /// <param name="Title">The full description for tooltip and screen reader.</param>
     private sealed record FiredGroup(string Label, int Count, bool IsFresh, string Title);
 
-    /// <summary>Die Ereignisse dieses Knotens, je Zeitpunkt gebündelt.</summary>
+    /// <summary>The events of this node, bundled per point in time.</summary>
     private IReadOnlyList<FiredGroup> FiredGroups
         =>
         [
@@ -205,17 +204,17 @@
                     group.Any(trigger => trigger.IsFresh),
                     group.Count() == 1
                         ? group.First().Title
-                        : $"{group.Key}: {group.Count()}× ausgelöst, zuletzt {group.Last().Detail}")),
+                        : $"{group.Key}: fired {group.Count()}×, last {group.Last().Detail}")),
         ];
 
-    /// <summary>Die zuletzt auf diese Frage gegebene Antwort des Laufs.</summary>
+    /// <summary>The answer last given to this question in the run.</summary>
     private GraphRunAnswer? LastAnswer => Run?.Answers.Count > 0 ? Run.Answers[^1] : null;
 
-    /// <summary>Wie oft die Frage im Lauf beantwortet wurde.</summary>
+    /// <summary>How often the question was answered in the run.</summary>
     private int AnswerCount => Run?.Answers.Count ?? 0;
 
     /// <summary>
-    /// Die 1-basierte Iteration der letzten Antwort – <see langword="null"/> außerhalb einer Schleife.
+    /// The 1-based iteration of the last answer – <see langword="null"/> outside a loop.
     /// </summary>
     private int? LoopIteration
         => LastAnswer?.IterationIndex is { } index ? index + 1 : null;
@@ -281,9 +280,9 @@
     }
 
     /// <summary>
-    /// Der Zusatz zum <c>aria-label</c> im Testlauf. Ohne ihn läge der ganze Laufzustand nur als Farbe
-    /// und Strichform vor – für Screenreader also gar nicht (Zusage aus #101: Das Label ist die einzige
-    /// Fassung des Knotens).
+    /// The addition to the <c>aria-label</c> in the test run. Without it the whole run state would exist
+    /// only as colour and stroke shape – so not at all for screen readers (the promise from #101: the
+    /// label is the only rendering of the node).
     /// </summary>
     private string RunLabel
     {
@@ -298,22 +297,22 @@
 
             if (Run.IsCurrent)
             {
-                parts.Add("im Testlauf gerade offen");
+                parts.Add("currently open in the test run");
             }
 
             if (LastAnswer is { } answer)
             {
                 parts.Add(LoopIteration is { } iteration
-                    ? $"zuletzt beantwortet in Iteration {iteration} mit {answer.Display}"
-                    : $"beantwortet mit {answer.Display}");
+                    ? $"last answered in iteration {iteration} with {answer.Display}"
+                    : $"answered with {answer.Display}");
             }
 
             if (Fired.Count > 0)
             {
-                parts.Add($"{Fired.Count} ausgelöste(r) Trigger");
+                parts.Add($"{Fired.Count} fired trigger(s)");
             }
 
-            return parts.Count == 0 ? string.Empty : " Testlauf: " + string.Join(", ", parts) + ".";
+            return parts.Count == 0 ? string.Empty : " Test run: " + string.Join(", ", parts) + ".";
         }
     }
 

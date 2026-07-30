@@ -411,11 +411,11 @@ breaking question its transitions stand separated as **↩ back-jump** (target i
 Back-jump transitions without a matching marker are listed by the dialog editor as a hint – without a marker
 the runtime **overwrites** the answers of the cycle, instead of collecting them per iteration. A click opens
 the creation form pre-filled: entry question = target of the back-jump, breaking question = its
-source question, `CollectionKey` = question key plus `_liste` (`skill` → `skill_liste`, `belag` →
-`belag_liste`). Deliberately **no** pluralization with an appended "s": that only fits English
-keys and produces word garbage like `belags` in a German-language dialog (#97). If the suggestion collides
-with an existing question/collection key, or is not a valid identifier, the field stays empty – a
-silent fallback name would be harder to trace than an empty required field.
+source question, `CollectionKey` = question key plus `_list` (`skill` → `skill_list`, `topping` →
+`topping_list`). Deliberately a plain suffix, **not** an `s`-pluralization: the latter produces nonsense
+for keys whose stem does not pluralize with `s`, while `_list` reads cleanly for any key (#116). If the
+suggestion collides with an existing question/collection key, or is not a valid identifier, the field
+stays empty – a silent fallback name would be harder to trace than an empty required field.
 
 ## Trigger editor (#42)
 
@@ -690,9 +690,10 @@ Four promises from ADR 0006 are redeemed here – they hold for every extension:
 
 Two points that count when extending:
 
-- **Numbers in SVG only via `SvgFormat.N`.** The designer runs under `de-DE`; an interpolated
-  `double` coordinate writes `12,5`, and since the comma is a *separator* in the path syntax, it
-  silently becomes a wrong number sequence – no exception, only a wrong picture.
+- **Numbers in SVG only via `SvgFormat.N`.** The display culture is configurable (`en-US` by default);
+  under a comma-decimal culture an interpolated `double` coordinate writes `12,5`, and since the comma is
+  a *separator* in the path syntax, it silently becomes a wrong number sequence – no exception, only a
+  wrong picture.
 - **The model is computed once after loading into a field.** Called from a markup method
   (like `GraphWarnings()` in the dialog editor) the whole layout would run again on every render,
   thus on every click.
@@ -1008,11 +1009,11 @@ The list and form path stays fully preserved – the canvas is additional, not a
   `.banner`, `.empty`, `.back`, `.confirm`, `h1 .badge` …) live **globally** in
   `wwwroot/app.css`; the `*.razor.css` files contain only
   page-specifics anymore. New editor pages use these classes, instead of duplicating them.
-- UI texts and docs **German**. The designer is `IsPackable=false` → CS1591 is here **not** an error,
+- UI texts and docs **English**. The designer is `IsPackable=false` → CS1591 is here **not** an error,
   XML docs are optional (the remaining warnings stay errors via `TreatWarningsAsErrors` though).
-- **Display culture fixed to `de-DE`** (`DesignerApp.DisplayCulture`, set as
+- **Display culture fixed to `en-US`** (`DesignerApp.DisplayCulture`, set as
   `CultureInfo.DefaultThreadCurrentCulture`). Without this fixing the formatting would follow the culture
-  of the host – on an English system "7/27/2026 10:38 AM" stood in the middle of German text. Deliberately
+  of the host – dates and numbers would then vary from machine to machine. Deliberately
   via the process culture instead of `RequestLocalization`: in Blazor Server the circuit renders, not an
   HTTP request. Answer **values** stay untouched by it – those are encoded invariantly by `AnswerValueCodec`.
 - All rules of the `*.razor.css` files apply only to the HTML elements **of the own** component:
@@ -1039,9 +1040,10 @@ The list and form path stays fully preserved – the canvas is additional, not a
   `.flirty-content[b-…]` with `(0,2,0)` – therefore `main` in front. Untouched stay the coupled
   heights `.graph-canvas-host { height: 70vh }` / `.graph-inspector { max-height: 70vh }` and
   `GraphMetrics.MinCanvasWidth` (that is a statement about the **user space**, not about the CSS width).
-- **Numbers in SVG attributes exclusively via `SvgFormat.N`.** The fixed display culture `de-DE` applies
-  also when rendering: an interpolated `double` coordinate becomes `12,5`, and because the comma in the
-  SVG path syntax is a *separator*, a wrong number sequence arises from it – no exception, no
+- **Numbers in SVG attributes exclusively via `SvgFormat.N`.** The display culture is configurable and
+  applies also when rendering: under a comma-decimal culture an interpolated `double` coordinate becomes
+  `12,5`, and because the comma in the SVG path syntax is a *separator*, a wrong number sequence arises
+  from it – no exception, no
   message, only a wrong picture. Affects `d`, `transform`, `viewBox`, `x`/`y`, `width`/`height`.
 - **What runs client-side stays client-side.** Drag and zoom gestures belong in a collocated
   `*.razor.js` module (pattern: `ReconnectModal.razor.js`, `DialogGraph.razor.js`); between `pointerdown`
@@ -1107,7 +1109,7 @@ designer; internals via `InternalsVisibleTo("Flirty.Tests")`):
   newly assigned Guids (build the same graph twice – the test that survives `CreateDialogVersionCommand`)
   and the global order of the transitions. On top of that layering, broken-up backward edges,
   unreachable components, freedom from overlap, fanned-out multi-edges, crossing reduction and
-  the number format under `de-DE`. For #102 the saved positions are added: they overwrite the
+  the number format under a comma-decimal display culture. For #102 the saved positions are added: they overwrite the
   computed position without changing the layer, the edges follow along, the drawing surface grows around
   a far-dragged node, a row without a question is skipped – and without a row the result is
   identical to the pure auto-layout (the proof that "Reset layout" really resets).
@@ -1180,14 +1182,14 @@ smoke test, **#105** completes the coverage.
 - `DesignerE2ETests.Graph_Anlege_Flow_auf_dem_Canvas_ueberlebt_Veroeffentlichen_und_Reload` – the
   creation flow from #105, exclusively via gestures: drag a building block from the palette, drag **twice from the port
   into the void** (question *and* transition from one motion – the only branch that runs through "no node under
-  the pointer"), condition `auswahl == "ja"` in the inspector including **live validation**, the
+  the pointer"), condition `choice == "yes"` in the inspector including **live validation**, the
   second edge as the default, set the entry question **on the node**, move a node, publish in the dialog editor
   – and after the **reload** everything comes from the database, including the position
   (compared is the `transform`, which stands in *user coordinates* and is thereby independent of the
   scaling of the SVG).
 - `DesignerE2ETests.Graph_Inspector_legt_Trigger_und_Schleife_am_Zyklus_an` – the two gestures that #103
   had left open: mark a **back-jump** created via the port as a loop over the suggestion *at the edge*
-  (the collection key is pre-filled with `auswahl_liste`) and create a trigger at exactly
+  (the collection key is pre-filled with `choice_list`) and create a trigger at exactly
   one question – the chip afterwards hangs there and not on all. At the end reload and
   list parity in "Loops" and "Triggers".
 
@@ -1268,9 +1270,9 @@ A few points that save time when extending the suite:
   (`PublishFromEditorAsync`): with open graph warnings the editor asks back, otherwise not – and after
   publishing none of the buttons is visible anymore, so the unit is idempotent.
 - **The palette order is that of the enum.** `.graph-palette-item` `.First` is
-  `QuestionType.SingleChoice` (key suggestion `auswahl`), `.Nth(2)` `FreeText` (`text`). For text filters
-  on nodes these are the usable pairs: `auswahl`/`auswahl2` would hit both nodes as a substring, and
-  the type text of the card plays along ("Einfachauswahl (SingleChoice)" contains *auswahl*, "Freitext
+  `QuestionType.SingleChoice` (key suggestion `choice`), `.Nth(2)` `FreeText` (`text`). For text filters
+  on nodes these are the usable pairs: `choice`/`choice2` would hit both nodes as a substring, and
+  the type text of the card plays along ("Single choice (SingleChoice)" contains *choice*, "Free text
   (FreeText)" contains *text*).
 
 ```pwsh

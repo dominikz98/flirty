@@ -78,7 +78,7 @@ public sealed class FlirtyAdminGatewayTests
             var result = await gateway.ExecuteAsync((sender, token) => sender.Send(new ListDialogsQuery(), token));
 
             Assert.False(result.Success);
-            Assert.Contains("Verbindungen", result.Error);
+            Assert.Contains("Connections", result.Error);
         });
     }
 
@@ -103,7 +103,7 @@ public sealed class FlirtyAdminGatewayTests
             .ExecuteAsync((sender, token) => sender.Send(new ListDialogsQuery(), token));
 
         Assert.False(result.Success);
-        Assert.Contains("Migrieren", result.Error);
+        Assert.Contains("Migrate", result.Error);
     }
 
     /// <summary>

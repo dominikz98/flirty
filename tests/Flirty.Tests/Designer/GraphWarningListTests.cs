@@ -26,8 +26,8 @@ public sealed class GraphWarningListTests
         var lines = GraphWarningList.Describe(detail, DialogGraphBuilder.Build(detail));
 
         var line = Assert.Single(lines);
-        Assert.StartsWith("verwaist: ", line, StringComparison.Ordinal);
-        Assert.Contains("nicht erreichbar", line, StringComparison.Ordinal);
+        Assert.StartsWith("orphan: ", line, StringComparison.Ordinal);
+        Assert.Contains("Not reachable", line, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public sealed class GraphWarningListTests
         // Rahmen – und ohne Einstiegsfrage kommt die Warnung am Dialog dazu.
         dialog.Transitions.Remove(
             dialog.Transitions.First(transition => transition.TargetQuestionId == ids.SummaryQuestionId));
-        dialog.Loops.First().CollectionKey = "meine-positionen";
+        dialog.Loops.First().CollectionKey = "my-positions";
         dialog.StartQuestionId = null;
 
         var detail = AdminProjection.ToDetail(dialog);
@@ -54,10 +54,10 @@ public sealed class GraphWarningListTests
         var lines = GraphWarningList.Describe(detail, DialogGraphBuilder.Build(detail));
 
         Assert.Contains(lines, line => line.StartsWith("more: ", StringComparison.Ordinal)
-            && line.Contains("Endlosschleife", StringComparison.Ordinal));
-        Assert.Contains(lines, line => line.StartsWith("meine-positionen: ", StringComparison.Ordinal)
-            && line.Contains("nicht referenzierbar", StringComparison.Ordinal));
-        Assert.Contains(lines, line => line.StartsWith("Keine Einstiegsfrage", StringComparison.Ordinal));
+            && line.Contains("infinite loop", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.StartsWith("my-positions: ", StringComparison.Ordinal)
+            && line.Contains("not referenceable", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.StartsWith("No entry question", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -81,9 +81,9 @@ public sealed class GraphWarningListTests
 
         Assert.Equal(
             [
-                "verwaist: Von der Einstiegsfrage aus nicht erreichbar – kein Pfad über Übergänge führt "
-                + "hierher. Die Frage wird zur Laufzeit nie gestellt.",
-                "role: Die Bedingung eines Default-Übergangs wird zur Laufzeit nicht ausgewertet.",
+                "orphan: Not reachable from the entry question – no path via transitions leads here. The "
+                + "question is never asked at runtime.",
+                "role: The condition of a default transition is not evaluated at runtime.",
             ],
             lines);
     }
@@ -108,8 +108,8 @@ public sealed class GraphWarningListTests
         {
             Id = Guid.NewGuid(),
             DialogId = dialog.Id,
-            Key = "verwaist",
-            Text = "Nie erreichbar",
+            Key = "orphan",
+            Text = "Never reachable",
             Type = QuestionType.FreeText,
             Order = 9,
         });

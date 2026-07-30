@@ -8,11 +8,11 @@ using Microsoft.Extensions.Configuration;
 namespace Flirty.E2E;
 
 /// <summary>
-/// Hostet die echte Web-Sample (<see cref="WebSampleApp"/>) in-Prozess auf einem echten Kestrel-Port
-/// (freier Port, dateibasierte SQLite-DB) – nur so funktioniert der volle Outbound→Inbound-Webhook-Rundlauf,
-/// den die E2E-Tests im Browser verifizieren. Der Demo-Dialog wird durch den Auto-Provisioning-Dienst der
-/// App aufgebaut; weil dieser in <c>StartedAsync</c> läuft und vom Host abgewartet wird, ist der Dialog nach
-/// <see cref="InitializeAsync"/> deterministisch vorhanden.
+/// Hosts the real web sample (<see cref="WebSampleApp"/>) in-process on a real Kestrel port (free port,
+/// file-based SQLite DB) – only that way does the full outbound→inbound webhook round-trip work that the
+/// E2E tests verify in the browser. The demo dialog is built by the app's auto-provisioning service;
+/// because that runs in <c>StartedAsync</c> and is awaited by the host, the dialog is deterministically
+/// present after <see cref="InitializeAsync"/>.
 /// </summary>
 public sealed class WebSampleAppFixture : IAsyncLifetime
 {

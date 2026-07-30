@@ -6,63 +6,63 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Formular-Modell des Trigger-Editors (#42) – für das Anlegen eines Triggers im Dialog-Editor und für
-/// seine Detailseite. Bewusst veränderbar (settable Properties), damit die Blazor-<c>EditForm</c> direkt
-/// daran binden kann.
+/// Form model of the trigger editor (#42) – for creating a trigger in the dialog editor and for
+/// its detail page. Deliberately mutable (settable properties), so that the Blazor <c>EditForm</c> can bind
+/// directly to it.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Die als JSON gespeicherte <see cref="TriggerDefinition.Config"/> wird auf die Einzelfelder
-/// <see cref="Name"/> und <see cref="Url"/> abgebildet. Maßgeblich ist dabei der öffentliche Core-Typ
-/// <see cref="TriggerConfig"/> – das Schema wird hier <b>nicht</b> dupliziert, sondern direkt als
-/// Serialisierungstyp benutzt (Muster aus <see cref="QuestionFormModel"/>).
+/// The <see cref="TriggerDefinition.Config"/> stored as JSON is mapped onto the individual fields
+/// <see cref="Name"/> and <see cref="Url"/>. Authoritative here is the public core type
+/// <see cref="TriggerConfig"/> – the schema is <b>not</b> duplicated here, but used directly as the
+/// serialization type (pattern from <see cref="QuestionFormModel"/>).
 /// </para>
 /// <para>
-/// Enthält das gespeicherte JSON Felder, die <see cref="TriggerConfig"/> nicht kennt (oder ist es gar
-/// kein gültiges JSON-Objekt), schaltet <see cref="From"/> auf <see cref="UseRawJson"/> um. Sonst würde
-/// das Speichern die fremden Felder stillschweigend verwerfen.
+/// If the stored JSON contains fields that <see cref="TriggerConfig"/> does not know (or if it is not
+/// a valid JSON object at all), <see cref="From"/> switches to <see cref="UseRawJson"/>. Otherwise
+/// saving would silently discard the foreign fields.
 /// </para>
 /// </remarks>
 internal sealed class TriggerFormModel
 {
-    /// <summary>Die von <see cref="TriggerConfig"/> unterstützten JSON-Felder (case-insensitiv wie beim Lesen).</summary>
+    /// <summary>The JSON fields supported by <see cref="TriggerConfig"/> (case-insensitive as when reading).</summary>
     private static readonly HashSet<string> KnownConfigProperties =
         new(StringComparer.OrdinalIgnoreCase) { "name", "url" };
 
-    /// <summary>Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</summary>
+    /// <summary>The point in the dialog flow at which the trigger fires.</summary>
     public TriggerScope Scope { get; set; } = TriggerScope.OnDialogCompleted;
 
     /// <summary>
-    /// Die Frage, auf die bei <see cref="TriggerScope.AfterQuestion"/> gehört wird. Bewusst
-    /// <see cref="Guid"/>?, damit ein <c>InputSelect</c> ohne Vorauswahl daran binden kann (Muster aus
+    /// The question that is listened to for <see cref="TriggerScope.AfterQuestion"/>. Deliberately
+    /// <see cref="Guid"/>?, so that an <c>InputSelect</c> without a preselection can bind to it (pattern from
     /// <see cref="TransitionFormModel"/>).
     /// </summary>
     public Guid? QuestionId { get; set; }
 
-    /// <summary>Der Kanal, über den die Host-Anwendung benachrichtigt wird.</summary>
+    /// <summary>The channel over which the host application is notified.</summary>
     public TriggerKind Kind { get; set; } = TriggerKind.Webhook;
 
-    /// <summary>Der optionale fachliche Ereignisname (Header <c>X-Flirty-Trigger</c>).</summary>
+    /// <summary>The optional domain-level event name (header <c>X-Flirty-Trigger</c>).</summary>
     public string? Name { get; set; }
 
-    /// <summary>Die Ziel-URL des Webhooks (bei <see cref="TriggerKind.Webhook"/> Pflicht).</summary>
+    /// <summary>The target URL of the webhook (required for <see cref="TriggerKind.Webhook"/>).</summary>
     public string? Url { get; set; }
 
-    /// <summary>Der Bedingungsausdruck; leer bedeutet „bedingungslos auslösend".</summary>
+    /// <summary>The condition expression; empty means "unconditionally firing".</summary>
     public string? Expression { get; set; }
 
     /// <summary>
-    /// Gibt an, ob die Konfiguration als Roh-JSON bearbeitet wird. Wird von <see cref="From"/> gesetzt,
-    /// wenn das gespeicherte JSON nicht verlustfrei auf die Einzelfelder abbildbar ist.
+    /// Indicates whether the configuration is edited as raw JSON. Set by <see cref="From"/>
+    /// when the stored JSON is not losslessly mappable onto the individual fields.
     /// </summary>
     public bool UseRawJson { get; set; }
 
-    /// <summary>Das roh bearbeitete Konfigurations-JSON; nur relevant, wenn <see cref="UseRawJson"/> gesetzt ist.</summary>
+    /// <summary>The raw-edited configuration JSON; only relevant if <see cref="UseRawJson"/> is set.</summary>
     public string? RawJson { get; set; }
 
-    /// <summary>Erzeugt ein Formular-Modell aus einer bestehenden Trigger-Definition.</summary>
-    /// <param name="trigger">Die Trigger-Sicht aus dem Admin-CRUD.</param>
-    /// <returns>Das befüllte Formular-Modell.</returns>
+    /// <summary>Creates a form model from an existing trigger definition.</summary>
+    /// <param name="trigger">The trigger view from the admin CRUD.</param>
+    /// <returns>The populated form model.</returns>
     public static TriggerFormModel From(TriggerDetail trigger)
     {
         ArgumentNullException.ThrowIfNull(trigger);
@@ -80,14 +80,14 @@ internal sealed class TriggerFormModel
     }
 
     /// <summary>
-    /// Baut aus den Eingabefeldern das JSON für <see cref="TriggerDefinition.Config"/> und prüft es
-    /// gegen die Anforderungen des gewählten Kanals – mit demselben Core-Typ, den die Admin-Commands
-    /// verwenden. So scheitert eine fehlende URL hier mit einer verständlichen Meldung statt später als
-    /// still nicht zustellender Trigger.
+    /// Builds the JSON for <see cref="TriggerDefinition.Config"/> from the input fields and checks it
+    /// against the requirements of the chosen channel – with the same core type that the admin commands
+    /// use. So a missing URL fails here with an understandable message instead of later as a
+    /// silently undeliverable trigger.
     /// </summary>
-    /// <param name="json">Das erzeugte JSON.</param>
-    /// <param name="error">Die deutsche Fehlermeldung, falls die Eingaben unbrauchbar sind.</param>
-    /// <returns><see langword="true"/>, wenn die Konfiguration gültig ist.</returns>
+    /// <param name="json">The produced JSON.</param>
+    /// <param name="error">The error message, if the inputs are unusable.</param>
+    /// <returns><see langword="true"/> if the configuration is valid.</returns>
     public bool TryBuildConfig(out string json, out string? error)
     {
         json = string.Empty;
@@ -105,7 +105,7 @@ internal sealed class TriggerFormModel
                 return false;
             }
 
-            // Unverändert übernehmen – fremde Felder bleiben so erhalten.
+            // Take over unchanged – foreign fields are thus preserved.
             json = string.IsNullOrWhiteSpace(RawJson) ? "{}" : RawJson;
             return true;
         }
@@ -126,26 +126,26 @@ internal sealed class TriggerFormModel
     }
 
     /// <summary>
-    /// Normalisiert den Ausdruck für die Persistenz: Ein leerer/nur aus Leerraum bestehender Ausdruck
-    /// wird zu <see langword="null"/> (bedingungslos), statt als leere Zeichenkette in der Spalte zu landen.
+    /// Normalizes the expression for persistence: an empty/whitespace-only expression
+    /// becomes <see langword="null"/> (unconditional), instead of landing in the column as an empty string.
     /// </summary>
-    /// <returns>Der zu speichernde Ausdruck oder <see langword="null"/>.</returns>
+    /// <returns>The expression to store or <see langword="null"/>.</returns>
     public string? NormalizedExpression()
         => string.IsNullOrWhiteSpace(Expression) ? null : Expression.Trim();
 
     /// <summary>
-    /// Setzt den Frage-Verweis passend zum Zeitpunkt: nur <see cref="TriggerScope.AfterQuestion"/> darf
-    /// einen tragen (die Admin-Commands weisen alles andere zurück).
+    /// Sets the question reference to match the point in time: only <see cref="TriggerScope.AfterQuestion"/>
+    /// may carry one (the admin commands reject everything else).
     /// </summary>
-    /// <returns>Der zu speichernde Frage-Verweis oder <see langword="null"/>.</returns>
+    /// <returns>The question reference to store or <see langword="null"/>.</returns>
     public Guid? NormalizedQuestionId()
         => TriggerLabels.RequiresQuestion(Scope) ? QuestionId : null;
 
     /// <summary>
-    /// Übernimmt das gespeicherte Konfigurations-JSON in die Einzelfelder – oder fällt auf die
-    /// Roh-Bearbeitung zurück, wenn es nicht verlustfrei abbildbar ist.
+    /// Takes the stored configuration JSON into the individual fields – or falls back to
+    /// raw editing if it is not losslessly mappable.
     /// </summary>
-    /// <param name="config">Das gespeicherte JSON.</param>
+    /// <param name="config">The stored JSON.</param>
     private void ReadConfig(string? config)
     {
         if (string.IsNullOrWhiteSpace(config))
@@ -171,7 +171,7 @@ internal sealed class TriggerFormModel
             return;
         }
 
-        // Ab hier steht fest: gültiges Objekt, ausschließlich bekannte Felder.
+        // From here it is certain: a valid object, exclusively known fields.
         if (TriggerConfig.TryParse(config, out var parsed, out _))
         {
             Name = parsed.Name;

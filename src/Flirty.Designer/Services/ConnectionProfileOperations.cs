@@ -4,17 +4,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Designer.Services;
 
 /// <summary>
-/// Datenbankoperationen für ein <b>beliebiges</b> Connection-Profil (unabhängig vom aktiven Profil):
-/// Verbindungstest und Migrations-Status/-Anwendung. Bildet die „Test-Connection"- und „Migrate"-Buttons
-/// der Profil-Verwaltung ab. Verwendet dasselbe Muster wie
-/// <c>Flirty.Hosting.FlirtyMigrationHostedService</c> (<c>Database.MigrateAsync()</c>), aber on-demand
-/// gegen das gewählte Profil statt beim Host-Start.
+/// Database operations for an <b>arbitrary</b> connection profile (independent of the active profile):
+/// connection test and migration status/application. Backs the "Test connection" and "Migrate" buttons
+/// of the profile management. Uses the same pattern as
+/// <c>Flirty.Hosting.FlirtyMigrationHostedService</c> (<c>Database.MigrateAsync()</c>), but on demand
+/// against the chosen profile instead of at host start.
 /// </summary>
 internal sealed class ConnectionProfileOperations
 {
-    /// <summary>Prüft, ob mit dem Profil eine Verbindung aufgebaut werden kann.</summary>
-    /// <param name="profile">Das zu testende Profil.</param>
-    /// <param name="cancellationToken">Abbruch-Token.</param>
+    /// <summary>Checks whether a connection can be established with the profile.</summary>
+    /// <param name="profile">The profile to test.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<ConnectionTestResult> TestConnectionAsync(
         ConnectionProfile profile,
         CancellationToken cancellationToken = default)
@@ -25,18 +25,18 @@ internal sealed class ConnectionProfileOperations
             await using var context = ConnectionProfileContextBuilder.Create(profile);
             var canConnect = await context.Database.CanConnectAsync(cancellationToken);
             return canConnect
-                ? ConnectionTestResult.Ok("Verbindung erfolgreich.")
-                : ConnectionTestResult.Fail("Verbindung fehlgeschlagen: Die Datenbank ist nicht erreichbar.");
+                ? ConnectionTestResult.Ok("Connection successful.")
+                : ConnectionTestResult.Fail("Connection failed: the database is not reachable.");
         }
         catch (Exception ex)
         {
-            return ConnectionTestResult.Fail($"Verbindung fehlgeschlagen: {ex.Message}");
+            return ConnectionTestResult.Fail($"Connection failed: {ex.Message}");
         }
     }
 
-    /// <summary>Ermittelt die noch nicht angewendeten Migrationen des Profils.</summary>
-    /// <param name="profile">Das zu prüfende Profil.</param>
-    /// <param name="cancellationToken">Abbruch-Token.</param>
+    /// <summary>Determines the migrations of the profile that have not yet been applied.</summary>
+    /// <param name="profile">The profile to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IReadOnlyList<string>> GetPendingMigrationsAsync(
         ConnectionProfile profile,
         CancellationToken cancellationToken = default)
@@ -47,9 +47,9 @@ internal sealed class ConnectionProfileOperations
         return pending.ToList();
     }
 
-    /// <summary>Wendet alle ausstehenden Migrationen auf die Datenbank des Profils an.</summary>
-    /// <param name="profile">Das zu migrierende Profil.</param>
-    /// <param name="cancellationToken">Abbruch-Token.</param>
+    /// <summary>Applies all pending migrations to the profile's database.</summary>
+    /// <param name="profile">The profile to migrate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<MigrationResult> ApplyMigrationsAsync(
         ConnectionProfile profile,
         CancellationToken cancellationToken = default)
@@ -64,32 +64,32 @@ internal sealed class ConnectionProfileOperations
         }
         catch (Exception ex)
         {
-            return MigrationResult.Fail($"Migration fehlgeschlagen: {ex.Message}");
+            return MigrationResult.Fail($"Migration failed: {ex.Message}");
         }
     }
 }
 
-/// <summary>Ergebnis eines Verbindungstests.</summary>
-/// <param name="Success">Ob die Verbindung erfolgreich war.</param>
-/// <param name="Message">Menschlich lesbare Meldung (Erfolg oder Fehlerdetail).</param>
+/// <summary>Result of a connection test.</summary>
+/// <param name="Success">Whether the connection was successful.</param>
+/// <param name="Message">Human-readable message (success or error detail).</param>
 internal sealed record ConnectionTestResult(bool Success, string Message)
 {
-    /// <summary>Erzeugt ein Erfolgs-Ergebnis.</summary>
+    /// <summary>Creates a success result.</summary>
     public static ConnectionTestResult Ok(string message) => new(true, message);
 
-    /// <summary>Erzeugt ein Fehler-Ergebnis.</summary>
+    /// <summary>Creates an error result.</summary>
     public static ConnectionTestResult Fail(string message) => new(false, message);
 }
 
-/// <summary>Ergebnis einer Migrations-Anwendung.</summary>
-/// <param name="Success">Ob die Migration erfolgreich war.</param>
-/// <param name="AppliedMigrations">Die (zuvor ausstehenden und nun) angewendeten Migrationen.</param>
-/// <param name="Error">Fehlermeldung bei Misserfolg, sonst <c>null</c>.</param>
+/// <summary>Result of applying migrations.</summary>
+/// <param name="Success">Whether the migration was successful.</param>
+/// <param name="AppliedMigrations">The migrations that were (previously pending and now) applied.</param>
+/// <param name="Error">Error message on failure, otherwise <c>null</c>.</param>
 internal sealed record MigrationResult(bool Success, IReadOnlyList<string> AppliedMigrations, string? Error)
 {
-    /// <summary>Erzeugt ein Erfolgs-Ergebnis mit den angewendeten Migrationen.</summary>
+    /// <summary>Creates a success result with the applied migrations.</summary>
     public static MigrationResult Ok(IReadOnlyList<string> applied) => new(true, applied, null);
 
-    /// <summary>Erzeugt ein Fehler-Ergebnis.</summary>
+    /// <summary>Creates an error result.</summary>
     public static MigrationResult Fail(string error) => new(false, [], error);
 }

@@ -4,26 +4,26 @@ using Flirty.Persistence;
 namespace Flirty.Designer.Models;
 
 /// <summary>
-/// Ein benanntes Datenbank-Verbindungsprofil des Designers: Provider + Verbindungszeichenfolge.
-/// Bewusst veränderbar (settable Properties), damit die Blazor-<c>EditForm</c> direkt daran binden kann.
+/// A named database connection profile of the designer: provider + connection string.
+/// Deliberately mutable (settable properties), so that the Blazor <c>EditForm</c> can bind directly to it.
 /// </summary>
 internal sealed class ConnectionProfile
 {
-    /// <summary>Stabile technische Kennung des Profils.</summary>
+    /// <summary>Stable technical identifier of the profile.</summary>
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-    /// <summary>Anzeigename des Profils (im Designer eindeutig gedacht, aber nicht erzwungen).</summary>
-    [Required(ErrorMessage = "Bitte einen Namen angeben.")]
+    /// <summary>Display name of the profile (intended to be unique in the designer, but not enforced).</summary>
+    [Required(ErrorMessage = "Please enter a name.")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Der zu verwendende Datenbank-Provider.</summary>
+    /// <summary>The database provider to use.</summary>
     public FlirtyDatabaseProvider Provider { get; set; } = FlirtyDatabaseProvider.Sqlite;
 
-    /// <summary>Die Verbindungszeichenfolge für den gewählten Provider (kann Secrets enthalten).</summary>
-    [Required(ErrorMessage = "Bitte eine Verbindungszeichenfolge angeben.")]
+    /// <summary>The connection string for the chosen provider (may contain secrets).</summary>
+    [Required(ErrorMessage = "Please enter a connection string.")]
     public string ConnectionString { get; set; } = string.Empty;
 
-    /// <summary>Erzeugt eine unabhängige Kopie (zum gefahrlosen Bearbeiten im Formular).</summary>
+    /// <summary>Creates an independent copy (for safe editing in the form).</summary>
     public ConnectionProfile Clone() => new()
     {
         Id = Id,

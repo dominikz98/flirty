@@ -1,4 +1,4 @@
-/* Die gemeinsamen UI-Primitiven liegen global in wwwroot/app.css – hier nur Seitenspezifisches. */
+/* The shared UI primitives live globally in wwwroot/app.css – only page-specific rules here. */
 
 h3 {
     margin: 0.75rem 0 0.5rem;

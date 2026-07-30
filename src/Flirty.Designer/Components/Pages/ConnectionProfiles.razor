@@ -4,23 +4,23 @@
 @inject ConnectionProfileOperations Operations
 @inject ActiveConnectionProfile Active
 
-<PageTitle>Verbindungen · Flirty Designer</PageTitle>
+<PageTitle>Connections · Flirty Designer</PageTitle>
 
-<h1>Verbindungen</h1>
+<h1>Connections</h1>
 
 <p class="intro">
-    Verwalte hier deine Datenbank-Verbindungsprofile (Multi-DB). Teste eine Verbindung, wende Migrationen an
-    und aktiviere das Profil, gegen das der Designer arbeiten soll.
+    Manage your database connection profiles here (multi-DB). Test a connection, apply migrations and
+    activate the profile the designer should work against.
 </p>
 
 @if (_editModel is null)
 {
-    <button class="btn btn-primary" @onclick="StartCreate">Neues Profil</button>
+    <button class="btn btn-primary" @onclick="StartCreate">New profile</button>
 }
 else
 {
     <div class="editor">
-        <h2>@(_isNew ? "Neues Profil" : "Profil bearbeiten")</h2>
+        <h2>@(_isNew ? "New profile" : "Edit profile")</h2>
         <EditForm Model="_editModel" OnValidSubmit="SaveProfile">
             <DataAnnotationsValidator />
 
@@ -41,14 +41,14 @@ else
             </div>
 
             <div class="field">
-                <label for="connectionString">Verbindungszeichenfolge</label>
+                <label for="connectionString">Connection string</label>
                 <InputTextArea id="connectionString" class="input" rows="3" @bind-Value="_editModel.ConnectionString" />
                 <ValidationMessage For="() => _editModel.ConnectionString" />
             </div>
 
             <div class="actions">
-                <button type="submit" class="btn btn-primary">Speichern</button>
-                <button type="button" class="btn" @onclick="CancelEdit">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn" @onclick="CancelEdit">Cancel</button>
             </div>
         </EditForm>
     </div>
@@ -56,7 +56,7 @@ else
 
 @if (_profiles.Count == 0)
 {
-    <p class="empty">Noch keine Profile angelegt.</p>
+    <p class="empty">No profiles created yet.</p>
 }
 else
 {
@@ -65,9 +65,9 @@ else
             <tr>
                 <th>Name</th>
                 <th>Provider</th>
-                <th>Verbindungszeichenfolge</th>
+                <th>Connection string</th>
                 <th>Status</th>
-                <th>Aktionen</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -81,7 +81,7 @@ else
                     <td>
                         @if (profile.Id == _activeId)
                         {
-                            <span class="badge badge-active">Aktiv</span>
+                            <span class="badge badge-active">Active</span>
                         }
                         @if (_testResults.TryGetValue(profile.Id, out var testMessage))
                         {
@@ -93,29 +93,29 @@ else
                         }
                     </td>
                     <td class="row-actions">
-                        <button class="btn" disabled="@busy" @onclick="() => TestConnectionAsync(profile)">Testen</button>
-                        <button class="btn" disabled="@busy" @onclick="() => MigrateAsync(profile)">Migrieren</button>
-                        <button class="btn" disabled="@(busy || profile.Id == _activeId)" @onclick="() => ActivateProfile(profile)">Aktivieren</button>
-                        <button class="btn" disabled="@busy" @onclick="() => StartEdit(profile)">Bearbeiten</button>
+                        <button class="btn" disabled="@busy" @onclick="() => TestConnectionAsync(profile)">Test</button>
+                        <button class="btn" disabled="@busy" @onclick="() => MigrateAsync(profile)">Migrate</button>
+                        <button class="btn" disabled="@(busy || profile.Id == _activeId)" @onclick="() => ActivateProfile(profile)">Activate</button>
+                        <button class="btn" disabled="@busy" @onclick="() => StartEdit(profile)">Edit</button>
 
-                        @* Zweistufig wie alle Löschaktionen des Designers (inline statt JS-confirm, das
-                           sonst die Playwright-E2E blockieren würde). Ein Profil ist nicht
-                           wiederherstellbar und kann Zugangsdaten enthalten. *@
+                        @* Two-stage like all delete actions of the designer (inline instead of a JS confirm,
+                           which would otherwise block the Playwright E2E). A profile is not recoverable and
+                           can contain credentials. *@
                         @if (_confirmDeleteId == profile.Id)
                         {
                             <span class="confirm">
-                                Profil „@profile.Name" löschen?
+                                Delete profile "@profile.Name"?
                                 @if (profile.Id == _activeId)
                                 {
-                                    <text>Es ist gerade aktiv – der Designer arbeitet danach gegen kein Profil mehr.</text>
+                                    <text>It is currently active – the designer works against no profile afterwards.</text>
                                 }
                             </span>
-                            <button class="btn btn-danger" disabled="@busy" @onclick="() => DeleteProfile(profile)">Ja, löschen</button>
-                            <button class="btn" disabled="@busy" @onclick="() => _confirmDeleteId = null">Abbrechen</button>
+                            <button class="btn btn-danger" disabled="@busy" @onclick="() => DeleteProfile(profile)">Yes, delete</button>
+                            <button class="btn" disabled="@busy" @onclick="() => _confirmDeleteId = null">Cancel</button>
                         }
                         else
                         {
-                            <button class="btn btn-danger" disabled="@busy" @onclick="() => _confirmDeleteId = profile.Id">Löschen</button>
+                            <button class="btn btn-danger" disabled="@busy" @onclick="() => _confirmDeleteId = profile.Id">Delete</button>
                         }
                     </td>
                 </tr>
@@ -180,9 +180,9 @@ else
         _migrateResults.Remove(profile.Id);
         _confirmDeleteId = null;
 
-        // War es das aktive Profil, muss auch DIESER Circuit es loslassen: Store.Delete nimmt nur den
-        // Standard aus der Datei, ActiveConnectionProfile hält es sonst weiter und der Designer arbeitete
-        // gegen ein Profil, das in der Verwaltung nicht mehr existiert (erst ein Reload räumte das auf).
+        // If it was the active profile, THIS circuit must let go of it too: Store.Delete only removes the
+        // default from the file, ActiveConnectionProfile otherwise keeps holding it and the designer would
+        // work against a profile that no longer exists in the management (only a reload cleaned that up).
         if (wasActive)
         {
             Active.Clear();
@@ -223,9 +223,9 @@ else
             _migrateSuccess[profile.Id] = result.Success;
             _migrateResults[profile.Id] = result.Success
                 ? result.AppliedMigrations.Count == 0
-                    ? "Datenbank ist aktuell – keine ausstehenden Migrationen."
-                    : $"{result.AppliedMigrations.Count} Migration(en) angewendet: {string.Join(", ", result.AppliedMigrations)}"
-                : result.Error ?? "Unbekannter Fehler.";
+                    ? "Database is up to date – no pending migrations."
+                    : $"{result.AppliedMigrations.Count} migration(s) applied: {string.Join(", ", result.AppliedMigrations)}"
+                : result.Error ?? "Unknown error.";
         }
         finally
         {
