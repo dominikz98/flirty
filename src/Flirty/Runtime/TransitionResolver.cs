@@ -4,19 +4,19 @@ using Flirty.Expressions;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Gemeinsamer Branching-Kernel der Dialog-Runtime: wertet ausgehend von einer beantworteten Frage die
-/// konfigurierten <see cref="Transition"/>s einer gepinnten Dialogversion aus und liefert die nächste
-/// Frage bzw. den Abschluss. Wird von <see cref="SubmitAnswerCommandHandler"/> (#26) und
-/// <see cref="EditAnswerCommandHandler"/> (#28) geteilt, damit die Übergangs-Logik nur an <b>einer</b>
-/// Stelle existiert.
+/// Shared branching kernel of the dialog runtime: starting from an answered question, evaluates the
+/// configured <see cref="Transition"/>s of a pinned dialog version and returns the next
+/// question or the completion. Shared by <see cref="SubmitAnswerCommandHandler"/> (#26) and
+/// <see cref="EditAnswerCommandHandler"/> (#28) so that the transition logic exists in only <b>one</b>
+/// place.
 /// </summary>
 internal sealed class TransitionResolver
 {
     private readonly IExpressionEvaluator _evaluator;
 
-    /// <summary>Erstellt den Resolver über die angegebene Ausdrucks-Engine.</summary>
-    /// <param name="evaluator">Die Engine zur Auswertung der Übergangs-Bedingungsausdrücke.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="evaluator"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the resolver over the given expression engine.</summary>
+    /// <param name="evaluator">The engine for evaluating the transition condition expressions.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="evaluator"/> is <see langword="null"/>.</exception>
     public TransitionResolver(IExpressionEvaluator evaluator)
     {
         ArgumentNullException.ThrowIfNull(evaluator);
@@ -24,18 +24,18 @@ internal sealed class TransitionResolver
     }
 
     /// <summary>
-    /// Wertet die ausgehenden Übergänge der Frage <paramref name="questionId"/> aus und liefert die
-    /// Ziel-Frage-Id des greifenden Übergangs. Zurückgegeben wird <see langword="null"/>, wenn die Frage
-    /// <b>keine</b> ausgehenden Übergänge besitzt (regulärer Abschluss). Existieren Übergänge, greift aber
-    /// weder ein bedingter Übergang noch ein Default, wird der Dialog als fehlkonfiguriert abgelehnt.
+    /// Evaluates the outgoing transitions of the question <paramref name="questionId"/> and returns the
+    /// target question id of the applying transition. <see langword="null"/> is returned if the question
+    /// has <b>no</b> outgoing transitions (regular completion). If transitions exist but neither
+    /// a conditional transition nor a default applies, the dialog is rejected as misconfigured.
     /// </summary>
-    /// <param name="dialog">Die gepinnte Dialogversion samt Übergängen und Fragen.</param>
-    /// <param name="session">Die laufende Session, deren Antworten den Ausdruckskontext speisen.</param>
-    /// <param name="questionId">Die Id der beantworteten Frage, deren Übergänge ausgewertet werden.</param>
-    /// <returns>Die Ziel-Frage-Id des greifenden Übergangs oder <see langword="null"/> bei Abschluss.</returns>
+    /// <param name="dialog">The pinned dialog version along with transitions and questions.</param>
+    /// <param name="session">The running session whose answers feed the expression context.</param>
+    /// <param name="questionId">The id of the answered question whose transitions are evaluated.</param>
+    /// <returns>The target question id of the applying transition, or <see langword="null"/> on completion.</returns>
     /// <exception cref="InvalidOperationException">
-    /// Übergänge sind vorhanden, aber keiner greift und es gibt keinen Default, oder die Zielfrage des
-    /// greifenden Übergangs gehört nicht zum Dialog-Graphen.
+    /// Transitions exist, but none applies and there is no default, or the target question of the
+    /// applying transition does not belong to the dialog graph.
     /// </exception>
     public Guid? ResolveTransitionTarget(Dialog dialog, DialogSession session, Guid questionId)
     {
@@ -56,14 +56,14 @@ internal sealed class TransitionResolver
         if (match is null)
         {
             throw new InvalidOperationException(
-                $"Für die Frage '{questionId}' im Dialog '{dialog.Key}' trifft kein Übergang zu und es "
-                + "ist kein Default-Übergang konfiguriert.");
+                $"For the question '{questionId}' in dialog '{dialog.Key}' no transition applies and "
+                + "no default transition is configured.");
         }
 
         if (dialog.Questions.All(question => question.Id != match.TargetQuestionId))
         {
             throw new InvalidOperationException(
-                $"Der Übergang '{match.Id}' im Dialog '{dialog.Key}' zeigt auf die unbekannte Zielfrage "
+                $"The transition '{match.Id}' in dialog '{dialog.Key}' points to the unknown target question "
                 + $"'{match.TargetQuestionId}'.");
         }
 
@@ -71,9 +71,9 @@ internal sealed class TransitionResolver
     }
 
     /// <summary>
-    /// Prüft, ob der Übergang greift: Ein <see langword="null"/>er/leerer Ausdruck gilt als
-    /// bedingungslos zutreffend (Kurzschluss liegt bei der Runtime); andernfalls entscheidet der
-    /// <see cref="IExpressionEvaluator"/>.
+    /// Checks whether the transition applies: a <see langword="null"/>/empty expression counts as
+    /// unconditionally applying (the short-circuit rests with the runtime); otherwise the
+    /// <see cref="IExpressionEvaluator"/> decides.
     /// </summary>
     private bool ConditionHolds(Transition transition, ExpressionContext context)
         => string.IsNullOrWhiteSpace(transition.Expression)

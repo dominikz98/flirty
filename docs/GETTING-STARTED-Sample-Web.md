@@ -157,13 +157,13 @@ the chat UI in the browser. Seven tests cover the acceptance criterion from **#4
 
 | Test | Covers |
 |---|---|
-| `Durchlauf_Branching_Loop_und_Trigger_Rundlauf` | dev branch, two loop iterations, completion, in-process handler and outbound→inbound webhook |
-| `Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife` | the `IsDefault` transition (`pm` → `product`) as a counter-check to the dev branch |
-| `Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her` | reload **inside** the loop → iteration state and open question come from the server |
-| `Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten` | free-text edit incl. number of discarded downstream answers and recomputation of the path |
-| `Editieren_der_Verzweigungsfrage_wechselt_den_Zweig` | edit of a choice → branch switch; at the same time a regression test for the type-dependent input control (see §3) |
-| `Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration` | `iterationIndex` path and re-opening an already-completed session |
-| `Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert` | the second half of the same regression test: a `Boolean` answer must not silently flip on edit |
+| `Run_through_branching_loop_and_the_trigger_round_trip` | dev branch, two loop iterations, completion, in-process handler and outbound→inbound webhook |
+| `Branching_default_branch_leads_over_product_into_the_loop` | the `IsDefault` transition (`pm` → `product`) as a counter-check to the dev branch |
+| `Reload_restores_the_session_in_the_middle_of_the_loop` | reload **inside** the loop → iteration state and open question come from the server |
+| `Editing_an_answer_discards_the_downstream_answers` | free-text edit incl. number of discarded downstream answers and recomputation of the path |
+| `Editing_the_branching_question_switches_the_branch` | edit of a choice → branch switch; at the same time a regression test for the type-dependent input control (see §3) |
+| `Editing_a_loop_iteration_hits_exactly_that_iteration` | `iterationIndex` path and re-opening an already-completed session |
+| `Editing_a_yes_no_answer_keeps_the_chosen_value` | the second half of the same regression test: a `Boolean` answer must not silently flip on edit |
 
 All tests share the app including the database, but each gets a fresh browser context (empty
 `localStorage` → its own `externalUserKey` → its own session). If the Playwright browsers are missing, the

@@ -6,20 +6,20 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für die <see cref="GraphWarningList"/> – die Textfassung der Graph-Warnungen, an der die
-/// Rückfrage vor dem Veröffentlichen hängt (#118). Der Kern ist nicht die Formatierung, sondern die
-/// <b>Vollständigkeit</b>: Bis #118 speiste sich die Rückfrage nur aus den Übergangs-Warnungen, eine
-/// unerreichbare Frage ließ sich also ohne Rückfrage veröffentlichen – und veröffentlicht ist der Graph
-/// gesperrt (ADR 0005), der Fehler kostet dann eine neue Version.
+/// Tests for the <see cref="GraphWarningList"/> – the text version of the graph warnings, which the
+/// confirmation before publishing hangs on (#118). The core is not the formatting but the
+/// <b>completeness</b>: until #118 the confirmation drew only on the transition warnings, so an
+/// unreachable question could be published without any confirmation – and once published the graph
+/// is locked (ADR 0005), so the mistake then costs a new version.
 /// </summary>
 public sealed class GraphWarningListTests
 {
     /// <summary>
-    /// Der Befund des Issues: Eine Frage, auf die kein Pfad führt, steht in der Liste – und zwar mit
-    /// ihrem Schlüssel, damit man sie im Graphen wiederfindet.
+    /// The issue's finding: a question no path leads to appears in the list – and it does so with its
+    /// key, so that one can find it again in the graph.
     /// </summary>
     [Fact]
-    public void Describe_nennt_die_unerreichbare_Frage_mit_ihrem_Schluessel()
+    public void Describe_names_the_unreachable_question_with_its_key()
     {
         var detail = AdminProjection.ToDetail(BranchingWithOrphan());
 
@@ -31,19 +31,18 @@ public sealed class GraphWarningListTests
     }
 
     /// <summary>
-    /// Jede Warnung wird nach ihrem <b>Verursacher</b> benannt, und die drei Fälle unterscheiden sich:
-    /// Eine Frage trägt ihren Schlüssel, ein Schleifen-Marker seinen <c>CollectionKey</c> (er hängt am
-    /// Rahmen, nicht an einer Frage), und eine Warnung am Dialog bleibt <b>ohne</b> Präfix. Der letzte
-    /// Fall ist der heikle: Bis #118 griff die Liste hart auf <c>QuestionId</c> zu – eine Dialog- oder
-    /// Schleifen-Warnung hätte sie zum Absturz gebracht.
+    /// Every warning is named after its <b>cause</b>, and the three cases differ: a question carries
+    /// its key, a loop marker its <c>CollectionKey</c> (it hangs on the frame, not on a question), and
+    /// a warning on the dialog stays <b>without</b> a prefix. The last case is the delicate one: until
+    /// #118 the list accessed <c>QuestionId</c> hard – a dialog or loop warning would have crashed it.
     /// </summary>
     [Fact]
-    public void Describe_stellt_jeder_Warnung_ihren_Verursacher_voran()
+    public void Describe_puts_the_cause_in_front_of_every_warning()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
 
-        // Ohne Ausstieg warnt der LoopAnalyzer an der Breaking Question, der verdeckende CollectionKey am
-        // Rahmen – und ohne Einstiegsfrage kommt die Warnung am Dialog dazu.
+        // Without an exit the LoopAnalyzer warns at the breaking question, the shadowing CollectionKey
+        // at the frame – and without an entry question the dialog warning is added on top.
         dialog.Transitions.Remove(
             dialog.Transitions.First(transition => transition.TargetQuestionId == ids.SummaryQuestionId));
         dialog.Loops.First().CollectionKey = "my-positions";
@@ -61,18 +60,18 @@ public sealed class GraphWarningListTests
     }
 
     /// <summary>
-    /// Der Vertragsnagel, Gegenstück zu
-    /// <see cref="TransitionWarningAnalyzerTests.Analyze_liefert_die_bisherigen_Wortlaute_unveraendert"/>:
-    /// Die Publish-Rückfrage zählt diese Zeilen und die E2E-Suite sucht darin. Festgehalten ist damit
-    /// auch die Reihenfolge – Knoten vor Kanten, wie
-    /// <see cref="Flirty.Designer.Models.DialogGraphModel.AllWarnings"/> sie liefert.
+    /// The contract nail, the counterpart to
+    /// <see cref="TransitionWarningAnalyzerTests.Analyze_returns_the_existing_wordings_unchanged"/>:
+    /// the publish confirmation counts these lines and the E2E suite searches within them. That also
+    /// pins the order – nodes before edges, the way
+    /// <see cref="Flirty.Designer.Models.DialogGraphModel.AllWarnings"/> returns them.
     /// </summary>
     [Fact]
-    public void Describe_liefert_die_Wortlaute_unveraendert()
+    public void Describe_returns_the_wordings_unchanged()
     {
         var dialog = BranchingWithOrphan();
 
-        // Zusätzlich ein Befund an einer Kante: Die Bedingung an einem Default wird nie ausgewertet.
+        // Plus a finding on an edge: the condition on a default is never evaluated.
         dialog.Transitions.First(transition => transition.IsDefault).Expression = "role == \"pm\"";
 
         var detail = AdminProjection.ToDetail(dialog);
@@ -88,9 +87,9 @@ public sealed class GraphWarningListTests
             lines);
     }
 
-    /// <summary>Ein stimmiger Graph liefert nichts – sonst fragte das Veröffentlichen immer zurück.</summary>
+    /// <summary>A consistent graph yields nothing – otherwise publishing would always ask back.</summary>
     [Fact]
-    public void Describe_liefert_fuer_einen_stimmigen_Graphen_nichts()
+    public void Describe_returns_nothing_for_a_consistent_graph()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _));
 
@@ -98,8 +97,8 @@ public sealed class GraphWarningListTests
     }
 
     /// <summary>
-    /// Der Branching-Dialog samt einer Frage, auf die kein Übergang zeigt – derselbe Aufbau wie in
-    /// <see cref="DialogGraphBuilderTests.Build_markiert_Einstieg_Abschluss_und_nicht_erreichbare_Fragen"/>.
+    /// The branching dialog together with a question no transition points at – the same setup as in
+    /// <see cref="DialogGraphBuilderTests.Build_marks_the_entry_the_completion_and_unreachable_questions"/>.
     /// </summary>
     private static Dialog BranchingWithOrphan()
     {

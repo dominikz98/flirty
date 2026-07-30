@@ -1,20 +1,20 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Bestimmt den Zeitpunkt im Dialogablauf, zu dem eine <see cref="TriggerDefinition"/>
-/// ausgelöst wird.
+/// Determines the point in the dialog flow at which a <see cref="TriggerDefinition"/>
+/// is fired.
 /// </summary>
 public enum TriggerScope
 {
-    /// <summary>Beim Start eines Dialogs (nach Anlage der Session).</summary>
+    /// <summary>When a dialog starts (after the session has been created).</summary>
     OnDialogStarted = 0,
 
-    /// <summary>Nach jeder abgegebenen Antwort.</summary>
+    /// <summary>After every submitted answer.</summary>
     AfterAnswer = 1,
 
-    /// <summary>Nach einer bestimmten Frage (<see cref="TriggerDefinition.QuestionId"/>).</summary>
+    /// <summary>After a specific question (<see cref="TriggerDefinition.QuestionId"/>).</summary>
     AfterQuestion = 2,
 
-    /// <summary>Beim Abschluss des Dialogs.</summary>
+    /// <summary>When the dialog completes.</summary>
     OnDialogCompleted = 3,
 }

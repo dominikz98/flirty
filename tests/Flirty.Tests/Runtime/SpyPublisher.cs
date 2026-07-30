@@ -3,15 +3,15 @@ using Mediator;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Handgeschriebener Spy für <see cref="IPublisher"/> (das Repo nutzt bewusst keine Mock-Bibliothek):
-/// zeichnet alle publizierten Notifications in Aufrufreihenfolge auf, damit Tests die von den
-/// Command-Handlern ausgelösten In-Process-Trigger verifizieren können.
+/// Hand-written spy for <see cref="IPublisher"/> (the repo deliberately uses no mocking library):
+/// records all published notifications in call order, so tests can verify the in-process triggers
+/// fired by the command handlers.
 /// </summary>
 internal sealed class SpyPublisher : IPublisher
 {
     private readonly List<INotification> _published = [];
 
-    /// <summary>Die publizierten Notifications in der Reihenfolge ihrer Auslösung.</summary>
+    /// <summary>The published notifications in the order they were fired.</summary>
     public IReadOnlyList<INotification> Published => _published;
 
     /// <inheritdoc />

@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für das Konfigurations-Aggregat-Root <see cref="Dialog"/>. Legt Schlüssel,
-/// den eindeutigen Index über <c>(Key, Version)</c> sowie die kaskadierenden Beziehungen zu den
-/// Kind-Entities (Fragen, Übergänge, Schleifen, Trigger, Layout) fest.
+/// EF Core configuration for the configuration aggregate root <see cref="Dialog"/>. Sets the key,
+/// the unique index over <c>(Key, Version)</c> as well as the cascading relationships to the
+/// child entities (questions, transitions, loops, triggers, layout).
 /// </summary>
 internal sealed class DialogConfiguration : IEntityTypeConfiguration<Dialog>
 {
@@ -15,16 +15,16 @@ internal sealed class DialogConfiguration : IEntityTypeConfiguration<Dialog>
     {
         builder.HasKey(dialog => dialog.Id);
 
-        // Indizierte Key-Spalte: begrenzte Länge, damit sie über alle Provider indizierbar ist
-        // (SQL Server lässt nvarchar(max) nicht als Indexschlüssel zu).
+        // Indexed key column: bounded length so it is indexable across all providers
+        // (SQL Server does not allow nvarchar(max) as an index key).
         builder.Property(dialog => dialog.Key)
             .HasMaxLength(PersistenceConstants.KeyMaxLength);
 
-        // Fachlicher Schlüssel je Version genau einmal (mehrere Versionen desselben Key sind erlaubt).
+        // Business key exactly once per version (multiple versions of the same key are allowed).
         builder.HasIndex(dialog => new { dialog.Key, dialog.Version })
             .IsUnique();
 
-        // Aggregat-interne Beziehungen: explizite FK-Bindung (verhindert Shadow-FKs) + Cascade-Delete.
+        // Aggregate-internal relationships: explicit FK binding (prevents shadow FKs) + cascade delete.
         builder.HasMany(dialog => dialog.Questions)
             .WithOne(question => question.Dialog)
             .HasForeignKey(question => question.DialogId)

@@ -8,12 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.AspNetCore;
 
 /// <summary>
-/// Gemeinsame In-Process-<see cref="TestServer"/>-Infrastruktur für die Endpunkt-Integrationstests von
-/// <c>Flirty.AspNetCore</c>. Baut pro Test einen frischen Host gegen eine SQLite-in-memory-Datenbank
-/// (Docker-frei) und registriert sowohl die Laufzeit-Endpunkte (<c>MapFlirtyEndpoints</c>) als auch die
-/// Admin-CRUD-Endpunkte (<c>MapFlirtyAdminEndpoints</c>). Die keep-alive-Verbindung hält die
-/// Shared-Cache-Datenbank über alle Request-Scopes am Leben; beim Verwerfen werden Host und Verbindung
-/// aufgeräumt.
+/// Shared in-process <see cref="TestServer"/> infrastructure for the endpoint integration tests of
+/// <c>Flirty.AspNetCore</c>. Builds a fresh host per test against a SQLite in-memory database
+/// (Docker-free) and registers both the runtime endpoints (<c>MapFlirtyEndpoints</c>) and the admin
+/// CRUD endpoints (<c>MapFlirtyAdminEndpoints</c>). The keep-alive connection keeps the shared-cache
+/// database alive across all request scopes; on disposal host and connection are cleaned up.
 /// </summary>
 internal sealed class FlirtyTestHost : IAsyncDisposable
 {
@@ -27,15 +26,15 @@ internal sealed class FlirtyTestHost : IAsyncDisposable
         Client = app.GetTestClient();
     }
 
-    /// <summary>Der an den TestServer gebundene HTTP-Client.</summary>
+    /// <summary>The HTTP client bound to the TestServer.</summary>
     public HttpClient Client { get; }
 
     /// <summary>
-    /// Startet einen In-Process-TestServer mit dem vollständigen Flirty-Stack (SQLite in-memory) und
-    /// wendet den optionalen <paramref name="seed"/> auf die frisch erstellte Datenbank an.
+    /// Starts an in-process TestServer with the complete Flirty stack (SQLite in-memory) and applies
+    /// the optional <paramref name="seed"/> to the freshly created database.
     /// </summary>
-    /// <param name="seed">Optionaler Delegat zum Seeden der Datenbank vor dem ersten Request.</param>
-    /// <returns>Der gestartete, verwendbare Test-Host.</returns>
+    /// <param name="seed">Optional delegate for seeding the database before the first request.</param>
+    /// <returns>The started, usable test host.</returns>
     public static async Task<FlirtyTestHost> StartAsync(Action<FlirtyDbContext>? seed = null)
     {
         var connectionString = $"Data Source=FlirtyApiTest-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";

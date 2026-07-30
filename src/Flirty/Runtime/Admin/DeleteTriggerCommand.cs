@@ -4,22 +4,22 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Löscht die Trigger-Definition <see cref="TriggerId"/> im Dialog <see cref="DialogId"/>. Der Dialog
-/// läuft unverändert weiter – ohne Definition entfällt lediglich der Rückkanal (bei
-/// <see cref="Flirty.Domain.TriggerKind.Webhook"/> also die Zustellung).
+/// Deletes the trigger definition <see cref="TriggerId"/> in the dialog <see cref="DialogId"/>. The dialog
+/// continues to run unchanged – without the definition only the back channel is dropped (for
+/// <see cref="Flirty.Domain.TriggerKind.Webhook"/> therefore the delivery).
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Trigger gehört.</param>
-/// <param name="TriggerId">Der Primärschlüssel der zu löschenden Trigger-Definition.</param>
+/// <param name="DialogId">The id of the dialog the trigger belongs to.</param>
+/// <param name="TriggerId">The primary key of the trigger definition to delete.</param>
 public sealed record DeleteTriggerCommand(Guid DialogId, Guid TriggerId) : ICommand<Unit>;
 
-/// <summary>Handler für <see cref="DeleteTriggerCommand"/>.</summary>
+/// <summary>Handler for <see cref="DeleteTriggerCommand"/>.</summary>
 internal sealed class DeleteTriggerCommandHandler : ICommandHandler<DeleteTriggerCommand, Unit>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public DeleteTriggerCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -28,14 +28,14 @@ internal sealed class DeleteTriggerCommandHandler : ICommandHandler<DeleteTrigge
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Kein Trigger mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No trigger with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<Unit> Handle(DeleteTriggerCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var trigger = await _store.GetTriggerAsync(command.TriggerId, cancellationToken);

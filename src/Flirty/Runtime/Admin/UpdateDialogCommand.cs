@@ -5,15 +5,15 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Aktualisiert die Metadaten des Dialogs <see cref="Id"/> (In-Place). Setzt optional die
-/// Einstiegsfrage (<see cref="StartQuestionId"/>); ist sie nicht <see langword="null"/>, muss sie
-/// auf eine Frage <b>dieses</b> Dialogs verweisen.
+/// Updates the metadata of the dialog <see cref="Id"/> (in place). Optionally sets the entry question
+/// (<see cref="StartQuestionId"/>); if it is not <see langword="null"/>, it must reference a question
+/// of <b>this</b> dialog.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel des zu ändernden Dialogs.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel des Dialogs (muss eindeutig bleiben).</param>
-/// <param name="Name">Der Anzeigename des Dialogs.</param>
-/// <param name="Description">Die optionale Beschreibung des Dialogs.</param>
-/// <param name="StartQuestionId">Optionaler Verweis auf die Einstiegsfrage dieses Dialogs.</param>
+/// <param name="Id">The primary key of the dialog to change.</param>
+/// <param name="Key">The business, stable key of the dialog (must stay unique).</param>
+/// <param name="Name">The display name of the dialog.</param>
+/// <param name="Description">The optional description of the dialog.</param>
+/// <param name="StartQuestionId">Optional reference to the entry question of this dialog.</param>
 public sealed record UpdateDialogCommand(
     Guid Id,
     [property: Required] string Key,
@@ -21,14 +21,14 @@ public sealed record UpdateDialogCommand(
     string? Description,
     Guid? StartQuestionId) : ICommand<DialogSummary>;
 
-/// <summary>Handler für <see cref="UpdateDialogCommand"/>.</summary>
+/// <summary>Handler for <see cref="UpdateDialogCommand"/>.</summary>
 internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogCommand, DialogSummary>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public UpdateDialogCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -36,15 +36,14 @@ internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogC
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Der Schlüssel kollidiert mit einer anderen Dialog-Familie, der Schlüssel einer mehrfach
-    /// versionierten Familie soll umbenannt werden, oder die angegebene Einstiegsfrage gehört nicht zu
-    /// diesem Dialog.
+    /// The key collides with another dialog family, the key of a family with multiple versions is to be
+    /// renamed, or the given entry question does not belong to this dialog.
     /// </exception>
     /// <exception cref="DialogPublishedException">
-    /// Der Dialog ist veröffentlicht und die <b>Einstiegsfrage</b> soll geändert werden (der Rest der
-    /// Metadaten bleibt änderbar).
+    /// The dialog is published and the <b>entry question</b> is to be changed (the rest of the metadata
+    /// stays editable).
     /// </exception>
     public async ValueTask<DialogSummary> Handle(UpdateDialogCommand command, CancellationToken cancellationToken)
     {
@@ -53,30 +52,28 @@ internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogC
         var dialog = await _store.GetDialogAsync(command.Id, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.Id);
 
-        // Die Einstiegsfrage ist Teil des Graphen – an einer veröffentlichten Version gesperrt.
-        // Name/Beschreibung bleiben bewusst änderbar (rein beschreibend, ohne Wirkung auf den Ablauf).
+        // The entry question is part of the graph – locked on a published version.
+        // Name/description stay deliberately editable (purely descriptive, no effect on the flow).
         if (dialog.StartQuestionId != command.StartQuestionId)
         {
             DialogEditGuard.EnsureEditable(dialog);
         }
 
-        // Der Schlüssel identifiziert die Dialog-Familie: alle Versionen teilen ihn. Deshalb ist er nur
-        // dann prüfpflichtig, wenn er sich tatsächlich ändert – sonst kollidierte jede Version mit ihren
-        // Geschwistern.
+        // The key identifies the dialog family: all versions share it. It therefore only needs checking
+        // when it actually changes – otherwise every version would collide with its siblings.
         if (!string.Equals(command.Key, dialog.Key, StringComparison.Ordinal))
         {
             if (await _store.DialogKeyExistsAsync(command.Key, cancellationToken: cancellationToken))
             {
                 throw new InvalidOperationException(
-                    $"Es existiert bereits ein anderer Dialog mit dem Schlüssel '{command.Key}'.");
+                    $"A different dialog with the key '{command.Key}' already exists.");
             }
 
             if (await _store.DialogKeyExistsAsync(dialog.Key, dialog.Id, cancellationToken))
             {
                 throw new InvalidOperationException(
-                    $"Der Schlüssel '{dialog.Key}' hat mehrere Versionen. Ein Umbenennen würde die "
-                  + "Versionsreihe zerreißen – benenne stattdessen alle Versionen um oder lege eine "
-                  + "neue Dialog-Familie an.");
+                    $"The key '{dialog.Key}' has multiple versions. Renaming would tear the version "
+                  + "series apart – rename all versions instead, or create a new dialog family.");
             }
         }
 
@@ -86,7 +83,7 @@ internal sealed class UpdateDialogCommandHandler : ICommandHandler<UpdateDialogC
             if (startQuestion is null || startQuestion.DialogId != dialog.Id)
             {
                 throw new InvalidOperationException(
-                    $"Die Einstiegsfrage '{startQuestionId}' gehört nicht zum Dialog '{dialog.Id}'.");
+                    $"The entry question '{startQuestionId}' does not belong to the dialog '{dialog.Id}'.");
             }
         }
 

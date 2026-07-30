@@ -5,16 +5,16 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Legt einen neuen bedingten Übergang (Branching) im Dialog <see cref="DialogId"/> an.
-/// <see cref="FromQuestionId"/>/<see cref="TargetQuestionId"/> sind – dem FK-losen Domänenmodell
-/// entsprechend – rohe Frage-Verweise; ihre Gültigkeit liegt in der Verantwortung des Aufrufers.
+/// Creates a new conditional transition (branching) in the dialog <see cref="DialogId"/>.
+/// <see cref="FromQuestionId"/>/<see cref="TargetQuestionId"/> are – in line with the FK-free domain
+/// model – raw question references; their validity is the responsibility of the caller.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Übergang gehört.</param>
-/// <param name="FromQuestionId">Verweis auf die Ausgangsfrage.</param>
-/// <param name="TargetQuestionId">Verweis auf die Zielfrage.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
-/// <param name="Priority">Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher).</param>
-/// <param name="IsDefault">Gibt an, ob dieser Übergang der Default ist.</param>
+/// <param name="DialogId">The id of the dialog the transition belongs to.</param>
+/// <param name="FromQuestionId">Reference to the source question.</param>
+/// <param name="TargetQuestionId">Reference to the target question.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
+/// <param name="Priority">Priority for the evaluation order (smaller value = earlier).</param>
+/// <param name="IsDefault">Indicates whether this transition is the default.</param>
 public sealed record CreateTransitionCommand(
     Guid DialogId,
     Guid FromQuestionId,
@@ -23,14 +23,14 @@ public sealed record CreateTransitionCommand(
     int Priority,
     bool IsDefault) : ICommand<TransitionDetail>;
 
-/// <summary>Handler für <see cref="CreateTransitionCommand"/>.</summary>
+/// <summary>Handler for <see cref="CreateTransitionCommand"/>.</summary>
 internal sealed class CreateTransitionCommandHandler : ICommandHandler<CreateTransitionCommand, TransitionDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public CreateTransitionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -38,8 +38,8 @@ internal sealed class CreateTransitionCommandHandler : ICommandHandler<CreateTra
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<TransitionDetail> Handle(
         CreateTransitionCommand command, CancellationToken cancellationToken)
     {
@@ -48,7 +48,7 @@ internal sealed class CreateTransitionCommandHandler : ICommandHandler<CreateTra
         var dialog = await _store.GetDialogAsync(command.DialogId, cancellationToken)
             ?? throw ConfigurationNotFoundException.ForDialog(command.DialogId);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         DialogEditGuard.EnsureEditable(dialog);
 
         var transition = new Transition

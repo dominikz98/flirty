@@ -1,26 +1,26 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Legt fest, welche Art von Antwort eine <see cref="Question"/> erwartet und wie diese
-/// geparst und validiert wird.
+/// Defines what kind of answer a <see cref="Question"/> expects and how it is
+/// parsed and validated.
 /// </summary>
 public enum QuestionType
 {
-    /// <summary>Genau eine Antwortoption aus einer vorgegebenen Liste (<see cref="AnswerOption"/>).</summary>
+    /// <summary>Exactly one answer option from a predefined list (<see cref="AnswerOption"/>).</summary>
     SingleChoice = 0,
 
-    /// <summary>Beliebig viele Antwortoptionen aus einer vorgegebenen Liste (<see cref="AnswerOption"/>).</summary>
+    /// <summary>Any number of answer options from a predefined list (<see cref="AnswerOption"/>).</summary>
     MultiChoice = 1,
 
-    /// <summary>Freier Text ohne vorgegebene Optionen.</summary>
+    /// <summary>Free text without predefined options.</summary>
     FreeText = 2,
 
-    /// <summary>Eine numerische Eingabe.</summary>
+    /// <summary>A numeric input.</summary>
     Number = 3,
 
-    /// <summary>Eine Datums-(/Zeit-)Eingabe.</summary>
+    /// <summary>A date(/time) input.</summary>
     Date = 4,
 
-    /// <summary>Eine Ja/Nein-Eingabe (wahr/falsch).</summary>
+    /// <summary>A yes/no input (true/false).</summary>
     Boolean = 5,
 }

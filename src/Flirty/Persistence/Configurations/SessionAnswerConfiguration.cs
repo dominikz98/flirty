@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="SessionAnswer"/>. Legt Schlüssel und einen Index über
-/// <c>(SessionId, Sequence)</c> fest. Die Beziehung zur <see cref="DialogSession"/> wird in
-/// <see cref="DialogSessionConfiguration"/> konfiguriert; <see cref="SessionAnswer.QuestionId"/>
-/// bleibt ein bewusst navigationsloser Guid-Verweis. Bewusst KEIN eindeutiger Index über
-/// <c>(SessionId, QuestionId)</c>: Loop-Iterationen erlauben mehrere Antworten pro Frage.
+/// EF Core configuration for <see cref="SessionAnswer"/>. Sets the key and an index over
+/// <c>(SessionId, Sequence)</c>. The relationship to the <see cref="DialogSession"/> is configured in
+/// <see cref="DialogSessionConfiguration"/>; <see cref="SessionAnswer.QuestionId"/>
+/// stays a deliberately navigation-less GUID reference. Deliberately NO unique index over
+/// <c>(SessionId, QuestionId)</c>: loop iterations allow multiple answers per question.
 /// </summary>
 internal sealed class SessionAnswerConfiguration : IEntityTypeConfiguration<SessionAnswer>
 {
@@ -17,10 +17,10 @@ internal sealed class SessionAnswerConfiguration : IEntityTypeConfiguration<Sess
     {
         builder.HasKey(answer => answer.Id);
 
-        // Antworten je Session in Reihenfolge auffindbar (nicht eindeutig).
+        // Answers discoverable per session in order (not unique).
         builder.HasIndex(answer => new { answer.SessionId, answer.Sequence });
 
-        // Value trägt anwendungsseitig serialisiertes JSON -> unbegrenzte, erforderliche Textspalte,
-        // bewusst ohne MaxLength.
+        // Value carries application-side serialized JSON -> unbounded, required text column,
+        // deliberately without MaxLength.
     }
 }

@@ -8,20 +8,19 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für das Auto-Layout der Graph-Ansicht (#101). Der Schwerpunkt liegt auf dem
-/// <b>Determinismus</b>: Derselbe Graph muss dieselben Koordinaten ergeben, sonst wackeln E2E-Selektoren
-/// und Screenshots. Geprüft wird das gegen die drei Quellen, aus denen Nichtdeterminismus üblicherweise
-/// einsickert – Hash-Iterationsreihenfolge, neu vergebene Guids und die Speicherreihenfolge der
-/// Übergänge.
+/// Tests for the auto-layout of the graph view (#101). The emphasis is on <b>determinism</b>: the
+/// same graph has to yield the same coordinates, otherwise E2E selectors and screenshots wobble. That
+/// is checked against the three sources non-determinism usually seeps in from – hash iteration order,
+/// newly assigned Guids and the storage order of the transitions.
 /// </summary>
 public sealed class GraphLayoutTests
 {
     /// <summary>
-    /// Zwei Aufrufe auf derselben Eingabe müssen deckungsgleich sein. Der Test fängt jede Stelle, an der
-    /// eine <c>HashSet</c>- oder <c>Dictionary</c>-Iteration in das Ergebnis durchschlägt.
+    /// Two calls on the same input have to be congruent. The test catches every place where a
+    /// <c>HashSet</c> or <c>Dictionary</c> iteration bleeds through into the result.
     /// </summary>
     [Fact]
-    public void Compute_liefert_bei_gleichem_Graphen_gleiche_Koordinaten()
+    public void Compute_returns_the_same_coordinates_for_the_same_graph()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _));
 
@@ -36,12 +35,12 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Das Layout darf nicht an den Guids hängen: <c>CreateDialogVersionCommand</c> vergibt beim Klonen
-    /// für <b>jede</b> Frage eine neue Guid (ADR 0005 – der einzige Weg, einen veröffentlichten Dialog
-    /// weiterzuentwickeln). Ein Guid-basiertes Layout würfelte damit bei jeder neuen Version neu durch.
+    /// The layout must not hang on the Guids: when cloning, <c>CreateDialogVersionCommand</c> assigns
+    /// <b>every</b> question a new Guid (ADR 0005 – the only way to evolve a published dialog). A
+    /// guid-based layout would therefore reshuffle with every new version.
     /// </summary>
     [Fact]
-    public void Compute_haengt_nicht_von_den_Guids_ab()
+    public void Compute_does_not_depend_on_the_Guids()
     {
         var first = Layout(AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _)));
         var second = Layout(AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _)));
@@ -63,12 +62,12 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// <c>DialogDetail.Transitions</c> ist global nach <c>Priority</c> sortiert – bei gleicher Priorität
-    /// in verschiedenen Ausgangsfragen ist die Reihenfolge damit beliebig. Das Layout darf sich davon
-    /// nicht beeindrucken lassen.
+    /// <c>DialogDetail.Transitions</c> is sorted globally by <c>Priority</c> – with equal priorities
+    /// in different source questions the order is therefore arbitrary. The layout must not be
+    /// impressed by that.
     /// </summary>
     [Fact]
-    public void Compute_ist_unabhaengig_von_der_globalen_Uebergangs_Reihenfolge()
+    public void Compute_is_independent_of_the_global_transition_order()
     {
         var detail = Branching();
         var reversed = detail with { Transitions = [.. detail.Transitions.Reverse()] };
@@ -82,9 +81,9 @@ public sealed class GraphLayoutTests
             actual.Edges.OrderBy(edge => edge.TransitionId));
     }
 
-    /// <summary>Die Einstiegsfrage liegt auf Schicht 0, ihre Nachfolger eine Schicht darunter.</summary>
+    /// <summary>The entry question sits on layer 0, its successors one layer below.</summary>
     [Fact]
-    public void Compute_schichtet_ab_der_Einstiegsfrage()
+    public void Compute_layers_starting_from_the_entry_question()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var result = GraphLayout.Compute(AdminProjection.ToDetail(dialog));
@@ -95,11 +94,11 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Der Rücksprung einer Schleife wird als solcher erkannt und aus der Schichtung herausgehalten –
-    /// sonst zöge der Zyklus die Einstiegsfrage hinter ihre eigene Breaking Question.
+    /// A loop's back jump is recognized as such and kept out of the layering – otherwise the cycle
+    /// would pull the entry question behind its own breaking question.
     /// </summary>
     [Fact]
-    public void Compute_bricht_Rueckwaertskanten_auf()
+    public void Compute_breaks_backward_edges_open()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var loopBack = dialog.Transitions.First(
@@ -114,11 +113,11 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Fragen ohne Pfad von der Einstiegsfrage liegen hinter dem erreichbaren Graphen – getrennt durch
-    /// eine leere Schicht, damit das Band als solches lesbar ist.
+    /// Questions with no path from the entry question sit behind the reachable graph – separated by
+    /// an empty layer, so that the band is readable as such.
     /// </summary>
     [Fact]
-    public void Compute_ordnet_nicht_erreichbare_Fragen_hinter_die_erreichbaren()
+    public void Compute_arranges_unreachable_questions_behind_the_reachable_ones()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
         var orphanId = Guid.NewGuid();
@@ -143,11 +142,11 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Ohne gesetzte Einstiegsfrage gibt es keinen Bezugspunkt für Erreichbarkeit. Alle Fragen als
-    /// „nicht erreichbar“ zu markieren wäre irreführend – der Befund gehört an den Dialog.
+    /// Without an entry question set there is no reference point for reachability. Marking all
+    /// questions as "unreachable" would be misleading – the finding belongs on the dialog.
     /// </summary>
     [Fact]
-    public void Compute_ohne_Einstiegsfrage_markiert_keine_Frage_als_unerreichbar()
+    public void Compute_without_an_entry_question_marks_no_question_as_unreachable()
     {
         var detail = Branching();
         var headless = detail with { Dialog = detail.Dialog with { StartQuestionId = null } };
@@ -158,9 +157,9 @@ public sealed class GraphLayoutTests
         Assert.Equal(3, result.Nodes.Count);
     }
 
-    /// <summary>Zwei Knoten dürfen sich nie überlagern – sonst verdeckt einer den anderen.</summary>
+    /// <summary>Two nodes must never overlap – otherwise one hides the other.</summary>
     [Fact]
-    public void Compute_ueberlappt_keine_Knoten()
+    public void Compute_overlaps_no_nodes()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         var result = GraphLayout.Compute(AdminProjection.ToDetail(dialog));
@@ -174,18 +173,18 @@ public sealed class GraphLayoutTests
                     || left.Y + GraphMetrics.NodeHeight <= right.Y
                     || right.Y + GraphMetrics.NodeHeight <= left.Y;
 
-                Assert.True(apart, $"Knoten bei ({left.X}|{left.Y}) und ({right.X}|{right.Y}) überlappen.");
+                Assert.True(apart, $"Nodes at ({left.X}|{left.Y}) and ({right.X}|{right.Y}) overlap.");
             }
         }
     }
 
     /// <summary>
-    /// Mehrere Übergänge zwischen denselben zwei Fragen müssen unterscheidbar bleiben: Sie werden
-    /// aufgefächert und bekommen getrennte Ankerpunkte für ihre Beschriftung. Deckungsgleiche Kanten
-    /// wären auf dem Canvas schlicht eine.
+    /// Several transitions between the same two questions have to stay distinguishable: they are
+    /// fanned out and get separate anchor points for their labels. Congruent edges would simply be
+    /// one on the canvas.
     /// </summary>
     [Fact]
-    public void Compute_faechert_Mehrfachkanten_zwischen_denselben_Knoten_auf()
+    public void Compute_fans_out_multiple_edges_between_the_same_nodes()
     {
         var detail = Branching();
         var first = detail.Transitions[0];
@@ -205,32 +204,32 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Die Kreuzungsreduktion muss wirken: In der reinen Autorenreihenfolge kreuzen sich die Kanten
-    /// <c>a → d</c> und <c>b → c</c>; das Baryzentrum dreht die untere Schicht um und löst das auf.
+    /// The crossing reduction has to take effect: in pure author order the edges <c>a -&gt; d</c> and
+    /// <c>b -&gt; c</c> cross; the barycenter turns the lower layer around and resolves that.
     /// </summary>
     [Fact]
-    public void Compute_reduziert_Kreuzungen()
+    public void Compute_reduces_crossings()
     {
         var result = GraphLayout.Compute(CrossingGraph(out var ids));
 
         Assert.Equal(0, result.Crossings);
 
-        // Die untere Schicht steht entgegen der Autorenreihenfolge – genau das ist die Umsortierung.
+        // The lower layer stands against the author order – that is exactly the resorting.
         Assert.True(Node(result, ids.D).Slot < Node(result, ids.C).Slot);
     }
 
-    /// <summary>Der stimmige Loop-Dialog kommt ohne jede Kreuzung aus.</summary>
+    /// <summary>The consistent loop dialog gets by without a single crossing.</summary>
     [Fact]
-    public void Compute_ordnet_den_Loop_Dialog_kreuzungsfrei_an()
+    public void Compute_arranges_the_loop_dialog_without_crossings()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
 
         Assert.Equal(0, GraphLayout.Compute(AdminProjection.ToDetail(dialog)).Crossings);
     }
 
-    /// <summary>Ein Dialog ohne Fragen ergibt eine leere, aber gültige Zeichenfläche.</summary>
+    /// <summary>A dialog without questions yields an empty but valid drawing surface.</summary>
     [Fact]
-    public void Compute_vertraegt_einen_Dialog_ohne_Fragen()
+    public void Compute_tolerates_a_dialog_without_questions()
     {
         var detail = Branching() with { Questions = [], Transitions = [] };
 
@@ -243,33 +242,32 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Die Zeichenfläche unterschreitet die Mindestmaße nie – auch nicht bei einem leeren oder winzigen
-    /// Graphen.
+    /// The drawing surface never falls below the minimum dimensions – not even for an empty or tiny
+    /// graph.
     /// </summary>
     /// <remarks>
-    /// Seit #103 ist der Canvas eine <b>Ablagefläche</b>: Der erste Baustein wird aus der Palette darauf
-    /// gezogen. Vor der Untergrenze war die Fläche eines leeren Dialogs 80 × 80 px – kein Ziel, auf das
-    /// man zeigen kann, und genau dort beginnt jeder neue Dialog.
+    /// Since #103 the canvas is a <b>drop surface</b>: the first building block is dragged onto it
+    /// from the palette. Before the lower bound, an empty dialog's surface was 80 x 80 px – no target
+    /// one can point at, and that is exactly where every new dialog begins.
     /// </remarks>
     [Fact]
-    public void Compute_haelt_die_Mindestflaeche_ein()
+    public void Compute_keeps_the_minimum_surface()
     {
-        var leer = GraphLayout.Compute(Branching() with { Questions = [], Transitions = [] });
-        var klein = GraphLayout.Compute(Branching());
+        var empty = GraphLayout.Compute(Branching() with { Questions = [], Transitions = [] });
+        var small = GraphLayout.Compute(Branching());
 
-        Assert.Equal(GraphMetrics.MinCanvasWidth, leer.Width);
-        Assert.Equal(GraphMetrics.MinCanvasHeight, leer.Height);
-        Assert.True(klein.Width >= GraphMetrics.MinCanvasWidth);
-        Assert.True(klein.Height >= GraphMetrics.MinCanvasHeight);
+        Assert.Equal(GraphMetrics.MinCanvasWidth, empty.Width);
+        Assert.Equal(GraphMetrics.MinCanvasHeight, empty.Height);
+        Assert.True(small.Width >= GraphMetrics.MinCanvasWidth);
+        Assert.True(small.Height >= GraphMetrics.MinCanvasHeight);
     }
 
     /// <summary>
-    /// Übergänge auf gelöschte Fragen sind nicht zeichenbar – sie haben keinen Knoten, an dem sie
-    /// ansetzen könnten, und fallen deshalb aus dem Layout heraus (nicht aus der Anzeige: der Builder
-    /// weist sie getrennt aus).
+    /// Transitions to deleted questions cannot be drawn – they have no node to start from and
+    /// therefore drop out of the layout (not out of the display: the builder reports them separately).
     /// </summary>
     [Fact]
-    public void Compute_ueberspringt_Uebergaenge_auf_unbekannte_Fragen()
+    public void Compute_skips_transitions_to_unknown_questions()
     {
         var detail = Branching();
         var orphan = detail.Transitions[0] with { Id = Guid.NewGuid(), TargetQuestionId = Guid.NewGuid() };
@@ -282,12 +280,13 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Der Designer läuft unter <c>de-DE</c> (<c>DesignerApp.DisplayCulture</c>). Eine Koordinate mit
-    /// Dezimal<b>komma</b> zerlegt einen SVG-Pfad still – das Komma ist dort ein Trennzeichen. Es gäbe
-    /// weder Ausnahme noch Meldung, nur ein falsches Bild.
+    /// The display culture is configurable (<c>DesignerApp.DisplayCulture</c>). Under any
+    /// comma-decimal culture, a coordinate with a decimal <b>comma</b> silently takes an SVG path
+    /// apart – the comma is a separator there. There would be neither an exception nor a message,
+    /// only a wrong picture.
     /// </summary>
     [Fact]
-    public void Pfade_tragen_auch_unter_de_DE_einen_Dezimalpunkt()
+    public void Paths_carry_a_decimal_point_even_under_de_DE()
     {
         var previous = CultureInfo.CurrentCulture;
         try
@@ -306,14 +305,14 @@ public sealed class GraphLayoutTests
         }
     }
 
-    // ---- Gespeicherte Positionen (#102) -------------------------------------------------------------
+    // ---- Stored positions (#102) --------------------------------------------------------------------
 
     /// <summary>
-    /// Eine gespeicherte Position schlägt die berechnete – das ist der ganze Zweck der Tabelle
-    /// <c>DialogLayout</c>. Die übrigen Knoten bleiben, wo das Auto-Layout sie hingelegt hat.
+    /// A stored position beats the computed one – that is the whole purpose of the
+    /// <c>DialogLayout</c> table. The remaining nodes stay where the auto-layout put them.
     /// </summary>
     [Fact]
-    public void Gespeicherte_Position_ueberschreibt_das_Auto_Layout()
+    public void A_stored_position_overrides_the_auto_layout()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
         var automatic = GraphLayout.Compute(detail);
@@ -325,7 +324,7 @@ public sealed class GraphLayoutTests
         Assert.Equal(700, node.X);
         Assert.Equal(500, node.Y);
 
-        // Struktur unverändert: Nur die Position wandert, nicht die Schicht.
+        // Structure unchanged: only the position moves, not the layer.
         Assert.Equal(Node(automatic, ids.RoleQuestionId).Layer, node.Layer);
 
         var untouched = Node(pinned, ids.DevQuestionId);
@@ -335,11 +334,11 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Die Kanten folgen mit. Ohne das säße der Knoten woanders als seine Anschlüsse – der eigentliche
-    /// Grund, warum die Positionen im Layout und nicht erst im Zeichenmodell einfließen.
+    /// The edges follow along. Without that the node would sit somewhere other than its connections –
+    /// the actual reason why the positions feed into the layout and not only into the drawing model.
     /// </summary>
     [Fact]
-    public void Kanten_folgen_der_gespeicherten_Position()
+    public void Edges_follow_the_stored_position()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
         var automatic = GraphLayout.Compute(detail);
@@ -355,16 +354,16 @@ public sealed class GraphLayoutTests
         Assert.NotEqual(before.Path, after.Path);
         Assert.Equal(before.Shape, after.Shape);
 
-        // Der Pfad endet an der Oberkante des verschobenen Knotens: x = 900 + halbe Knotenbreite.
+        // The path ends at the top edge of the moved node: x = 900 + half the node width.
         Assert.EndsWith(
             $"{SvgFormat.N(900 + (GraphMetrics.NodeWidth / 2))} {SvgFormat.N(600)}",
             after.Path,
             StringComparison.Ordinal);
     }
 
-    /// <summary>Ohne Zeile bleibt alles beim Auto-Layout – der Weg zurück ist „keine Zeile".</summary>
+    /// <summary>Without a row everything stays with the auto-layout – the way back is "no row".</summary>
     [Fact]
-    public void Ohne_Layout_Zeile_greift_das_Auto_Layout()
+    public void Without_a_layout_row_the_auto_layout_applies()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
 
@@ -379,11 +378,11 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Die Zeichenfläche wächst um einen weit gezogenen Knoten. Andernfalls läge er außerhalb der
-    /// <c>viewBox</c> und wäre nur noch über die Tastatur erreichbar.
+    /// The drawing surface grows to include a node dragged far out. Otherwise it would lie outside
+    /// the <c>viewBox</c> and be reachable only via the keyboard.
     /// </summary>
     [Fact]
-    public void Zeichenflaeche_waechst_um_einen_weit_gezogenen_Knoten()
+    public void The_drawing_surface_grows_around_a_node_dragged_far_out()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids));
         var automatic = GraphLayout.Compute(detail);
@@ -397,12 +396,12 @@ public sealed class GraphLayoutTests
     }
 
     /// <summary>
-    /// Eine Zeile auf eine Frage, die es nicht (mehr) gibt, wird übergangen. Sie darf weder werfen noch
-    /// die Zeichenfläche aufblähen – der Aufräum-Zweig in <c>DeleteQuestionCommand</c> ist die
-    /// Regel, diese Prüfung der Gürtel.
+    /// A row for a question that (no longer) exists is passed over. It must neither throw nor inflate
+    /// the drawing surface – the cleanup branch in <c>DeleteQuestionCommand</c> is the rule, this
+    /// check is the belt.
     /// </summary>
     [Fact]
-    public void Position_ohne_Frage_wird_uebergangen()
+    public void A_position_without_a_question_is_passed_over()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _));
         var automatic = GraphLayout.Compute(detail);
@@ -414,7 +413,7 @@ public sealed class GraphLayoutTests
         Assert.Equal(automatic.Height, withOrphan.Height);
     }
 
-    /// <summary>Setzt gespeicherte Positionen auf einen Dialog.</summary>
+    /// <summary>Sets stored positions on a dialog.</summary>
     private static DialogDetail WithLayout(DialogDetail detail, params (Guid ElementId, int X, int Y)[] entries)
         => detail with
         {
@@ -433,8 +432,8 @@ public sealed class GraphLayoutTests
         => AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _));
 
     /// <summary>
-    /// Ein Graph, dessen Autorenreihenfolge zwangsläufig eine Kreuzung erzeugt: <c>root</c> verzweigt auf
-    /// <c>a</c> und <c>b</c>, <c>a</c> führt auf das <b>zweite</b> Blatt und <c>b</c> auf das erste.
+    /// A graph whose author order inevitably produces a crossing: <c>root</c> branches to <c>a</c>
+    /// and <c>b</c>, <c>a</c> leads to the <b>second</b> leaf and <c>b</c> to the first.
     /// </summary>
     private static DialogDetail CrossingGraph(out (Guid A, Guid B, Guid C, Guid D) ids)
     {

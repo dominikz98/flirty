@@ -7,33 +7,33 @@ using Mediator;
 namespace Flirty.Pipeline;
 
 /// <summary>
-/// Mediator-Pipeline-Behavior, das für antworteinreichende Runtime-Commands
-/// (<see cref="SubmitAnswerCommand"/>, <see cref="EditAnswerCommand"/> – erkannt am Marker
-/// <see cref="IAnswerCommand"/>) die betroffene Frage der gepinnten Dialogversion auflöst und den
-/// Antwortwert <b>vor</b> dem Handler fachlich per <see cref="IAnswerValidator"/> validiert. Ein
-/// Verstoß wird mit einer <see cref="AnswerValidationException"/> abgewiesen, bevor die Antwort
-/// persistiert bzw. der Pfad neu berechnet wird (Issue #30).
+/// Mediator pipeline behavior that, for answer-submitting runtime commands
+/// (<see cref="SubmitAnswerCommand"/>, <see cref="EditAnswerCommand"/> – recognized by the marker
+/// <see cref="IAnswerCommand"/>), resolves the affected question of the pinned dialog version and
+/// validates the answer value <b>before</b> the handler against the domain rules via <see cref="IAnswerValidator"/>. A
+/// violation is rejected with an <see cref="AnswerValidationException"/> before the answer is
+/// persisted or the path is recomputed (issue #30).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Bewusst <b>intern</b> und über <c>AddFlirty()</c> <b>geschlossen</b> je Command-Typ registriert
-/// (nicht offen-generisch): Das Behavior benötigt den scoped <see cref="IDialogStore"/> (und damit
-/// einen registrierten <c>FlirtyDbContext</c>). Eine offen-generische Registrierung würde es für jede
-/// Nachricht konstruieren – auch dort, wo kein <c>FlirtyDbContext</c> vorhanden ist – und die
-/// Auflösung brechen. Als scoped Registrierung teilt es sich mit dem Handler denselben Kontext:
-/// <see cref="IDialogStore.GetSessionAsync"/> liefert getrackt, sodass der Handler dieselbe Instanz
-/// erhält (kein zweiter Query).
+/// Deliberately <b>internal</b> and registered via <c>AddFlirty()</c> <b>closed</b> per command type
+/// (not open-generic): the behavior needs the scoped <see cref="IDialogStore"/> (and thus
+/// a registered <c>FlirtyDbContext</c>). An open-generic registration would construct it for every
+/// message – even where no <c>FlirtyDbContext</c> is present – and break the
+/// resolution. As a scoped registration it shares the same context with the handler:
+/// <see cref="IDialogStore.GetSessionAsync"/> returns tracked, so the handler gets the same instance
+/// (no second query).
 /// </para>
 /// <para>
-/// Kann die Frage nicht aufgelöst werden (Session, gepinnter Dialog oder Frage fehlt) oder ist der
-/// Wert leer, überspringt das Behavior die Validierung und ruft nur <c>next</c> – die kanonischen
-/// Fehler (<see cref="SessionNotFoundException"/>, DataAnnotations-Validierung,
-/// <see cref="InvalidOperationException"/>) bleiben allein Sache des Handlers bzw. des
+/// If the question cannot be resolved (session, pinned dialog or question missing) or the
+/// value is empty, the behavior skips the validation and only calls <c>next</c> – the canonical
+/// errors (<see cref="SessionNotFoundException"/>, DataAnnotations validation,
+/// <see cref="InvalidOperationException"/>) remain solely the concern of the handler or the
 /// <c>ValidationPipelineBehavior</c>.
 /// </para>
 /// </remarks>
-/// <typeparam name="TMessage">Der Nachrichtentyp (Command, Query oder Notification).</typeparam>
-/// <typeparam name="TResponse">Der von der Nachricht erwartete Antworttyp.</typeparam>
+/// <typeparam name="TMessage">The message type (command, query or notification).</typeparam>
+/// <typeparam name="TResponse">The response type expected by the message.</typeparam>
 internal sealed class AnswerValidationPipelineBehavior<TMessage, TResponse>
     : IPipelineBehavior<TMessage, TResponse>
     where TMessage : notnull, IMessage
@@ -42,13 +42,13 @@ internal sealed class AnswerValidationPipelineBehavior<TMessage, TResponse>
     private readonly IAnswerValidator _validator;
 
     /// <summary>
-    /// Erstellt das Behavior über den angegebenen <see cref="IDialogStore"/> und
+    /// Creates the behavior with the given <see cref="IDialogStore"/> and
     /// <see cref="IAnswerValidator"/>.
     /// </summary>
-    /// <param name="store">Das Repository zum Auflösen von Session und gepinnter Dialogversion.</param>
-    /// <param name="validator">Der fachliche Antwort-Validator.</param>
+    /// <param name="store">The repository for resolving session and pinned dialog version.</param>
+    /// <param name="validator">The domain answer validator.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/> oder <paramref name="validator"/> ist <see langword="null"/>.
+    /// <paramref name="store"/> or <paramref name="validator"/> is <see langword="null"/>.
     /// </exception>
     public AnswerValidationPipelineBehavior(IDialogStore store, IAnswerValidator validator)
     {
@@ -60,7 +60,7 @@ internal sealed class AnswerValidationPipelineBehavior<TMessage, TResponse>
 
     /// <inheritdoc />
     /// <exception cref="AnswerValidationException">
-    /// Der Antwortwert ist für den Typ bzw. die Regeln der aufgelösten Frage ungültig.
+    /// The answer value is invalid for the type or the rules of the resolved question.
     /// </exception>
     public async ValueTask<TResponse> Handle(
         TMessage message,
@@ -84,9 +84,9 @@ internal sealed class AnswerValidationPipelineBehavior<TMessage, TResponse>
     }
 
     /// <summary>
-    /// Löst die vom Command adressierte Frage über Session → gepinnten Dialog auf oder liefert
-    /// <see langword="null"/>, wenn eines davon fehlt (dann validiert das Behavior nicht und überlässt
-    /// den kanonischen Fehler dem Handler).
+    /// Resolves the question addressed by the command via session → pinned dialog, or returns
+    /// <see langword="null"/> if one of them is missing (then the behavior does not validate and leaves
+    /// the canonical error to the handler).
     /// </summary>
     private async ValueTask<Question?> ResolveQuestionAsync(
         IAnswerCommand answer, CancellationToken cancellationToken)

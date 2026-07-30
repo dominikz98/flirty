@@ -3,15 +3,15 @@ using System.Diagnostics;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Einmalige, gecachte Prüfung, ob ein Docker-Daemon erreichbar ist. Die Provider-Migrationstests
-/// gegen PostgreSQL und SQL Server benötigen Docker (Testcontainers); ohne Docker werden sie
-/// übersprungen. Auf CI (ubuntu-latest) ist Docker vorhanden, sodass die Tests dort laufen.
+/// One-off, cached check whether a Docker daemon is reachable. The provider migration tests against
+/// PostgreSQL and SQL Server need Docker (Testcontainers); without Docker they skip themselves. On CI
+/// (ubuntu-latest) Docker is present, so the tests run there.
 /// </summary>
 internal static class DockerAvailability
 {
     private static readonly Lazy<bool> LazyAvailable = new(Probe);
 
-    /// <summary>Gibt an, ob ein Docker-Daemon erreichbar ist (Ergebnis wird gecacht).</summary>
+    /// <summary>Whether a Docker daemon is reachable (the result is cached).</summary>
     public static bool IsAvailable => LazyAvailable.Value;
 
     private static bool Probe()
@@ -39,7 +39,7 @@ internal static class DockerAvailability
                 }
                 catch (InvalidOperationException)
                 {
-                    // Prozess bereits beendet – ignorieren.
+                    // Process already exited – ignore.
                 }
 
                 return false;
@@ -49,7 +49,7 @@ internal static class DockerAvailability
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            // docker-CLI nicht im PATH oder Prozessstart fehlgeschlagen -> Docker gilt als nicht verfügbar.
+            // docker CLI not on PATH or the process failed to start -> Docker counts as unavailable.
             return false;
         }
     }

@@ -3,21 +3,21 @@ using Flirty.Domain;
 namespace Flirty.AspNetCore.Dtos.Admin;
 
 /// <summary>
-/// Anfrage-Körper zum Anlegen einer Trigger-Definition
+/// Request body for creating a trigger definition
 /// (<c>POST {prefix}/dialogs/{dialogId}/triggers</c>).
 /// </summary>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
 /// <param name="QuestionId">
-/// Die Frage, auf die bei <see cref="TriggerScope.AfterQuestion"/> gehört wird (dort erforderlich); bei
-/// allen anderen Zeitpunkten <see langword="null"/>.
+/// The question listened to for <see cref="TriggerScope.AfterQuestion"/> (required there); for
+/// all other points <see langword="null"/>.
 /// </param>
-/// <param name="Kind">Der Kanal (<see cref="TriggerKind.Webhook"/> oder <see cref="TriggerKind.InProcess"/>).</param>
+/// <param name="Kind">The channel (<see cref="TriggerKind.Webhook"/> or <see cref="TriggerKind.InProcess"/>).</param>
 /// <param name="Config">
-/// Die kanal-spezifische Konfiguration als JSON (Schema: <see cref="TriggerConfig"/>, z. B.
-/// <c>{"url":"https://host.example/hook","name":"order-created"}</c>). Bei
-/// <see cref="TriggerKind.Webhook"/> ist eine absolute http-/https-URL Pflicht.
+/// The channel-specific configuration as JSON (schema: <see cref="TriggerConfig"/>, e.g.
+/// <c>{"url":"https://host.example/hook","name":"order-created"}</c>). For
+/// <see cref="TriggerKind.Webhook"/> an absolute http/https URL is mandatory.
 /// </param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
 public sealed record CreateTriggerRequest(
     TriggerScope Scope,
     Guid? QuestionId,
@@ -26,14 +26,14 @@ public sealed record CreateTriggerRequest(
     string? Expression);
 
 /// <summary>
-/// Anfrage-Körper zum Ändern einer Trigger-Definition
+/// Request body for changing a trigger definition
 /// (<c>PUT {prefix}/dialogs/{dialogId}/triggers/{triggerId}</c>).
 /// </summary>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
-/// <param name="QuestionId">Die Frage bei <see cref="TriggerScope.AfterQuestion"/>, sonst <see langword="null"/>.</param>
-/// <param name="Kind">Der Kanal, über den die Host-Anwendung benachrichtigt wird.</param>
-/// <param name="Config">Die kanal-spezifische Konfiguration als JSON (Schema: <see cref="TriggerConfig"/>).</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck; <see langword="null"/>/leer = bedingungslos.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
+/// <param name="QuestionId">The question for <see cref="TriggerScope.AfterQuestion"/>, otherwise <see langword="null"/>.</param>
+/// <param name="Kind">The channel over which the host application is notified.</param>
+/// <param name="Config">The channel-specific configuration as JSON (schema: <see cref="TriggerConfig"/>).</param>
+/// <param name="Expression">Optional condition expression; <see langword="null"/>/empty = unconditional.</param>
 public sealed record UpdateTriggerRequest(
     TriggerScope Scope,
     Guid? QuestionId,
@@ -42,15 +42,15 @@ public sealed record UpdateTriggerRequest(
     string? Expression);
 
 /// <summary>
-/// Antwort mit einer Trigger-Definition.
+/// Response with a trigger definition.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Trigger-Definition.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="Scope">Der Zeitpunkt im Dialogablauf, zu dem der Trigger auslöst.</param>
-/// <param name="QuestionId">Die Frage bei <see cref="TriggerScope.AfterQuestion"/>, sonst <see langword="null"/>.</param>
-/// <param name="Kind">Der Kanal, über den die Host-Anwendung benachrichtigt wird.</param>
-/// <param name="Config">Die kanal-spezifische Konfiguration als JSON.</param>
-/// <param name="Expression">Optionaler Bedingungsausdruck.</param>
+/// <param name="Id">The primary key of the trigger definition.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="Scope">The point in the dialog flow at which the trigger fires.</param>
+/// <param name="QuestionId">The question for <see cref="TriggerScope.AfterQuestion"/>, otherwise <see langword="null"/>.</param>
+/// <param name="Kind">The channel over which the host application is notified.</param>
+/// <param name="Config">The channel-specific configuration as JSON.</param>
+/// <param name="Expression">Optional condition expression.</param>
 public sealed record TriggerResponse(
     Guid Id,
     Guid DialogId,

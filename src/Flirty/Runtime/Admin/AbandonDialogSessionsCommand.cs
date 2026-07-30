@@ -5,38 +5,38 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Beendet alle <b>laufenden</b> Sessions der Dialogversion <see cref="DialogId"/>, indem ihr Status auf
-/// <see cref="SessionStatus.Abandoned"/> gesetzt wird. Antworten und Verlauf bleiben erhalten.
+/// Ends all <b>running</b> sessions of the dialog version <see cref="DialogId"/> by setting their status to
+/// <see cref="SessionStatus.Abandoned"/>. Answers and history are preserved.
 /// </summary>
 /// <remarks>
-/// Gegenstück zur Löschschranke aus <see cref="DeleteDialogCommand"/>: Wer eine Dialogversion samt
-/// Graph entfernen will, beendet damit zuvor die Sessions, die sonst unlesbar zurückblieben. Bewusst
-/// <b>kein</b> Löschen der Sessions – die Engine kennt keine Session-Löschung, und die Antwortdaten
-/// sind in der Regel die eigentliche Ausbeute eines Dialogs.
+/// Counterpart to the deletion barrier from <see cref="DeleteDialogCommand"/>: whoever wants to remove a
+/// dialog version along with its graph first ends the sessions that would otherwise remain unreadable.
+/// Deliberately <b>no</b> deletion of the sessions – the engine knows no session deletion, and the answer
+/// data is usually the actual yield of a dialog.
 /// <para>
-/// Eine abgebrochene Session lässt sich nicht fortsetzen: <c>SubmitAnswerCommand</c> und
-/// <c>EditAnswerCommand</c> arbeiten nur auf laufenden Sessions, und <c>StartDialogCommand</c> findet
-/// als Resume-Kandidat ebenfalls nur laufende. Ein erneuter Start desselben Anwenders beginnt also
-/// eine neue Session.
+/// An abandoned session cannot be resumed: <c>SubmitAnswerCommand</c> and
+/// <c>EditAnswerCommand</c> work only on running sessions, and <c>StartDialogCommand</c> finds
+/// as a resume candidate likewise only running ones. A fresh start of the same user therefore begins
+/// a new session.
 /// </para>
 /// </remarks>
-/// <param name="DialogId">Der Primärschlüssel der Dialogversion, deren Sessions beendet werden.</param>
+/// <param name="DialogId">The primary key of the dialog version whose sessions are ended.</param>
 public sealed record AbandonDialogSessionsCommand(Guid DialogId) : ICommand<AbandonSessionsResult>;
 
-/// <summary>Ergebnis von <see cref="AbandonDialogSessionsCommand"/>.</summary>
-/// <param name="DialogId">Die Dialogversion, deren Sessions beendet wurden.</param>
-/// <param name="AbandonedSessions">Die Anzahl der beendeten Sessions (<c>0</c>, wenn keine lief).</param>
+/// <summary>Result of <see cref="AbandonDialogSessionsCommand"/>.</summary>
+/// <param name="DialogId">The dialog version whose sessions were ended.</param>
+/// <param name="AbandonedSessions">The number of ended sessions (<c>0</c> if none were running).</param>
 public sealed record AbandonSessionsResult(Guid DialogId, int AbandonedSessions);
 
-/// <summary>Handler für <see cref="AbandonDialogSessionsCommand"/>.</summary>
+/// <summary>Handler for <see cref="AbandonDialogSessionsCommand"/>.</summary>
 internal sealed class AbandonDialogSessionsCommandHandler
     : ICommandHandler<AbandonDialogSessionsCommand, AbandonSessionsResult>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public AbandonDialogSessionsCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -44,7 +44,7 @@ internal sealed class AbandonDialogSessionsCommandHandler
     }
 
     /// <inheritdoc />
-    /// <exception cref="ConfigurationNotFoundException">Kein Dialog mit der angegebenen Id existiert.</exception>
+    /// <exception cref="ConfigurationNotFoundException">No dialog with the given id exists.</exception>
     public async ValueTask<AbandonSessionsResult> Handle(
         AbandonDialogSessionsCommand command, CancellationToken cancellationToken)
     {

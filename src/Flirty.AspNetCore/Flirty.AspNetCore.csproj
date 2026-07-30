@@ -1,15 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Gemeinsame Properties + Paket-Metadaten/Symbols/Version/README/Icon kommen zentral aus
-       Directory.Build.props/Directory.Build.targets. Hier nur die Paket-Identität. -->
+  <!-- Shared properties + package metadata/symbols/version/README/icon come centrally from
+       Directory.Build.props/Directory.Build.targets. Only the package identity here. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>Flirty.AspNetCore</PackageId>
-    <Description>Optionale ASP.NET-Core-Endpunkte (MapFlirtyEndpoints) für die Flirty-Dialog-Engine.</Description>
+    <Description>Optional ASP.NET Core endpoints (MapFlirtyEndpoints) for the Flirty dialog engine.</Description>
     <PackageTags>chatbot;dialog;aspnetcore;minimal-api;flirty</PackageTags>
   </PropertyGroup>
 
-  <!-- Endpunkt-Mapping braucht ASP.NET Core; deshalb NICHT im Core-Projekt Flirty. -->
+  <!-- Endpoint mapping needs ASP.NET Core; therefore NOT in the core project Flirty. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

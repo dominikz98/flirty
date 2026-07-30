@@ -1,17 +1,17 @@
 namespace Flirty.AspNetCore.Dtos;
 
 /// <summary>
-/// Anfrage-Körper für <c>PUT /flirty/sessions/{id}/answers/{questionId}</c>: überschreibt die bereits
-/// gegebene Antwort auf eine frühere Frage. Session-Id und Frage-Id stammen aus der Route; dieser Körper
-/// trägt den neuen Wert und optional die Schleifen-Iteration. Wird auf das
-/// <see cref="Flirty.Runtime.EditAnswerCommand"/> gemappt.
+/// Request body for <c>PUT /flirty/sessions/{id}/answers/{questionId}</c>: overwrites the answer already
+/// given to an earlier question. Session id and question id come from the route; this body carries the new
+/// value and optionally the loop iteration. Mapped onto the
+/// <see cref="Flirty.Runtime.EditAnswerCommand"/>.
 /// </summary>
 /// <param name="Value">
-/// Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp, z. B. der Wert einer
-/// Auswahloption).
+/// The new answer value as raw JSON text (format depending on the question type, e.g. the value of a
+/// selection option).
 /// </param>
 /// <param name="IterationIndex">
-/// Optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die Antwort einer
-/// bestimmten Iteration zu editieren; <see langword="null"/> editiert die früheste Antwort der Frage.
+/// Optional zero-based iteration index, to edit the answer of a specific iteration within a loop;
+/// <see langword="null"/> edits the earliest answer of the question.
 /// </param>
 public sealed record EditAnswerRequest(string Value, int? IterationIndex = null);

@@ -5,35 +5,34 @@ using Flirty.Runtime.Admin;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für die Rechenregeln der Graph-Bearbeitung (#103): nächste <c>Order</c>, nächste
-/// <c>Priority</c> und die Umsortierung der Auswertungsreihenfolge.
+/// Tests for the computation rules of the graph editing (#103): the next <c>Order</c>, the next
+/// <c>Priority</c> and the resorting of the evaluation order.
 /// </summary>
 /// <remarks>
-/// Diese Regeln lagen bis #103 privat im <c>@code</c>-Block von <c>DialogEditor.razor</c> und waren
-/// damit unprüfbar – der Designer hat kein bUnit, es wird keine Razor-Komponente gerendert. Sie
-/// herauszuziehen war die Voraussetzung dafür, dass Listenansicht und Canvas nachweisbar dieselbe
-/// Reihenfolge berechnen.
+/// Until #103 these rules lived privately in the <c>@code</c> block of <c>DialogEditor.razor</c> and
+/// were therefore untestable – the designer has no bUnit, no Razor component is rendered. Pulling
+/// them out was the precondition for list view and canvas provably computing the same order.
 /// </remarks>
 public sealed class GraphEditingTests
 {
     private static readonly Guid DialogId = Guid.NewGuid();
 
     [Fact]
-    public void NextOrder_beginnt_bei_null_wenn_der_Dialog_leer_ist()
+    public void NextOrder_starts_at_zero_when_the_dialog_is_empty()
         => Assert.Equal(0, GraphEditing.NextOrder(Dialog()));
 
     [Fact]
-    public void NextOrder_haengt_an_der_groessten_Zahl_nicht_an_der_Anzahl()
+    public void NextOrder_hangs_on_the_largest_number_not_on_the_count()
     {
-        // Lückenhafte Order-Werte entstehen durch Löschen. Wer die Anzahl nimmt statt des Maximums,
-        // vergibt eine bereits belegte Zahl.
+        // Gaps in the order values come from deleting. Whoever takes the count instead of the maximum
+        // hands out a number that is already taken.
         var detail = Dialog(Question("a", 0), Question("b", 7));
 
         Assert.Equal(8, GraphEditing.NextOrder(detail));
     }
 
     [Fact]
-    public void NextPriority_zaehlt_je_Ausgangsfrage_nicht_dialogweit()
+    public void NextPriority_counts_per_source_question_not_dialog_wide()
     {
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
@@ -46,18 +45,18 @@ public sealed class GraphEditingTests
                 Transition(second, first, priority: 0),
             ]);
 
-        // Die zweite Frage hat nur einen Übergang – dialogweit gezählt käme hier 2 heraus, und die
-        // Positionsanzeige zeigte eine Lücke, die niemand erklären kann.
+        // The second question has only one transition – counted dialog-wide this would yield 2, and
+        // the position display would show a gap nobody can explain.
         Assert.Equal(2, GraphEditing.NextPriority(detail, first));
         Assert.Equal(1, GraphEditing.NextPriority(detail, second));
     }
 
     [Fact]
-    public void NextPriority_beginnt_bei_null_ohne_ausgehende_Uebergaenge()
+    public void NextPriority_starts_at_zero_without_outgoing_transitions()
         => Assert.Equal(0, GraphEditing.NextPriority(Dialog(Question("a", 0)), Guid.NewGuid()));
 
     [Fact]
-    public void Reorder_schreibt_den_Positionsindex_als_Prioritaet()
+    public void Reorder_writes_the_position_index_as_the_priority()
     {
         var from = Guid.NewGuid();
         var target = Guid.NewGuid();
@@ -70,8 +69,8 @@ public sealed class GraphEditingTests
 
         var changed = GraphEditing.Reorder(ordered, 2, 0);
 
-        // Getauscht werden Position 0 und 2; Position 1 bleibt, wo sie ist, und darf deshalb nicht
-        // geschrieben werden.
+        // Positions 0 and 2 are swapped; position 1 stays where it is and must therefore not be
+        // written.
         Assert.Equal(2, changed.Count);
         Assert.Equal(ordered[2].Id, changed[0].Transition.Id);
         Assert.Equal(0, changed[0].Priority);
@@ -80,13 +79,13 @@ public sealed class GraphEditingTests
     }
 
     [Fact]
-    public void Reorder_repariert_doppelte_Prioritaeten()
+    public void Reorder_repairs_duplicate_priorities()
     {
         var from = Guid.NewGuid();
         var target = Guid.NewGuid();
 
-        // Zwei gleiche Prioritäten: Ein reiner Zahlentausch bliebe wirkungslos – die Reihenfolge sähe
-        // unverändert aus, obwohl der Anwender sie bewegt hat. Genau deshalb wird der Index geschrieben.
+        // Two equal priorities: a pure number swap would have no effect – the order would look
+        // unchanged although the user moved it. That is exactly why the index is written.
         var ordered = new[]
         {
             Transition(from, target, priority: 5),
@@ -100,7 +99,7 @@ public sealed class GraphEditingTests
     }
 
     [Fact]
-    public void Reorder_meldet_nichts_wenn_sich_nichts_aendert()
+    public void Reorder_reports_nothing_when_nothing_changes()
     {
         var from = Guid.NewGuid();
         var target = Guid.NewGuid();
@@ -114,7 +113,7 @@ public sealed class GraphEditingTests
     [InlineData(0, -1)]
     [InlineData(0, 2)]
     [InlineData(2, 0)]
-    public void Reorder_ignoriert_Positionen_ausserhalb_der_Liste(int from, int to)
+    public void Reorder_ignores_positions_outside_the_list(int from, int to)
     {
         var source = Guid.NewGuid();
         var target = Guid.NewGuid();

@@ -19,7 +19,7 @@ public sealed class WebSampleAppFixture : IAsyncLifetime
     private WebApplication? _app;
     private string? _databasePath;
 
-    /// <summary>Die Basis-URL, unter der die Sample-App im Browser erreichbar ist.</summary>
+    /// <summary>The base URL under which the sample app is reachable in the browser.</summary>
     public string BaseUrl { get; private set; } = string.Empty;
 
     /// <inheritdoc />
@@ -49,7 +49,7 @@ public sealed class WebSampleAppFixture : IAsyncLifetime
         _app = builder.Build();
         WebSampleApp.MapEndpoints(_app);
 
-        // StartAsync wartet StartedAsync (Provisioning) ab -> Dialog ist danach vorhanden.
+        // StartAsync awaits StartedAsync (provisioning) -> the dialog exists afterwards.
         await _app.StartAsync();
     }
 

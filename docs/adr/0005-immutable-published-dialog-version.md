@@ -48,7 +48,7 @@ The promise is **fulfilled**. Three rules apply for this:
    graph there is no flow left.
 
 The proof exists as a test: `DialogVersioningTests` plays in
-`Laufende_Session_ueberlebt_eine_neu_veroeffentlichte_Version` a session to completion on version 1
+`A_running_session_survives_a_newly_published_version` a session to completion on version 1
 while version 2 is derived, changed and published – and proves that a new
 user lands on version 2.
 

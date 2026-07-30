@@ -5,9 +5,10 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Reine Unit-Tests des <see cref="LoopResolver"/> (Issue #29) ohne Datenbank: Body-Ermittlung inkl.
-/// Ein-Fragen-Loop und Überlappungs-Ablehnung, die Iterations-/Instanz-Zuordnung beim Persistieren, der
-/// Aufbau der je Iteration gesammelten Collections und der aktuelle Iterationsindex.
+/// Pure unit tests of the <see cref="LoopResolver"/> (issue #29) without a database: body computation
+/// incl. the single-question loop and the rejection of overlaps, the iteration/instance assignment
+/// while persisting, the build-up of the collections gathered per iteration and the current
+/// iteration index.
 /// </summary>
 public sealed class LoopResolverTests
 {
@@ -44,11 +45,11 @@ public sealed class LoopResolverTests
             IterationIndex = iterationIndex,
         };
 
-    // ---- Iterations-/Instanz-Zuordnung ------------------------------------------------------
+    // ---- Iteration/instance assignment ------------------------------------------------------
 
-    /// <summary>Der erste Eintritt in die Schleife startet eine frische Instanz mit Iteration 0.</summary>
+    /// <summary>The first entry into the loop starts a fresh instance with iteration 0.</summary>
     [Fact]
-    public void ResolveAssignment_erster_Eintritt_startet_neue_Instanz_bei_Iteration_null()
+    public void ResolveAssignment_the_first_entry_starts_a_new_instance_at_iteration_zero()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -60,9 +61,9 @@ public sealed class LoopResolverTests
         Assert.Equal(0, assignment.IterationIndex);
     }
 
-    /// <summary>Eine Folgefrage derselben Iteration behält Instanz und Iterationsindex.</summary>
+    /// <summary>A follow-up question of the same iteration keeps the instance and the iteration index.</summary>
     [Fact]
-    public void ResolveAssignment_Folgefrage_behaelt_Instanz_und_Iteration()
+    public void ResolveAssignment_a_follow_up_question_keeps_the_instance_and_the_iteration()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -75,9 +76,9 @@ public sealed class LoopResolverTests
         Assert.Equal(0, assignment.IterationIndex);
     }
 
-    /// <summary>Das erneute Beantworten der Einstiegsfrage (Loop-Back) erhöht den Iterationsindex.</summary>
+    /// <summary>Answering the entry question again (loop back) increases the iteration index.</summary>
     [Fact]
-    public void ResolveAssignment_Loop_Back_erhoeht_Iterationsindex()
+    public void ResolveAssignment_a_loop_back_increases_the_iteration_index()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -92,9 +93,9 @@ public sealed class LoopResolverTests
         Assert.Equal(1, assignment.IterationIndex);
     }
 
-    /// <summary>Eine Frage außerhalb jeder Schleife erhält keine Loop-Felder.</summary>
+    /// <summary>A question outside every loop gets no loop fields.</summary>
     [Fact]
-    public void ResolveAssignment_Nicht_Loop_Frage_liefert_null()
+    public void ResolveAssignment_a_non_loop_question_returns_null()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -105,9 +106,9 @@ public sealed class LoopResolverTests
         Assert.Null(assignment.IterationIndex);
     }
 
-    /// <summary>Ein Ein-Fragen-Loop (Entry == Breaking) zählt bei jeder Wiederbeantwortung hoch.</summary>
+    /// <summary>A single-question loop (entry == breaking) counts up on every re-answer.</summary>
     [Fact]
-    public void ResolveAssignment_Ein_Fragen_Loop_zaehlt_hoch()
+    public void ResolveAssignment_a_single_question_loop_counts_up()
     {
         var questionId = Guid.NewGuid();
         var dialog = SingleQuestionLoopDialog(questionId);
@@ -123,9 +124,9 @@ public sealed class LoopResolverTests
 
     // ---- Collections ------------------------------------------------------------------------
 
-    /// <summary>Der Collection-Key wird auch ohne bisherige Antwort (leer) gebunden.</summary>
+    /// <summary>The collection key is bound even without a previous answer (as empty).</summary>
     [Fact]
-    public void BuildCollections_bindet_Key_auch_ohne_Antworten()
+    public void BuildCollections_binds_the_key_even_without_answers()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         var resolver = new LoopResolver(dialog);
@@ -136,9 +137,9 @@ public sealed class LoopResolverTests
         Assert.Empty(collections["positions"]);
     }
 
-    /// <summary>Die Collection sammelt die Einstiegsantwort je Iteration in Iterationsreihenfolge.</summary>
+    /// <summary>The collection gathers the entry answer per iteration in iteration order.</summary>
     [Fact]
-    public void BuildCollections_sammelt_Entry_Werte_je_Iteration()
+    public void BuildCollections_gathers_the_entry_values_per_iteration()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -153,11 +154,11 @@ public sealed class LoopResolverTests
         Assert.Equal(["\"A\"", "\"B\""], collections["positions"]);
     }
 
-    // ---- Iterationsindex --------------------------------------------------------------------
+    // ---- Iteration index --------------------------------------------------------------------
 
-    /// <summary>Der Iterationsindex spiegelt die jüngste Antwort auf die Frage; außerhalb der Schleife ist er null.</summary>
+    /// <summary>The iteration index mirrors the latest answer to the question; outside the loop it is null.</summary>
     [Fact]
-    public void ResolveIterationIndex_liefert_aktuelle_Iteration_und_null_ausserhalb()
+    public void ResolveIterationIndex_returns_the_current_iteration_and_null_outside()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var resolver = new LoopResolver(dialog);
@@ -170,11 +171,11 @@ public sealed class LoopResolverTests
         Assert.Null(resolver.ResolveIterationIndex(session, ids.SummaryQuestionId));
     }
 
-    // ---- Konstruktor ------------------------------------------------------------------------
+    // ---- Constructor ------------------------------------------------------------------------
 
-    /// <summary>Überlappende Schleifen-Bereiche werden im Konstruktor abgelehnt (Nesting out of scope).</summary>
+    /// <summary>Overlapping loop ranges are rejected in the constructor (nesting is out of scope).</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_ueberlappenden_Loops()
+    public void Constructor_throws_on_overlapping_loops()
     {
         var dialogId = Guid.NewGuid();
         var q1 = Guid.NewGuid();
@@ -203,9 +204,9 @@ public sealed class LoopResolverTests
         Assert.Throws<InvalidOperationException>(() => new LoopResolver(dialog));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Dialog ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> dialog.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Dialog()
+    public void Constructor_throws_on_a_null_dialog()
         => Assert.Throws<ArgumentNullException>(() => new LoopResolver(null!));
 
     private static Dialog SingleQuestionLoopDialog(Guid questionId)

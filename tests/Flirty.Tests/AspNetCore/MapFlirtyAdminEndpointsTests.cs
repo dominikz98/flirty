@@ -8,21 +8,20 @@ using Microsoft.AspNetCore.Mvc;
 namespace Flirty.Tests.AspNetCore;
 
 /// <summary>
-/// Integrationstests für <c>MapFlirtyAdminEndpoints</c> (#36): fahren die Admin-CRUD-Endpunkte über
-/// einen In-Process-TestServer mit echten HTTP-Aufrufen gegen eine SQLite-in-memory-Datenbank
-/// (Docker-frei). Geprüft werden die CRUD-Happy-Paths je Entität (Dialog/Frage/Option/Übergang/
-/// Schleife/Trigger), der Publish-Workflow, das Fehler-Mapping (404/400/409), das Delete-Cleanup
-/// verwaister Übergänge, Schleifen-Marker und Trigger sowie
-/// der End-to-End-Nachweis, dass ein rein per API aufgebauter Dialog anschließend über die Laufzeit
-/// startbar ist.
+/// Integration tests for <c>MapFlirtyAdminEndpoints</c> (#36): drive the admin CRUD endpoints over an
+/// in-process TestServer with real HTTP calls against a SQLite in-memory database (Docker-free).
+/// Checked are the CRUD happy paths per entity (dialog/question/option/transition/loop/trigger), the
+/// publish workflow, the error mapping (404/400/409), the delete cleanup of orphaned transitions, loop
+/// markers and triggers as well as the end-to-end proof that a dialog built purely over the API can
+/// then be started over the runtime.
 /// </summary>
 public sealed class MapFlirtyAdminEndpointsTests
 {
-    // ---- Dialog-CRUD ----
+    // ---- Dialog CRUD ----
 
-    /// <summary>Das Anlegen eines Dialogs liefert 201 mit Location-Header und initialen Metadaten.</summary>
+    /// <summary>Creating a dialog returns 201 with a Location header and the initial metadata.</summary>
     [Fact]
-    public async Task CreateDialog_liefert_201_mit_Location_und_Metadaten()
+    public async Task CreateDialog_returns_201_with_the_location_and_the_metadata()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -40,9 +39,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Contains($"/flirty/admin/dialogs/{body.Id}", response.Headers.Location?.ToString());
     }
 
-    /// <summary>Ein fehlender Pflichtwert (Key) wird über die Pipeline-Validierung auf 400 abgebildet.</summary>
+    /// <summary>A missing required value (Key) is mapped to 400 by the pipeline validation.</summary>
     [Fact]
-    public async Task CreateDialog_ohne_Key_liefert_400()
+    public async Task CreateDialog_without_a_key_returns_400()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -52,9 +51,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    /// <summary>Ein zweiter Dialog mit gleichem Schlüssel wird auf 409 abgebildet.</summary>
+    /// <summary>A second dialog with the same key is mapped to 409.</summary>
     [Fact]
-    public async Task CreateDialog_mit_doppeltem_Key_liefert_409()
+    public async Task CreateDialog_with_a_duplicate_key_returns_409()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         await CreateDialogAsync(host, "dup");
@@ -65,9 +64,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    /// <summary>Die Liste enthält die zuvor angelegten Dialoge.</summary>
+    /// <summary>The list contains the dialogs created before.</summary>
     [Fact]
-    public async Task ListDialogs_liefert_angelegte_Dialoge()
+    public async Task ListDialogs_returns_the_created_dialogs()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         await CreateDialogAsync(host, "a");
@@ -81,9 +80,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Contains(list, dialog => dialog.Key == "b");
     }
 
-    /// <summary>Das Ändern eines Dialogs übernimmt die neuen Metadaten.</summary>
+    /// <summary>Changing a dialog takes over the new metadata.</summary>
     [Fact]
-    public async Task UpdateDialog_aendert_Metadaten()
+    public async Task UpdateDialog_changes_the_metadata()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "edit");
@@ -99,9 +98,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal("Neu", body.Description);
     }
 
-    /// <summary>Das Ändern eines unbekannten Dialogs wird auf 404 abgebildet.</summary>
+    /// <summary>Changing an unknown dialog is mapped to 404.</summary>
     [Fact]
-    public async Task UpdateDialog_unbekannt_liefert_404()
+    public async Task UpdateDialog_of_an_unknown_dialog_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -112,9 +111,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>Das Löschen liefert 204; ein anschließendes Lesen 404.</summary>
+    /// <summary>Deleting returns 204; a subsequent read returns 404.</summary>
     [Fact]
-    public async Task DeleteDialog_liefert_204_und_danach_404()
+    public async Task DeleteDialog_returns_204_and_then_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "weg");
@@ -126,16 +125,16 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
     }
 
-    // ---- Frage-/Options-CRUD + Graph ----
+    // ---- Question/option CRUD + graph ----
 
-    /// <summary>Das Lesen eines Dialogs liefert seinen Graphen mit Fragen, Optionen und Übergängen.</summary>
+    /// <summary>Reading a dialog returns its graph with questions, options and transitions.</summary>
     [Fact]
-    public async Task GetDialog_liefert_Graph_mit_Fragen_und_Uebergaengen()
+    public async Task GetDialog_returns_the_graph_with_questions_and_transitions()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "graph");
         var role = await CreateQuestionAsync(host, dialog.Id, "role", QuestionType.SingleChoice, 0);
-        await CreateOptionAsync(host, dialog.Id, role.Id, "dev", "Entwickler", "dev", 0);
+        await CreateOptionAsync(host, dialog.Id, role.Id, "dev", "Developer", "dev", 0);
         var detail = await CreateQuestionAsync(host, dialog.Id, "detail", QuestionType.FreeText, 1);
         await CreateTransitionAsync(host, dialog.Id, role.Id, detail.Id, isDefault: true);
 
@@ -152,9 +151,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(detail.Id, transition.TargetQuestionId);
     }
 
-    /// <summary>Eine Frage unter einem unbekannten Dialog wird auf 404 abgebildet.</summary>
+    /// <summary>A question under an unknown dialog is mapped to 404.</summary>
     [Fact]
-    public async Task CreateQuestion_unter_unbekanntem_Dialog_liefert_404()
+    public async Task CreateQuestion_under_an_unknown_dialog_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -165,9 +164,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>Eine zweite Frage mit gleichem Schlüssel im selben Dialog wird auf 409 abgebildet.</summary>
+    /// <summary>A second question with the same key in the same dialog is mapped to 409.</summary>
     [Fact]
-    public async Task CreateQuestion_mit_doppeltem_Key_liefert_409()
+    public async Task CreateQuestion_with_a_duplicate_key_returns_409()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "dupq");
@@ -180,31 +179,31 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    /// <summary>Options-CRUD: Anlegen, Ändern und Löschen einer Antwortoption inkl. Statuscodes.</summary>
+    /// <summary>Option CRUD: creating, changing and deleting an answer option incl. status codes.</summary>
     [Fact]
-    public async Task AnswerOption_CRUD_durchlaeuft_alle_Statuscodes()
+    public async Task AnswerOption_CRUD_walks_all_status_codes()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "opt");
         var question = await CreateQuestionAsync(host, dialog.Id, "role", QuestionType.SingleChoice, 0);
 
-        var option = await CreateOptionAsync(host, dialog.Id, question.Id, "dev", "Entwickler", "dev", 0);
+        var option = await CreateOptionAsync(host, dialog.Id, question.Id, "dev", "Developer", "dev", 0);
 
         var update = await host.Client.PutAsJsonAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}/options/{option.Id}",
-            new UpdateAnswerOptionRequest("dev", "Software-Entwickler", "dev", 0));
+            new UpdateAnswerOptionRequest("dev", "Software developer", "dev", 0));
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         var updated = await update.Content.ReadFromJsonAsync<AnswerOptionResponse>();
-        Assert.Equal("Software-Entwickler", updated!.Label);
+        Assert.Equal("Software developer", updated!.Label);
 
         var delete = await host.Client.DeleteAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}/options/{option.Id}");
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
     }
 
-    /// <summary>Eine Option unter einer unbekannten Frage wird auf 404 abgebildet.</summary>
+    /// <summary>An option under an unknown question is mapped to 404.</summary>
     [Fact]
-    public async Task CreateOption_unter_unbekannter_Frage_liefert_404()
+    public async Task CreateOption_under_an_unknown_question_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "optnf");
@@ -217,11 +216,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Das Löschen einer Frage entfernt referenzierende Übergänge und setzt eine darauf zeigende
-    /// Einstiegsfrage zurück.
+    /// Deleting a question removes the transitions that reference it and resets an entry question
+    /// pointing at it.
     /// </summary>
     [Fact]
-    public async Task DeleteQuestion_bereinigt_Uebergaenge_und_StartQuestion()
+    public async Task DeleteQuestion_cleans_up_transitions_and_the_start_question()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "cleanup");
@@ -242,11 +241,11 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Single(detail.Questions);
     }
 
-    // ---- Übergang-CRUD ----
+    // ---- Transition CRUD ----
 
-    /// <summary>Das Ändern eines unbekannten Übergangs wird auf 404 abgebildet.</summary>
+    /// <summary>Changing an unknown transition is mapped to 404.</summary>
     [Fact]
-    public async Task UpdateTransition_unbekannt_liefert_404()
+    public async Task UpdateTransition_of_an_unknown_transition_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "trans");
@@ -258,11 +257,11 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // ---- Schleifen-CRUD (#41) ----
+    // ---- Loop CRUD (#41) ----
 
-    /// <summary>Anlegen, Ändern und Löschen eines Schleifen-Markers über die Endpunkte.</summary>
+    /// <summary>Creating, changing and deleting a loop marker over the endpoints.</summary>
     [Fact]
-    public async Task Loop_CRUD_legt_an_aendert_und_loescht()
+    public async Task Loop_CRUD_creates_changes_and_deletes()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "loops");
@@ -289,9 +288,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
     }
 
-    /// <summary>Der Dialog-Graph liefert die Schleifen-Marker mit (seit #41 auch über die REST-Schicht).</summary>
+    /// <summary>The dialog graph carries the loop markers along (since #41 over the REST layer too).</summary>
     [Fact]
-    public async Task GetDialog_liefert_die_Schleifen_Marker_mit()
+    public async Task GetDialog_carries_the_loop_markers_along()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "loopgraph");
@@ -311,9 +310,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(breaking.Id, loop.BreakingQuestionId);
     }
 
-    /// <summary>Das Ändern einer unbekannten Schleife wird auf 404 abgebildet.</summary>
+    /// <summary>Changing an unknown loop is mapped to 404.</summary>
     [Fact]
-    public async Task UpdateLoop_unbekannt_liefert_404()
+    public async Task UpdateLoop_of_an_unknown_loop_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "loop404");
@@ -325,9 +324,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>Ein zweiter Marker mit gleichem Collection-Schlüssel im selben Dialog wird auf 409 abgebildet.</summary>
+    /// <summary>A second marker with the same collection key in the same dialog is mapped to 409.</summary>
     [Fact]
-    public async Task CreateLoop_mit_doppeltem_CollectionKey_liefert_409()
+    public async Task CreateLoop_with_a_duplicate_collection_key_returns_409()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "duploop");
@@ -344,11 +343,11 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    // ---- Trigger-CRUD (#42) ----
+    // ---- Trigger CRUD (#42) ----
 
-    /// <summary>Anlegen, Ändern und Löschen einer Trigger-Definition über die Endpunkte.</summary>
+    /// <summary>Creating, changing and deleting a trigger definition over the endpoints.</summary>
     [Fact]
-    public async Task Trigger_CRUD_legt_an_aendert_und_loescht()
+    public async Task Trigger_CRUD_creates_changes_and_deletes()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "triggers");
@@ -380,9 +379,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
     }
 
-    /// <summary>Der Dialog-Graph liefert die Trigger mit (seit #42 auch über die REST-Schicht).</summary>
+    /// <summary>The dialog graph carries the triggers along (since #42 over the REST layer too).</summary>
     [Fact]
-    public async Task GetDialog_liefert_die_Trigger_mit()
+    public async Task GetDialog_carries_the_triggers_along()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "triggergraph");
@@ -400,14 +399,14 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Contains("antwort", trigger.Config);
     }
 
-    /// <summary>Unstimmige Anfragen (Konfiguration, Frage-Bezug) werden über die Pipeline auf 400 abgebildet.</summary>
+    /// <summary>Inconsistent requests (configuration, question reference) are mapped to 400 by the pipeline.</summary>
     [Theory]
     [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "kein json")]
     [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "{\"name\":\"ohne-url\"}")]
     [InlineData(TriggerScope.OnDialogCompleted, false, TriggerKind.Webhook, "{\"url\":\"nicht-absolut\"}")]
     [InlineData(TriggerScope.AfterQuestion, false, TriggerKind.InProcess, "{}")]
     [InlineData(TriggerScope.OnDialogStarted, true, TriggerKind.InProcess, "{}")]
-    public async Task CreateTrigger_mit_unstimmiger_Anfrage_liefert_400(
+    public async Task CreateTrigger_with_an_inconsistent_request_returns_400(
         TriggerScope scope, bool withQuestion, TriggerKind kind, string config)
     {
         await using var host = await FlirtyTestHost.StartAsync();
@@ -423,9 +422,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    /// <summary>Das Ändern eines unbekannten Triggers wird auf 404 abgebildet.</summary>
+    /// <summary>Changing an unknown trigger is mapped to 404.</summary>
     [Fact]
-    public async Task UpdateTrigger_unbekannt_liefert_404()
+    public async Task UpdateTrigger_of_an_unknown_trigger_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "trigger404");
@@ -440,11 +439,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Das Löschen einer Frage räumt die auf sie verweisenden Trigger mit ab – ein
-    /// <c>AfterQuestion</c>-Trigger auf eine gelöschte Frage würde sonst nie mehr auslösen.
+    /// Deleting a question clears the triggers referencing it along with it – an
+    /// <c>AfterQuestion</c> trigger on a deleted question would otherwise never fire again.
     /// </summary>
     [Fact]
-    public async Task DeleteQuestion_entfernt_verweisende_Trigger()
+    public async Task DeleteQuestion_removes_the_referencing_triggers()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "triggercleanup");
@@ -464,14 +463,14 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Empty(body.Triggers);
     }
 
-    // ---- Canvas-Layout (#102) ----
+    // ---- Canvas layout (#102) ----
 
     /// <summary>
-    /// Setzen, Nachziehen und Verwerfen über die Endpunkte. <c>PUT</c> ist bewusst ein <b>Merge</b>:
-    /// Eine Zieh-Geste verschiebt ein Element und schickt nicht das ganze Layout mit.
+    /// Setting, adjusting and discarding over the endpoints. <c>PUT</c> is deliberately a <b>merge</b>:
+    /// a drag gesture moves one element and does not send the whole layout along.
     /// </summary>
     [Fact]
-    public async Task Layout_setzen_und_zuruecksetzen_ueber_die_Endpunkte()
+    public async Task Layout_is_set_and_reset_over_the_endpoints()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "layout");
@@ -489,7 +488,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.OK, set.StatusCode);
         Assert.Equal(2, (await set.Content.ReadFromJsonAsync<DialogLayoutResponse[]>())!.Length);
 
-        // Merge: Nur die erste Frage wird genannt, die zweite behält ihre Position.
+        // Merge: only the first question is named, the second keeps its position.
         var move = await host.Client.PutAsJsonAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/layout",
             new SetDialogLayoutRequest(
@@ -509,9 +508,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Empty(body.Layout);
     }
 
-    /// <summary>Der Dialog-Detail-Endpunkt liefert die Positionen mit – Quelle der Graph-Ansicht.</summary>
+    /// <summary>The dialog detail endpoint carries the positions along – the source of the graph view.</summary>
     [Fact]
-    public async Task GetDialog_liefert_das_Layout_mit()
+    public async Task GetDialog_carries_the_layout_along()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "layoutread");
@@ -533,16 +532,16 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// <b>Die Zusage dieser Stufe über HTTP:</b> Ein veröffentlichter Dialog lässt sich anordnen. Wo
-    /// jede Graph-Änderung 409 liefert, antwortet der Layout-Endpunkt mit 200 (ADR 0007).
+    /// <b>This stage's promise over HTTP:</b> a published dialog can still be arranged. Where every
+    /// graph change returns 409, the layout endpoint answers with 200 (ADR 0007).
     /// </summary>
     [Fact]
-    public async Task SetLayout_bei_veroeffentlichtem_Dialog_liefert_200()
+    public async Task SetLayout_on_a_published_dialog_returns_200()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var (dialog, question) = await CreatePublishedDialogAsync(host, "layoutpublished");
 
-        // Gegenprobe: Eine echte Graph-Änderung ist an genau diesem Dialog gesperrt.
+        // Counter-check: a real graph change is locked on exactly this dialog.
         var rename = await host.Client.PutAsJsonAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/questions/{question.Id}",
             new UpdateQuestionRequest("start", "Neu?", QuestionType.FreeText, 0, false, null));
@@ -559,9 +558,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
     }
 
-    /// <summary>Anfrage-Regeln des Batches schlagen als 400 durch, nicht als 409.</summary>
+    /// <summary>The batch's request rules come through as 400, not as 409.</summary>
     [Fact]
-    public async Task SetLayout_mit_doppeltem_Element_liefert_400()
+    public async Task SetLayout_with_a_duplicate_element_returns_400()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "layoutinvalid");
@@ -578,9 +577,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    /// <summary>Unbekannter Dialog: 404, nicht 204 – ein stilles Nichts wäre irreführend.</summary>
+    /// <summary>Unknown dialog: 404, not 204 – a silent nothing would be misleading.</summary>
     [Fact]
-    public async Task Layout_eines_unbekannten_Dialogs_liefert_404()
+    public async Task Layout_of_an_unknown_dialog_returns_404()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -595,11 +594,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Das Ableiten einer Version nimmt die Positionen mit und schreibt sie auf die geklonten Fragen um –
-    /// über HTTP geprüft, weil genau dieser Zweig Handarbeit ist.
+    /// Deriving a version takes the positions along and rewrites them onto the cloned questions –
+    /// checked over HTTP, because exactly this branch is manual work.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_klont_das_Layout_auf_die_neuen_Frage_Ids()
+    public async Task CreateDialogVersion_clones_the_layout_onto_the_new_question_ids()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var (dialog, question) = await CreatePublishedDialogAsync(host, "layoutclone");
@@ -624,11 +623,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Das Löschen einer Frage räumt ihre Position mit ab – <c>ElementId</c> ist FK-los, die Datenbank
-    /// tut das nicht von allein.
+    /// Deleting a question clears its position along with it – <c>ElementId</c> is FK-free, so the
+    /// database does not do it on its own.
     /// </summary>
     [Fact]
-    public async Task DeleteQuestion_entfernt_die_Layout_Zeile()
+    public async Task DeleteQuestion_removes_the_layout_row()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "layoutcleanup");
@@ -649,11 +648,11 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Empty(body.Layout);
     }
 
-    // ---- Publish-Workflow ----
+    // ---- Publish workflow ----
 
-    /// <summary>Ein Dialog ohne Einstiegsfrage kann nicht veröffentlicht werden (409).</summary>
+    /// <summary>A dialog without an entry question cannot be published (409).</summary>
     [Fact]
-    public async Task Publish_ohne_Einstiegsfrage_liefert_409()
+    public async Task Publish_without_an_entry_question_returns_409()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "unready");
@@ -663,9 +662,9 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    /// <summary>Publish/Unpublish schaltet das Veröffentlichungs-Flag um.</summary>
+    /// <summary>Publish/unpublish toggles the publication flag.</summary>
     [Fact]
-    public async Task PublishUnpublish_schaltet_das_Flag()
+    public async Task PublishUnpublish_toggles_the_flag()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var dialog = await CreateDialogAsync(host, "toggle");
@@ -683,13 +682,13 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.False(unpublished!.IsPublished);
     }
 
-    // ---- Versionierung ----
+    // ---- Versioning ----
 
     /// <summary>
-    /// Am veröffentlichten Dialog liefern Graph-Änderungen <c>409</c> – die Meldung nennt den Ausweg.
+    /// On a published dialog, graph changes return <c>409</c> – the message names the way out.
     /// </summary>
     [Fact]
-    public async Task Graph_Aenderung_am_veroeffentlichten_Dialog_liefert_409()
+    public async Task Graph_change_on_a_published_dialog_returns_409()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var (dialog, question) = await CreatePublishedDialogAsync(host, "locked");
@@ -704,15 +703,15 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.Equal(HttpStatusCode.Conflict, deleted.StatusCode);
 
         var problem = await created.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Contains("neue Version", problem!.Detail);
+        Assert.Contains("new version", problem!.Detail);
     }
 
     /// <summary>
-    /// <c>POST .../versions</c> liefert die Kopie als Entwurf mit der nächsten Versionsnummer – und die
-    /// ist wieder bearbeitbar.
+    /// <c>POST .../versions</c> returns the copy as a draft with the next version number – and that one
+    /// is editable again.
     /// </summary>
     [Fact]
-    public async Task Versions_legt_eine_bearbeitbare_Folgeversion_an()
+    public async Task Versions_creates_an_editable_follow_up_version()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var (dialog, _) = await CreatePublishedDialogAsync(host, "versioned");
@@ -728,7 +727,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.NotEqual(dialog.Id, copy.Id);
         Assert.Single(copy.Questions);
 
-        // Der Entwurf lässt sich ändern, die veröffentlichte Version bleibt gesperrt.
+        // The draft can be changed, the published version stays locked.
         var added = await host.Client.PostAsJsonAsync(
             $"/flirty/admin/dialogs/{copy.Id}/questions",
             new CreateQuestionRequest("weitere", "Weitere?", QuestionType.FreeText, 1, false, null));
@@ -736,11 +735,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Löschen mit laufender Session liefert <c>409</c>; nach <c>abandon-sessions</c> greift es. Die
-    /// Session bleibt danach als abgebrochene Zeile erhalten.
+    /// Deleting with a running session returns <c>409</c>; after <c>abandon-sessions</c> it takes
+    /// effect. The session is preserved afterwards as an abandoned row.
     /// </summary>
     [Fact]
-    public async Task Delete_mit_laufender_Session_liefert_409_und_greift_nach_dem_Abbruch()
+    public async Task Delete_with_a_running_session_returns_409_and_works_after_the_abandon()
     {
         await using var host = await FlirtyTestHost.StartAsync();
         var (dialog, _) = await CreatePublishedDialogAsync(host, "busy");
@@ -753,7 +752,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         var blocked = await host.Client.DeleteAsync($"/flirty/admin/dialogs/{dialog.Id}");
         Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
         var problem = await blocked.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Contains("1 Session(s)", problem!.Detail);
+        Assert.Contains("1 session(s)", problem!.Detail);
 
         var abandon = await host.Client.PostAsync(
             $"/flirty/admin/dialogs/{dialog.Id}/abandon-sessions", content: null);
@@ -761,7 +760,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         var abandoned = await abandon.Content.ReadFromJsonAsync<AbandonSessionsResponse>();
         Assert.Equal(1, abandoned!.AbandonedSessions);
 
-        // Die abgebrochene Session ist weiterhin lesbar (nur nicht mehr fortsetzbar).
+        // The abandoned session is still readable (only no longer resumable).
         var state = await host.Client.GetAsync($"/flirty/sessions/{session!.SessionId}");
         Assert.Equal(HttpStatusCode.OK, state.StatusCode);
 
@@ -772,11 +771,11 @@ public sealed class MapFlirtyAdminEndpointsTests
     // ---- End-to-End ----
 
     /// <summary>
-    /// Ein rein per Admin-API aufgebauter, veröffentlichter Dialog ist anschließend über den
-    /// Laufzeit-Endpunkt startbar und bis zum Abschluss durchspielbar.
+    /// A published dialog built purely over the admin API can then be started over the runtime
+    /// endpoint and played through to completion.
     /// </summary>
     [Fact]
-    public async Task Admin_erstellter_Dialog_ist_ueber_die_Laufzeit_startbar()
+    public async Task Admin_created_dialog_is_startable_over_the_runtime()
     {
         await using var host = await FlirtyTestHost.StartAsync();
 
@@ -787,7 +786,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         var publish = await host.Client.PostAsync($"/flirty/admin/dialogs/{dialog.Id}/publish", content: null);
         publish.EnsureSuccessStatusCode();
 
-        // Laufzeit: Session über den regulären Endpunkt starten.
+        // Runtime: start a session over the regular endpoint.
         var start = await host.Client.PostAsJsonAsync(
             "/flirty/sessions", new StartSessionRequest("e2e", "user-1"));
         Assert.Equal(HttpStatusCode.Created, start.StatusCode);
@@ -795,7 +794,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.NotNull(session);
         Assert.Equal("name", session.CurrentQuestion.Key);
 
-        // Die (terminale) Frage beantworten -> Dialog ist abgeschlossen.
+        // Answer the (terminal) question -> the dialog is completed.
         var answer = await host.Client.PostAsJsonAsync(
             $"/flirty/sessions/{session.SessionId}/answers",
             new SubmitAnswerRequest(session.CurrentQuestion.Id, "\"Ada\""));
@@ -805,7 +804,7 @@ public sealed class MapFlirtyAdminEndpointsTests
         Assert.True(answered.IsCompleted);
     }
 
-    // ---- Helfer ----
+    // ---- Helpers ----
 
     private static async Task<DialogResponse> CreateDialogAsync(FlirtyTestHost host, string key)
     {
@@ -846,8 +845,8 @@ public sealed class MapFlirtyAdminEndpointsTests
     }
 
     /// <summary>
-    /// Legt einen veröffentlichten Dialog mit genau einer (terminalen) Frage an – Ausgangspunkt der
-    /// Versionierungs-Tests.
+    /// Creates a published dialog with exactly one (terminal) question – the starting point of the
+    /// versioning tests.
     /// </summary>
     private static async Task<(DialogResponse Dialog, QuestionResponse Question)> CreatePublishedDialogAsync(
         FlirtyTestHost host, string key)

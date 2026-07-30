@@ -42,7 +42,7 @@ coverage*.info
 *.db-shm
 *.db-wal
 
-# Flirty-Designer: lokale Connection-Profile (können Secrets im ConnectionString enthalten, #37)
+# Flirty designer: local connection profiles (can contain secrets in the connection string, #37)
 connection-profiles.json
 
 # OS

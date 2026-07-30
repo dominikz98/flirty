@@ -47,7 +47,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// inbound receiver (the round-trip needs a real Kestrel and is only checkable here).
     /// </summary>
     [SkippableFact]
-    public async Task Durchlauf_Branching_Loop_und_Trigger_Rundlauf()
+    public async Task Run_through_branching_loop_and_the_trigger_round_trip()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
@@ -80,7 +80,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// same loop.
     /// </summary>
     [SkippableFact]
-    public async Task Branching_Default_Zweig_fuehrt_ueber_product_in_die_Schleife()
+    public async Task Branching_default_branch_leads_over_product_into_the_loop()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await session.NewPageAsync();
@@ -103,7 +103,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// collected answers and the open question.
     /// </summary>
     [SkippableFact]
-    public async Task Reload_stellt_die_Session_mitten_in_der_Schleife_wieder_her()
+    public async Task Reload_restores_the_session_in_the_middle_of_the_loop()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
@@ -131,7 +131,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// are discarded and the path is recomputed from the edited question onwards.
     /// </summary>
     [SkippableFact]
-    public async Task Editieren_einer_Antwort_verwirft_nachgelagerte_Antworten()
+    public async Task Editing_an_answer_discards_the_downstream_answers()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
@@ -167,7 +167,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// <c>AnswerValidator</c> rejected that with 400, the status line showed only "Error: 400 …".
     /// </remarks>
     [SkippableFact]
-    public async Task Editieren_der_Verzweigungsfrage_wechselt_den_Zweig()
+    public async Task Editing_the_branching_question_switches_the_branch()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
@@ -196,7 +196,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// so, because the recomputation leads to a non-terminal question.
     /// </summary>
     [SkippableFact]
-    public async Task Editieren_einer_Loop_Iteration_trifft_genau_diese_Iteration()
+    public async Task Editing_a_loop_iteration_hits_exactly_that_iteration()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);
@@ -233,7 +233,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// flipped to "No", without an error message.
     /// </summary>
     [SkippableFact]
-    public async Task Editieren_einer_Ja_Nein_Antwort_behaelt_den_gewaehlten_Wert()
+    public async Task Editing_a_yes_no_answer_keeps_the_chosen_value()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDevBranchAsync(session);

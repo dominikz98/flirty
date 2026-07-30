@@ -3,36 +3,36 @@ using System.Text.RegularExpressions;
 namespace Flirty.Tests.Docs;
 
 /// <summary>
-/// Verifiziert Issue #52: Die Root-<c>README.md</c> ist nicht nur die GitHub-Startseite, sondern wird
-/// über <c>PackageReadmeFile</c> (siehe <c>Directory.Build.targets</c>) in <b>beide</b> NuGet-Pakete
-/// gepackt und auf nuget.org gerendert. Dort gibt es kein Repo-Wurzelverzeichnis: relative Ziele lösen
-/// gegen die Paketseite auf und laufen ins Leere, und Bilder mit relativem Pfad oder von nicht
-/// freigegebenen Hosts werden gar nicht erst gerendert. Diese Tests halten beide Regeln fest, damit sie
-/// beim nächsten inkrementellen Anbau an der README nicht still kippen.
+/// Verifies issue #52: the root <c>README.md</c> is not only the GitHub start page – via
+/// <c>PackageReadmeFile</c> (see <c>Directory.Build.targets</c>) it is packed into <b>both</b> NuGet
+/// packages and rendered on nuget.org. There is no repo root directory there: relative targets
+/// resolve against the package page and run into the void, and images with a relative path or from
+/// hosts that are not allow-listed are not rendered at all. These tests pin both rules down, so that
+/// they do not silently break with the next incremental addition to the README.
 /// </summary>
 /// <remarks>
-/// Die README wird per <c>Content</c>-Eintrag im <c>Flirty.Tests.csproj</c> ins Testausgabeverzeichnis
-/// kopiert (Muster wie die Chat-UI in <c>Flirty.E2E</c>), damit der Test ohne Annahmen über den
-/// Arbeitsordner auskommt.
+/// The README is copied into the test output directory via a <c>Content</c> entry in
+/// <c>Flirty.Tests.csproj</c> (same pattern as the chat UI in <c>Flirty.E2E</c>), so the test needs
+/// no assumption about the working directory.
 /// </remarks>
 public sealed class PackageReadmeTests
 {
-    /// <summary>Von nuget.org für Bilder/Badges freigegebene Hosts, soweit hier genutzt.</summary>
+    /// <summary>Hosts allow-listed by nuget.org for images/badges, as far as used here.</summary>
     private static readonly string[] AllowedImageHosts = ["img.shields.io", "github.com"];
 
-    /// <summary>Markdown-Link bzw. -Bild: erfasst Bild-Marker und Ziel getrennt.</summary>
+    /// <summary>Markdown link or image: captures the image marker and the target separately.</summary>
     private static readonly Regex LinkPattern = new(@"(?<image>!)?\[[^\]]*\]\((?<target>[^)\s]+)", RegexOptions.Compiled);
 
-    /// <summary>Ziel mit Schema (<c>https:</c>, <c>mailto:</c> …), also nicht repo-relativ.</summary>
+    /// <summary>A target with a scheme (<c>https:</c>, <c>mailto:</c> …), so not repo-relative.</summary>
     private static readonly Regex AbsoluteTargetPattern = new(@"^[a-z][a-z0-9+.\-]*:", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
-    /// Alle Verweise auf Repo-Inhalte müssen absolut sein
-    /// (<c>https://github.com/dominikz98/flirty/blob/main/…</c>). Erlaubt bleiben daneben nur
-    /// seiteninterne Anker und andere Schemata (z. B. der <c>http://localhost</c>-Hinweis).
+    /// Every reference to repo content must be absolute
+    /// (<c>https://github.com/dominikz98/flirty/blob/main/…</c>). Besides that, only in-page anchors
+    /// and other schemes stay allowed (e.g. the <c>http://localhost</c> hint).
     /// </summary>
     [Fact]
-    public void Readme_verlinkt_Repo_Inhalte_nur_absolut()
+    public void Readme_links_to_repo_content_only_absolutely()
     {
         var relative = Targets(ReadReadme())
             .Where(target => !AbsoluteTargetPattern.IsMatch(target) && !target.StartsWith('#'))
@@ -40,16 +40,16 @@ public sealed class PackageReadmeTests
 
         Assert.True(
             relative.Count == 0,
-            "Relative Ziele brechen auf nuget.org (die README ist die Paketseite beider Pakete). "
-            + "Betroffen: " + string.Join(", ", relative));
+            "Relative targets break on nuget.org (the README is the package page of both packages). "
+            + "Affected: " + string.Join(", ", relative));
     }
 
     /// <summary>
-    /// Bild-/Badge-Quellen müssen von einem der von nuget.org freigegebenen Hosts kommen – sonst
-    /// bleibt das Bild auf der Paketseite leer (mit einer Warnung, die nur der Paket-Eigentümer sieht).
+    /// Image/badge sources must come from one of the hosts allow-listed by nuget.org – otherwise the
+    /// image stays blank on the package page (with a warning only the package owner ever sees).
     /// </summary>
     [Fact]
-    public void Readme_Bildquellen_liegen_auf_der_nuget_org_Allowlist()
+    public void Readme_image_sources_are_on_the_nuget_org_allowlist()
     {
         var blocked = Targets(ReadReadme(), imagesOnly: true)
             .Where(target => !AllowedImageHosts.Any(host =>
@@ -58,7 +58,7 @@ public sealed class PackageReadmeTests
 
         Assert.True(
             blocked.Count == 0,
-            "Bilder außerhalb der nuget.org-Allowlist werden nicht gerendert. Betroffen: "
+            "Images outside the nuget.org allowlist are not rendered. Affected: "
             + string.Join(", ", blocked));
     }
 
@@ -70,7 +70,7 @@ public sealed class PackageReadmeTests
     private static string ReadReadme()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "README.md");
-        Assert.True(File.Exists(path), $"README.md nicht im Testausgabeverzeichnis gefunden: {path}");
+        Assert.True(File.Exists(path), $"README.md not found in the test output directory: {path}");
         return File.ReadAllText(path);
     }
 }

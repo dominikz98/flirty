@@ -4,18 +4,18 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Persistence;
 
 /// <summary>
-/// Standardimplementierung von <see cref="IDialogAdminStore"/> über einen scoped
-/// <see cref="FlirtyDbContext"/>. Ladeoperationen für Mutation/Löschung liefern <b>getrackte</b>
-/// Entities (damit <see cref="SaveChangesAsync"/> greift); rein lesende Abfragen (Liste, Detailgraph)
-/// laufen <b>ungetrackt</b>. Kind-Entities werden über <c>Set&lt;T&gt;()</c> adressiert.
+/// Default implementation of <see cref="IDialogAdminStore"/> over a scoped
+/// <see cref="FlirtyDbContext"/>. Load operations for mutation/deletion return <b>tracked</b>
+/// entities (so that <see cref="SaveChangesAsync"/> takes effect); purely reading queries (list, detail graph)
+/// run <b>untracked</b>. Child entities are addressed via <c>Set&lt;T&gt;()</c>.
 /// </summary>
 internal sealed class DialogAdminStore : IDialogAdminStore
 {
     private readonly FlirtyDbContext _context;
 
-    /// <summary>Erstellt den Store über den angegebenen <see cref="FlirtyDbContext"/>.</summary>
-    /// <param name="context">Der scoped EF-Core-Kontext der Flirty-Engine.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="context"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the store over the given <see cref="FlirtyDbContext"/>.</summary>
+    /// <param name="context">The scoped EF Core context of the Flirty engine.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="context"/> is <see langword="null"/>.</exception>
     public DialogAdminStore(FlirtyDbContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -106,7 +106,7 @@ internal sealed class DialogAdminStore : IDialogAdminStore
     /// <inheritdoc />
     public async Task<int> GetMaxDialogVersionAsync(string key, CancellationToken cancellationToken = default)
     {
-        // Über einen nullbaren Zwischentyp: MaxAsync würde bei leerer Menge werfen.
+        // Via a nullable intermediate type: MaxAsync would throw on an empty set.
         var versions = await _context.Dialogs
             .AsNoTracking()
             .Where(dialog => dialog.Key == key)

@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace Flirty.Persistence.Configurations;
 
 /// <summary>
-/// EF-Core-Konfiguration für <see cref="Question"/>. Legt Schlüssel, das Enum-Mapping für
-/// <see cref="QuestionType"/>, den eindeutigen Index über <c>(DialogId, Key)</c> und die
-/// kaskadierende Beziehung zu den Antwortoptionen fest. Die Beziehung zum <see cref="Dialog"/>
-/// wird in <see cref="DialogConfiguration"/> konfiguriert.
+/// EF Core configuration for <see cref="Question"/>. Sets the key, the enum mapping for
+/// <see cref="QuestionType"/>, the unique index over <c>(DialogId, Key)</c> and the
+/// cascading relationship to the answer options. The relationship to the <see cref="Dialog"/>
+/// is configured in <see cref="DialogConfiguration"/>.
 /// </summary>
 internal sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
 {
@@ -22,12 +22,12 @@ internal sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         builder.Property(question => question.Type)
             .HasConversion<int>();
 
-        // Fragenschlüssel je Dialog eindeutig.
+        // Question key unique per dialog.
         builder.HasIndex(question => new { question.DialogId, question.Key })
             .IsUnique();
 
-        // ValidationRules trägt anwendungsseitig serialisiertes JSON -> unbegrenzte Textspalte,
-        // bewusst ohne MaxLength (gerät so nie in einen Index).
+        // ValidationRules carries application-side serialized JSON -> unbounded text column,
+        // deliberately without MaxLength (thus it never ends up in an index).
 
         builder.HasMany(question => question.Options)
             .WithOne(option => option.Question)

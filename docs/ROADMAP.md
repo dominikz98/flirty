@@ -132,6 +132,7 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 | **M3 – designer** | EPIC 7 Blazor designer (`#37`–`#43`) | builds on a stable core API + evaluator |
 | **M4 – quality & release** | E2E tests `#46`/`#47`, coverage `#48`, NuGet publish `#49`, docs `#50`–`#52` | test, publish and docs strands in parallel |
 | **M5 – visual graph designer** | EPIC 11 canvas (`#100`–`#105`) | largely sequential, `#104` independent of `#103` |
+| **M6 – English repository** | EPIC 12 language switch (`#113`–`#117`) | `#113` first, `#117` last, `#114`–`#116` in parallel |
 
 > **Status M3: complete** – `#37`–`#43` are implemented (see [DESIGNER.md](./DESIGNER.md)).
 >
@@ -162,3 +163,18 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 > builds the layout and drawing model, `#102` brings layout persistence (schema change, its own ADR) and
 > `#103` the editing on top of it. Only `#104` (test run in the graph) hangs solely on `#101` and is thus
 > independent of `#103`; `#105` (E2E) wraps it up.
+
+> **Status M6: complete** – the repository is English throughout: `#113` (the language convention
+> itself, which has to flip first, otherwise every following PR produces *new* German text), `#114`
+> (README, guides, ADRs), `#115` (XML docs, comments and engine messages in the two NuGet packages),
+> `#116` (designer and sample UIs) and `#117` (test names). No public type or member was renamed and
+> no EF migration was added – every identifier in `src` was already English, only the prose was not.
+>
+> The **order** is the whole point of the cut: `#113` first, because a convention that still says
+> German keeps producing German; `#117` last, because 537 test renames would collide with any stage
+> still in flight. `#114`–`#116` are independent of one another.
+>
+> One thing to know about M6's history: `#115` was merged into `docs/dz/114` instead of `main`, an
+> hour after that branch had itself already reached `main`. It therefore never landed, went unnoticed
+> for four days – GitHub shows a merged PR either way – and was restored under `#117`. A merged PR is
+> not a landed PR; only `git merge-base --is-ancestor` answers that.

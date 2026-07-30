@@ -5,18 +5,18 @@ using Testcontainers.PostgreSql;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Verifiziert Issue #19 für den PostgreSQL-Provider (Npgsql): die <c>InitialCreate</c>-Migration aus
-/// <c>Flirty.Migrations.PostgreSql</c> erzeugt das Schema gegen eine reale PostgreSQL-Datenbank
-/// (Testcontainers), und ein Dialog-Aggregat wird korrekt gespeichert und geladen. Ohne Docker wird
-/// der Test übersprungen.
+/// Verifies issue #19 for the PostgreSQL provider (Npgsql): the <c>InitialCreate</c> migration from
+/// <c>Flirty.Migrations.PostgreSql</c> creates the schema against a real PostgreSQL database
+/// (Testcontainers), and a dialog aggregate is stored and loaded correctly. Without Docker the test
+/// skips itself.
 /// </summary>
 public sealed class PostgreSqlProviderMigrationTests
 {
-    /// <summary>Startet einen PostgreSQL-Container, wendet die Migration an und prüft den Round-Trip.</summary>
+    /// <summary>Starts a PostgreSQL container, applies the migration and checks the round trip.</summary>
     [SkippableFact]
-    public async Task Migration_erzeugt_Schema_und_Aggregat_wird_round_tripped()
+    public async Task Migration_creates_the_schema_and_the_aggregate_is_round_tripped()
     {
-        Skip.IfNot(DockerAvailability.IsAvailable, "Docker ist nicht verfügbar – PostgreSQL-Provider-Test übersprungen.");
+        Skip.IfNot(DockerAvailability.IsAvailable, "Docker is not available – PostgreSQL provider test skipped.");
 
         await using var container = new PostgreSqlBuilder("postgres:17-alpine").Build();
         await container.StartAsync();

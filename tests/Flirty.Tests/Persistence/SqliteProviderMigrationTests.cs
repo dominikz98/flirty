@@ -5,27 +5,27 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Verifiziert Issue #19 für den SQLite-Provider: die <c>InitialCreate</c>-Migration aus
-/// <c>Flirty.Migrations.Sqlite</c> erzeugt das Schema, und ein Dialog-Aggregat wird korrekt
-/// gespeichert und geladen. Läuft gegen SQLite in-memory (keine externe Abhängigkeit).
+/// Verifies issue #19 for the SQLite provider: the <c>InitialCreate</c> migration from
+/// <c>Flirty.Migrations.Sqlite</c> creates the schema, and a dialog aggregate is stored and loaded
+/// correctly. Runs against SQLite in-memory (no external dependency).
 /// </summary>
 public sealed class SqliteProviderMigrationTests : IDisposable
 {
     private readonly SqliteConnection _connection;
 
-    /// <summary>Öffnet eine SQLite-in-memory-Verbindung, die über alle Kontexte offen bleiben muss.</summary>
+    /// <summary>Opens a SQLite in-memory connection that has to stay open across all contexts.</summary>
     public SqliteProviderMigrationTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
-    /// <summary>Wendet die SQLite-Migration an und prüft den Aggregat-Round-Trip.</summary>
+    /// <summary>Applies the SQLite migration and checks the aggregate round trip.</summary>
     [Fact]
-    public void Migration_erzeugt_Schema_und_Aggregat_wird_round_tripped()
+    public void Migration_creates_the_schema_and_the_aggregate_is_round_tripped()
     {
         var options = new DbContextOptionsBuilder<FlirtyDbContext>()
             .UseSqlite(_connection, sqlite => sqlite.MigrationsAssembly("Flirty.Migrations.Sqlite"))

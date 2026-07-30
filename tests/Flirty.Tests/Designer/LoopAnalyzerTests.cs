@@ -8,46 +8,47 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="LoopAnalyzer"/> des Loop-Editors (#41): die Ermittlung des Schleifenbereichs,
-/// die Einteilung der Übergänge in Rücksprünge und Ausstiege sowie die Warnungen – allen voran der Zyklus
-/// ohne erreichbaren Exit (Endlosschleife). Kernprobe ist der Abgleich mit dem Core-<see cref="LoopResolver"/>:
-/// Der Designer rechnet den Bereich nach, weil der Resolver nicht wiederverwendbar ist – auseinanderlaufen
-/// dürfen die beiden trotzdem nicht.
+/// Tests for the loop editor's <see cref="LoopAnalyzer"/> (#41): computing the loop range, sorting
+/// the transitions into back jumps and exits as well as the warnings – above all the cycle without a
+/// reachable exit (an infinite loop). The core check is the match against the core
+/// <see cref="LoopResolver"/>: the designer recomputes the range because the resolver is not
+/// reusable – the two must not drift apart nonetheless.
 /// </summary>
 public sealed class LoopAnalyzerTests
 {
     /// <summary>
-    /// Der Analyzer spiegelt <c>LoopResolver.ComputeBody</c>. Da der Bereich dort privat ist, wird er
-    /// indirekt abgefragt: <see cref="LoopResolver.ResolveAssignment"/> vergibt genau für Fragen im
-    /// Schleifenbereich eine Instanz-Id. Beide laufen auf demselben Graphen – der Designer-Graph entsteht
-    /// per <c>AdminProjection</c> aus der Entity, damit sich keine Abweichung in den Testdaten versteckt.
+    /// The analyzer mirrors <c>LoopResolver.ComputeBody</c>. Since the range is private there, it is
+    /// queried indirectly: <see cref="LoopResolver.ResolveAssignment"/> assigns an instance id
+    /// exactly for questions inside the loop range. Both run on the same graph – the designer graph
+    /// arises from the entity via <c>AdminProjection</c>, so that no deviation can hide in the test
+    /// data.
     /// </summary>
     [Theory]
     [InlineData("more == \"yes\"")]
     [InlineData("positions.Count < 2")]
-    public void ComputeBody_stimmt_mit_dem_LoopResolver_der_Engine_ueberein(string loopBackExpression)
+    public void ComputeBody_matches_the_engines_LoopResolver(string loopBackExpression)
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _, loopBackExpression);
         var detail = AdminProjection.ToDetail(dialog);
         var resolver = new LoopResolver(dialog);
         var session = NewSession(dialog);
 
-        var vomResolver = dialog.Questions
+        var fromResolver = dialog.Questions
             .Where(question => resolver.ResolveAssignment(session, question.Id).LoopInstanceId is not null)
             .Select(question => question.Id)
             .ToHashSet();
 
-        var vomAnalyzer = LoopAnalyzer.ComputeBody(detail, detail.Loops[0]);
+        var fromAnalyzer = LoopAnalyzer.ComputeBody(detail, detail.Loops[0]);
 
-        Assert.Equal(vomResolver, vomAnalyzer);
+        Assert.Equal(fromResolver, fromAnalyzer);
     }
 
     /// <summary>
-    /// Der Schleifenbereich umfasst Einstieg und Breaking Question, nicht aber die nachgelagerte Frage –
-    /// deren Antworten tragen zur Laufzeit keinen Iterationsindex.
+    /// The loop range covers the entry and the breaking question, but not the downstream question –
+    /// its answers carry no iteration index at runtime.
     /// </summary>
     [Fact]
-    public void Analyze_ermittelt_Bereich_Ruecksprung_und_Ausstieg()
+    public void Analyze_computes_the_range_the_back_jump_and_the_exit()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var detail = AdminProjection.ToDetail(dialog);
@@ -64,9 +65,9 @@ public sealed class LoopAnalyzerTests
         Assert.Empty(insight.Warnings);
     }
 
-    /// <summary>Ein Ein-Fragen-Loop (<c>Entry == Breaking</c>) ist zulässig und ergibt genau diese Frage.</summary>
+    /// <summary>A single-question loop (<c>Entry == Breaking</c>) is allowed and yields exactly that question.</summary>
     [Fact]
-    public void Analyze_Ein_Fragen_Loop_ergibt_nur_die_Einstiegsfrage()
+    public void Analyze_a_single_question_loop_yields_only_the_entry_question()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Loops.First().EntryQuestionId = ids.MoreQuestionId;
@@ -78,7 +79,7 @@ public sealed class LoopAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_warnt_wenn_der_Ruecksprung_fehlt()
+    public void Analyze_warns_when_the_back_jump_is_missing()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Transitions.Remove(
@@ -91,9 +92,9 @@ public sealed class LoopAnalyzerTests
         Assert.Contains(insight.Warnings, warning => warning.Contains("no cycle", StringComparison.Ordinal));
     }
 
-    /// <summary>Ohne Übergang aus dem Bereich heraus lässt sich die Schleife nie verlassen.</summary>
+    /// <summary>Without a transition out of the range the loop can never be left.</summary>
     [Fact]
-    public void Analyze_warnt_bei_fehlendem_Ausstieg()
+    public void Analyze_warns_on_a_missing_exit()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Transitions.Remove(
@@ -107,11 +108,12 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Ein bedingungsloser Rücksprung vor dem Ausstieg greift zur Laufzeit immer – der Ausstieg wird
-    /// nie geprüft. Genau die Regel des <c>TransitionResolver</c>: erster zutreffender Nicht-Default gewinnt.
+    /// An unconditional back jump placed before the exit always takes effect at runtime – the exit is
+    /// never evaluated. Exactly the <c>TransitionResolver</c>'s rule: the first matching non-default
+    /// wins.
     /// </summary>
     [Fact]
-    public void Analyze_warnt_wenn_ein_bedingungsloser_Ruecksprung_den_Ausstieg_verdeckt()
+    public void Analyze_warns_when_an_unconditional_back_jump_shadows_the_exit()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Transitions
@@ -127,11 +129,11 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Steht der Ausstieg vor dem bedingungslosen Rücksprung, greift er – dieselbe Konfiguration darf
-    /// dann keine Warnung mehr erzeugen.
+    /// If the exit stands before the unconditional back jump it takes effect – the same configuration
+    /// must then produce no warning any more.
     /// </summary>
     [Fact]
-    public void Analyze_akzeptiert_einen_Ausstieg_vor_dem_bedingungslosen_Ruecksprung()
+    public void Analyze_accepts_an_exit_before_the_unconditional_back_jump()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var loopBack = dialog.Transitions.First(transition => transition.FromQuestionId == ids.MoreQuestionId
@@ -150,11 +152,11 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Überlappende Schleifenbereiche lässt der <see cref="LoopResolver"/> schon im Konstruktor scheitern –
-    /// jede Session gegen den Dialog bricht dann ab. Der Analyzer muss das vorher sichtbar machen.
+    /// The <see cref="LoopResolver"/> makes overlapping loop ranges fail already in the constructor –
+    /// every session against the dialog then breaks. The analyzer has to make that visible beforehand.
     /// </summary>
     [Fact]
-    public void Analyze_warnt_bei_ueberlappenden_Schleifen()
+    public void Analyze_warns_on_overlapping_loops()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Loops.Add(new LoopDefinition
@@ -175,7 +177,7 @@ public sealed class LoopAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_warnt_wenn_der_Collection_Schluessel_eine_Frage_verdeckt()
+    public void Analyze_warns_when_the_collection_key_shadows_a_question()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         dialog.Loops.First().CollectionKey = "summary";
@@ -187,13 +189,13 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Ein Schlüssel, der kein Bezeichner ist (oder von <c>now</c>/<c>iterationIndex</c>/<c>session</c>
-    /// verdeckt wird), lässt sich in keiner Bedingung referenzieren – die Schleife wäre unbrauchbar.
+    /// A key that is not an identifier (or is shadowed by <c>now</c>/<c>iterationIndex</c>/
+    /// <c>session</c>) cannot be referenced in any condition – the loop would be unusable.
     /// </summary>
     [Theory]
     [InlineData("meine-positionen")]
     [InlineData("iterationIndex")]
-    public void Analyze_warnt_bei_nicht_referenzierbarem_Collection_Schluessel(string collectionKey)
+    public void Analyze_warns_on_a_collection_key_that_cannot_be_referenced(string collectionKey)
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         dialog.Loops.First().CollectionKey = collectionKey;
@@ -205,9 +207,9 @@ public sealed class LoopAnalyzerTests
             insight.Warnings, warning => warning.Contains("not referenceable", StringComparison.Ordinal));
     }
 
-    /// <summary>Zeigt der Marker auf eine gelöschte Frage, bleibt der Bereich leer und wird gemeldet.</summary>
+    /// <summary>If the marker points at a deleted question, the range stays empty and is reported.</summary>
     [Fact]
-    public void Analyze_warnt_bei_Marker_auf_unbekannte_Frage()
+    public void Analyze_warns_on_a_marker_pointing_at_an_unknown_question()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         dialog.Loops.First().EntryQuestionId = Guid.NewGuid();
@@ -221,14 +223,15 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Seit #101 trägt jede Warnung eine Ortsangabe, damit die Graph-Ansicht sie am betroffenen Element
-    /// zeigen kann. Eine Warnung ohne Ziel wäre auf dem Canvas unsichtbar – deshalb muss jede eine haben,
-    /// und der Bezug muss auf ein Element <b>dieses</b> Dialogs zeigen.
+    /// Since #101 every warning carries a location, so that the graph view can show it at the
+    /// affected element. A warning without a target would be invisible on the canvas – which is why
+    /// every one has to have one, and the reference has to point at an element of <b>this</b> dialog.
     /// </summary>
     [Fact]
-    public void Analyze_verortet_jede_Warnung_an_einem_Element()
+    public void Analyze_places_every_warning_at_an_element()
     {
-        // Ein Marker ohne Rücksprung und ohne Ausstieg: erzeugt Warnungen an Loop und Breaking Question.
+        // A marker without a back jump and without an exit: produces warnings on the loop and on the
+        // breaking question.
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Transitions.Clear();
         dialog.Loops.First().CollectionKey = "more";
@@ -251,12 +254,12 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// Der verdeckte Ausstieg hat einen konkreten Verursacher – den Rücksprung, der immer vorher greift.
-    /// Die Warnung hängt an <b>seiner</b> Kante, sonst kann der Canvas nicht zeigen, welche Verbindung
-    /// zu ändern ist.
+    /// The shadowed exit has a concrete cause – the back jump that always takes effect before it. The
+    /// warning hangs on <b>its</b> edge, otherwise the canvas cannot show which connection has to be
+    /// changed.
     /// </summary>
     [Fact]
-    public void Analyze_verortet_den_verdeckten_Ausstieg_am_verdeckenden_Ruecksprung()
+    public void Analyze_places_the_shadowed_exit_on_the_shadowing_back_jump()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var loopBack = dialog.Transitions.First(
@@ -275,12 +278,11 @@ public sealed class LoopAnalyzerTests
     }
 
     /// <summary>
-    /// <c>Warnings</c> ist seit #101 eine berechnete Sicht auf <c>TargetedWarnings</c>. Loop- und
-    /// Dialog-Editor lesen ausschließlich diese Sicht – Wortlaut und Reihenfolge müssen deckungsgleich
-    /// bleiben.
+    /// Since #101 <c>Warnings</c> is a computed view of <c>TargetedWarnings</c>. Loop and dialog
+    /// editor read exclusively that view – wording and order have to stay congruent.
     /// </summary>
     [Fact]
-    public void Analyze_liefert_Warnings_in_unveraenderter_Reihenfolge_und_Wortlaut()
+    public void Analyze_returns_the_warnings_in_unchanged_order_and_wording()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         dialog.Transitions.Clear();
@@ -291,66 +293,66 @@ public sealed class LoopAnalyzerTests
         Assert.Equal(insight.TargetedWarnings.Select(warning => warning.Text), insight.Warnings);
     }
 
-    // ---- Rücksprung-Erkennung (aus dem DialogEditor gezogen, #103) ----------------------------------
+    // ---- Back-jump detection (pulled out of the DialogEditor, #103) --------------------------------
 
     /// <summary>
-    /// Ein Rücksprung zeigt auf eine frühere Frage <b>der Listenreihenfolge</b> – bewusst nicht auf eine
-    /// höhere Schicht des Layouts, damit Listenansicht und Graph-Kante dasselbe behaupten.
+    /// A back jump points at an earlier question <b>of the list order</b> – deliberately not at a
+    /// higher layer of the layout, so that list view and graph edge claim the same thing.
     /// </summary>
     [Fact]
-    public void IsBackJump_erkennt_nur_Rueckwaertskanten()
+    public void IsBackJump_recognizes_only_backward_edges()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var detail = AdminProjection.ToDetail(dialog);
 
-        var rueckwaerts = detail.Transitions.Single(
+        var backward = detail.Transitions.Single(
             transition => transition.FromQuestionId == ids.MoreQuestionId
                 && transition.TargetQuestionId == ids.PositionQuestionId);
-        var vorwaerts = detail.Transitions.Single(
+        var forward = detail.Transitions.Single(
             transition => transition.FromQuestionId == ids.PositionQuestionId
                 && transition.TargetQuestionId == ids.MoreQuestionId);
 
-        Assert.True(LoopAnalyzer.IsBackJump(detail, rueckwaerts));
-        Assert.False(LoopAnalyzer.IsBackJump(detail, vorwaerts));
+        Assert.True(LoopAnalyzer.IsBackJump(detail, backward));
+        Assert.False(LoopAnalyzer.IsBackJump(detail, forward));
     }
 
-    /// <summary>Ein Verweis auf sich selbst ist ein Zyklus – <c>target &lt;= from</c> schließt ihn ein.</summary>
+    /// <summary>A reference to itself is a cycle – <c>target &lt;= from</c> includes it.</summary>
     [Fact]
-    public void IsBackJump_zaehlt_den_Selbstbezug()
+    public void IsBackJump_counts_the_self_reference()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var detail = AdminProjection.ToDetail(dialog);
-        var selbst = new TransitionDetail(
+        var self = new TransitionDetail(
             Guid.NewGuid(), dialog.Id, ids.MoreQuestionId, ids.MoreQuestionId, null, 9, false);
 
-        Assert.True(LoopAnalyzer.IsBackJump(detail, selbst));
+        Assert.True(LoopAnalyzer.IsBackJump(detail, self));
     }
 
     /// <summary>
-    /// Der passende Marker macht einen Rücksprung „markiert". Genau diese Liste speist die Vorschläge –
-    /// in der Listenansicht (#41) wie am Zyklus auf dem Canvas (#103).
+    /// The matching marker makes a back jump "marked". Exactly this list feeds the suggestions – in
+    /// the list view (#41) as well as at the cycle on the canvas (#103).
     /// </summary>
     [Fact]
-    public void UnmarkedBackJumps_schliesst_markierte_Ruecksprünge_aus()
+    public void UnmarkedBackJumps_excludes_marked_back_jumps()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
 
         Assert.Empty(LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog)));
 
-        // Ohne Marker bleibt derselbe Zyklus übrig – die Antworten würden zur Laufzeit überschrieben
-        // statt gesammelt, und genau darauf weist der Vorschlag hin.
+        // Without a marker the same cycle remains – the answers would be overwritten at runtime
+        // instead of collected, and that is exactly what the suggestion points at.
         dialog.Loops.Clear();
-        var ohneMarker = LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog));
+        var withoutMarker = LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog));
 
-        var rueckwaerts = Assert.Single(ohneMarker);
-        Assert.True(LoopAnalyzer.IsBackJump(AdminProjection.ToDetail(dialog), rueckwaerts));
+        var backward = Assert.Single(withoutMarker);
+        Assert.True(LoopAnalyzer.IsBackJump(AdminProjection.ToDetail(dialog), backward));
     }
 
     /// <summary>
-    /// Ein Marker auf einem <b>anderen</b> Frage-Paar zählt nicht: Er beschreibt einen anderen Zyklus.
+    /// A marker on a <b>different</b> question pair does not count: it describes a different cycle.
     /// </summary>
     [Fact]
-    public void UnmarkedBackJumps_prueft_das_Frage_Paar_nicht_nur_die_Existenz_eines_Markers()
+    public void UnmarkedBackJumps_checks_the_question_pair_not_just_the_existence_of_a_marker()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var loop = dialog.Loops.Single();
@@ -359,9 +361,9 @@ public sealed class LoopAnalyzerTests
         Assert.Single(LoopAnalyzer.UnmarkedBackJumps(AdminProjection.ToDetail(dialog)));
     }
 
-    /// <summary>Vorwärtskanten erscheinen nie unter den Vorschlägen.</summary>
+    /// <summary>Forward edges never appear among the suggestions.</summary>
     [Fact]
-    public void UnmarkedBackJumps_enthaelt_keine_Vorwaertskanten()
+    public void UnmarkedBackJumps_contains_no_forward_edges()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
 

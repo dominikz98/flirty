@@ -1,11 +1,11 @@
 namespace Flirty.Expressions;
 
 /// <summary>
-/// Ergebnis der Validierung (Compile-Check) eines Bedingungsausdrucks durch
-/// <see cref="IExpressionEvaluator.Validate(string, ExpressionContext)"/>. Anders als
-/// <see cref="IExpressionEvaluator.Evaluate(string, ExpressionContext)"/> wird hier <b>nicht</b> mit
-/// einer Exception abgebrochen, sondern ein strukturiertes Ergebnis zurückgegeben – so kann der
-/// Designer einen ungültigen Ausdruck bereits beim Speichern melden (inkl. Fehlerposition).
+/// Result of the validation (compile check) of a condition expression by
+/// <see cref="IExpressionEvaluator.Validate(string, ExpressionContext)"/>. Unlike
+/// <see cref="IExpressionEvaluator.Evaluate(string, ExpressionContext)"/>, this does <b>not</b> abort
+/// with an exception, but returns a structured result instead – so the
+/// designer can report an invalid expression already on save (incl. error position).
 /// </summary>
 public sealed class ExpressionValidationResult
 {
@@ -16,31 +16,31 @@ public sealed class ExpressionValidationResult
         ErrorPosition = errorPosition;
     }
 
-    /// <summary>Das gemeinsame Ergebnis für einen gültigen (kompilierbaren) Ausdruck.</summary>
+    /// <summary>The shared result for a valid (compilable) expression.</summary>
     public static ExpressionValidationResult Valid { get; } = new(true, null, null);
 
-    /// <summary><see langword="true"/>, wenn der Ausdruck erfolgreich kompiliert werden konnte.</summary>
+    /// <summary><see langword="true"/> if the expression could be compiled successfully.</summary>
     public bool IsValid { get; }
 
     /// <summary>
-    /// Menschlesbare Fehlerbeschreibung, wenn <see cref="IsValid"/> <see langword="false"/> ist –
-    /// andernfalls <see langword="null"/>.
+    /// Human-readable error description when <see cref="IsValid"/> is <see langword="false"/> –
+    /// otherwise <see langword="null"/>.
     /// </summary>
     public string? Error { get; }
 
     /// <summary>
-    /// Nullbasierte Position des Fehlers im Ausdruck (soweit von der Engine gemeldet), z. B. zum
-    /// Unterstreichen im Designer. <see langword="null"/>, wenn keine Position verfügbar oder der
-    /// Ausdruck gültig ist.
+    /// Zero-based position of the error in the expression (as far as reported by the engine), e.g. for
+    /// underlining in the designer. <see langword="null"/> if no position is available or the
+    /// expression is valid.
     /// </summary>
     public int? ErrorPosition { get; }
 
     /// <summary>
-    /// Erstellt ein Fehlerergebnis (<see cref="IsValid"/> = <see langword="false"/>).
+    /// Creates an error result (<see cref="IsValid"/> = <see langword="false"/>).
     /// </summary>
-    /// <param name="error">Die menschlesbare Fehlerbeschreibung.</param>
-    /// <param name="errorPosition">Optionale nullbasierte Fehlerposition im Ausdruck.</param>
-    /// <returns>Ein ungültiges <see cref="ExpressionValidationResult"/>.</returns>
+    /// <param name="error">The human-readable error description.</param>
+    /// <param name="errorPosition">Optional zero-based error position in the expression.</param>
+    /// <returns>An invalid <see cref="ExpressionValidationResult"/>.</returns>
     public static ExpressionValidationResult Invalid(string error, int? errorPosition = null)
         => new(false, error, errorPosition);
 }

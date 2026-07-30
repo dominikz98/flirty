@@ -9,10 +9,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert den <see cref="StartDialogCommandHandler"/> (Issue #25) gegen eine echte SQLite-Datenbank
-/// (in-memory): Neu-Start (Session-Anlage, gepinnte Version, Startfrage), Projektion der
-/// <see cref="QuestionView"/>, Resume einer laufenden Session sowie die Fehlerfälle
-/// (unbekannter/unpublizierter Dialog, fehlende Startfrage, <c>null</c>-Store).
+/// Verifies the <see cref="StartDialogCommandHandler"/> (issue #25) against a real SQLite database
+/// (in-memory): a fresh start (session creation, pinned version, entry question), the projection of
+/// the <see cref="QuestionView"/>, resuming a running session as well as the error cases (unknown or
+/// unpublished dialog, missing entry question, <c>null</c> store).
 /// </summary>
 public sealed class StartDialogCommandHandlerTests : IDisposable
 {
@@ -20,8 +20,8 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public StartDialogCommandHandlerTests()
     {
@@ -36,7 +36,7 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
@@ -47,11 +47,11 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     private static StartDialogCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
         => new(new DialogStore(context), publisher);
 
-    // ---- Neu-Start --------------------------------------------------------------------------
+    // ---- Fresh start ------------------------------------------------------------------------
 
-    /// <summary>Ein Neu-Start legt eine laufende Session mit gepinnter Version und Startfrage an.</summary>
+    /// <summary>A fresh start creates a running session with a pinned version and the entry question.</summary>
     [Fact]
-    public async Task Handle_neuer_Start_legt_InProgress_Session_an()
+    public async Task Handle_a_fresh_start_creates_an_in_progress_session()
     {
         var dialogId = Guid.NewGuid();
         Guid questionId;
@@ -81,9 +81,9 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         Assert.Equal(questionId, session.CurrentQuestionId);
     }
 
-    /// <summary>Die aktuelle Frage wird samt Optionen in <see cref="AnswerOption.Order"/>-Reihenfolge projiziert.</summary>
+    /// <summary>The current question is projected incl. its options in <see cref="AnswerOption.Order"/> order.</summary>
     [Fact]
-    public async Task Handle_projiziert_Frage_und_Optionen_in_Reihenfolge()
+    public async Task Handle_projects_the_question_and_the_options_in_order()
     {
         var dialogId = Guid.NewGuid();
         using (var arrange = CreateContext())
@@ -97,18 +97,18 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
 
         var question = result.CurrentQuestion;
         Assert.Equal("role", question.Key);
-        Assert.Equal("Welche Rolle?", question.Text);
+        Assert.Equal("Which role?", question.Text);
         Assert.Equal(QuestionType.SingleChoice, question.Type);
         Assert.Equal(["dev", "pm"], question.Options.Select(option => option.Key));
-        Assert.Equal("Entwickler", question.Options[0].Label);
+        Assert.Equal("Developer", question.Options[0].Label);
         Assert.Equal("dev", question.Options[0].Value);
     }
 
     // ---- Resume -----------------------------------------------------------------------------
 
-    /// <summary>Existiert bereits eine laufende Session, wird sie fortgesetzt statt neu angelegt.</summary>
+    /// <summary>If a running session already exists, it is resumed instead of created anew.</summary>
     [Fact]
-    public async Task Handle_setzt_laufende_Session_fort_ohne_neue_anzulegen()
+    public async Task Handle_resumes_a_running_session_without_creating_a_new_one()
     {
         var dialogId = Guid.NewGuid();
         using (var arrange = CreateContext())
@@ -137,9 +137,9 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         Assert.Single(assert.DialogSessions);
     }
 
-    /// <summary>Verschiedene Anwender erhalten je eine eigene Session.</summary>
+    /// <summary>Different users each get their own session.</summary>
     [Fact]
-    public async Task Handle_verschiedene_Anwender_erhalten_getrennte_Sessions()
+    public async Task Handle_different_users_get_separate_sessions()
     {
         var dialogId = Guid.NewGuid();
         using (var arrange = CreateContext())
@@ -168,11 +168,11 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         Assert.Equal(2, assert.DialogSessions.Count());
     }
 
-    // ---- Fehlerfälle ------------------------------------------------------------------------
+    // ---- Error cases ------------------------------------------------------------------------
 
-    /// <summary>Ein unbekannter Dialog-Schlüssel führt zu einer <see cref="DialogNotFoundException"/>.</summary>
+    /// <summary>An unknown dialog key leads to a <see cref="DialogNotFoundException"/>.</summary>
     [Fact]
-    public async Task Handle_unbekannter_Key_wirft_DialogNotFoundException()
+    public async Task Handle_an_unknown_key_throws_DialogNotFoundException()
     {
         using var act = CreateContext();
 
@@ -182,9 +182,9 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         Assert.Equal("does-not-exist", exception.DialogKey);
     }
 
-    /// <summary>Ein nur unpubliziert vorhandener Dialog gilt als nicht gefunden.</summary>
+    /// <summary>A dialog that exists only unpublished counts as not found.</summary>
     [Fact]
-    public async Task Handle_unpublizierter_Dialog_wirft_DialogNotFoundException()
+    public async Task Handle_an_unpublished_dialog_throws_DialogNotFoundException()
     {
         using (var arrange = CreateContext())
         {
@@ -198,9 +198,9 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
             async () => await CreateHandler(act).Handle(new StartDialogCommand("draft", "user-1"), default));
     }
 
-    /// <summary>Ein veröffentlichter Dialog ohne Startfrage ist fehlkonfiguriert und wird abgelehnt.</summary>
+    /// <summary>A published dialog without an entry question is misconfigured and is rejected.</summary>
     [Fact]
-    public async Task Handle_publizierter_Dialog_ohne_Startfrage_wirft_InvalidOperationException()
+    public async Task Handle_a_published_dialog_without_an_entry_question_throws_InvalidOperationException()
     {
         using (var arrange = CreateContext())
         {
@@ -216,25 +216,25 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
             async () => await CreateHandler(act).Handle(new StartDialogCommand("headless", "user-1"), default));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Store()
+    public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(() => new StartDialogCommandHandler(null!, new SpyPublisher()));
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Publisher()
+    public void Constructor_throws_on_a_null_publisher()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => new StartDialogCommandHandler(new DialogStore(context), null!));
     }
 
-    // ---- Trigger-Notifications --------------------------------------------------------------
+    // ---- Trigger notifications --------------------------------------------------------------
 
-    /// <summary>Ein Neu-Start publiziert genau eine <see cref="DialogStartedNotification"/>.</summary>
+    /// <summary>A fresh start publishes exactly one <see cref="DialogStartedNotification"/>.</summary>
     [Fact]
-    public async Task Handle_neuer_Start_publiziert_DialogStarted()
+    public async Task Handle_a_fresh_start_publishes_DialogStarted()
     {
         var dialogId = Guid.NewGuid();
         Guid questionId;
@@ -259,9 +259,9 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
         Assert.Equal(questionId, notification.CurrentQuestionId);
     }
 
-    /// <summary>Ein Resume einer laufenden Session publiziert bewusst keine Notification.</summary>
+    /// <summary>Resuming a running session deliberately publishes no notification.</summary>
     [Fact]
-    public async Task Handle_Resume_publiziert_keine_Notification()
+    public async Task Handle_a_resume_publishes_no_notification()
     {
         var dialogId = Guid.NewGuid();
         using (var arrange = CreateContext())

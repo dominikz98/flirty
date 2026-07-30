@@ -7,20 +7,21 @@ using Flirty.Tests.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="DialogGraphBuilder"/> – das Zeichenmodell der Graph-Ansicht (#101). Geprüft
-/// wird vor allem, dass die Aussagen des Domänenmodells auf dem Canvas <b>ehrlich</b> ankommen: der
-/// reguläre Abschluss als Abschluss und nicht als kaputte Kante, unerreichbare Fragen als solche, und
-/// jede Warnung an dem Element, das sie verursacht.
+/// Tests for the <see cref="DialogGraphBuilder"/> – the drawing model of the graph view (#101). What
+/// is checked above all is that the domain model's statements arrive on the canvas <b>honestly</b>:
+/// the regular completion as a completion and not as a broken edge, unreachable questions as such,
+/// and every warning at the element that causes it.
 /// </summary>
 public sealed class DialogGraphBuilderTests
 {
     /// <summary>
-    /// Die drei Marker, die den Ablauf lesbar machen. Der Abschluss ist der heikelste: Eine Frage ohne
-    /// ausgehenden Übergang ist der <b>reguläre</b> Dialogabschluss (<c>TransitionResolver</c> liefert
-    /// dort <see langword="null"/>) – ohne Kennzeichnung liest sich das wie eine fehlende Kante.
+    /// The three markers that make the flow readable. The completion is the trickiest: a question
+    /// without an outgoing transition is the <b>regular</b> end of the dialog (the
+    /// <c>TransitionResolver</c> returns <see langword="null"/> there) – without a marker that reads
+    /// like a missing edge.
     /// </summary>
     [Fact]
-    public void Build_markiert_Einstieg_Abschluss_und_nicht_erreichbare_Fragen()
+    public void Build_marks_the_entry_the_completion_and_unreachable_questions()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
         var orphanId = Guid.NewGuid();
@@ -53,12 +54,12 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Ohne Einstiegsfrage ist die Erreichbarkeit gar nicht bestimmbar. Der Befund gehört deshalb an den
-    /// Dialog – und ausdrücklich <b>nicht</b> an jeden Knoten, sonst wäre der ganze Graph rot, obwohl
-    /// nur eine einzige Angabe fehlt.
+    /// Without an entry question, reachability cannot be determined at all. The finding therefore
+    /// belongs on the dialog – and explicitly <b>not</b> on every node, otherwise the whole graph
+    /// would be red although only a single field is missing.
     /// </summary>
     [Fact]
-    public void Build_warnt_ohne_Einstiegsfrage_auf_Dialog_Ebene()
+    public void Build_warns_at_dialog_level_when_the_entry_question_is_missing()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
         dialog.StartQuestionId = null;
@@ -73,15 +74,15 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Der Kern des Akzeptanzkriteriums „Warnungen erscheinen am betroffenen Element": Die
-    /// Gruppen-Warnung sitzt am Knoten, die Kanten-Warnung an der Kante – und keine geht verloren.
+    /// The core of the acceptance criterion "warnings appear at the affected element": the group
+    /// warning sits on the node, the edge warning on the edge – and none gets lost.
     /// </summary>
     [Fact]
-    public void Build_verortet_Uebergangswarnungen_am_Knoten_und_an_der_Kante()
+    public void Build_places_transition_warnings_on_the_node_and_on_the_edge()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
 
-        // Der bisher bedingte Übergang wird bedingungslos und verdeckt damit den Default dahinter.
+        // The formerly conditional transition becomes unconditional and thereby shadows the default behind it.
         var blocking = dialog.Transitions.First(transition => !transition.IsDefault);
         blocking.Expression = null;
 
@@ -91,7 +92,7 @@ public sealed class DialogGraphBuilderTests
             model.Edge(blocking.Id)!.Warnings,
             warning => warning.Text.Contains("always matches", StringComparison.Ordinal));
 
-        // Und die Gruppen-Warnung bleibt am Knoten: mehrere Defaults sind niemandes Einzelschuld.
+        // And the group warning stays on the node: several defaults are nobody's individual fault.
         dialog.Transitions.First(transition => transition.IsDefault).IsDefault = true;
         var second = dialog.Transitions.First(transition => !transition.IsDefault);
         second.IsDefault = true;
@@ -104,11 +105,11 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Die Schleifen-Befunde verteilen sich auf zwei Orte: Was den Marker betrifft, hängt am Rahmen; was
-    /// die Breaking Question betrifft, an ihrem Knoten.
+    /// The loop findings spread across two places: what concerns the marker hangs on the frame, what
+    /// concerns the breaking question hangs on its node.
     /// </summary>
     [Fact]
-    public void Build_verortet_die_Loop_Befunde_am_Rahmen_und_an_der_Breaking_Question()
+    public void Build_places_the_loop_findings_on_the_frame_and_on_the_breaking_question()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         dialog.Transitions.Remove(
@@ -127,9 +128,9 @@ public sealed class DialogGraphBuilderTests
             warning => warning.Text.Contains("infinite loop", StringComparison.Ordinal));
     }
 
-    /// <summary>Der Rahmen umschließt genau die Knoten des vom <c>LoopAnalyzer</c> berechneten Bereichs.</summary>
+    /// <summary>The frame encloses exactly the nodes of the range computed by the <c>LoopAnalyzer</c>.</summary>
     [Fact]
-    public void Build_rahmt_den_LoopAnalyzer_Body_als_Bounding_Box()
+    public void Build_frames_the_LoopAnalyzer_body_as_a_bounding_box()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var model = DialogGraphBuilder.Build(AdminProjection.ToDetail(dialog));
@@ -141,13 +142,13 @@ public sealed class DialogGraphBuilderTests
         {
             var node = model.Node(id)!;
             Assert.True(node.X >= frame.X, $"{node.Key} liegt links des Rahmens.");
-            Assert.True(node.Y >= frame.Y, $"{node.Key} liegt über dem Rahmen.");
+            Assert.True(node.Y >= frame.Y, $"{node.Key} lies above the frame.");
             Assert.True(node.X + GraphMetrics.NodeWidth <= frame.X + frame.Width);
             Assert.True(node.Y + GraphMetrics.NodeHeight <= frame.Y + frame.Height);
             Assert.True(node.InLoop);
         }
 
-        // Die Frage hinter dem Ausstieg gehört nicht dazu und darf nicht eingerahmt sein.
+        // The question behind the exit does not belong to it and must not be framed.
         var outside = model.Node(ids.SummaryQuestionId)!;
         Assert.False(outside.InLoop);
         Assert.True(outside.Y > frame.Y + frame.Height);
@@ -157,11 +158,11 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Ein Marker, dessen Fragen gelöscht wurden, hat keinen Bereich – dann gibt es keinen Rahmen,
-    /// sondern nur die Warnung. Ein Rahmen um nichts wäre schlimmer als keiner.
+    /// A marker whose questions were deleted has no range – then there is no frame, only the warning.
+    /// A frame around nothing would be worse than none.
     /// </summary>
     [Fact]
-    public void Build_zeichnet_keinen_Rahmen_fuer_einen_Marker_ins_Leere()
+    public void Build_draws_no_frame_for_a_marker_pointing_into_the_void()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
         dialog.Loops.First().EntryQuestionId = Guid.NewGuid();
@@ -174,12 +175,12 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Trigger hängen dort, wo sie feuern: <c>AfterQuestion</c> am Knoten, alles andere an den
-    /// Scope-Markern. <c>AfterAnswer</c> hat keinen natürlichen Ort und landet bewusst am Start-Marker –
-    /// an jeden Knoten gehängt würde er dieselbe Konfiguration vielfach zeigen.
+    /// Triggers hang where they fire: <c>AfterQuestion</c> on the node, everything else on the scope
+    /// markers. <c>AfterAnswer</c> has no natural place and deliberately lands on the start marker –
+    /// hung on every node it would show the same configuration many times over.
     /// </summary>
     [Fact]
-    public void Build_haengt_Trigger_an_die_Frage_bzw_an_die_Scope_Marker()
+    public void Build_hangs_triggers_on_the_question_or_on_the_scope_markers()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
         dialog.Triggers.Add(Trigger(dialog.Id, TriggerScope.AfterQuestion, ids.RoleQuestionId));
@@ -196,14 +197,14 @@ public sealed class DialogGraphBuilderTests
         Assert.Equal(2, model.StartMarker!.Triggers.Count);
         Assert.Single(model.EndMarker!.Triggers);
 
-        // Die Marker liegen außerhalb der Knotenfläche – die Zeichenfläche wächst nach oben und unten.
+        // The markers lie outside the node area – the drawing surface grows upwards and downwards.
         Assert.True(model.MinY < 0);
         Assert.True(model.Height > GraphLayout.Compute(AdminProjection.ToDetail(dialog)).Height);
     }
 
-    /// <summary>Ohne solche Trigger gibt es auch keine Marker – der Canvas bleibt frei von Leerformen.</summary>
+    /// <summary>Without such triggers there are no markers either – the canvas stays free of empty shapes.</summary>
     [Fact]
-    public void Build_zeigt_ohne_Scope_Trigger_keine_Marker()
+    public void Build_shows_no_markers_without_scope_triggers()
     {
         var model = DialogGraphBuilder.Build(
             AdminProjection.ToDetail(TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _)));
@@ -214,11 +215,11 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Übergänge und Trigger auf gelöschte Fragen sind nicht zeichenbar. Sie verschwinden nicht still,
-    /// sondern werden getrennt ausgewiesen – wie der bestehende Hinweis in der Listenansicht.
+    /// Transitions and triggers pointing at deleted questions cannot be drawn. They do not disappear
+    /// silently but are reported separately – like the existing hint in the list view.
     /// </summary>
     [Fact]
-    public void Build_weist_verwaiste_Uebergaenge_und_Trigger_getrennt_aus()
+    public void Build_reports_orphaned_transitions_and_triggers_separately()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
         dialog.Transitions.Add(new Transition
@@ -240,11 +241,11 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Für Screenreader ist das <c>aria-label</c> die einzige Fassung eines Knotens. Alles, was sonst nur
-    /// als Farbe oder Position vorliegt, muss darin vorkommen.
+    /// For screen readers the <c>aria-label</c> is a node's only rendition. Everything that otherwise
+    /// exists only as a colour or a position has to appear in it.
     /// </summary>
     [Fact]
-    public void Build_beschreibt_jeden_Knoten_vollstaendig_in_Worten()
+    public void Build_describes_every_node_completely_in_words()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out var ids);
         var model = DialogGraphBuilder.Build(AdminProjection.ToDetail(dialog));
@@ -261,13 +262,13 @@ public sealed class DialogGraphBuilderTests
         Assert.Contains("terminal, no outgoing transition", terminal, StringComparison.Ordinal);
         Assert.Contains("optional", terminal, StringComparison.Ordinal);
 
-        // Auch Kanten tragen ihre volle Aussage – sie sind nicht fokussierbar, aber vorlesbar.
+        // Edges carry their full statement too – they are not focusable, but they are readable aloud.
         Assert.All(model.Edges, edge => Assert.Contains("Transition", edge.AriaLabel, StringComparison.Ordinal));
     }
 
-    /// <summary>Die Zusammenfassung ersetzt das Bild für alle, die es nicht sehen.</summary>
+    /// <summary>The summary replaces the picture for everyone who cannot see it.</summary>
     [Fact]
-    public void Build_fasst_den_Graphen_in_Worten_zusammen()
+    public void Build_summarizes_the_graph_in_words()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _);
 
@@ -280,11 +281,11 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Die Kantenbeschriftung nennt die Auswertungsposition – dieselbe 1-basierte Zählung wie die Spalte
-    /// „#“ der Listenansicht, auf die sich auch die Warntexte beziehen.
+    /// The edge label names the evaluation position – the same 1-based counting as the list view's
+    /// "#" column, which the warning texts refer to as well.
     /// </summary>
     [Fact]
-    public void Build_beschriftet_Kanten_mit_Bedingung_und_Auswertungsposition()
+    public void Build_labels_edges_with_the_condition_and_the_evaluation_position()
     {
         var dialog = TestDialogFactory.BuildBranchingDialog(Guid.NewGuid(), out _);
         var model = DialogGraphBuilder.Build(AdminProjection.ToDetail(dialog));
@@ -299,12 +300,12 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Der Badge „Rücksprung“ folgt der <b>Listenreihenfolge</b> – dieselbe Aussage wie im
-    /// <c>DialogEditor</c>, damit Liste und Graph nicht Verschiedenes behaupten. Die Zeichenform des
-    /// Layouts ist eine andere Frage (Schichtung) und darf hier nicht durchschlagen.
+    /// The "back jump" badge follows the <b>list order</b> – the same statement as in the
+    /// <c>DialogEditor</c>, so that list and graph do not claim different things. The layout's drawing
+    /// form is a different question (layering) and must not bleed through here.
     /// </summary>
     [Fact]
-    public void Build_markiert_Ruecksprünge_nach_der_Listenreihenfolge()
+    public void Build_marks_back_jumps_by_the_list_order()
     {
         var dialog = TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids);
         var loopBack = dialog.Transitions.First(
@@ -319,16 +320,16 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Derselbe Dialog ergibt dasselbe Modell – die Determinismus-Zusage trägt bis hierher.
+    /// The same dialog yields the same model – the determinism promise carries this far.
     /// </summary>
     /// <remarks>
-    /// Verglichen werden die Skalarwerte, nicht die Records selbst: Ein <c>record</c> vergleicht seine
-    /// Sammlungs-Eigenschaften über <c>EqualityComparer&lt;T&gt;.Default</c>, für Listen also über die
-    /// <b>Referenz</b>. Zwei Aufrufe erzeugen zwangsläufig verschiedene Listeninstanzen; ein direkter
-    /// <c>Assert.Equal</c> auf den Knoten prüfte damit Objektidentität statt Anordnung.
+    /// What is compared are the scalar values, not the records themselves: a <c>record</c> compares
+    /// its collection properties over <c>EqualityComparer&lt;T&gt;.Default</c>, so for lists over the
+    /// <b>reference</b>. Two calls inevitably produce different list instances; a direct
+    /// <c>Assert.Equal</c> on the nodes would therefore check object identity instead of arrangement.
     /// </remarks>
     [Fact]
-    public void Build_liefert_fuer_denselben_Dialog_dasselbe_Ergebnis()
+    public void Build_returns_the_same_result_for_the_same_dialog()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out _));
 
@@ -347,9 +348,9 @@ public sealed class DialogGraphBuilderTests
         Assert.Equal(first.Summary, second.Summary);
     }
 
-    /// <summary>Ein leerer Dialog ergibt ein leeres, aber gültiges Modell – die Seite darf nicht scheitern.</summary>
+    /// <summary>An empty dialog yields an empty but valid model – the page must not fail.</summary>
     [Fact]
-    public void Build_vertraegt_einen_Dialog_ohne_Fragen()
+    public void Build_tolerates_a_dialog_without_questions()
     {
         var dialog = TestDialogFactory.NewDialog("leer", 1, "Leer");
 
@@ -362,12 +363,12 @@ public sealed class DialogGraphBuilderTests
     }
 
     /// <summary>
-    /// Der Schleifen-Rahmen folgt einem verschobenen Knoten: Er entsteht als Bounding-Box über den
-    /// Positionen des Bodys, nicht über die Schichtung. Zöge er nicht mit, läge ein Knoten seiner
-    /// eigenen Schleife außerhalb ihres Rahmens.
+    /// The loop frame follows a moved node: it arises as a bounding box over the body's positions, not
+    /// over the layering. If it did not follow along, a node of its own loop would lie outside that
+    /// loop's frame.
     /// </summary>
     [Fact]
-    public void Build_zieht_den_Schleifen_Rahmen_ueber_die_gespeicherte_Position()
+    public void Build_stretches_the_loop_frame_over_the_stored_position()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids));
         var before = Assert.Single(DialogGraphBuilder.Build(detail).Loops);
@@ -389,7 +390,7 @@ public sealed class DialogGraphBuilderTests
         Assert.True(frame.X + frame.Width >= 1200 + GraphMetrics.NodeWidth);
         Assert.True(frame.Y + frame.Height >= 900 + GraphMetrics.NodeHeight);
 
-        // Und der Knoten weiß von seiner eigenen Position – daran hängt die Markierung in der Karte.
+        // And the node knows about its own position – the marking in the card hangs on that.
         Assert.True(model.Node(ids.MoreQuestionId)!.IsPinned);
         Assert.Contains("own position", model.Node(ids.MoreQuestionId)!.AriaLabel, StringComparison.Ordinal);
     }

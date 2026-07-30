@@ -10,11 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert den <see cref="EditAnswerCommandHandler"/> (Issue #28) gegen eine echte SQLite-Datenbank
-/// (in-memory): das Überschreiben einer früheren Antwort, das Invalidieren der nachgelagerten Antworten,
-/// die Pfad-Neuberechnung über das Branching (Zweigwechsel/gleicher Zweig), das Wieder-Öffnen einer
-/// abgeschlossenen Session sowie die Fehlerfälle (unbekannte/abgebrochene Session, nicht beantwortete bzw.
-/// fremde Frage, <c>null</c>-Abhängigkeiten).
+/// Verifies the <see cref="EditAnswerCommandHandler"/> (issue #28) against a real SQLite database
+/// (in-memory): overwriting an earlier answer, invalidating the downstream answers, the path
+/// recomputation over branching (branch switch / same branch), reopening a completed session as well
+/// as the error cases (unknown or abandoned session, an unanswered or foreign question, <c>null</c>
+/// dependencies).
 /// </summary>
 public sealed class EditAnswerCommandHandlerTests : IDisposable
 {
@@ -22,8 +22,8 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public EditAnswerCommandHandlerTests()
     {
@@ -38,7 +38,7 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
@@ -50,9 +50,9 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher);
 
     /// <summary>
-    /// Legt den Branching-Dialog samt einer <b>abgeschlossenen</b> Session an, die den <c>dev</c>-Zweig
-    /// vollständig durchlaufen hat: <c>role</c> = <c>"dev"</c> (Sequence 0) und <c>devDetail</c> = <c>"C#"</c>
-    /// (Sequence 1). Grundlage für die Edit-/Invalidierungs-/Reopen-Fälle.
+    /// Creates the branching dialog together with a <b>completed</b> session that walked the
+    /// <c>dev</c> branch completely: <c>role</c> = <c>"dev"</c> (sequence 0) and <c>devDetail</c> =
+    /// <c>"C#"</c> (sequence 1). The basis for the edit/invalidation/reopen cases.
     /// </summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedCompletedDevSession(string externalUserKey = "user-1")
     {
@@ -91,11 +91,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         return (sessionId, ids);
     }
 
-    // ---- Überschreiben ----------------------------------------------------------------------
+    // ---- Overwriting ------------------------------------------------------------------------
 
-    /// <summary>Die editierte Antwort wird überschrieben; Wert und Zeitpunkt ändern sich, die Sequence bleibt.</summary>
+    /// <summary>The edited answer is overwritten; value and timestamp change, the sequence stays.</summary>
     [Fact]
-    public async Task Handle_ueberschreibt_Antwort()
+    public async Task Handle_overwrites_the_answer()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -113,11 +113,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.NotEqual(TestDialogFactory.SampleTime, role.AnsweredAt);
     }
 
-    // ---- Invalidierung ----------------------------------------------------------------------
+    // ---- Invalidation -----------------------------------------------------------------------
 
-    /// <summary>Nachgelagerte Antworten werden verworfen; nur Antworten bis zur editierten Frage bleiben.</summary>
+    /// <summary>Downstream answers are discarded; only answers up to the edited question remain.</summary>
     [Fact]
-    public async Task Handle_invalidiert_nachgelagerte_Antworten()
+    public async Task Handle_invalidates_the_downstream_answers()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -136,11 +136,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal(ids.RoleQuestionId, answer.QuestionId);
     }
 
-    // ---- Pfad-Neuberechnung -----------------------------------------------------------------
+    // ---- Path recomputation -----------------------------------------------------------------
 
-    /// <summary>Eine geänderte Auswahl führt über das Branching zu einem anderen Zweig (neue Folgefrage).</summary>
+    /// <summary>A changed choice leads over branching into a different branch (a new follow-up question).</summary>
     [Fact]
-    public async Task Handle_geaenderte_Auswahl_fuehrt_zu_neuem_Zweig()
+    public async Task Handle_a_changed_choice_leads_into_a_new_branch()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -161,9 +161,9 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal(ids.PmQuestionId, session.CurrentQuestionId);
     }
 
-    /// <summary>Bleibt der Zweig gleich, wird auf dieselbe Folgefrage gesetzt – die nachgelagerte Antwort trotzdem verworfen.</summary>
+    /// <summary>If the branch stays the same, the same follow-up question is set – the downstream answer is discarded anyway.</summary>
     [Fact]
-    public async Task Handle_gleicher_Wert_setzt_auf_gleiche_Folgefrage()
+    public async Task Handle_the_same_value_sets_the_same_follow_up_question()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -180,11 +180,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal(1, result.InvalidatedAnswers);
     }
 
-    // ---- Session-Status ---------------------------------------------------------------------
+    // ---- Session status ---------------------------------------------------------------------
 
-    /// <summary>Eine abgeschlossene Session wird bei nicht-terminaler Neuberechnung wieder geöffnet.</summary>
+    /// <summary>A completed session is reopened when the recomputation is non-terminal.</summary>
     [Fact]
-    public async Task Handle_reoeffnet_abgeschlossene_Session()
+    public async Task Handle_reopens_a_completed_session()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -201,9 +201,9 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal(ids.PmQuestionId, session.CurrentQuestionId);
     }
 
-    /// <summary>Wird die terminale Frage editiert, bleibt der Dialog abgeschlossen (keine Invalidierung).</summary>
+    /// <summary>If the terminal question is edited, the dialog stays completed (no invalidation).</summary>
     [Fact]
-    public async Task Handle_edit_terminale_Frage_bleibt_abgeschlossen()
+    public async Task Handle_editing_the_terminal_question_stays_completed()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -226,11 +226,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal("\"Rust\"", session.Answers.Single(a => a.QuestionId == ids.DevQuestionId).Value);
     }
 
-    // ---- Fehlerfälle ------------------------------------------------------------------------
+    // ---- Error cases ------------------------------------------------------------------------
 
-    /// <summary>Eine unbekannte Session führt zu einer <see cref="SessionNotFoundException"/>.</summary>
+    /// <summary>An unknown session leads to a <see cref="SessionNotFoundException"/>.</summary>
     [Fact]
-    public async Task Handle_unbekannte_Session_wirft_SessionNotFoundException()
+    public async Task Handle_an_unknown_session_throws_SessionNotFoundException()
     {
         var unknownSession = Guid.NewGuid();
         using var act = CreateContext();
@@ -242,11 +242,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
         Assert.Equal(unknownSession, exception.SessionId);
     }
 
-    /// <summary>Eine noch nicht beantwortete Frage kann nicht editiert werden.</summary>
+    /// <summary>A question that has not been answered yet cannot be edited.</summary>
     [Fact]
-    public async Task Handle_nicht_beantwortete_Frage_wirft_InvalidOperationException()
+    public async Task Handle_an_unanswered_question_throws_InvalidOperationException()
     {
-        // Die Session lief über den dev-Zweig – pmDetail wurde nie beantwortet.
+        // The session walked the dev branch – pmDetail was never answered.
         var (sessionId, ids) = SeedCompletedDevSession();
         using var act = CreateContext();
 
@@ -255,9 +255,9 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
                 new EditAnswerCommand(sessionId, ids.PmQuestionId, "\"x\""), default));
     }
 
-    /// <summary>Eine abgebrochene Session kann nicht editiert werden.</summary>
+    /// <summary>An abandoned session cannot be edited.</summary>
     [Fact]
-    public async Task Handle_abgebrochene_Session_wirft_InvalidOperationException()
+    public async Task Handle_an_abandoned_session_throws_InvalidOperationException()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
         using (var abandon = CreateContext())
@@ -274,9 +274,9 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
                 new EditAnswerCommand(sessionId, ids.RoleQuestionId, "\"pm\""), default));
     }
 
-    /// <summary>Eine nicht zum Dialog gehörende Frage wird abgelehnt.</summary>
+    /// <summary>A question that does not belong to the dialog is rejected.</summary>
     [Fact]
-    public async Task Handle_fremde_Frage_wirft_InvalidOperationException()
+    public async Task Handle_a_foreign_question_throws_InvalidOperationException()
     {
         var (sessionId, _) = SeedCompletedDevSession();
         using var act = CreateContext();
@@ -286,24 +286,24 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
                 new EditAnswerCommand(sessionId, Guid.NewGuid(), "\"x\""), default));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Store()
+    public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(
             () => new EditAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher()));
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Evaluator ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> evaluator.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Evaluator()
+    public void Constructor_throws_on_a_null_evaluator()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => new EditAnswerCommandHandler(new DialogStore(context), null!, new SpyPublisher()));
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Publisher()
+    public void Constructor_throws_on_a_null_publisher()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
@@ -311,14 +311,14 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
                 new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!));
     }
 
-    // ---- Trigger-Notifications --------------------------------------------------------------
+    // ---- Trigger notifications --------------------------------------------------------------
 
     /// <summary>
-    /// Editiert eine terminale Frage, sodass die Neuberechnung erneut abschließt: es wird genau eine
-    /// <see cref="DialogCompletedNotification"/> (mit den Antworten) publiziert.
+    /// Edits a terminal question so that the recomputation completes again: exactly one
+    /// <see cref="DialogCompletedNotification"/> (carrying the answers) is published.
     /// </summary>
     [Fact]
-    public async Task Handle_Abschluss_publiziert_DialogCompleted()
+    public async Task Handle_completion_publishes_DialogCompleted()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 
@@ -336,11 +336,11 @@ public sealed class EditAnswerCommandHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// Führt die Neuberechnung auf eine nicht-terminale Folgefrage (Wieder-Öffnen), wird bewusst keine
-    /// Notification publiziert.
+    /// If the recomputation leads to a non-terminal follow-up question (a reopen), no notification is
+    /// published, deliberately.
     /// </summary>
     [Fact]
-    public async Task Handle_Reopen_publiziert_keine_Notification()
+    public async Task Handle_a_reopen_publishes_no_notification()
     {
         var (sessionId, ids) = SeedCompletedDevSession();
 

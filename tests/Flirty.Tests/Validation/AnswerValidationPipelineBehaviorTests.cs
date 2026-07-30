@@ -12,18 +12,18 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.Validation;
 
 /// <summary>
-/// Verifiziert das <c>AnswerValidationPipelineBehavior</c> (Issue #30) end-to-end durch die volle
-/// Mediator-Pipeline via <see cref="IFlirtyEngine"/> gegen eine echte SQLite-Datenbank: Eine ungültige
-/// Antwort wird <b>vor</b> dem Handler mit <see cref="AnswerValidationException"/> abgewiesen (ohne
-/// Persistenz bzw. Invalidierung), gültige Antworten laufen unverändert durch, und die DI-Registrierung
-/// stimmt.
+/// Verifies the <c>AnswerValidationPipelineBehavior</c> (issue #30) end-to-end through the full
+/// mediator pipeline via <see cref="IFlirtyEngine"/> against a real SQLite database: an invalid answer
+/// is rejected <b>before</b> the handler with an <see cref="AnswerValidationException"/> (without
+/// persistence or invalidation), valid answers pass through unchanged, and the DI registration is
+/// correct.
 /// </summary>
 public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
-    /// <summary>Öffnet eine offen gehaltene SQLite-in-memory-Verbindung und legt das Schema an.</summary>
+    /// <summary>Opens a SQLite in-memory connection that is kept open and creates the schema.</summary>
     public AnswerValidationPipelineBehaviorTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -37,7 +37,7 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private ServiceProvider BuildProvider()
@@ -57,11 +57,11 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
     }
 
     /// <summary>
-    /// Eine typwidrige Auswahl (kein bekannter Options-Value) wird vor dem Handler mit
-    /// <see cref="AnswerValidationException"/> abgewiesen – es wird <b>keine</b> Antwort persistiert.
+    /// A choice that violates the type (no known option value) is rejected before the handler with an
+    /// <see cref="AnswerValidationException"/> – <b>no</b> answer is persisted.
     /// </summary>
     [Fact]
-    public async Task SubmitAnswerAsync_ungueltige_Auswahl_wirft_und_persistiert_nicht()
+    public async Task SubmitAnswerAsync_an_invalid_choice_throws_and_persists_nothing()
     {
         SeedBranchingDialog();
 
@@ -82,9 +82,9 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
         Assert.Equal(start.CurrentQuestion.Id, session.CurrentQuestionId);
     }
 
-    /// <summary>Eine gültige Auswahl läuft unverändert durch die Pipeline (Branching greift).</summary>
+    /// <summary>A valid choice passes through the pipeline unchanged (branching takes effect).</summary>
     [Fact]
-    public async Task SubmitAnswerAsync_gueltige_Auswahl_laeuft_durch()
+    public async Task SubmitAnswerAsync_a_valid_choice_passes_through()
     {
         SeedBranchingDialog();
 
@@ -101,11 +101,11 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
     }
 
     /// <summary>
-    /// Ein ungültiger Editier-Wert wird abgewiesen, <b>bevor</b> der Handler nachgelagerte Antworten
-    /// invalidiert oder den Pfad neu berechnet – die abgeschlossene Session bleibt unverändert.
+    /// An invalid edit value is rejected <b>before</b> the handler invalidates downstream answers or
+    /// recomputes the path – the completed session stays unchanged.
     /// </summary>
     [Fact]
-    public async Task EditAnswerAsync_ungueltiger_Wert_wirft_und_invalidiert_nicht()
+    public async Task EditAnswerAsync_an_invalid_value_throws_and_invalidates_nothing()
     {
         SeedBranchingDialog();
 
@@ -113,7 +113,7 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
         using var scope = provider.CreateScope();
         var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
 
-        // dev-Zweig vollständig durchlaufen (role → devDetail → Abschluss, zwei Antworten).
+        // Walk the dev branch completely (role -> devDetail -> completion, two answers).
         var start = await engine.StartDialogAsync("branching", "user-1");
         var afterRole = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
         await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
@@ -128,11 +128,11 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
     }
 
     /// <summary>
-    /// <c>AddFlirty()</c> registriert den <see cref="IAnswerValidator"/> und das geschlossene
-    /// <c>AnswerValidationPipelineBehavior</c> für <see cref="SubmitAnswerCommand"/>.
+    /// <c>AddFlirty()</c> registers the <see cref="IAnswerValidator"/> and the closed
+    /// <c>AnswerValidationPipelineBehavior</c> for <see cref="SubmitAnswerCommand"/>.
     /// </summary>
     [Fact]
-    public void AddFlirty_registriert_Validator_und_Behavior()
+    public void AddFlirty_registers_the_validator_and_the_behavior()
     {
         using var provider = BuildProvider();
         using var scope = provider.CreateScope();

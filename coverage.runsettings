@@ -1,44 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Konfiguration des Coverage-Collectors (coverlet.collector, #48). Zentral im Repo-Root, damit der
-  CI-Lauf und ein lokaler Lauf exakt dieselben Filter benutzen und die Zahlen vergleichbar bleiben.
+  Configuration of the coverage collector (coverlet.collector, #48). Centrally in the repo root, so
+  that the CI run and a local run use exactly the same filters and the numbers stay comparable.
 
-  Der Collector wird hier bewusst NICHT aktiviert (kein `enabled`-Attribut): er bleibt an den
-  Schalter `collect:"XPlat Code Coverage"` von `dotnet test` gebunden. Sonst instrumentierte jeder
-  gewöhnliche `dotnet test`-Lauf ungefragt mit und würde langsamer.
+  The collector is deliberately NOT enabled here (no `enabled` attribute): it stays bound to the
+  `collect:"XPlat Code Coverage"` switch of `dotnet test`. Otherwise every ordinary `dotnet test` run
+  would instrument along unasked and get slower.
 
-  Den genauen Aufruf (samt `settings`-Schalter) zeigen docs/CI.md und CLAUDE.md.
-  Achtung beim Bearbeiten: XML-Kommentare dürfen keine zwei aufeinanderfolgenden Bindestriche
-  enthalten – VSTest lehnt die Datei sonst mit „does not conform to required format" ab.
+  docs/CI.md and CLAUDE.md show the exact invocation (incl. the `settings` switch).
+  Careful when editing: XML comments must not contain two consecutive hyphens – VSTest otherwise
+  rejects the file with "does not conform to required format".
 -->
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
-          <!-- Cobertura: das Eingabeformat von ReportGenerator (siehe docs/CI.md). -->
+          <!-- Cobertura: the input format of ReportGenerator (see docs/CI.md). -->
           <Format>cobertura</Format>
 
-          <!-- Gemessen wird, was ausgeliefert wird: die beiden NuGet-Pakete. -->
+          <!-- What is measured is what ships: the two NuGet packages. -->
           <Include>[Flirty]*,[Flirty.AspNetCore]*</Include>
 
-          <!-- Bewusst draußen:
-               - Flirty.Migrations.*  generierter EF-Code (Designer-Output), keine Aussagekraft;
-               - Flirty.Samples*      Demo-Anwendungen, nicht das Produkt;
-               - Flirty.Designer      eigene App (#37-#43), kein Paket. -->
+          <!-- Deliberately left out:
+               - Flirty.Migrations.*  generated EF code (designer output), says nothing;
+               - Flirty.Samples*      demo applications, not the product;
+               - Flirty.Designer      an app of its own (#37-#43), not a package. -->
           <Exclude>[Flirty.Migrations.*]*,[Flirty.Samples*]*,[Flirty.Designer]*</Exclude>
 
-          <!-- Compiler-generierte und veraltete Member verzerren die Quote sonst nach unten. -->
+          <!-- Compiler-generated and obsolete members would otherwise skew the ratio downwards. -->
           <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
-          <!-- Auto-Properties haben keinen eigenen Code-Pfad – bei den vielen sealed records im
-               Domänenmodell würden sie die Zahl sonst künstlich aufblähen. -->
+          <!-- Auto-properties have no code path of their own – with the many sealed records in the
+               domain model they would otherwise inflate the number artificially. -->
           <SkipAutoProps>true</SkipAutoProps>
           <IncludeTestAssembly>false</IncludeTestAssembly>
-          <!-- Bewusst AUS, obwohl SourceLink repo-weit verdrahtet ist (Directory.Build.props):
-               eingeschaltet schreibt coverlet statt Dateipfaden raw.githubusercontent-URLs auf den
-               Commit von HEAD in den Report. ReportGenerator lädt die nicht nach, der HTML-Report
-               zeigt dann keinen Quellcode – und lokal zeigte er ohnehin den zuletzt commiteten
-               Stand statt des Arbeitsverzeichnisses. -->
+          <!-- Deliberately OFF, even though SourceLink is wired up repo-wide
+               (Directory.Build.props): switched on, coverlet writes raw.githubusercontent URLs
+               pointing at HEAD's commit into the report instead of file paths. ReportGenerator does
+               not fetch those, so the HTML report shows no source code – and locally it would show
+               the last committed state instead of the working directory anyway. -->
           <UseSourceLink>false</UseSourceLink>
         </Configuration>
       </DataCollector>

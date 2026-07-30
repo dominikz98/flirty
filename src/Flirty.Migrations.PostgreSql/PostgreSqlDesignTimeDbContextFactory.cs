@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace Flirty.Migrations.PostgreSql;
 
 /// <summary>
-/// Design-Time-Factory, über die <c>dotnet ef</c> den <see cref="FlirtyDbContext"/> mit dem
-/// PostgreSQL-Provider (Npgsql) erzeugt, um Migrationen in diesem Assembly zu generieren. Der
-/// Connection-String ist ein Platzhalter – <c>migrations add</c> öffnet keine Verbindung.
+/// Design-time factory via which <c>dotnet ef</c> creates the <see cref="FlirtyDbContext"/> with the
+/// PostgreSQL provider (Npgsql), in order to generate migrations in this assembly. The
+/// connection string is a placeholder – <c>migrations add</c> opens no connection.
 /// </summary>
 internal sealed class PostgreSqlDesignTimeDbContextFactory : IDesignTimeDbContextFactory<FlirtyDbContext>
 {

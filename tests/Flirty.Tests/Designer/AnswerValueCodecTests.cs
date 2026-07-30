@@ -6,42 +6,43 @@ using Flirty.Validation;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="AnswerValueCodec"/> des Test-Runners (#43). Kernprobe – wie bei
-/// <see cref="QuestionFormModelTests"/> – ist der Abgleich mit der Engine: Der im Designer erzeugte rohe
-/// JSON-Text muss genau das sein, was der <see cref="AnswerValidator"/> je <see cref="QuestionType"/>
-/// akzeptiert. Sonst scheiterte jeder Testlauf an der eigenen Kodierung statt am Dialog.
+/// Tests for the test runner's <see cref="AnswerValueCodec"/> (#43). The core check – as with
+/// <see cref="QuestionFormModelTests"/> – is the match against the engine: the raw JSON text produced
+/// in the designer has to be exactly what the <see cref="AnswerValidator"/> accepts per
+/// <see cref="QuestionType"/>. Otherwise every test run would fail on the designer's own encoding
+/// instead of on the dialog.
 /// </summary>
 public sealed class AnswerValueCodecTests
 {
     private static readonly AnswerValidator Validator = new();
 
-    // ---- Kodierung: von der Engine akzeptiert ------------------------------------------------
+    // ---- Encoding: accepted by the engine ----------------------------------------------------
 
-    /// <summary>Freitext, Datum und Einfachauswahl reisen als JSON-Zeichenkette.</summary>
+    /// <summary>Free text, date and single choice travel as a JSON string.</summary>
     [Theory]
-    [InlineData(QuestionType.FreeText, "Hallo Welt", "\"Hallo Welt\"")]
+    [InlineData(QuestionType.FreeText, "Hello world", "\"Hello world\"")]
     [InlineData(QuestionType.Date, "2026-07-22", "\"2026-07-22\"")]
     [InlineData(QuestionType.SingleChoice, "dev", "\"dev\"")]
-    public void Encode_erzeugt_JSON_Zeichenketten(QuestionType type, string input, string expected)
+    public void Encode_produces_JSON_strings(QuestionType type, string input, string expected)
         => Assert.Equal(expected, AnswerValueCodec.Encode(type, input));
 
-    /// <summary>Sonderzeichen werden escaped, damit gültiges JSON entsteht.</summary>
+    /// <summary>Special characters are escaped, so that valid JSON comes out.</summary>
     [Fact]
-    public void Encode_escaped_Anfuehrungszeichen_im_Freitext()
+    public void Encode_escapes_quotation_marks_in_free_text()
     {
-        var encoded = AnswerValueCodec.Encode(QuestionType.FreeText, "Er sagte \"Hallo\"");
+        var encoded = AnswerValueCodec.Encode(QuestionType.FreeText, "He said \"hello\"");
 
         Assert.True(Validator.Validate(NewQuestion(QuestionType.FreeText), encoded).IsValid);
-        Assert.Equal("Er sagte \"Hallo\"", AnswerValueCodec.Describe(null, encoded));
+        Assert.Equal("He said \"hello\"", AnswerValueCodec.Describe(null, encoded));
     }
 
-    /// <summary>Zahlen reisen als rohes JSON-Zahlliteral – invariant, auch bei deutschem Dezimalkomma.</summary>
+    /// <summary>Numbers travel as a raw JSON number literal – invariant, even with a decimal comma.</summary>
     [Theory]
     [InlineData("42", "42")]
     [InlineData("3.5", "3.5")]
     [InlineData("3,5", "3.5")]
     [InlineData(" 7 ", "7")]
-    public void Encode_erzeugt_invariante_Zahlliterale(string input, string expected)
+    public void Encode_produces_invariant_number_literals(string input, string expected)
     {
         var encoded = AnswerValueCodec.Encode(QuestionType.Number, input);
 
@@ -50,27 +51,27 @@ public sealed class AnswerValueCodecTests
     }
 
     /// <summary>
-    /// Eine unlesbare Zahleingabe wird bewusst <b>nicht</b> stillschweigend ersetzt, sondern als
-    /// Zeichenkette weitergereicht – damit die Engine sie mit ihrer eigenen Meldung ablehnt.
+    /// An unreadable number input is deliberately <b>not</b> silently replaced but passed on as a
+    /// string – so that the engine rejects it with its own message.
     /// </summary>
     [Fact]
-    public void Encode_reicht_unlesbare_Zahleingabe_an_die_Engine_weiter()
+    public void Encode_passes_an_unreadable_number_input_on_to_the_engine()
     {
-        var encoded = AnswerValueCodec.Encode(QuestionType.Number, "keine Zahl");
+        var encoded = AnswerValueCodec.Encode(QuestionType.Number, "not a number");
 
         var result = Validator.Validate(NewQuestion(QuestionType.Number), encoded);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.Contains("Zahl", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, error => error.Contains("not a valid number", StringComparison.Ordinal));
     }
 
-    /// <summary>Wahrheitswerte reisen als <c>true</c>/<c>false</c>; alles andere gilt als <c>false</c>.</summary>
+    /// <summary>Truth values travel as <c>true</c>/<c>false</c>; everything else counts as <c>false</c>.</summary>
     [Theory]
     [InlineData("true", "true")]
     [InlineData("True", "true")]
     [InlineData("false", "false")]
     [InlineData("", "false")]
-    public void Encode_erzeugt_Wahrheitswerte(string input, string expected)
+    public void Encode_produces_truth_values(string input, string expected)
     {
         var encoded = AnswerValueCodec.Encode(QuestionType.Boolean, input);
 
@@ -78,9 +79,9 @@ public sealed class AnswerValueCodecTests
         Assert.True(Validator.Validate(NewQuestion(QuestionType.Boolean), encoded).IsValid);
     }
 
-    /// <summary>Die Mehrfachauswahl reist als JSON-Array von Zeichenketten.</summary>
+    /// <summary>A multi choice travels as a JSON array of strings.</summary>
     [Fact]
-    public void Encode_erzeugt_Array_fuer_die_Mehrfachauswahl()
+    public void Encode_produces_an_array_for_the_multi_choice()
     {
         var question = NewQuestion(QuestionType.MultiChoice, ("csharp", "C#"), ("fsharp", "F#"));
 
@@ -90,9 +91,9 @@ public sealed class AnswerValueCodecTests
         Assert.True(Validator.Validate(question, encoded).IsValid);
     }
 
-    /// <summary>Auch die leere Mehrfachauswahl ist gültiges JSON (die Engine prüft die Pflicht separat).</summary>
+    /// <summary>An empty multi choice is valid JSON too (the engine checks the required rule separately).</summary>
     [Fact]
-    public void Encode_erzeugt_leeres_Array_ohne_Auswahl()
+    public void Encode_produces_an_empty_array_without_a_choice()
     {
         var encoded = AnswerValueCodec.Encode(QuestionType.MultiChoice, null, []);
 
@@ -100,82 +101,82 @@ public sealed class AnswerValueCodecTests
         Assert.True(Validator.Validate(NewQuestion(QuestionType.MultiChoice), encoded).IsValid);
     }
 
-    /// <summary>Die Einfachauswahl muss gegen die konfigurierten Options-Werte laufen.</summary>
+    /// <summary>A single choice has to run against the configured option values.</summary>
     [Fact]
-    public void Encode_liefert_bei_unbekannter_Option_die_Ablehnung_der_Engine()
+    public void Encode_yields_the_engines_rejection_for_an_unknown_option()
     {
-        var question = NewQuestion(QuestionType.SingleChoice, ("dev", "Entwickler"));
+        var question = NewQuestion(QuestionType.SingleChoice, ("dev", "Developer"));
 
         Assert.True(Validator.Validate(question, AnswerValueCodec.Encode(question.Type, "dev")).IsValid);
         Assert.False(Validator.Validate(question, AnswerValueCodec.Encode(question.Type, "pm")).IsValid);
     }
 
-    // ---- Anzeige -----------------------------------------------------------------------------
+    // ---- Display -----------------------------------------------------------------------------
 
-    /// <summary>Auswahlen erscheinen mit ihrer Beschriftung, nicht mit dem gespeicherten Wert.</summary>
+    /// <summary>Choices appear with their label, not with the stored value.</summary>
     [Fact]
-    public void Describe_zeigt_die_Beschriftung_einer_Auswahl()
+    public void Describe_shows_the_label_of_a_choice()
     {
-        var question = NewDetail(QuestionType.SingleChoice, ("dev", "Entwickler"));
+        var question = NewDetail(QuestionType.SingleChoice, ("dev", "Developer"));
 
-        Assert.Equal("Entwickler", AnswerValueCodec.Describe(question, "\"dev\""));
+        Assert.Equal("Developer", AnswerValueCodec.Describe(question, "\"dev\""));
     }
 
-    /// <summary>Eine Mehrfachauswahl erscheint kommagetrennt mit Beschriftungen.</summary>
+    /// <summary>A multi choice appears comma-separated with labels.</summary>
     [Fact]
-    public void Describe_zeigt_die_Mehrfachauswahl_kommagetrennt()
+    public void Describe_shows_the_multi_choice_comma_separated()
     {
         var question = NewDetail(QuestionType.MultiChoice, ("csharp", "C#"), ("fsharp", "F#"));
 
         Assert.Equal("C#, F#", AnswerValueCodec.Describe(question, "[\"csharp\",\"fsharp\"]"));
     }
 
-    /// <summary>Wahrheitswerte erscheinen deutsch.</summary>
+    /// <summary>Truth values appear as words, not as JSON literals.</summary>
     [Theory]
     [InlineData("true", "Yes")]
     [InlineData("false", "No")]
-    public void Describe_zeigt_Wahrheitswerte_deutsch(string value, string expected)
+    public void Describe_shows_truth_values_as_words(string value, string expected)
         => Assert.Equal(expected, AnswerValueCodec.Describe(NewDetail(QuestionType.Boolean), value));
 
     /// <summary>
-    /// Gehört die Frage nicht mehr zum Dialog (gelöscht), wird der Rohwert bestmöglich gelesen statt
-    /// verschwiegen.
+    /// If the question no longer belongs to the dialog (deleted), the raw value is read as best it
+    /// can be instead of being withheld.
     /// </summary>
     [Fact]
-    public void Describe_liest_ohne_bekannte_Frage_den_Rohwert()
-        => Assert.Equal("Hallo", AnswerValueCodec.Describe(null, "\"Hallo\""));
+    public void Describe_reads_the_raw_value_without_a_known_question()
+        => Assert.Equal("Hello", AnswerValueCodec.Describe(null, "\"Hello\""));
 
-    /// <summary>Ein unbekannter Options-Wert wird roh gezeigt, nicht unterschlagen.</summary>
+    /// <summary>An unknown option value is shown raw, not suppressed.</summary>
     [Fact]
-    public void Describe_zeigt_unbekannte_Option_roh()
+    public void Describe_shows_an_unknown_option_raw()
     {
-        var question = NewDetail(QuestionType.SingleChoice, ("dev", "Entwickler"));
+        var question = NewDetail(QuestionType.SingleChoice, ("dev", "Developer"));
 
         Assert.Equal("pm", AnswerValueCodec.Describe(question, "\"pm\""));
     }
 
-    // ---- Rundreise ---------------------------------------------------------------------------
+    // ---- Round trip --------------------------------------------------------------------------
 
     /// <summary>
-    /// Der Editier-Modus liest gespeicherte Werte zurück in die Eingabefelder – kodiert man sie erneut,
-    /// muss derselbe JSON-Text herauskommen.
+    /// The edit mode reads stored values back into the input fields – encoding them again has to
+    /// produce the very same JSON text.
     /// </summary>
     [Theory]
-    [InlineData(QuestionType.FreeText, "\"Hallo Welt\"")]
+    [InlineData(QuestionType.FreeText, "\"Hello world\"")]
     [InlineData(QuestionType.Date, "\"2026-07-22\"")]
     [InlineData(QuestionType.SingleChoice, "\"dev\"")]
     [InlineData(QuestionType.Number, "42")]
     [InlineData(QuestionType.Boolean, "true")]
     [InlineData(QuestionType.Boolean, "false")]
     [InlineData(QuestionType.MultiChoice, "[\"csharp\",\"fsharp\"]")]
-    public void Decode_und_Encode_sind_zueinander_invers(QuestionType type, string value)
+    public void Decode_and_Encode_are_inverse_to_each_other(QuestionType type, string value)
     {
         var (text, selected) = AnswerValueCodec.Decode(type, value);
 
         Assert.Equal(value, AnswerValueCodec.Encode(type, text, selected));
     }
 
-    // ---- Testdaten ---------------------------------------------------------------------------
+    // ---- Test data ---------------------------------------------------------------------------
 
     private static Question NewQuestion(QuestionType type, params (string Value, string Label)[] options)
     {

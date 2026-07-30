@@ -4,40 +4,40 @@ using Flirty.Domain;
 namespace Flirty.Expressions;
 
 /// <summary>
-/// Der unveränderliche Auswertungskontext, gegen den ein <see cref="IExpressionEvaluator"/> einen
-/// Bedingungsausdruck auswertet. Bündelt die zum Auswertungszeitpunkt sichtbaren Daten einer
-/// laufenden <see cref="DialogSession"/>: die bisherigen Antworten (nach Frage-Schlüssel), die je
-/// Iteration gesammelten Loop-Collections (nach <c>CollectionKey</c>), den aktuellen
-/// Iterationsindex, den Zeitpunkt und die Session selbst.
+/// The immutable evaluation context against which an <see cref="IExpressionEvaluator"/> evaluates a
+/// condition expression. Bundles the data visible at evaluation time of a
+/// running <see cref="DialogSession"/>: the previous answers (by question key), the loop
+/// collections gathered per iteration (by <c>CollectionKey</c>), the current
+/// iteration index, the point in time and the session itself.
 /// </summary>
 /// <remarks>
-/// Die Werte werden bewusst als <b>roher JSON-Text</b> (wie in <see cref="SessionAnswer.Value"/>
-/// gespeichert) geführt; die typisierte Deserialisierung je Fragetyp obliegt der konkreten
-/// Engine (Issue #23). Die Bausteine bilden die in <c>docs/ARCHITECTURE.md</c> §7 beschriebenen
-/// fünf Kontext-Elemente ab: <c>answers</c>, Loop-Collections, <c>iterationIndex</c>, <c>now</c>,
+/// The values are deliberately kept as <b>raw JSON text</b> (as stored in <see cref="SessionAnswer.Value"/>);
+/// the typed deserialization per question type is the responsibility of the concrete
+/// engine (issue #23). The building blocks map the five context elements described in
+/// <c>docs/ARCHITECTURE.md</c> §7: <c>answers</c>, loop collections, <c>iterationIndex</c>, <c>now</c>,
 /// <c>session</c>.
 /// </remarks>
 public sealed class ExpressionContext
 {
     /// <summary>
-    /// Erstellt einen neuen Auswertungskontext. Nicht angegebene Sammlungen werden als leere,
-    /// nicht-<see langword="null"/>e Sammlungen initialisiert.
+    /// Creates a new evaluation context. Collections that are not provided are initialized as empty,
+    /// non-<see langword="null"/> collections.
     /// </summary>
-    /// <param name="session">Die laufende Session, deren Bedingungen ausgewertet werden.</param>
-    /// <param name="now">Der Auswertungszeitpunkt (z. B. für zeitbasierte Ausdrücke).</param>
+    /// <param name="session">The running session whose conditions are evaluated.</param>
+    /// <param name="now">The evaluation point in time (e.g. for time-based expressions).</param>
     /// <param name="answers">
-    /// Die bisherigen Antworten, indiziert nach dem fachlichen Frage-Schlüssel (<see cref="Question.Key"/>);
-    /// Werte sind roher JSON-Text (<see cref="SessionAnswer.Value"/>). <see langword="null"/> ⇒ leer.
+    /// The previous answers, indexed by the domain question key (<see cref="Question.Key"/>);
+    /// values are raw JSON text (<see cref="SessionAnswer.Value"/>). <see langword="null"/> ⇒ empty.
     /// </param>
     /// <param name="collections">
-    /// Die je Iteration gesammelten Loop-Antworten, indiziert nach dem <see cref="LoopDefinition.CollectionKey"/>;
-    /// je Iteration ein roh-JSON-Eintrag. <see langword="null"/> ⇒ leer.
+    /// The loop answers gathered per iteration, indexed by the <see cref="LoopDefinition.CollectionKey"/>;
+    /// one raw-JSON entry per iteration. <see langword="null"/> ⇒ empty.
     /// </param>
     /// <param name="iterationIndex">
-    /// Der nullbasierte Iterationsindex innerhalb einer Schleife oder <see langword="null"/> außerhalb
-    /// einer Schleife (vgl. <see cref="SessionAnswer.IterationIndex"/>).
+    /// The zero-based iteration index within a loop, or <see langword="null"/> outside
+    /// a loop (cf. <see cref="SessionAnswer.IterationIndex"/>).
     /// </param>
-    /// <exception cref="ArgumentNullException"><paramref name="session"/> ist <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
     public ExpressionContext(
         DialogSession session,
         DateTimeOffset now,
@@ -54,29 +54,29 @@ public sealed class ExpressionContext
         IterationIndex = iterationIndex;
     }
 
-    /// <summary>Die laufende Session, in deren Kontext der Ausdruck ausgewertet wird.</summary>
+    /// <summary>The running session in whose context the expression is evaluated.</summary>
     public DialogSession Session { get; }
 
-    /// <summary>Der Auswertungszeitpunkt.</summary>
+    /// <summary>The evaluation point in time.</summary>
     public DateTimeOffset Now { get; }
 
     /// <summary>
-    /// Die bisherigen Antworten der Session, indiziert nach dem fachlichen Frage-Schlüssel
-    /// (<see cref="Question.Key"/>). Der Wert ist der rohe JSON-Text der Antwort
+    /// The previous answers of the session, indexed by the domain question key
+    /// (<see cref="Question.Key"/>). The value is the raw JSON text of the answer
     /// (<see cref="SessionAnswer.Value"/>).
     /// </summary>
     public IReadOnlyDictionary<string, string?> Answers { get; }
 
     /// <summary>
-    /// Die je Iteration gesammelten Antworten der Schleifen, indiziert nach dem
-    /// <see cref="LoopDefinition.CollectionKey"/> (z. B. <c>positions</c> für <c>positions.Count &gt; 0</c>).
-    /// Jeder Listeneintrag steht für eine Iteration und trägt rohen JSON-Text.
+    /// The answers of the loops gathered per iteration, indexed by the
+    /// <see cref="LoopDefinition.CollectionKey"/> (e.g. <c>positions</c> for <c>positions.Count &gt; 0</c>).
+    /// Each list entry stands for one iteration and carries raw JSON text.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string?>> Collections { get; }
 
     /// <summary>
-    /// Der nullbasierte Iterationsindex innerhalb einer Schleife oder <see langword="null"/>
-    /// außerhalb einer Schleife.
+    /// The zero-based iteration index within a loop, or <see langword="null"/>
+    /// outside a loop.
     /// </summary>
     public int? IterationIndex { get; }
 }

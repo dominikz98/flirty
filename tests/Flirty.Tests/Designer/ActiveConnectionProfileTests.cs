@@ -5,16 +5,16 @@ using Flirty.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für <see cref="ActiveConnectionProfile"/>: das Übernehmen des Store-Standards, das Aktivieren,
-/// das Durchreichen in einen Kind-Scope (<c>Adopt</c>) und – als Regression zu einem Befund aus dem
-/// Abnahme-Durchlauf – das Freigeben beim Löschen des aktiven Profils (<c>Clear</c>). Ohne
-/// <c>Clear</c> hielt der Circuit das gelöschte Profil weiter, und die Admin-Operationen liefen gegen
-/// eine Verbindung, die in der Verwaltung nicht mehr existierte.
+/// Tests for <see cref="ActiveConnectionProfile"/>: taking over the store default, activating,
+/// passing it into a child scope (<c>Adopt</c>) and – as a regression for a finding from the
+/// acceptance pass – releasing it when the active profile is deleted (<c>Clear</c>). Without
+/// <c>Clear</c> the circuit kept holding the deleted profile, and the admin operations ran against a
+/// connection that no longer existed in the management view.
 /// </summary>
 public sealed class ActiveConnectionProfileTests
 {
     [Fact]
-    public void Current_ist_null_ohne_Standardprofil()
+    public void Current_is_null_without_a_default_profile()
     {
         RunWithTempFile(path =>
         {
@@ -25,12 +25,12 @@ public sealed class ActiveConnectionProfileTests
     }
 
     [Fact]
-    public void Current_uebernimmt_das_Standardprofil_des_Stores()
+    public void Current_takes_over_the_stores_default_profile()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
             store.SetDefault(profile.Id);
 
@@ -41,12 +41,12 @@ public sealed class ActiveConnectionProfileTests
     }
 
     [Fact]
-    public void Activate_merkt_das_Profil_als_Store_Standard()
+    public void Activate_remembers_the_profile_as_the_store_default()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
 
             new ActiveConnectionProfile(store).Activate(profile);
@@ -56,16 +56,16 @@ public sealed class ActiveConnectionProfileTests
     }
 
     /// <summary>
-    /// <c>Adopt</c> übernimmt das Profil nur in diesen Scope – der Store-Standard bleibt unberührt
-    /// (mehrere Circuits können unterschiedliche Profile aktiv haben).
+    /// <c>Adopt</c> takes the profile over only into this scope – the store default stays untouched
+    /// (several circuits can have different profiles active).
     /// </summary>
     [Fact]
-    public void Adopt_aendert_den_Store_Standard_nicht()
+    public void Adopt_does_not_change_the_store_default()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
 
             var active = new ActiveConnectionProfile(store);
@@ -77,16 +77,16 @@ public sealed class ActiveConnectionProfileTests
     }
 
     /// <summary>
-    /// Nach <c>Clear</c> ist kein Profil aktiv – auch dann nicht, wenn der Store noch einen Standard
-    /// führt. Das ist die Regression: <c>Current</c> darf den (gelöschten) Standard nicht erneut lesen.
+    /// After <c>Clear</c> no profile is active – not even when the store still carries a default.
+    /// That is the regression: <c>Current</c> must not read the (deleted) default again.
     /// </summary>
     [Fact]
-    public void Clear_gibt_das_aktive_Profil_frei_und_liest_den_Standard_nicht_erneut()
+    public void Clear_releases_the_active_profile_and_does_not_read_the_default_again()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
             store.SetDefault(profile.Id);
 
@@ -99,14 +99,14 @@ public sealed class ActiveConnectionProfileTests
         });
     }
 
-    /// <summary>Der typische Ablauf beim Löschen des aktiven Profils: Store räumt auf, Scope gibt frei.</summary>
+    /// <summary>The typical flow when the active profile is deleted: the store cleans up, the scope releases.</summary>
     [Fact]
-    public void Loeschen_des_aktiven_Profils_hinterlaesst_keinen_aktiven_Zustand()
+    public void Deleting_the_active_profile_leaves_no_active_state()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
 
             var active = new ActiveConnectionProfile(store);

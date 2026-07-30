@@ -3,30 +3,29 @@ using Flirty.Persistence;
 namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Extension-Methoden, die einen <see cref="FlirtyDatabaseProvider"/> auf die passende EF-Core-Provider-
-/// Registrierung des <see cref="DbContextOptionsBuilder"/> inklusive korrekter <c>MigrationsAssembly</c>
-/// abbilden.
+/// Extension methods that map a <see cref="FlirtyDatabaseProvider"/> to the matching EF Core provider
+/// registration of the <see cref="DbContextOptionsBuilder"/> including the correct <c>MigrationsAssembly</c>.
 /// </summary>
 /// <remarks>
-/// Eingeführt in Issue #37 als <b>einzige</b> Stelle, an der die drei Migrations-Assembly-Namen
-/// (<c>Flirty.Migrations.Sqlite</c>/<c>PostgreSql</c>/<c>SqlServer</c>) verankert sind. Sowohl die
-/// <c>FlirtyOptions.Use*</c>-Methoden (Provider-Wahl zur DI-Zeit) als auch die Laufzeit-Profilwahl des
-/// Designers (Multi-DB) nutzen diese Abbildung, damit das Mapping nicht dupliziert wird.
+/// Introduced in issue #37 as the <b>single</b> place where the three migrations assembly names
+/// (<c>Flirty.Migrations.Sqlite</c>/<c>PostgreSql</c>/<c>SqlServer</c>) are anchored. Both the
+/// <c>FlirtyOptions.Use*</c> methods (provider choice at DI time) and the runtime profile choice of the
+/// designer (multi-DB) use this mapping so that it is not duplicated.
 /// </remarks>
 public static class FlirtyDatabaseProviderExtensions
 {
     /// <summary>
-    /// Konfiguriert den <paramref name="builder"/> für den angegebenen <paramref name="provider"/> mit der
-    /// Verbindungszeichenfolge <paramref name="connectionString"/> und der zum Provider gehörenden
-    /// <c>MigrationsAssembly</c>.
+    /// Configures the <paramref name="builder"/> for the given <paramref name="provider"/> with the
+    /// connection string <paramref name="connectionString"/> and the <c>MigrationsAssembly</c> belonging
+    /// to the provider.
     /// </summary>
-    /// <param name="builder">Der zu konfigurierende Options-Builder.</param>
-    /// <param name="provider">Der zu verwendende Datenbank-Provider.</param>
-    /// <param name="connectionString">Die Verbindungszeichenfolge für den gewählten Provider.</param>
-    /// <returns>Denselben <paramref name="builder"/>, um Aufrufe verketten zu können.</returns>
-    /// <exception cref="System.ArgumentNullException"><paramref name="builder"/> ist <see langword="null"/>.</exception>
-    /// <exception cref="System.ArgumentException"><paramref name="connectionString"/> ist leer oder nur Leerraum.</exception>
-    /// <exception cref="System.ComponentModel.InvalidEnumArgumentException"><paramref name="provider"/> ist kein definierter Wert.</exception>
+    /// <param name="builder">The options builder to configure.</param>
+    /// <param name="provider">The database provider to use.</param>
+    /// <param name="connectionString">The connection string for the chosen provider.</param>
+    /// <returns>The same <paramref name="builder"/> so calls can be chained.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
+    /// <exception cref="System.ArgumentException"><paramref name="connectionString"/> is empty or whitespace only.</exception>
+    /// <exception cref="System.ComponentModel.InvalidEnumArgumentException"><paramref name="provider"/> is not a defined value.</exception>
     public static DbContextOptionsBuilder UseFlirtyProvider(
         this DbContextOptionsBuilder builder,
         FlirtyDatabaseProvider provider,

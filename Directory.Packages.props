@@ -5,34 +5,34 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
-  <!-- Test-Stack (aus den xUnit-Templates) -->
+  <!-- Test stack (from the xUnit templates) -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <!-- Coverage-Collector (#48). Muss der .NET-Linie folgen: 6.0.4 (aus dem xUnit-Template, .NET-8-Ära)
-         konnte das net10.0-kompilierte Flirty.dll nicht instrumentieren ("Unable to instrument module")
-         und lieferte einen Report OHNE den Core – also genau ohne das, was gemessen werden soll. -->
+    <!-- Coverage collector (#48). Has to follow the .NET line: 6.0.4 (from the xUnit template, the
+         .NET 8 era) could not instrument the net10.0-compiled Flirty.dll ("Unable to instrument
+         module") and produced a report WITHOUT the core – so without exactly what is to be measured. -->
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
-    <!-- Bedingtes Überspringen zur Laufzeit (xUnit v2 hat kein Assert.Skip): die Docker-abhängigen
-         Provider-Tests (#19) werden ohne Docker sauber übersprungen statt zu scheitern. -->
+    <!-- Conditional skipping at runtime (xUnit v2 has no Assert.Skip): the Docker-dependent provider
+         tests (#19) skip cleanly without Docker instead of failing. -->
     <PackageVersion Include="Xunit.SkippableFact" Version="1.5.61" />
-    <!-- Testcontainers: reale PostgreSQL-/SQL-Server-Datenbanken für die Provider-Migrationstests
-         (#19, "DB wird gegen jeden der drei Provider erzeugt"). Nur im Testprojekt, brauchen Docker. -->
+    <!-- Testcontainers: real PostgreSQL/SQL Server databases for the provider migration tests
+         (#19, "the DB is created against each of the three providers"). Test project only, need Docker. -->
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.13.0" />
-    <!-- In-Process-TestServer für die MapFlirtyEndpoints-Integrationstests (#35): echte HTTP-Aufrufe
-         gegen die Minimal-API-Endpunkte ohne echten Kestrel/Port, Docker-frei. Version an die
-         installierte Microsoft.AspNetCore.App-10.0-Laufzeit angeglichen (Shared Framework). -->
+    <!-- In-process TestServer for the MapFlirtyEndpoints integration tests (#35): real HTTP calls
+         against the minimal-API endpoints without a real Kestrel/port, Docker-free. Version aligned
+         with the installed Microsoft.AspNetCore.App 10.0 runtime (shared framework). -->
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.8" />
-    <!-- Playwright-E2E der Web-Sample (#45/#47): treibt die Chat-UI im echten Browser gegen ein echtes
-         Kestrel. Browser werden per `playwright.ps1 install` bereitgestellt; fehlen sie, überspringen sich
-         die Tests (SkippableFact) statt zu scheitern. -->
+    <!-- Playwright E2E of the web sample (#45/#47): drives the chat UI in a real browser against a
+         real Kestrel. Browsers are provided via `playwright.ps1 install`; if they are missing, the
+         tests skip themselves (SkippableFact) instead of failing. -->
     <PackageVersion Include="Microsoft.Playwright" Version="1.61.0" />
   </ItemGroup>
 
-  <!-- Kern-Abhängigkeiten (zentral gepinnt; Verdrahtung per
-       <PackageReference Include="…" /> OHNE Version in Folge-Issues #14/#18/#19/#23). -->
+  <!-- Core dependencies (pinned centrally; wired up via
+       <PackageReference Include="…" /> WITHOUT a version in the follow-up issues #14/#18/#19/#23). -->
   <ItemGroup>
     <!-- Mediator (martinothamar) -->
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
@@ -42,36 +42,36 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <!-- Design-Time-Tooling (dotnet ef): Erzeugen der Migrationen je Provider (#19).
-         Nur als PrivateAssets=all in den Migrations-Projekten referenziert. -->
+    <!-- Design-time tooling (dotnet ef): generating the migrations per provider (#19).
+         Referenced only as PrivateAssets=all in the migration projects. -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
-    <!-- Natives SQLite-Binary (transitiv über EF Core Sqlite, nur im Test-Host).
-         Auf die gepatchte, ABI-kompatible Version gehoben: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11
-         hat eine High-Severity-Schwachstelle (GHSA-2m69-gcr7-jv3q); NU1903 bricht sonst den Build
-         (TreatWarningsAsErrors). Die managed-Pakete (core/provider/bundle) sind nicht betroffen. -->
+    <!-- Native SQLite binary (transitive over EF Core Sqlite, test host only).
+         Raised to the patched, ABI-compatible version: SQLitePCLRaw.lib.e_sqlite3 <= 2.1.11 has a
+         high-severity vulnerability (GHSA-2m69-gcr7-jv3q); otherwise NU1903 breaks the build
+         (TreatWarningsAsErrors). The managed packages (core/provider/bundle) are not affected. -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
-    <!-- Branching-/Expression-Engine (Default-Evaluator) -->
+    <!-- Branching/expression engine (the default evaluator) -->
     <PackageVersion Include="DynamicExpresso.Core" Version="2.19.3" />
-    <!-- Microsoft.Extensions (Logging/DI/Hosting/Http) – an die .NET-10-Linie angeglichen. Auf 10.0.10
-         gehoben, weil Microsoft.Extensions.Http.Resilience 10.8.0 (#33) transitiv die runtime-Extensions
-         >= 10.0.10 verlangt (sonst NU1109-Downgrade). EF Core 10.0.9 erfüllt >= 10.0.10 nicht selbst,
-         fordert aber nur >= 10.0.9 -> kein Konflikt. -->
+    <!-- Microsoft.Extensions (logging/DI/hosting/http) – aligned with the .NET 10 line. Raised to
+         10.0.10 because Microsoft.Extensions.Http.Resilience 10.8.0 (#33) transitively requires the
+         runtime extensions >= 10.0.10 (otherwise an NU1109 downgrade). EF Core 10.0.9 does not itself
+         satisfy >= 10.0.10 but only asks for >= 10.0.9 -> no conflict. -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
-    <!-- IHostedService + AddHostedService für die Auto-Migration (#20, FlirtyMigrationHostedService).
-         Wird NICHT transitiv über EF Core gezogen, daher explizit. Echte Laufzeit-Abhängigkeit des
-         Flirty-Pakets. -->
+    <!-- IHostedService + AddHostedService for the auto-migration (#20, FlirtyMigrationHostedService).
+         NOT pulled in transitively over EF Core, hence explicit. A real runtime dependency of the
+         Flirty package. -->
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
-    <!-- Outbound-Webhook-Handler (#33): IHttpClientFactory/AddHttpClient + Retry/Timeout über die
-         Standard-Resilience-Pipeline (Polly v8). Http.Resilience folgt der eigenständigen
-         dotnet/extensions-Versionslinie (10.x). -->
+    <!-- Outbound webhook handler (#33): IHttpClientFactory/AddHttpClient + retry/timeout over the
+         standard resilience pipeline (Polly v8). Http.Resilience follows the independent
+         dotnet/extensions version line (10.x). -->
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
   </ItemGroup>
 
-  <!-- SourceLink: bettet GitHub-Quellverweise für Debugging ein (Packaging-Issue #15).
-       Verdrahtung repo-weit in Directory.Build.props (PrivateAssets=all). -->
+  <!-- SourceLink: embeds GitHub source references for debugging (packaging issue #15).
+       Wired up repo-wide in Directory.Build.props (PrivateAssets=all). -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>

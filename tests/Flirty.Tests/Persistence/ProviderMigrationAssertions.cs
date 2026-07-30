@@ -4,26 +4,26 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Gemeinsame Zusicherung für die provider-übergreifenden Migrationstests (#19): wendet die
-/// provider-spezifische <c>InitialCreate</c>-Migration via <c>Database.Migrate()</c> an (erzeugt
-/// also die DB gegen den jeweiligen Provider) und prüft anschließend einen vollständigen
-/// Aggregat-Round-Trip. Wird von SQLite, PostgreSQL und SQL Server identisch verwendet.
+/// Shared assertion for the cross-provider migration tests (#19): applies the provider-specific
+/// <c>InitialCreate</c> migration via <c>Database.Migrate()</c> (so the database is created against
+/// the respective provider) and then checks a complete aggregate round trip. Used identically by
+/// SQLite, PostgreSQL and SQL Server.
 /// </summary>
 internal static class ProviderMigrationAssertions
 {
     /// <summary>
-    /// Migriert die Datenbank aus den angegebenen <paramref name="options"/>, speichert ein
-    /// vollständiges Dialog-Aggregat und lädt es mit allen Navigationen erneut. Verifiziert, dass
-    /// das Schema aus der Migration (nicht aus <c>EnsureCreated</c>) entstanden ist.
+    /// Migrates the database from the given <paramref name="options"/>, stores a complete dialog
+    /// aggregate and loads it again with all navigations. Verifies that the schema came from the
+    /// migration and not from <c>EnsureCreated</c>.
     /// </summary>
-    /// <param name="options">Vorkonfigurierte Optionen inkl. Provider und Migrations-Assembly.</param>
+    /// <param name="options">Preconfigured options incl. provider and migrations assembly.</param>
     public static void MigrateCreatesSchemaAndRoundTripsAggregate(DbContextOptions<FlirtyDbContext> options)
     {
         var dialogId = Guid.NewGuid();
 
         using (var context = new FlirtyDbContext(options))
         {
-            // Wendet die provider-spezifische InitialCreate-Migration an -> das Schema entsteht.
+            // Applies the provider-specific InitialCreate migration -> the schema comes into being.
             context.Database.Migrate();
 
             context.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out _));
@@ -54,9 +54,9 @@ internal static class ProviderMigrationAssertions
 
         using (var context = new FlirtyDbContext(options))
         {
-            // Belegt, dass das Schema aus angewandten Migrationen stammt (nicht aus EnsureCreated) und
-            // dass alle Sets dieses Providers vollständig sind – hier hängt das Akzeptanzkriterium
-            // „Migration läuft gegen alle drei Provider" (#102).
+            // Proves that the schema comes from applied migrations (not from EnsureCreated) and that
+            // this provider's migration sets are complete – the acceptance criterion "the migration
+            // runs against all three providers" (#102) hangs here.
             Assert.Empty(context.Database.GetPendingMigrations());
 
             var applied = context.Database.GetAppliedMigrations().ToArray();

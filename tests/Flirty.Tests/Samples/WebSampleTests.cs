@@ -14,16 +14,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Flirty.Tests.Samples;
 
 /// <summary>
-/// Prüft die Web-Sample (#45) end-to-end über einen In-Process-<see cref="TestServer"/>: die echte
-/// Sample-Komposition (<see cref="WebSampleApp"/>) wird gehostet, der Demo-Dialog über die Admin-CRUD-API
-/// aufgebaut und anschließend über die Laufzeit-Endpunkte durchgespielt. Abgedeckt: Branching, Loop über
-/// Liste, Resume, Edit, In-Process-Handler-Auslösung und der Inbound-Webhook-Empfänger. Der volle
-/// Outbound→Inbound-Webhook-Rundlauf ist bewusst dem Playwright-E2E vorbehalten (braucht echtes Kestrel).
+/// Checks the web sample (#45) end-to-end over an in-process <see cref="TestServer"/>: the real
+/// sample composition (<see cref="WebSampleApp"/>) is hosted, the demo dialog is built via the admin
+/// CRUD API and then played through over the runtime endpoints. Covered: branching, loop over a list,
+/// resume, edit, in-process handler dispatch and the inbound webhook receiver. The full
+/// outbound→inbound webhook round trip is deliberately left to the Playwright E2E (it needs a real
+/// Kestrel).
 /// </summary>
 public sealed class WebSampleTests
 {
     [Fact]
-    public async Task Branching_dev_Zweig_Loop_und_Abschluss_loesen_InProcess_Handler_aus()
+    public async Task Branching_dev_branch_loop_and_completion_fire_the_in_process_handler()
     {
         await using var host = await WebSampleTestHost.StartAsync();
         var client = host.Client;
@@ -32,14 +33,14 @@ public sealed class WebSampleTests
         Assert.False(start.IsResumed);
         Assert.Equal(DemoDialog.RoleKey, start.CurrentQuestion.Key);
 
-        // Branching: role == "dev" -> language (nicht product).
+        // Branching: role == "dev" -> language, not product.
         var afterRole = await SubmitAsync(client, start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
         Assert.Equal(DemoDialog.LanguageKey, afterRole.NextQuestion!.Key);
 
         var afterLanguage = await SubmitAsync(client, start.SessionId, afterRole.NextQuestion.Id, "\"C#\"");
         Assert.Equal(DemoDialog.SkillKey, afterLanguage.NextQuestion!.Key);
 
-        // Loop über Liste: skill (Iteration 0) -> more=yes (Loop-Back) -> skill (Iteration 1) -> more=no (Exit).
+        // Loop over a list: skill (iteration 0) -> more=yes (loop back) -> skill (iteration 1) -> more=no (exit).
         var afterSkill0 = await SubmitAsync(client, start.SessionId, afterLanguage.NextQuestion.Id, "\"EF Core\"");
         Assert.Equal(DemoDialog.MoreKey, afterSkill0.NextQuestion!.Key);
         var afterMoreYes = await SubmitAsync(client, start.SessionId, afterSkill0.NextQuestion.Id, "\"yes\"");
@@ -52,13 +53,13 @@ public sealed class WebSampleTests
         Assert.True(afterSummary.IsCompleted);
         Assert.Null(afterSummary.NextQuestion);
 
-        // In-Process-Handler wurde beim Abschluss ausgelöst (Beleg für Publish + AddFlirtyHandler).
+        // The in-process handler fired on completion (proof of Publish + AddFlirtyHandler).
         var triggers = host.Services.GetRequiredService<TriggerLog>().Snapshot();
         var trigger = Assert.Single(triggers);
         Assert.Equal(DemoDialog.DialogKey, trigger.DialogKey);
         Assert.Equal(start.SessionId, trigger.SessionId);
 
-        // Resume: der gelesene Zustand zeigt zwei gesammelte skill-Iterationen (Loop über Liste).
+        // Resume: the read state shows two collected skill iterations (loop over a list).
         var state = await client.GetFromJsonAsync<SessionStateResponse>($"/flirty/sessions/{start.SessionId}");
         Assert.NotNull(state);
         Assert.Equal(SessionStatus.Completed, state!.Status);
@@ -71,7 +72,7 @@ public sealed class WebSampleTests
     }
 
     [Fact]
-    public async Task Branching_default_Zweig_fuehrt_zu_product()
+    public async Task Branching_default_branch_leads_to_product()
     {
         await using var host = await WebSampleTestHost.StartAsync();
         var client = host.Client;
@@ -83,7 +84,7 @@ public sealed class WebSampleTests
     }
 
     [Fact]
-    public async Task Edit_der_Startfrage_wechselt_den_Zweig_und_verwirft_nachgelagerte_Antworten()
+    public async Task Edit_of_the_entry_question_switches_the_branch_and_discards_downstream_answers()
     {
         await using var host = await WebSampleTestHost.StartAsync();
         var client = host.Client;
@@ -92,7 +93,7 @@ public sealed class WebSampleTests
         var afterRole = await SubmitAsync(client, start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
         await SubmitAsync(client, start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
 
-        // role dev -> pm editieren: Pfad wird neu berechnet (product), nachgelagerte Antworten verworfen.
+        // Edit role dev -> pm: the path is recomputed (product), downstream answers are discarded.
         var response = await client.PutAsJsonAsync(
             $"/flirty/sessions/{start.SessionId}/answers/{start.CurrentQuestion.Id}",
             new { value = "\"pm\"" });
@@ -104,7 +105,7 @@ public sealed class WebSampleTests
     }
 
     [Fact]
-    public async Task Edit_einer_Loop_Iteration_ueber_iterationIndex_ist_gezielt_moeglich()
+    public async Task Edit_of_a_loop_iteration_via_iterationIndex_targets_exactly_that_iteration()
     {
         await using var host = await WebSampleTestHost.StartAsync();
         var client = host.Client;
@@ -117,7 +118,7 @@ public sealed class WebSampleTests
         var afterMoreYes = await SubmitAsync(client, start.SessionId, afterSkill0.NextQuestion!.Id, "\"yes\"");
         await SubmitAsync(client, start.SessionId, afterMoreYes.NextQuestion!.Id, "\"Blazor\"");
 
-        // Gezielt Iteration 0 der skill-Frage editieren.
+        // Edit iteration 0 of the skill question specifically.
         var response = await client.PutAsJsonAsync(
             $"/flirty/sessions/{start.SessionId}/answers/{skillId}",
             new { value = "\"EF Core 10\"", iterationIndex = 0 });
@@ -131,7 +132,7 @@ public sealed class WebSampleTests
     }
 
     [Fact]
-    public async Task Inbound_Webhook_Empfaenger_nimmt_Zustellung_entgegen_und_zeigt_sie_an()
+    public async Task Inbound_webhook_receiver_accepts_a_delivery_and_shows_it()
     {
         await using var host = await WebSampleTestHost.StartAsync();
         var client = host.Client;
@@ -167,9 +168,10 @@ public sealed class WebSampleTests
     }
 
     /// <summary>
-    /// In-Process-TestServer-Host, der die echte Sample-Komposition (<see cref="WebSampleApp"/>) gegen eine
-    /// SQLite-in-memory-Datenbank hochfährt. Auto-Provisioning und Outbound-Webhook sind für den TestServer
-    /// deaktiviert; der Demo-Dialog wird nach dem Start über die Admin-CRUD-API (TestServer-Client) gebaut.
+    /// In-process TestServer host that brings up the real sample composition
+    /// (<see cref="WebSampleApp"/>) against a SQLite in-memory database. Auto-provisioning and the
+    /// outbound webhook are disabled for the TestServer; the demo dialog is built after startup over
+    /// the admin CRUD API (TestServer client).
     /// </summary>
     private sealed class WebSampleTestHost : IAsyncDisposable
     {

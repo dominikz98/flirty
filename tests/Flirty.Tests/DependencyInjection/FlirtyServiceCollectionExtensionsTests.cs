@@ -12,18 +12,18 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.DependencyInjection;
 
 /// <summary>
-/// Verifiziert den Options-Ausbau von <c>AddFlirty(Action&lt;FlirtyOptions&gt;)</c> aus Issue #34:
-/// Provider-Wahl (<c>UseSqlite</c>/<c>UsePostgreSql</c>/<c>UseSqlServer</c>) inkl. automatischer
-/// <see cref="FlirtyDbContext"/>-Registrierung mit korrekter <c>MigrationsAssembly</c>, austauschbarer
-/// <see cref="IExpressionEvaluator"/> (<c>UseExpressionEvaluator&lt;T&gt;()</c>) und die Webhook-Stub-
-/// Registrierung (<c>AddWebhook</c>). Enthält zusätzlich ein reines Console-Setup ohne ASP.NET, das
-/// einen Dialog end-to-end über die Facade <see cref="IFlirtyEngine"/> durchspielt.
+/// Verifies the options build-out of <c>AddFlirty(Action&lt;FlirtyOptions&gt;)</c> from issue #34:
+/// provider choice (<c>UseSqlite</c>/<c>UsePostgreSql</c>/<c>UseSqlServer</c>) incl. automatic
+/// <see cref="FlirtyDbContext"/> registration with the correct <c>MigrationsAssembly</c>, a
+/// swappable <see cref="IExpressionEvaluator"/> (<c>UseExpressionEvaluator&lt;T&gt;()</c>) and the
+/// webhook stub registration (<c>AddWebhook</c>). Also contains a pure console setup without
+/// ASP.NET that plays a dialog through end-to-end via the facade <see cref="IFlirtyEngine"/>.
 /// </summary>
 public sealed class FlirtyServiceCollectionExtensionsTests
 {
-    /// <summary><c>UseSqlite</c> registriert einen auflösbaren, mit SQLite konfigurierten <see cref="FlirtyDbContext"/>.</summary>
+    /// <summary><c>UseSqlite</c> registers a resolvable <see cref="FlirtyDbContext"/> configured with SQLite.</summary>
     [Fact]
-    public void UseSqlite_registriert_FlirtyDbContext_mit_Sqlite_Provider_und_MigrationsAssembly()
+    public void UseSqlite_registers_FlirtyDbContext_with_the_Sqlite_provider_and_migrations_assembly()
     {
         using var provider = BuildProvider(options => options.UseSqlite("Data Source=:memory:"));
         using var scope = provider.CreateScope();
@@ -37,9 +37,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IFlirtyEngine>());
     }
 
-    /// <summary><c>UsePostgreSql</c> wählt den Npgsql-Provider und die PostgreSQL-Migrations-Assembly.</summary>
+    /// <summary><c>UsePostgreSql</c> picks the Npgsql provider and the PostgreSQL migrations assembly.</summary>
     [Fact]
-    public void UsePostgreSql_waehlt_den_Npgsql_Provider_und_MigrationsAssembly()
+    public void UsePostgreSql_picks_the_Npgsql_provider_and_migrations_assembly()
     {
         using var provider = BuildProvider(
             options => options.UsePostgreSql("Host=localhost;Database=flirty;Username=u;Password=p"));
@@ -52,9 +52,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
             migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
     }
 
-    /// <summary><c>UseSqlServer</c> wählt den SQL-Server-Provider und die SQL-Server-Migrations-Assembly.</summary>
+    /// <summary><c>UseSqlServer</c> picks the SQL Server provider and the SQL Server migrations assembly.</summary>
     [Fact]
-    public void UseSqlServer_waehlt_den_SqlServer_Provider_und_MigrationsAssembly()
+    public void UseSqlServer_picks_the_SqlServer_provider_and_migrations_assembly()
     {
         using var provider = BuildProvider(
             options => options.UseSqlServer("Server=localhost;Database=flirty;Trusted_Connection=True;"));
@@ -67,9 +67,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
             migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
     }
 
-    /// <summary><c>UseExpressionEvaluator&lt;T&gt;()</c> ersetzt den Default-Evaluator durch die eigene Implementierung.</summary>
+    /// <summary><c>UseExpressionEvaluator&lt;T&gt;()</c> replaces the default evaluator with the host's own implementation.</summary>
     [Fact]
-    public void UseExpressionEvaluator_ersetzt_den_Default()
+    public void UseExpressionEvaluator_replaces_the_default()
     {
         using var provider = BuildProvider(options => options.UseExpressionEvaluator<FakeExpressionEvaluator>());
 
@@ -78,9 +78,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.IsType<FakeExpressionEvaluator>(evaluator);
     }
 
-    /// <summary>Ohne <c>UseExpressionEvaluator</c> bleibt der Default <c>DynamicExpressoExpressionEvaluator</c> registriert.</summary>
+    /// <summary>Without <c>UseExpressionEvaluator</c> the default <c>DynamicExpressoExpressionEvaluator</c> stays registered.</summary>
     [Fact]
-    public void Ohne_UseExpressionEvaluator_bleibt_der_Default()
+    public void Without_UseExpressionEvaluator_the_default_stays()
     {
         using var provider = BuildProvider(_ => { });
 
@@ -89,9 +89,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.IsType<DynamicExpressoExpressionEvaluator>(evaluator);
     }
 
-    /// <summary><c>AddWebhook</c> stellt die gesammelten Registrierungen als <see cref="IReadOnlyList{T}"/> bereit.</summary>
+    /// <summary><c>AddWebhook</c> exposes the collected registrations as an <see cref="IReadOnlyList{T}"/>.</summary>
     [Fact]
-    public void AddWebhook_stellt_die_Registrierungen_bereit()
+    public void AddWebhook_exposes_the_registrations()
     {
         using var provider = BuildProvider(options => options
             .AddWebhook("order-created", "https://example.test/order")
@@ -104,9 +104,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Contains(webhooks, hook => hook == new FlirtyWebhookRegistration("dialog-completed", "https://example.test/done"));
     }
 
-    /// <summary>Ohne <c>AddWebhook</c> ist die Webhook-Liste auflösbar und leer.</summary>
+    /// <summary>Without <c>AddWebhook</c> the webhook list is resolvable and empty.</summary>
     [Fact]
-    public void Ohne_AddWebhook_ist_die_Webhook_Liste_leer()
+    public void Without_AddWebhook_the_webhook_list_is_empty()
     {
         using var provider = BuildProvider(_ => { });
 
@@ -116,15 +116,15 @@ public sealed class FlirtyServiceCollectionExtensionsTests
     }
 
     /// <summary>
-    /// Reines Console-Setup ohne ASP.NET: <c>AddLogging().AddFlirty(o =&gt; o.UseSqlite(...))</c> verdrahtet den
-    /// gesamten Stack; ein veröffentlichter Dialog lässt sich über die Facade <see cref="IFlirtyEngine"/>
-    /// starten und beantworten (Branching liefert die nächste Frage).
+    /// A pure console setup without ASP.NET: <c>AddLogging().AddFlirty(o =&gt; o.UseSqlite(...))</c> wires
+    /// up the whole stack; a published dialog can be started and answered via the facade
+    /// <see cref="IFlirtyEngine"/> (branching returns the next question).
     /// </summary>
     [Fact]
-    public async Task Console_Setup_ohne_AspNet_spielt_Dialog_ueber_die_Facade_durch()
+    public async Task Console_setup_without_AspNet_plays_the_dialog_through_the_facade()
     {
-        // Shared-Cache-in-memory: solange die keep-alive-Verbindung offen ist, teilen sich alle
-        // DI-erzeugten FlirtyDbContext-Instanzen dieselbe in-memory-Datenbank.
+        // Shared-cache in-memory: as long as the keep-alive connection stays open, all
+        // DI-created FlirtyDbContext instances share the same in-memory database.
         const string connectionString = "Data Source=FlirtyDiConsoleTest;Mode=Memory;Cache=Shared";
         using var keepAlive = new SqliteConnection(connectionString);
         keepAlive.Open();
@@ -155,9 +155,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Equal(ids.DevQuestionId, next.NextQuestion.Id);
     }
 
-    /// <summary><c>AddFlirtyHandler</c> registriert den Handler auflösbar als <see cref="ServiceLifetime.Scoped"/> (Default).</summary>
+    /// <summary><c>AddFlirtyHandler</c> registers the handler resolvably as <see cref="ServiceLifetime.Scoped"/> (the default).</summary>
     [Fact]
-    public void AddFlirtyHandler_registriert_Handler_als_Scoped_Default()
+    public void AddFlirtyHandler_registers_the_handler_as_scoped_by_default()
     {
         var services = new ServiceCollection();
 
@@ -169,9 +169,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
     }
 
-    /// <summary>Mehrere Handler je Notification bleiben erhalten (Beleg gegen <c>TryAdd</c>/<c>Replace</c>) und sind alle auflösbar.</summary>
+    /// <summary>Several handlers per notification are preserved (proof against <c>TryAdd</c>/<c>Replace</c>) and all resolvable.</summary>
     [Fact]
-    public void AddFlirtyHandler_erlaubt_mehrere_Handler_je_Notification()
+    public void AddFlirtyHandler_allows_several_handlers_per_notification()
     {
         using var provider = new ServiceCollection()
             .AddFlirtyHandler<DialogCompletedNotification, NoopNotificationHandler>()
@@ -185,9 +185,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Contains(handlers, handler => handler is OtherNoopNotificationHandler);
     }
 
-    /// <summary>Die Lebensdauer lässt sich über den Parameter überschreiben (z. B. <see cref="ServiceLifetime.Singleton"/>).</summary>
+    /// <summary>The lifetime can be overridden via the parameter (e.g. <see cref="ServiceLifetime.Singleton"/>).</summary>
     [Fact]
-    public void AddFlirtyHandler_uebernimmt_die_gewaehlte_Lifetime()
+    public void AddFlirtyHandler_takes_over_the_chosen_lifetime()
     {
         var services = new ServiceCollection();
 
@@ -197,9 +197,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
     }
 
-    /// <summary>Der <see cref="TriggerScope"/>-Overload von <c>AddWebhook</c> speichert Scope und Ausdruck (#33).</summary>
+    /// <summary>The <see cref="TriggerScope"/> overload of <c>AddWebhook</c> stores scope and expression (#33).</summary>
     [Fact]
-    public void AddWebhook_mit_Scope_speichert_Scope_und_Expression()
+    public void AddWebhook_with_a_scope_stores_the_scope_and_the_expression()
     {
         using var provider = BuildProvider(options => options
             .AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"dev\""));
@@ -212,12 +212,12 @@ public sealed class FlirtyServiceCollectionExtensionsTests
     }
 
     /// <summary>
-    /// Der eingebaute <see cref="WebhookNotificationHandler"/> wird vom Mediator-Source-Generator automatisch
-    /// registriert, und der resiliente Named-<c>HttpClient</c> steht bereit (beides seit #33 Teil von
-    /// <c>AddFlirty()</c>).
+    /// The built-in <see cref="WebhookNotificationHandler"/> is registered automatically by the mediator
+    /// source generator, and the resilient named <c>HttpClient</c> is available (both part of
+    /// <c>AddFlirty()</c> since #33).
     /// </summary>
     [Fact]
-    public void WebhookNotificationHandler_und_HttpClientFactory_werden_registriert()
+    public void WebhookNotificationHandler_and_HttpClientFactory_are_registered()
     {
         var services = new ServiceCollection();
 
@@ -228,12 +228,12 @@ public sealed class FlirtyServiceCollectionExtensionsTests
     }
 
     /// <summary>
-    /// Ende-zu-Ende (Dispatch + Webhook): ein via <c>o.AddWebhook(OnDialogCompleted, url)</c> registriertes Ziel
-    /// erhält beim Dialog-Abschluss genau einen POST mit Event-Header und JSON-Body – ausgelöst durch die
-    /// Notification-Publikation der Engine.
+    /// End-to-end (dispatch + webhook): a target registered via
+    /// <c>o.AddWebhook(OnDialogCompleted, url)</c> receives exactly one POST with the event header and a
+    /// JSON body when the dialog completes – triggered by the engine's notification publication.
     /// </summary>
     [Fact]
-    public async Task Webhook_wird_bei_Dialog_Abschluss_ausgeliefert()
+    public async Task Webhook_is_delivered_on_dialog_completion()
     {
         var (provider, spy, keepAlive) = BuildWebhookProvider(
             options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done"));
@@ -251,9 +251,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         }
     }
 
-    /// <summary>Ein zutreffender Bedingungsausdruck (<c>role == "dev"</c>) liefert den Webhook aus.</summary>
+    /// <summary>A matching condition expression (<c>role == "dev"</c>) delivers the webhook.</summary>
     [Fact]
-    public async Task Webhook_mit_zutreffender_Bedingung_wird_ausgeliefert()
+    public async Task Webhook_with_a_matching_condition_is_delivered()
     {
         var (provider, spy, keepAlive) = BuildWebhookProvider(
             options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"dev\""));
@@ -267,9 +267,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         }
     }
 
-    /// <summary>Ein nicht zutreffender Bedingungsausdruck (<c>role == "pm"</c>) unterdrückt die Auslieferung.</summary>
+    /// <summary>A non-matching condition expression (<c>role == "pm"</c>) suppresses the delivery.</summary>
     [Fact]
-    public async Task Webhook_mit_nicht_zutreffender_Bedingung_wird_nicht_ausgeliefert()
+    public async Task Webhook_with_a_non_matching_condition_is_not_delivered()
     {
         var (provider, spy, keepAlive) = BuildWebhookProvider(
             options => options.AddWebhook(TriggerScope.OnDialogCompleted, "https://example.test/done", "role == \"pm\""));
@@ -290,8 +290,9 @@ public sealed class FlirtyServiceCollectionExtensionsTests
             .BuildServiceProvider();
 
     /// <summary>
-    /// Baut einen echten DI-Container mit SQLite in-memory (shared cache), den über <paramref name="configureWebhooks"/>
-    /// gesetzten Webhooks und einem in den Webhook-Named-Client eingeschleusten <see cref="RecordingHttpMessageHandler"/>.
+    /// Builds a real DI container with SQLite in-memory (shared cache), the webhooks set via
+    /// <paramref name="configureWebhooks"/> and a <see cref="RecordingHttpMessageHandler"/> injected into
+    /// the webhook named client.
     /// </summary>
     private static (ServiceProvider Provider, RecordingHttpMessageHandler Spy, SqliteConnection KeepAlive) BuildWebhookProvider(
         Action<FlirtyOptions> configureWebhooks)
@@ -309,7 +310,7 @@ public sealed class FlirtyServiceCollectionExtensionsTests
                 options.UseSqlite(connectionString);
                 configureWebhooks(options);
             })
-            // Den Primary-Handler des Webhook-Clients durch den Spy ersetzen (nach AddFlirty; additive Config).
+            // Replace the webhook client's primary handler with the spy (after AddFlirty; additive config).
             .AddHttpClient(WebhookNotificationHandler.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => spy)
             .Services
@@ -337,7 +338,7 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
     }
 
-    /// <summary>Test-Doppel für <see cref="IExpressionEvaluator"/>; wird nur zur Prüfung der DI-Ersetzung aufgelöst.</summary>
+    /// <summary>Test double for <see cref="IExpressionEvaluator"/>; resolved only to check the DI replacement.</summary>
     private sealed class FakeExpressionEvaluator : IExpressionEvaluator
     {
         public bool Evaluate(string expression, ExpressionContext context) => throw new NotSupportedException();
@@ -346,14 +347,14 @@ public sealed class FlirtyServiceCollectionExtensionsTests
             => throw new NotSupportedException();
     }
 
-    /// <summary>Test-Doppel-Handler; belegt nur die DI-Registrierung, nichts weiter.</summary>
+    /// <summary>Test double handler; proves the DI registration and nothing else.</summary>
     private sealed class NoopNotificationHandler : INotificationHandler<DialogCompletedNotification>
     {
         public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)
             => ValueTask.CompletedTask;
     }
 
-    /// <summary>Zweiter Test-Doppel-Handler für die Mehrfach-Registrierung.</summary>
+    /// <summary>Second test double handler for the multiple-registration case.</summary>
     private sealed class OtherNoopNotificationHandler : INotificationHandler<DialogCompletedNotification>
     {
         public ValueTask Handle(DialogCompletedNotification notification, CancellationToken cancellationToken)

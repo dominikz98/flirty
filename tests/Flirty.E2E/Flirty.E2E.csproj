@@ -12,29 +12,29 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <!-- Browser-Automatisierung für die Chat-UI-E2E (#45/#47). -->
+    <!-- Browser automation for the chat-UI E2E (#45/#47). -->
     <PackageReference Include="Microsoft.Playwright" />
-    <!-- Fehlt der Browser, überspringen sich die E2E-Tests statt zu scheitern. -->
+    <!-- If the browser is missing, the E2E tests skip themselves instead of failing. -->
     <PackageReference Include="Xunit.SkippableFact" />
   </ItemGroup>
 
-  <!-- WebApplication/Kestrel zum In-Prozess-Hosten der Sample-App (echter Port für den Browser). -->
+  <!-- WebApplication/Kestrel for hosting the sample app in-process (a real port for the browser). -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!-- Die zu testende Web-Sample (bringt Flirty + Flirty.AspNetCore + Migrations transitiv mit). -->
+  <!-- The web sample under test (brings Flirty + Flirty.AspNetCore + migrations along transitively). -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Flirty.Samples.Web\Flirty.Samples.Web.csproj" />
-    <!-- Der zu testende Blazor-Designer (#46). Die Projektreferenz kopiert nebenbei die
-         Static-Web-Assets-Manifeste (Flirty.Designer.staticwebassets.{endpoints,runtime}.json) ins
-         Testausgabeverzeichnis – ohne sie liefert der in-Prozess gehostete Designer kein
-         _framework/blazor.web.js aus und die Seiten blieben ohne Interaktivität. -->
+    <!-- The Blazor designer under test (#46). On the side, the project reference copies the static
+         web assets manifests (Flirty.Designer.staticwebassets.{endpoints,runtime}.json) into the test
+         output directory – without them the in-process hosted designer serves no
+         _framework/blazor.web.js and the pages would stay without interactivity. -->
     <ProjectReference Include="..\..\src\Flirty.Designer\Flirty.Designer.csproj" />
   </ItemGroup>
 
-  <!-- Statische Chat-UI der Sample in das Test-Ausgabe-wwwroot kopieren, damit der in-Prozess gehostete
-       Kestrel sie ausliefert (der Browser lädt index.html/app.js/styles.css von dort). -->
+  <!-- Copy the sample's static chat UI into the test output wwwroot, so that the in-process hosted
+       Kestrel serves it (the browser loads index.html/app.js/styles.css from there). -->
   <ItemGroup>
     <Content Include="..\..\src\Flirty.Samples.Web\wwwroot\**\*"
              Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"

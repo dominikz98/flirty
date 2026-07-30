@@ -10,16 +10,16 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Tests.Hosting;
 
 /// <summary>
-/// Verifiziert Issue #20: <c>AddFlirty(o =&gt; o.ApplyMigrations())</c> verdrahtet den
-/// <see cref="FlirtyMigrationHostedService"/>, der beim Start die provider-spezifische
-/// <c>InitialCreate</c>-Migration anwendet. Läuft gegen SQLite in-memory (keine externe Abhängigkeit);
-/// dieselbe offene Verbindung wird über alle DI-Scopes geteilt, damit die in-memory-DB erhalten bleibt.
+/// Verifies issue #20: <c>AddFlirty(o =&gt; o.ApplyMigrations())</c> wires up the
+/// <see cref="FlirtyMigrationHostedService"/>, which applies the provider-specific
+/// <c>InitialCreate</c> migration on startup. Runs against SQLite in-memory (no external dependency);
+/// the same open connection is shared across all DI scopes so the in-memory database survives.
 /// </summary>
 public sealed class FlirtyMigrationHostedServiceTests
 {
-    /// <summary>Ohne DbContext-Bedarf: nur die Registrierungsentscheidung wird geprüft.</summary>
+    /// <summary>No DbContext needed: only the registration decision is checked.</summary>
     [Fact]
-    public void ApplyMigrations_registriert_den_HostedService()
+    public void ApplyMigrations_registers_the_hosted_service()
     {
         using var provider = new ServiceCollection()
             .AddLogging()
@@ -29,9 +29,9 @@ public sealed class FlirtyMigrationHostedServiceTests
         Assert.Single(provider.GetServices<IHostedService>().OfType<FlirtyMigrationHostedService>());
     }
 
-    /// <summary>Ohne <c>ApplyMigrations()</c> darf kein Migrations-Hosted-Service registriert werden.</summary>
+    /// <summary>Without <c>ApplyMigrations()</c> no migration hosted service may be registered.</summary>
     [Fact]
-    public void Ohne_ApplyMigrations_wird_kein_HostedService_registriert()
+    public void Without_ApplyMigrations_no_hosted_service_is_registered()
     {
         using var provider = new ServiceCollection()
             .AddLogging()
@@ -41,9 +41,9 @@ public sealed class FlirtyMigrationHostedServiceTests
         Assert.Empty(provider.GetServices<IHostedService>().OfType<FlirtyMigrationHostedService>());
     }
 
-    /// <summary>StartAsync wendet die Migration an und protokolliert Beginn und Abschluss.</summary>
+    /// <summary>StartAsync applies the migration and logs both start and completion.</summary>
     [Fact]
-    public async Task StartAsync_wendet_InitialCreate_an()
+    public async Task StartAsync_applies_InitialCreate()
     {
         using var connection = OpenConnection();
         var spy = new SpyLoggerProvider();
@@ -58,13 +58,13 @@ public sealed class FlirtyMigrationHostedServiceTests
             context.Database.GetAppliedMigrations(),
             migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
 
-        Assert.Contains(spy.Messages, message => message.Contains("wendet ausstehende", StringComparison.Ordinal));
-        Assert.Contains(spy.Messages, message => message.Contains("abgeschlossen", StringComparison.Ordinal));
+        Assert.Contains(spy.Messages, message => message.Contains("applies pending", StringComparison.Ordinal));
+        Assert.Contains(spy.Messages, message => message.Contains("completed", StringComparison.Ordinal));
     }
 
-    /// <summary>Ein zweiter Lauf findet keine Pending-Migrationen und wirft nicht (Idempotenz).</summary>
+    /// <summary>A second run finds no pending migrations and does not throw (idempotence).</summary>
     [Fact]
-    public async Task StartAsync_ist_idempotent()
+    public async Task StartAsync_is_idempotent()
     {
         using var connection = OpenConnection();
         await using var provider = BuildProvider(connection, new SpyLoggerProvider());
@@ -78,9 +78,9 @@ public sealed class FlirtyMigrationHostedServiceTests
         Assert.Empty(context.Database.GetPendingMigrations());
     }
 
-    /// <summary>Ein bereits abgebrochener Token wird an MigrateAsync durchgereicht.</summary>
+    /// <summary>An already cancelled token is passed straight through to MigrateAsync.</summary>
     [Fact]
-    public async Task StartAsync_reicht_den_CancellationToken_durch()
+    public async Task StartAsync_passes_the_CancellationToken_through()
     {
         using var connection = OpenConnection();
         await using var provider = BuildProvider(connection, new SpyLoggerProvider());
@@ -92,9 +92,9 @@ public sealed class FlirtyMigrationHostedServiceTests
             () => SingleHostedService(provider).StartAsync(cts.Token));
     }
 
-    /// <summary>StopAsync ist ein No-op und wirft nicht.</summary>
+    /// <summary>StopAsync is a no-op and does not throw.</summary>
     [Fact]
-    public async Task StopAsync_ist_ein_NoOp()
+    public async Task StopAsync_is_a_no_op()
     {
         using var connection = OpenConnection();
         await using var provider = BuildProvider(connection, new SpyLoggerProvider());

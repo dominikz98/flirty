@@ -9,10 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert den <see cref="StartDialogVersionCommandHandler"/> (Issue #43) gegen eine echte
-/// SQLite-Datenbank (in-memory). Kern der Abgrenzung zum <see cref="StartDialogCommandHandler"/>: Dieser
-/// Command startet eine <b>konkrete Dialogversion unabhängig vom Veröffentlichungsstatus</b> – die
-/// Grundlage dafür, dass der Designer-Test-Runner einen Entwurf durchspielen kann.
+/// Verifies the <see cref="StartDialogVersionCommandHandler"/> (issue #43) against a real SQLite
+/// database (in-memory). The core of what sets it apart from the
+/// <see cref="StartDialogCommandHandler"/>: this command starts a <b>specific dialog version
+/// regardless of the publication status</b> – the basis for the designer test runner being able to
+/// play a draft through.
 /// </summary>
 public sealed class StartDialogVersionCommandHandlerTests : IDisposable
 {
@@ -20,8 +21,8 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public StartDialogVersionCommandHandlerTests()
     {
@@ -36,7 +37,7 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
@@ -48,11 +49,11 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         => new(new DialogStore(context), publisher);
 
     /// <summary>
-    /// Legt einen <b>unveröffentlichten</b> Dialog mit Startfrage an – der Fall, den
-    /// <see cref="StartDialogCommand"/> bewusst ablehnt.
+    /// Creates an <b>unpublished</b> dialog with an entry question – the case
+    /// <see cref="StartDialogCommand"/> deliberately rejects.
     /// </summary>
-    /// <param name="dialogId">Die zu vergebende Dialog-Id.</param>
-    /// <returns>Die Id der Einstiegsfrage.</returns>
+    /// <param name="dialogId">The dialog id to assign.</param>
+    /// <returns>The id of the entry question.</returns>
     private Guid ArrangeDraft(Guid dialogId)
     {
         var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
@@ -65,14 +66,14 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         return questionId;
     }
 
-    // ---- Neu-Start --------------------------------------------------------------------------
+    // ---- Fresh start ------------------------------------------------------------------------
 
     /// <summary>
-    /// Der Kern von #43: Ein Entwurf lässt sich starten, obwohl er nicht veröffentlicht ist. Zur
-    /// Gegenprobe wird derselbe Dialog über <see cref="StartDialogCommand"/> abgelehnt.
+    /// The core of #43: a draft can be started even though it is not published. As a counter-check,
+    /// the same dialog is rejected by <see cref="StartDialogCommand"/>.
     /// </summary>
     [Fact]
-    public async Task Handle_startet_einen_unveroeffentlichten_Entwurf()
+    public async Task Handle_starts_an_unpublished_draft()
     {
         var dialogId = Guid.NewGuid();
         var questionId = ArrangeDraft(dialogId);
@@ -98,9 +99,9 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         Assert.Equal(questionId, session.CurrentQuestionId);
     }
 
-    /// <summary>Gegenprobe: Denselben Entwurf lehnt der veröffentlichungsgebundene Start weiterhin ab.</summary>
+    /// <summary>Counter-check: the publication-bound start still rejects the very same draft.</summary>
     [Fact]
-    public async Task StartDialogCommand_lehnt_denselben_Entwurf_weiterhin_ab()
+    public async Task StartDialogCommand_still_rejects_the_same_draft()
     {
         _ = ArrangeDraft(Guid.NewGuid());
 
@@ -111,9 +112,9 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
                 .Handle(new StartDialogCommand("onboarding", "designer-test-1"), default));
     }
 
-    /// <summary>Ein veröffentlichter Dialog lässt sich über die Id genauso starten.</summary>
+    /// <summary>A published dialog can be started by id just the same.</summary>
     [Fact]
-    public async Task Handle_startet_auch_einen_veroeffentlichten_Dialog()
+    public async Task Handle_starts_a_published_dialog_too()
     {
         var dialogId = Guid.NewGuid();
         using (var arrange = CreateContext())
@@ -133,11 +134,11 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
     // ---- Resume -----------------------------------------------------------------------------
 
     /// <summary>
-    /// Wie beim veröffentlichungsgebundenen Start wird eine laufende Session desselben Anwenders
-    /// fortgesetzt. Genau deshalb vergibt der Test-Runner je Lauf einen frischen Anwenderschlüssel.
+    /// As with the publication-bound start, a running session of the same user is resumed. That is
+    /// exactly why the test runner hands out a fresh user key per run.
     /// </summary>
     [Fact]
-    public async Task Handle_setzt_eine_laufende_Session_desselben_Anwenders_fort()
+    public async Task Handle_resumes_a_running_session_of_the_same_user()
     {
         var dialogId = Guid.NewGuid();
         _ = ArrangeDraft(dialogId);
@@ -164,9 +165,9 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         Assert.Single(assert.DialogSessions);
     }
 
-    /// <summary>Ein frischer Anwenderschlüssel liefert einen frischen Lauf – das Muster des Test-Runners.</summary>
+    /// <summary>A fresh user key yields a fresh run – the test runner's pattern.</summary>
     [Fact]
-    public async Task Handle_liefert_je_Anwenderschluessel_eine_eigene_Session()
+    public async Task Handle_returns_its_own_session_per_user_key()
     {
         var dialogId = Guid.NewGuid();
         _ = ArrangeDraft(dialogId);
@@ -191,11 +192,11 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         Assert.Equal(2, assert.DialogSessions.Count());
     }
 
-    // ---- Fehlerfälle ------------------------------------------------------------------------
+    // ---- Error cases ------------------------------------------------------------------------
 
-    /// <summary>Eine unbekannte Dialog-Id meldet <see cref="ConfigurationNotFoundException"/>.</summary>
+    /// <summary>An unknown dialog id reports a <see cref="ConfigurationNotFoundException"/>.</summary>
     [Fact]
-    public async Task Handle_meldet_unbekannte_Dialogversion()
+    public async Task Handle_reports_an_unknown_dialog_version()
     {
         using var act = CreateContext();
 
@@ -203,12 +204,12 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
             async () => await CreateHandler(act)
                 .Handle(new StartDialogVersionCommand(Guid.NewGuid(), "designer-test-1"), default));
 
-        Assert.Contains("Dialog", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("dialog", exception.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>Ohne Einstiegsfrage gibt es nichts zu starten – das meldet der Handler.</summary>
+    /// <summary>Without an entry question there is nothing to start – the handler reports that.</summary>
     [Fact]
-    public async Task Handle_meldet_fehlende_Einstiegsfrage()
+    public async Task Handle_reports_a_missing_entry_question()
     {
         var headless = TestDialogFactory.NewDialog("headless", version: 1, name: "Ohne Start");
         using (var arrange = CreateContext())
@@ -223,29 +224,29 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
             async () => await CreateHandler(act)
                 .Handle(new StartDialogVersionCommand(headless.Id, "designer-test-1"), default));
 
-        Assert.Contains("Einstiegsfrage", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("entry question", exception.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Store ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Store()
+    public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(
             () => new StartDialogVersionCommandHandler(null!, new SpyPublisher()));
 
-    /// <summary>Der Konstruktor lehnt einen <c>null</c>-Publisher ab.</summary>
+    /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
-    public void Konstruktor_wirft_bei_null_Publisher()
+    public void Constructor_throws_on_a_null_publisher()
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => new StartDialogVersionCommandHandler(new DialogStore(context), null!));
     }
 
-    // ---- Trigger-Notifications --------------------------------------------------------------
+    // ---- Trigger notifications --------------------------------------------------------------
 
-    /// <summary>Ein Neu-Start publiziert genau eine <see cref="DialogStartedNotification"/>.</summary>
+    /// <summary>A fresh start publishes exactly one <see cref="DialogStartedNotification"/>.</summary>
     [Fact]
-    public async Task Handle_publiziert_DialogStarted_beim_Neustart()
+    public async Task Handle_publishes_DialogStarted_on_a_fresh_start()
     {
         var dialogId = Guid.NewGuid();
         var questionId = ArrangeDraft(dialogId);
@@ -266,9 +267,9 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         Assert.Equal(questionId, notification.CurrentQuestionId);
     }
 
-    /// <summary>Ein Resume publiziert bewusst keine Notification.</summary>
+    /// <summary>A resume deliberately publishes no notification.</summary>
     [Fact]
-    public async Task Handle_Resume_publiziert_keine_Notification()
+    public async Task Handle_a_resume_publishes_no_notification()
     {
         var dialogId = Guid.NewGuid();
         _ = ArrangeDraft(dialogId);

@@ -4,20 +4,20 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Löscht den Übergang <see cref="TransitionId"/> im Dialog <see cref="DialogId"/>.
+/// Deletes the transition <see cref="TransitionId"/> in the dialog <see cref="DialogId"/>.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem der Übergang gehört.</param>
-/// <param name="TransitionId">Der Primärschlüssel des zu löschenden Übergangs.</param>
+/// <param name="DialogId">The id of the dialog the transition belongs to.</param>
+/// <param name="TransitionId">The primary key of the transition to delete.</param>
 public sealed record DeleteTransitionCommand(Guid DialogId, Guid TransitionId) : ICommand<Unit>;
 
-/// <summary>Handler für <see cref="DeleteTransitionCommand"/>.</summary>
+/// <summary>Handler for <see cref="DeleteTransitionCommand"/>.</summary>
 internal sealed class DeleteTransitionCommandHandler : ICommandHandler<DeleteTransitionCommand, Unit>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public DeleteTransitionCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -26,14 +26,14 @@ internal sealed class DeleteTransitionCommandHandler : ICommandHandler<DeleteTra
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Kein Übergang mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No transition with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<Unit> Handle(DeleteTransitionCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var transition = await _store.GetTransitionAsync(command.TransitionId, cancellationToken);

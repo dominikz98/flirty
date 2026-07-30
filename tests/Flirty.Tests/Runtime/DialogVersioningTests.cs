@@ -10,20 +10,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Runtime;
 
 /// <summary>
-/// Verifiziert die Dialog-Versionierung: das Ableiten einer neuen Version
-/// (<see cref="CreateDialogVersionCommandHandler"/>), die Unveränderlichkeit einer veröffentlichten
-/// Version (<see cref="DialogEditGuard"/>) und – als <b>Kernprobe</b> – dass eine laufende Session von
-/// einer neu veröffentlichten Version unberührt zu Ende läuft. Genau das versprechen
-/// <c>docs/RUNTIME.md</c> und <c>docs/ARCHITECTURE.md</c>; vorher hielt die Zusage nicht, weil es
-/// überhaupt keinen Weg zu einer zweiten Version gab und Änderungen dieselbe Zeile trafen, aus der die
-/// Session ihren Graphen lädt.
+/// Verifies the dialog versioning: deriving a new version
+/// (<see cref="CreateDialogVersionCommandHandler"/>), the immutability of a published version
+/// (<see cref="DialogEditGuard"/>) and – as the <b>core check</b> – that a running session runs to
+/// completion untouched by a newly published version. That is exactly what <c>docs/RUNTIME.md</c> and
+/// <c>docs/ARCHITECTURE.md</c> promise; before, the promise did not hold, because there was no way to
+/// a second version at all and changes hit the same row the session loads its graph from.
 /// </summary>
 public sealed class DialogVersioningTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
-    /// <summary>Öffnet die SQLite-in-memory-Verbindung und legt das Schema an.</summary>
+    /// <summary>Opens the SQLite in-memory connection and creates the schema.</summary>
     public DialogVersioningTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -37,19 +36,19 @@ public sealed class DialogVersioningTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
 
-    // ---- Neue Version ableiten --------------------------------------------------------------
+    // ---- Deriving a new version -------------------------------------------------------------
 
     /// <summary>
-    /// Die Kopie trägt denselben Schlüssel, die nächste Versionsnummer und ist ein <b>Entwurf</b> –
-    /// zwei veröffentlichte Versionen wären für <c>StartDialogCommand</c> nicht eindeutig.
+    /// The copy carries the same key, the next version number and is a <b>draft</b> – two published
+    /// versions would not be unambiguous for <c>StartDialogCommand</c>.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_legt_die_Folgeversion_als_Entwurf_an()
+    public async Task CreateDialogVersion_creates_the_follow_up_version_as_a_draft()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out _));
@@ -66,7 +65,7 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.False(copy.Dialog.IsPublished);
         Assert.NotEqual(dialogId, copy.Dialog.Id);
 
-        // Die Quelle bleibt unverändert veröffentlicht.
+        // The source stays published, unchanged.
         using var assert = CreateContext();
         var source = await assert.Dialogs.AsNoTracking().FirstAsync(dialog => dialog.Id == dialogId);
         Assert.True(source.IsPublished);
@@ -74,11 +73,10 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// Der gesamte Graph wird kopiert – mit durchgängig <b>neuen</b> Ids, damit die Quelle unberührt
-    /// bleibt.
+    /// The whole graph is copied – with <b>new</b> ids throughout, so that the source stays untouched.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_klont_den_gesamten_Graphen_mit_neuen_Ids()
+    public async Task CreateDialogVersion_clones_the_whole_graph_with_new_ids()
     {
         var dialogId = Guid.NewGuid();
         var source = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
@@ -105,7 +103,7 @@ public sealed class DialogVersioningTests : IDisposable
         var trigger = Assert.Single(copy.Triggers);
         Assert.Equal("{\"url\":\"https://example.test/hook\"}", trigger.Config);
 
-        // Kein einziges Kind teilt seine Id mit der Quelle.
+        // Not a single child shares its id with the source.
         using var assert = CreateContext();
         var sourceIds = await assert.Set<Question>().AsNoTracking()
             .Where(entity => entity.DialogId == dialogId).Select(entity => entity.Id).ToListAsync();
@@ -113,17 +111,17 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// Alle Frage-Verweise (Einstiegsfrage, Übergänge, Schleifen-Marker, Trigger) zeigen nach dem Klonen
-    /// auf die <b>Kopien</b>. Ohne diese Umschreibung zeigte die neue Version auf die Fragen der alten –
-    /// der Dialog wäre unbrauchbar.
+    /// After the clone, all question references (entry question, transitions, loop markers, triggers)
+    /// point at the <b>copies</b>. Without that rewriting the new version would point at the old
+    /// version's questions – the dialog would be unusable.
     /// </summary>
     [Fact]
-    public async Task CreateDialogVersion_schreibt_die_Frage_Verweise_auf_die_Kopien_um()
+    public async Task CreateDialogVersion_rewrites_the_question_references_onto_the_copies()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildLoopDialog(dialogId, out var ids));
 
-        // Ein Trigger mit Frage-Bezug, damit auch dieser Verweis geprüft wird.
+        // A trigger with a question reference, so that this reference is checked too.
         using (var arrange = CreateContext())
         {
             arrange.Set<TriggerDefinition>().Add(new TriggerDefinition
@@ -164,7 +162,7 @@ public sealed class DialogVersioningTests : IDisposable
         var trigger = copy.Triggers.Single(entry => entry.Scope == TriggerScope.AfterQuestion);
         Assert.Equal(more.Id, trigger.QuestionId);
 
-        // Der Zyklus ist erhalten: Rücksprung von 'more' auf 'position' samt Bedingung.
+        // The cycle is preserved: the back jump from 'more' to 'position' incl. its condition.
         Assert.Contains(
             copy.Transitions,
             transition => transition.FromQuestionId == more.Id
@@ -172,9 +170,9 @@ public sealed class DialogVersioningTests : IDisposable
                        && transition.Expression == "more == \"yes\"");
     }
 
-    /// <summary>Mehrfaches Ableiten zählt weiter (Version 2, dann 3).</summary>
+    /// <summary>Deriving repeatedly keeps counting up (version 2, then 3).</summary>
     [Fact]
-    public async Task CreateDialogVersion_zaehlt_die_hoechste_Version_weiter()
+    public async Task CreateDialogVersion_counts_on_from_the_highest_version()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out _));
@@ -192,9 +190,9 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Equal(3, dritte.Dialog.Version);
     }
 
-    /// <summary>Ein unbekannter Dialog wird als Not-Found gemeldet.</summary>
+    /// <summary>An unknown dialog is reported as not-found.</summary>
     [Fact]
-    public async Task CreateDialogVersion_meldet_unbekannten_Dialog()
+    public async Task CreateDialogVersion_reports_an_unknown_dialog()
     {
         using var act = CreateContext();
         var handler = new CreateDialogVersionCommandHandler(new DialogAdminStore(act));
@@ -203,14 +201,14 @@ public sealed class DialogVersioningTests : IDisposable
             async () => await handler.Handle(new CreateDialogVersionCommand(Guid.NewGuid()), default));
     }
 
-    // ---- Sperre der veröffentlichten Version ------------------------------------------------
+    // ---- The published version's lock -------------------------------------------------------
 
     /// <summary>
-    /// Jede Graph-Änderung an einer veröffentlichten Version wird abgelehnt. Geprüft wird je
-    /// Element-Art ein Command – alle laufen über <see cref="DialogEditGuard"/>.
+    /// Every graph change on a published version is rejected. One command per element kind is
+    /// checked – all of them run through the <see cref="DialogEditGuard"/>.
     /// </summary>
     [Fact]
-    public async Task Graph_Aenderungen_an_veroeffentlichter_Version_werden_abgelehnt()
+    public async Task Graph_changes_on_a_published_version_are_rejected()
     {
         var dialogId = Guid.NewGuid();
         var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
@@ -224,9 +222,9 @@ public sealed class DialogVersioningTests : IDisposable
         var store = new DialogAdminStore(act);
 
         await AssertPublishedAsync(() => new CreateQuestionCommandHandler(store)
-            .Handle(new CreateQuestionCommand(dialogId, "neu", "Neu?", QuestionType.FreeText, 9, false, null), default));
+            .Handle(new CreateQuestionCommand(dialogId, "fresh", "Fresh?", QuestionType.FreeText, 9, false, null), default));
         await AssertPublishedAsync(() => new UpdateQuestionCommandHandler(store)
-            .Handle(new UpdateQuestionCommand(dialogId, questionId, "role", "Geändert?", QuestionType.FreeText, 0, true, null), default));
+            .Handle(new UpdateQuestionCommand(dialogId, questionId, "role", "Changed?", QuestionType.FreeText, 0, true, null), default));
         await AssertPublishedAsync(() => new DeleteQuestionCommandHandler(store)
             .Handle(new DeleteQuestionCommand(dialogId, questionId), default));
         await AssertPublishedAsync(() => new CreateAnswerOptionCommandHandler(store)
@@ -256,11 +254,11 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// Dieselben Änderungen greifen am <b>Entwurf</b> – die Sperre hängt am Veröffentlichungsstatus,
-    /// nicht an der Version.
+    /// The same changes take effect on the <b>draft</b> – the lock hangs on the publication status,
+    /// not on the version.
     /// </summary>
     [Fact]
-    public async Task Graph_Aenderungen_am_Entwurf_greifen()
+    public async Task Graph_changes_on_a_draft_take_effect()
     {
         var dialogId = Guid.NewGuid();
         var dialog = TestDialogFactory.BuildFullDialog(dialogId, out _);
@@ -269,17 +267,17 @@ public sealed class DialogVersioningTests : IDisposable
 
         using var act = CreateContext();
         var created = await new CreateQuestionCommandHandler(new DialogAdminStore(act))
-            .Handle(new CreateQuestionCommand(dialogId, "neu", "Neu?", QuestionType.FreeText, 9, false, null), default);
+            .Handle(new CreateQuestionCommand(dialogId, "fresh", "Fresh?", QuestionType.FreeText, 9, false, null), default);
 
-        Assert.Equal("neu", created.Key);
+        Assert.Equal("fresh", created.Key);
     }
 
     /// <summary>
-    /// Name und Beschreibung bleiben auch an einer veröffentlichten Version änderbar (rein beschreibend),
-    /// der Wechsel der <b>Einstiegsfrage</b> nicht (Teil des Ablaufs).
+    /// Name and description stay changeable on a published version too (purely descriptive), changing
+    /// the <b>entry question</b> does not (it is part of the flow).
     /// </summary>
     [Fact]
-    public async Task UpdateDialog_erlaubt_Metadaten_und_sperrt_die_Einstiegsfrage()
+    public async Task UpdateDialog_allows_metadata_and_locks_the_entry_question()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out var questionId));
@@ -296,11 +294,11 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// Der Schlüssel identifiziert die Dialog-Familie. Ihn nur an einer von mehreren Versionen zu
-    /// ändern, würde die Reihe zerreißen – das wird abgelehnt.
+    /// The key identifies the dialog family. Changing it on only one of several versions would tear
+    /// the series apart – that is rejected.
     /// </summary>
     [Fact]
-    public async Task UpdateDialog_lehnt_Umbenennung_bei_mehreren_Versionen_ab()
+    public async Task UpdateDialog_rejects_a_rename_with_several_versions()
     {
         var dialogId = Guid.NewGuid();
         var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
@@ -316,12 +314,12 @@ public sealed class DialogVersioningTests : IDisposable
             async () => await new UpdateDialogCommandHandler(store).Handle(
                 new UpdateDialogCommand(dialogId, "anders", "Onboarding", null, questionId), default));
 
-        Assert.Contains("mehrere Versionen", exception.Message);
+        Assert.Contains("multiple versions", exception.Message);
     }
 
-    /// <summary>Ein einzelner Dialog lässt sich weiterhin umbenennen.</summary>
+    /// <summary>A single dialog can still be renamed.</summary>
     [Fact]
-    public async Task UpdateDialog_erlaubt_Umbenennung_bei_einer_einzigen_Version()
+    public async Task UpdateDialog_allows_a_rename_with_a_single_version()
     {
         var dialogId = Guid.NewGuid();
         var dialog = TestDialogFactory.BuildFullDialog(dialogId, out var questionId);
@@ -335,14 +333,14 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Equal("anders", updated.Key);
     }
 
-    // ---- Veröffentlichen ---------------------------------------------------------------------
+    // ---- Publishing --------------------------------------------------------------------------
 
     /// <summary>
-    /// Je Schlüssel ist höchstens eine Version produktiv: Das Veröffentlichen der neuen Version zieht die
-    /// bisherige zurück (sonst trüge sie einen Status, der nichts mehr bewirkt).
+    /// At most one version per key is in production: publishing the new version retires the previous
+    /// one (otherwise it would carry a status that no longer has any effect).
     /// </summary>
     [Fact]
-    public async Task Publish_zieht_die_vorherige_Version_zurueck()
+    public async Task Publish_retires_the_previous_version()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildFullDialog(dialogId, out _));
@@ -368,17 +366,17 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// <b>Kernprobe der Zusage:</b> Eine laufende Session der Version 1 läuft unverändert zu Ende,
-    /// während Version 2 abgeleitet, geändert und veröffentlicht wird. Ein neuer Anwender startet
-    /// dagegen auf Version 2.
+    /// <b>The core check of the promise:</b> a running session of version 1 runs to completion
+    /// unchanged while version 2 is derived, changed and published. A new user, by contrast, starts
+    /// on version 2.
     /// </summary>
     [Fact]
-    public async Task Laufende_Session_ueberlebt_eine_neu_veroeffentlichte_Version()
+    public async Task A_running_session_survives_a_newly_published_version()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out var ids));
 
-        // 1. Session auf Version 1 starten (steht auf der Auswahlfrage 'role').
+        // 1. Start a session on version 1 (it sits on the choice question 'role').
         StartDialogResult start;
         using (var act = CreateContext())
         {
@@ -388,7 +386,7 @@ public sealed class DialogVersioningTests : IDisposable
 
         Assert.Equal("role", start.CurrentQuestion!.Key);
 
-        // 2. Version 2 ableiten, dort die Auswahlfrage umbauen und veröffentlichen.
+        // 2. Derive version 2, rebuild the choice question there and publish it.
         Guid secondId;
         using (var act = CreateContext())
         {
@@ -400,13 +398,13 @@ public sealed class DialogVersioningTests : IDisposable
             var roleCopy = copy.Questions.Single(question => question.Key == "role");
             await new UpdateQuestionCommandHandler(store).Handle(
                 new UpdateQuestionCommand(
-                    secondId, roleCopy.Id, "role", "Ganz andere Frage?", QuestionType.FreeText, 0, true, null),
+                    secondId, roleCopy.Id, "role", "A completely different question?", QuestionType.FreeText, 0, true, null),
                 default);
 
             await new PublishDialogCommandHandler(store).Handle(new PublishDialogCommand(secondId), default);
         }
 
-        // 3. Die laufende Session antwortet weiter – auf ihrem alten Graphen.
+        // 3. The running session keeps answering – on its old graph.
         SubmitAnswerResult submit;
         using (var act = CreateContext())
         {
@@ -417,7 +415,7 @@ public sealed class DialogVersioningTests : IDisposable
 
         Assert.Equal("devDetail", submit.NextQuestion!.Key);
 
-        // Auch lesend ist die Session unverändert erreichbar (das war vorher der 409-Fall).
+        // The session is reachable for reading unchanged too (that used to be the 409 case).
         ResumeDialogResult resumed;
         using (var act = CreateContext())
         {
@@ -428,25 +426,25 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Equal(SessionStatus.InProgress, resumed.Status);
         Assert.Equal("devDetail", resumed.CurrentQuestion!.Key);
 
-        // 4. Ein neuer Anwender landet auf Version 2 – mit dem geänderten Fragetext.
-        StartDialogResult neu;
+        // 4. A new user lands on version 2 – with the changed question text.
+        StartDialogResult freshRun;
         using (var act = CreateContext())
         {
-            neu = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher())
+            freshRun = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher())
                 .Handle(new StartDialogCommand("branching", "user-2"), default);
         }
 
-        Assert.Equal("Ganz andere Frage?", neu.CurrentQuestion!.Text);
+        Assert.Equal("A completely different question?", freshRun.CurrentQuestion!.Text);
     }
 
-    // ---- Löschen und Sessions beenden --------------------------------------------------------
+    // ---- Deleting and ending sessions --------------------------------------------------------
 
     /// <summary>
-    /// Solange Sessions laufen, wird das Löschen abgelehnt – sie überlebten den Dialog als unlesbare
-    /// Waisen.
+    /// As long as sessions are running, deletion is rejected – they would survive the dialog as
+    /// unreadable orphans.
     /// </summary>
     [Fact]
-    public async Task DeleteDialog_wird_bei_laufender_Session_abgelehnt()
+    public async Task DeleteDialog_is_rejected_with_a_running_session()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
@@ -457,12 +455,12 @@ public sealed class DialogVersioningTests : IDisposable
             async () => await new DeleteDialogCommandHandler(new DialogAdminStore(act))
                 .Handle(new DeleteDialogCommand(dialogId), default));
 
-        Assert.Contains("1 Session(s)", exception.Message);
+        Assert.Contains("1 session(s)", exception.Message);
     }
 
-    /// <summary>Abgeschlossene und abgebrochene Sessions blockieren das Löschen nicht.</summary>
+    /// <summary>Completed and abandoned sessions do not block the deletion.</summary>
     [Fact]
-    public async Task DeleteDialog_greift_bei_beendeten_Sessions()
+    public async Task DeleteDialog_works_with_finished_sessions()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
@@ -480,11 +478,11 @@ public sealed class DialogVersioningTests : IDisposable
     }
 
     /// <summary>
-    /// Der Abbruch beendet die laufenden Sessions (Antworten bleiben erhalten) und macht damit den Weg
-    /// zum Löschen frei.
+    /// The abandon ends the running sessions (their answers are preserved) and thereby clears the way
+    /// for the deletion.
     /// </summary>
     [Fact]
-    public async Task AbandonDialogSessions_beendet_die_Sessions_und_gibt_das_Loeschen_frei()
+    public async Task AbandonDialogSessions_ends_the_sessions_and_releases_the_deletion()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
@@ -518,9 +516,9 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Empty(await assertDeleted.Dialogs.AsNoTracking().Where(dialog => dialog.Id == dialogId).ToListAsync());
     }
 
-    /// <summary>Ohne laufende Sessions ist der Abbruch ein No-Op.</summary>
+    /// <summary>Without running sessions the abandon is a no-op.</summary>
     [Fact]
-    public async Task AbandonDialogSessions_meldet_null_wenn_keine_Session_laeuft()
+    public async Task AbandonDialogSessions_reports_zero_when_no_session_is_running()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
@@ -532,9 +530,9 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Equal(0, result.AbandonedSessions);
     }
 
-    /// <summary>Die Zähl-Query berücksichtigt nur laufende Sessions.</summary>
+    /// <summary>The counting query considers only running sessions.</summary>
     [Fact]
-    public async Task CountActiveSessions_zaehlt_nur_laufende_Sessions()
+    public async Task CountActiveSessions_counts_only_running_sessions()
     {
         var dialogId = Guid.NewGuid();
         Seed(TestDialogFactory.BuildBranchingDialog(dialogId, out _));
@@ -549,7 +547,7 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.Equal(1, count);
     }
 
-    // ---- Hilfen ------------------------------------------------------------------------------
+    // ---- Helpers -----------------------------------------------------------------------------
 
     private void Seed(Dialog dialog)
     {
@@ -577,6 +575,6 @@ public sealed class DialogVersioningTests : IDisposable
     private static async Task AssertPublishedAsync<TResult>(Func<ValueTask<TResult>> operation)
     {
         var exception = await Assert.ThrowsAsync<DialogPublishedException>(async () => await operation());
-        Assert.Contains("veröffentlicht", exception.Message);
+        Assert.Contains("published", exception.Message);
     }
 }

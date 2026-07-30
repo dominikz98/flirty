@@ -6,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Verifiziert die EF-Core-Konfiguration aus Issue #18 gegen eine echte SQLite-Datenbank
-/// (in-memory): Schema-Erzeugung, Aggregat-Round-Trips inkl. Navigationen, Enum-als-int-Storage,
-/// JSON-tragende Textspalten, den eindeutigen Index über <c>(Key, Version)</c>, das kaskadierende
-/// Löschen sowie die Abwesenheit ungewollter Shadow-Fremdschlüssel.
+/// Verifies the EF Core configuration from issue #18 against a real SQLite database (in-memory):
+/// schema creation, aggregate round trips incl. navigations, enum-as-int storage, JSON-carrying text
+/// columns, the unique index over <c>(Key, Version)</c>, the cascading delete as well as the absence
+/// of unwanted shadow foreign keys.
 /// </summary>
 public sealed class FlirtyDbContextTests : IDisposable
 {
@@ -17,8 +17,8 @@ public sealed class FlirtyDbContextTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen)
-    /// und erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public FlirtyDbContextTests()
     {
@@ -33,13 +33,13 @@ public sealed class FlirtyDbContextTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     private FlirtyDbContext CreateContext() => new(_options);
 
     [Fact]
-    public void Dialog_Aggregat_mit_allen_Kindern_wird_persistiert_und_geladen()
+    public void Dialog_aggregate_with_all_children_is_persisted_and_loaded()
     {
         var dialogId = Guid.NewGuid();
 
@@ -64,13 +64,13 @@ public sealed class FlirtyDbContextTests : IDisposable
             Assert.Single(loaded.Transitions);
             Assert.Single(loaded.Loops);
             Assert.Single(loaded.Triggers);
-            // Der navigationslose Guid-Verweis wird als einfacher Wert erhalten (kein FK-Zwang).
+            // The navigation-free Guid reference is preserved as a plain value (no FK constraint).
             Assert.Equal(question.Id, loaded.StartQuestionId);
         }
     }
 
     [Fact]
-    public void Session_haelt_mehrere_Antworten_pro_Frage_je_Iteration()
+    public void Session_holds_several_answers_per_question_one_per_iteration()
     {
         var sessionId = Guid.NewGuid();
         var questionId = Guid.NewGuid();
@@ -112,7 +112,7 @@ public sealed class FlirtyDbContextTests : IDisposable
                 .Include(entry => entry.Answers)
                 .Single(entry => entry.Id == sessionId);
 
-            // Zwei Antworten auf dieselbe Frage – unterschieden nur über den Iterationsindex.
+            // Two answers to the same question – told apart only by the iteration index.
             Assert.Equal(2, session.Answers.Count);
             Assert.All(session.Answers, answer => Assert.Equal(questionId, answer.QuestionId));
             Assert.Equal([0, 1], session.Answers.Select(answer => answer.IterationIndex).Order());
@@ -120,7 +120,7 @@ public sealed class FlirtyDbContextTests : IDisposable
     }
 
     [Fact]
-    public void Enums_werden_als_int_gemappt()
+    public void Enums_are_mapped_as_int()
     {
         using var context = CreateContext();
 
@@ -131,7 +131,7 @@ public sealed class FlirtyDbContextTests : IDisposable
     }
 
     [Fact]
-    public void Enum_wird_als_int_in_der_Datenbank_gespeichert()
+    public void Enum_is_stored_as_int_in_the_database()
     {
         var dialogId = Guid.NewGuid();
 
@@ -156,7 +156,7 @@ public sealed class FlirtyDbContextTests : IDisposable
     }
 
     [Fact]
-    public void JSON_Spalten_erhalten_den_Rohtext_unveraendert()
+    public void JSON_columns_preserve_the_raw_text_unchanged()
     {
         var dialogId = Guid.NewGuid();
         const string validationJson = "{\"minLength\":1,\"pattern\":\"^[a-z]+$\"}";
@@ -182,24 +182,24 @@ public sealed class FlirtyDbContextTests : IDisposable
     }
 
     [Fact]
-    public void Doppelter_Key_und_Version_verletzt_den_eindeutigen_Index()
+    public void A_duplicate_key_and_version_violates_the_unique_index()
     {
         using var context = CreateContext();
 
-        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "Erster"));
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "First"));
         context.SaveChanges();
 
-        // Andere Version desselben Key ist erlaubt.
-        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 2, name: "Zweiter"));
+        // A different version of the same key is allowed.
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 2, name: "Second"));
         context.SaveChanges();
 
-        // Gleicher Key UND gleiche Version verletzt den Unique-Index.
-        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "Kollision"));
+        // The same key AND the same version violates the unique index.
+        context.Dialogs.Add(TestDialogFactory.NewDialog("duplicate", version: 1, name: "Collision"));
         Assert.Throws<DbUpdateException>(() => context.SaveChanges());
     }
 
     [Fact]
-    public void Loeschen_des_Dialogs_entfernt_alle_Kind_Entities_kaskadierend()
+    public void Deleting_the_dialog_removes_all_child_entities_by_cascade()
     {
         var dialogId = Guid.NewGuid();
 
@@ -236,25 +236,25 @@ public sealed class FlirtyDbContextTests : IDisposable
     }
 
     [Fact]
-    public void Skalare_Guid_Verweise_erzeugen_keine_Fremdschluessel()
+    public void Scalar_Guid_references_create_no_foreign_keys()
     {
         using var context = CreateContext();
 
-        // Transition hat genau EINEN Fremdschlüssel (zum Dialog); FromQuestionId/TargetQuestionId sind skalar.
+        // Transition has exactly ONE foreign key (to the dialog); FromQuestionId/TargetQuestionId are scalar.
         Assert.Single(context.Model.FindEntityType(typeof(Transition))!.GetForeignKeys());
-        // LoopDefinition ebenso: nur der Dialog-FK, EntryQuestionId/BreakingQuestionId bleiben skalar.
+        // LoopDefinition likewise: only the dialog FK, EntryQuestionId/BreakingQuestionId stay scalar.
         Assert.Single(context.Model.FindEntityType(typeof(LoopDefinition))!.GetForeignKeys());
-        // DialogLayout ebenso: nur der Dialog-FK, ElementId bleibt skalar (#102).
+        // DialogLayout likewise: only the dialog FK, ElementId stays scalar (#102).
         Assert.Single(context.Model.FindEntityType(typeof(DialogLayout))!.GetForeignKeys());
     }
 
     /// <summary>
-    /// Je Element höchstens eine Position: Der Unique-Index über
-    /// (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) verhindert zwei widersprüchliche Zeilen –
-    /// welche gälte, wäre sonst nicht bestimmbar.
+    /// At most one position per element: the unique index over
+    /// (<c>DialogId</c>, <c>ElementKind</c>, <c>ElementId</c>) prevents two contradicting rows – which
+    /// one would apply could otherwise not be decided.
     /// </summary>
     [Fact]
-    public void Zweite_Position_desselben_Elements_verletzt_den_Unique_Index()
+    public void A_second_position_for_the_same_element_violates_the_unique_index()
     {
         var dialogId = Guid.NewGuid();
 

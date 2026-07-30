@@ -302,3 +302,45 @@ lets triggers from `DesignerTriggerLog` flash at the triggering node.
 `type:test` `area:designer`
 Creation flow, test run and read mode in the browser – analogous to #46. The canvas waits for `data-canvas-ready`
 instead of the retry pattern `InteractWhenReadyAsync` (gestures are not idempotent).
+
+---
+
+## EPIC 12 – Translate the repository to English `type:epic` `area:core` `area:api` `area:designer` `area:samples`
+
+Flirty ships as two public NuGet packages, but every piece of prose in it was German – the README
+(which is the description page of **both** packages), the guides, the ADRs, the XML docs a consumer
+sees in IntelliSense, the designer UI and the engine's validation messages, which reach end users
+over HTTP. That made the packages effectively usable by German-speaking developers only.
+
+**No breaking change:** every identifier in `src` was already English (`QuestionType`,
+`SetDialogLayoutCommand`, `IFlirtyEngine.SubmitAnswerAsync`) – only the prose was German. So no public
+type or member is renamed, no consumer has to touch their code, and no EF migration is involved. Cut
+into five stages (#112); multi-language support (`.resx`, `IStringLocalizer`) is explicitly **not** a
+goal – this is a switch, not a localization feature.
+
+### Switch the language convention
+`type:chore`
+`CLAUDE.md`, the six skills, the PR template and both workflow files. Goes **first**: as long as the
+convention prescribes German, every following PR correctly produces *new* German text.
+
+### README, docs/ guides, ADRs
+`type:docs`
+The README, the 17 guides and the 9 ADRs; the ADR files renamed via `git mv` (numbers unchanged) with
+every referrer pointed at the new slugs.
+
+### XML docs, comments and engine messages in the packages
+`type:chore` `area:core` `area:api`
+`Flirty` + `Flirty.AspNetCore` throughout, including both `.csproj` `<Description>`s. The engine's
+validation messages become English and go out as the HTTP `400` body – the *contract*
+(`AnswerValidationResult` shape, status codes) is unchanged.
+
+### Designer and sample UIs
+`type:chore` `area:designer` `area:samples`
+The designer UI, the chat UI and the console sample, plus `DisplayCulture`. Has to move in **one**
+commit: the graph warning wordings are a contract asserted verbatim by the unit and E2E suites.
+
+### Test names
+`type:test`
+All test methods, comments, local variables and test data. Goes **last**, so the renames do not
+collide with any stage still in flight. The proof is an unchanged test count, measured from the TRX
+`total` and diffed per class.

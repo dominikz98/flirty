@@ -4,17 +4,17 @@ using Mediator;
 namespace Flirty.Pipeline;
 
 /// <summary>
-/// Mediator-Pipeline-Behavior, das eingehende Nachrichten anhand ihrer
-/// <see cref="ValidationAttribute"/>-Annotationen (System.ComponentModel.DataAnnotations)
-/// prüft und bei Verstößen eine <see cref="ValidationException"/> wirft, bevor der Handler
-/// aufgerufen wird.
+/// Mediator pipeline behavior that checks incoming messages against their
+/// <see cref="ValidationAttribute"/> annotations (System.ComponentModel.DataAnnotations)
+/// and throws a <see cref="ValidationException"/> on violations before the handler is
+/// called.
 /// </summary>
 /// <remarks>
-/// Skelett aus Issue #14. Die fachliche Antwort-Validierung (Antworttyp + <c>ValidationRules</c>
-/// über <c>IAnswerValidator</c>) folgt separat in Issue #30.
+/// Skeleton from issue #14. The domain answer validation (answer type + <c>ValidationRules</c>
+/// via <c>IAnswerValidator</c>) follows separately in issue #30.
 /// </remarks>
-/// <typeparam name="TMessage">Der Nachrichtentyp (Command, Query oder Notification).</typeparam>
-/// <typeparam name="TResponse">Der von der Nachricht erwartete Antworttyp.</typeparam>
+/// <typeparam name="TMessage">The message type (command, query or notification).</typeparam>
+/// <typeparam name="TResponse">The response type expected by the message.</typeparam>
 public sealed class ValidationPipelineBehavior<TMessage, TResponse> : IPipelineBehavior<TMessage, TResponse>
     where TMessage : notnull, IMessage
 {
@@ -31,7 +31,7 @@ public sealed class ValidationPipelineBehavior<TMessage, TResponse> : IPipelineB
         {
             var errors = string.Join("; ", results.Select(result => result.ErrorMessage));
             throw new ValidationException(
-                $"Validierung von '{typeof(TMessage).Name}' fehlgeschlagen: {errors}");
+                $"Validation of '{typeof(TMessage).Name}' failed: {errors}");
         }
 
         return next(message, cancellationToken);

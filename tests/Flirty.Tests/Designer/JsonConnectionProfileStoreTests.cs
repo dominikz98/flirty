@@ -5,28 +5,28 @@ using Flirty.Persistence;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="JsonConnectionProfileStore"/> (#37): CRUD, Kopier-Semantik und
-/// Persistenz (inkl. Standardprofil) über eine echte JSON-Datei im Temp-Verzeichnis.
+/// Tests for the <see cref="JsonConnectionProfileStore"/> (#37): CRUD, copy semantics and persistence
+/// (incl. the default profile) over a real JSON file in the temp directory.
 /// </summary>
 public sealed class JsonConnectionProfileStoreTests
 {
     [Fact]
-    public void Save_und_GetAll_legt_Profil_an()
+    public void Save_and_GetAll_create_a_profile()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            store.Save(SqliteProfile("Lokal"));
+            store.Save(SqliteProfile("Local"));
 
             var all = store.GetAll();
             var profile = Assert.Single(all);
-            Assert.Equal("Lokal", profile.Name);
+            Assert.Equal("Local", profile.Name);
             Assert.Equal(FlirtyDatabaseProvider.Sqlite, profile.Provider);
         });
     }
 
     [Fact]
-    public void Save_aktualisiert_bestehendes_Profil_ueber_Id()
+    public void Save_updates_an_existing_profile_by_id()
     {
         RunWithTempFile(path =>
         {
@@ -43,12 +43,12 @@ public sealed class JsonConnectionProfileStoreTests
     }
 
     [Fact]
-    public void Delete_entfernt_Profil_und_loescht_Default()
+    public void Delete_removes_the_profile_and_clears_the_default()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
             store.Save(profile);
             store.SetDefault(profile.Id);
 
@@ -60,37 +60,37 @@ public sealed class JsonConnectionProfileStoreTests
     }
 
     [Fact]
-    public void Default_und_Profile_werden_ueber_Neuladen_persistiert()
+    public void Default_and_profiles_are_persisted_across_a_reload()
     {
         RunWithTempFile(path =>
         {
-            var profile = SqliteProfile("Lokal");
+            var profile = SqliteProfile("Local");
 
             var first = new JsonConnectionProfileStore(path);
             first.Save(profile);
             first.SetDefault(profile.Id);
 
-            // Neue Instanz auf derselben Datei -> beweist die Persistenz.
+            // A new instance on the same file -> proves the persistence.
             var second = new JsonConnectionProfileStore(path);
             Assert.Equal(profile.Id, second.DefaultProfileId);
             var reloaded = Assert.Single(second.GetAll());
-            Assert.Equal("Lokal", reloaded.Name);
+            Assert.Equal("Local", reloaded.Name);
             Assert.Equal(FlirtyDatabaseProvider.Sqlite, reloaded.Provider);
         });
     }
 
     [Fact]
-    public void GetAll_liefert_Kopien_die_den_Store_nicht_veraendern()
+    public void GetAll_returns_copies_that_do_not_change_the_store()
     {
         RunWithTempFile(path =>
         {
             var store = new JsonConnectionProfileStore(path);
-            store.Save(SqliteProfile("Lokal"));
+            store.Save(SqliteProfile("Local"));
 
             var fetched = Assert.Single(store.GetAll());
             fetched.Name = "Manipuliert";
 
-            Assert.Equal("Lokal", Assert.Single(store.GetAll()).Name);
+            Assert.Equal("Local", Assert.Single(store.GetAll()).Name);
         });
     }
 

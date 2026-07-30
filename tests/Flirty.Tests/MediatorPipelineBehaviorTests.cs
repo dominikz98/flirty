@@ -8,13 +8,13 @@ using Microsoft.Extensions.Logging;
 namespace Flirty.Tests;
 
 /// <summary>
-/// Verifiziert das Mediator-Setup aus Issue #14: Ein Dummy-Command läuft durch die
-/// registrierten Basis-Pipeline-Behaviors (Logging + Validierung).
+/// Verifies the mediator setup from issue #14: a dummy command runs through the registered
+/// base pipeline behaviors (logging + validation).
 /// </summary>
 public class MediatorPipelineBehaviorTests
 {
     [Fact]
-    public async Task DummyCommand_laeuft_durch_LoggingPipelineBehavior()
+    public async Task DummyCommand_runs_through_the_LoggingPipelineBehavior()
     {
         var spy = new SpyLoggerProvider();
         var provider = new ServiceCollection()
@@ -29,15 +29,15 @@ public class MediatorPipelineBehaviorTests
 
         Assert.Equal("ping", response.Message);
 
-        // Der Beginn wird protokolliert -> das Behavior lief VOR dem Handler.
-        Assert.Contains(spy.Entries, entry => entry.Message.Contains("Mediator verarbeitet PingCommand"));
-        // Der Abschluss (mit Dauer) wird protokolliert -> next() kehrte zurück, der Command lief
-        // vollständig DURCH das Behavior.
+        // The start is logged -> the behavior ran BEFORE the handler.
+        Assert.Contains(spy.Entries, entry => entry.Message.Contains("Mediator processes PingCommand"));
+        // The completion (with duration) is logged -> next() returned, so the command ran all the way
+        // THROUGH the behavior.
         Assert.Contains(spy.Entries, entry => entry.Message.Contains("PingCommand") && entry.Message.Contains("ms"));
     }
 
     [Fact]
-    public async Task UngueltigerCommand_wird_von_ValidationPipelineBehavior_abgewiesen()
+    public async Task Invalid_command_is_rejected_by_the_ValidationPipelineBehavior()
     {
         var provider = new ServiceCollection()
             .AddLogging()
@@ -47,7 +47,7 @@ public class MediatorPipelineBehaviorTests
         using var scope = provider.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        // Message ist [Required]; null verletzt die DataAnnotations-Validierung.
+        // Message is [Required]; null violates the DataAnnotations validation.
         await Assert.ThrowsAsync<ValidationException>(async () => await sender.Send(new PingCommand(null!)));
     }
 

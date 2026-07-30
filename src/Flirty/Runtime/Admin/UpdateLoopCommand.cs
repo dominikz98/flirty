@@ -5,14 +5,14 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Aktualisiert den Schleifen-Marker <see cref="LoopId"/> im Dialog <see cref="DialogId"/> (In-Place).
-/// Der <see cref="CollectionKey"/> muss innerhalb des Dialogs eindeutig bleiben.
+/// Updates the loop marker <see cref="LoopId"/> in the dialog <see cref="DialogId"/> (in place).
+/// The <see cref="CollectionKey"/> must remain unique within the dialog.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem die Schleife gehört.</param>
-/// <param name="LoopId">Der Primärschlüssel der zu ändernden Schleifen-Definition.</param>
-/// <param name="CollectionKey">Schlüssel, unter dem die je Iteration gesammelten Antworten im Ausdruckskontext liegen.</param>
-/// <param name="EntryQuestionId">Verweis auf die Einstiegsfrage der Schleife.</param>
-/// <param name="BreakingQuestionId">Verweis auf die Breaking Question.</param>
+/// <param name="DialogId">The id of the dialog the loop belongs to.</param>
+/// <param name="LoopId">The primary key of the loop definition to change.</param>
+/// <param name="CollectionKey">Key under which the answers gathered per iteration lie in the expression context.</param>
+/// <param name="EntryQuestionId">Reference to the entry question of the loop.</param>
+/// <param name="BreakingQuestionId">Reference to the breaking question.</param>
 public sealed record UpdateLoopCommand(
     Guid DialogId,
     Guid LoopId,
@@ -20,14 +20,14 @@ public sealed record UpdateLoopCommand(
     Guid EntryQuestionId,
     Guid BreakingQuestionId) : ICommand<LoopDetail>;
 
-/// <summary>Handler für <see cref="UpdateLoopCommand"/>.</summary>
+/// <summary>Handler for <see cref="UpdateLoopCommand"/>.</summary>
 internal sealed class UpdateLoopCommandHandler : ICommandHandler<UpdateLoopCommand, LoopDetail>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public UpdateLoopCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -36,17 +36,17 @@ internal sealed class UpdateLoopCommandHandler : ICommandHandler<UpdateLoopComma
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Keine Schleife mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No loop with the given id exists in the given dialog.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Im Dialog existiert bereits eine andere Schleife mit diesem Collection-Schlüssel.
+    /// Another loop with this collection key already exists in the dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<LoopDetail> Handle(UpdateLoopCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var loop = await _store.GetLoopAsync(command.LoopId, cancellationToken);
@@ -59,8 +59,8 @@ internal sealed class UpdateLoopCommandHandler : ICommandHandler<UpdateLoopComma
                 command.DialogId, command.CollectionKey, command.LoopId, cancellationToken))
         {
             throw new InvalidOperationException(
-                $"Im Dialog '{command.DialogId}' existiert bereits eine Schleife mit dem "
-                + $"Collection-Schlüssel '{command.CollectionKey}'.");
+                $"A loop with the collection key '{command.CollectionKey}' already exists in the "
+                + $"dialog '{command.DialogId}'.");
         }
 
         loop.CollectionKey = command.CollectionKey;

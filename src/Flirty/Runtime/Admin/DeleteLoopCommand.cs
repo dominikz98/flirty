@@ -4,22 +4,22 @@ using Mediator;
 namespace Flirty.Runtime.Admin;
 
 /// <summary>
-/// Löscht den Schleifen-Marker <see cref="LoopId"/> im Dialog <see cref="DialogId"/>. Der Zyklus selbst
-/// bleibt bestehen – er entsteht aus den Übergängen; ohne Marker werden die Antworten des Bereichs zur
-/// Laufzeit aber überschrieben statt je Iteration gesammelt.
+/// Deletes the loop marker <see cref="LoopId"/> in the dialog <see cref="DialogId"/>. The cycle itself
+/// remains – it arises from the transitions; without a marker, however, the answers of the range are
+/// overwritten at runtime instead of gathered per iteration.
 /// </summary>
-/// <param name="DialogId">Die Id des Dialogs, zu dem die Schleife gehört.</param>
-/// <param name="LoopId">Der Primärschlüssel der zu löschenden Schleifen-Definition.</param>
+/// <param name="DialogId">The id of the dialog the loop belongs to.</param>
+/// <param name="LoopId">The primary key of the loop definition to delete.</param>
 public sealed record DeleteLoopCommand(Guid DialogId, Guid LoopId) : ICommand<Unit>;
 
-/// <summary>Handler für <see cref="DeleteLoopCommand"/>.</summary>
+/// <summary>Handler for <see cref="DeleteLoopCommand"/>.</summary>
 internal sealed class DeleteLoopCommandHandler : ICommandHandler<DeleteLoopCommand, Unit>
 {
     private readonly IDialogAdminStore _store;
 
-    /// <summary>Erstellt den Handler über den angegebenen <see cref="IDialogAdminStore"/>.</summary>
-    /// <param name="store">Das schreibende Repository für den Konfigurationsgraphen.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> ist <see langword="null"/>.</exception>
+    /// <summary>Creates the handler over the given <see cref="IDialogAdminStore"/>.</summary>
+    /// <param name="store">The writing repository for the configuration graph.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
     public DeleteLoopCommandHandler(IDialogAdminStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -28,14 +28,14 @@ internal sealed class DeleteLoopCommandHandler : ICommandHandler<DeleteLoopComma
 
     /// <inheritdoc />
     /// <exception cref="ConfigurationNotFoundException">
-    /// Keine Schleife mit der angegebenen Id im angegebenen Dialog existiert.
+    /// No loop with the given id exists in the given dialog.
     /// </exception>
-    /// <exception cref="DialogPublishedException">Der Dialog ist veröffentlicht; sein Graph ist gesperrt.</exception>
+    /// <exception cref="DialogPublishedException">The dialog is published; its graph is locked.</exception>
     public async ValueTask<Unit> Handle(DeleteLoopCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        // Eine veröffentlichte Version ist unveränderlich (laufende Sessions hängen daran).
+        // A published version is immutable (running sessions depend on it).
         await DialogEditGuard.EnsureEditableAsync(_store, command.DialogId, cancellationToken);
 
         var loop = await _store.GetLoopAsync(command.LoopId, cancellationToken);

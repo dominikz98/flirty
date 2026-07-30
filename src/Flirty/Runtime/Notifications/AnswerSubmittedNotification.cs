@@ -4,29 +4,29 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// In-Process-Notification (Trigger-Scope <see cref="TriggerScope.AfterAnswer"/>): wird publiziert,
-/// nachdem der <see cref="SubmitAnswerCommandHandler"/> eine eingereichte Antwort persistiert hat –
-/// unabhängig davon, ob die Session danach weiterschaltet oder abschließt.
+/// In-process notification (trigger scope <see cref="TriggerScope.AfterAnswer"/>): published
+/// after the <see cref="SubmitAnswerCommandHandler"/> has persisted a submitted answer –
+/// regardless of whether the session then advances or completes.
 /// </summary>
 /// <remarks>
-/// Feuert je eingereichter Antwort einmal. Nachträgliche Korrekturen über den
-/// <see cref="EditAnswerCommandHandler"/> lösen diese Notification bewusst <b>nicht</b> aus.
+/// Fires once per submitted answer. Subsequent corrections via the
+/// <see cref="EditAnswerCommandHandler"/> deliberately do <b>not</b> trigger this notification.
 /// </remarks>
-/// <param name="SessionId">Der Primärschlüssel der <see cref="DialogSession"/>, für die geantwortet wurde.</param>
-/// <param name="DialogKey">Der fachliche, stabile Schlüssel des laufenden Dialogs.</param>
-/// <param name="QuestionId">Die Id der beantworteten Frage.</param>
-/// <param name="Value">Der eingereichte Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp).</param>
+/// <param name="SessionId">The primary key of the <see cref="DialogSession"/> for which the answer was given.</param>
+/// <param name="DialogKey">The business, stable key of the running dialog.</param>
+/// <param name="QuestionId">The id of the answered question.</param>
+/// <param name="Value">The submitted answer value as raw JSON text (format depends on the question type).</param>
 /// <param name="LoopInstanceId">
-/// Die Instanz-Id der Schleife, zu der die Antwort gehört, oder <see langword="null"/>, wenn die Antwort
-/// außerhalb einer Schleife gegeben wurde.
+/// The instance id of the loop the answer belongs to, or <see langword="null"/> if the answer
+/// was given outside a loop.
 /// </param>
 /// <param name="IterationIndex">
-/// Der nullbasierte Iterationsindex innerhalb der Schleife oder <see langword="null"/> außerhalb einer
-/// Schleife.
+/// The zero-based iteration index within the loop, or <see langword="null"/> outside a
+/// loop.
 /// </param>
-// MSG0005: Der Mediator-Source-Generator (martinothamar) verlangt je Nachricht einen Handler in der
-// Core-Compilation. In-Process-Trigger werden bewusst erst von Host-Apps über eigene
-// INotificationHandler<T> behandelt (siehe docs/TRIGGERS.md) – daher hier gezielt unterdrückt.
+// MSG0005: The Mediator source generator (martinothamar) requires a handler per message in the
+// core compilation. In-process triggers are deliberately handled only by host apps via their own
+// INotificationHandler<T> (see docs/TRIGGERS.md) – therefore suppressed here on purpose.
 #pragma warning disable MSG0005
 public sealed record AnswerSubmittedNotification(
     Guid SessionId,

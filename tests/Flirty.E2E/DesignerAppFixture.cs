@@ -91,7 +91,7 @@ public sealed class DesignerAppFixture : IAsyncLifetime
 
         if (_contentRoot is not null && Directory.Exists(_contentRoot))
         {
-            // Best effort: die SQLite-Datei (samt -shm/-wal) kann noch kurz gelockt sein.
+            // Best effort: the SQLite file (incl. -shm/-wal) can still be locked for a moment.
             try { Directory.Delete(_contentRoot, recursive: true); }
             catch (IOException) { /* egal – liegt im Temp-Verzeichnis */ }
             catch (UnauthorizedAccessException) { /* dito */ }

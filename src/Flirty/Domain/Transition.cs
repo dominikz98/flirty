@@ -1,40 +1,40 @@
 namespace Flirty.Domain;
 
 /// <summary>
-/// Ein bedingter Übergang (Branching) von einer Frage zu einer Zielfrage. Je Ausgangsfrage
-/// bilden die Übergänge eine nach <see cref="Priority"/> geordnete Liste; der erste zutreffende
-/// Übergang gewinnt, andernfalls greift der als <see cref="IsDefault"/> markierte. Zeigt
-/// <see cref="TargetQuestionId"/> auf eine frühere Frage, entsteht ein Loop-Zyklus.
+/// A conditional transition (branching) from a question to a target question. Per source question
+/// the transitions form a list ordered by <see cref="Priority"/>; the first matching
+/// transition wins, otherwise the one marked as <see cref="IsDefault"/> applies. If
+/// <see cref="TargetQuestionId"/> points to an earlier question, a loop cycle arises.
 /// </summary>
 public sealed class Transition
 {
-    /// <summary>Eindeutiger Primärschlüssel des Übergangs.</summary>
+    /// <summary>Unique primary key of the transition.</summary>
     public Guid Id { get; set; }
 
-    /// <summary>Fremdschlüssel auf den zugehörigen <see cref="Dialog"/>.</summary>
+    /// <summary>Foreign key to the owning <see cref="Dialog"/>.</summary>
     public Guid DialogId { get; set; }
 
-    /// <summary>Verweis auf die Ausgangsfrage (<see cref="Question.Id"/>).</summary>
+    /// <summary>Reference to the source question (<see cref="Question.Id"/>).</summary>
     public Guid FromQuestionId { get; set; }
 
     /// <summary>
-    /// Optionaler Bedingungsausdruck, der über <see cref="Flirty.Expressions.IExpressionEvaluator"/>
-    /// ausgewertet wird. Ist er <see langword="null"/>/leer, gilt der Übergang als bedingungslos zutreffend.
+    /// Optional condition expression that is evaluated via <see cref="Flirty.Expressions.IExpressionEvaluator"/>.
+    /// If it is <see langword="null"/>/empty, the transition is considered unconditionally matching.
     /// </summary>
     public string? Expression { get; set; }
 
-    /// <summary>Verweis auf die Zielfrage (<see cref="Question.Id"/>).</summary>
+    /// <summary>Reference to the target question (<see cref="Question.Id"/>).</summary>
     public Guid TargetQuestionId { get; set; }
 
-    /// <summary>Priorität für die Auswertungsreihenfolge (kleinerer Wert = früher geprüft).</summary>
+    /// <summary>Priority for the evaluation order (smaller value = checked earlier).</summary>
     public int Priority { get; set; }
 
     /// <summary>
-    /// Gibt an, ob dieser Übergang der Default ist, der greift, wenn kein bedingter Übergang
-    /// zutrifft.
+    /// Indicates whether this transition is the default that applies when no conditional transition
+    /// matches.
     /// </summary>
     public bool IsDefault { get; set; }
 
-    /// <summary>Der Dialog, zu dem dieser Übergang gehört.</summary>
+    /// <summary>The dialog this transition belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 }

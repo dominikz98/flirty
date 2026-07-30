@@ -4,10 +4,10 @@ using Flirty.Expressions;
 namespace Flirty.Tests.Expressions;
 
 /// <summary>
-/// Verifiziert die gesandboxte Default-Engine aus Issue #23
-/// (<see cref="DynamicExpressoExpressionEvaluator"/>): typisierte Auswertung von Antworten und
-/// Loop-Collections, UND/ODER-Verknüpfungen, Zugriff auf die Kontext-Variablen sowie die
-/// Sandbox-/Injection-Abwehr (keine Reflection, keine nicht gewhitelisteten Typen, keine Zuweisung).
+/// Verifies the sandboxed default engine from issue #23
+/// (<see cref="DynamicExpressoExpressionEvaluator"/>): typed evaluation of answers and loop
+/// collections, AND/OR combinations, access to the context variables as well as the
+/// sandbox/injection defence (no reflection, no non-whitelisted types, no assignment).
 /// </summary>
 public sealed class DynamicExpressoExpressionEvaluatorTests
 {
@@ -34,7 +34,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     [InlineData("42", true)]
     [InlineData("18", false)]
     [InlineData("10", false)]
-    public void Numerischer_Vergleich_wertet_Antwort_typisiert_aus(string age, bool expected)
+    public void Numeric_comparison_evaluates_the_answer_typed(string age, bool expected)
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = age });
 
@@ -42,7 +42,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Und_Verknuepfung_kombiniert_Zahl_und_Bool()
+    public void And_combination_combines_a_number_and_a_boolean()
     {
         var context = Context(new Dictionary<string, string?>
         {
@@ -55,7 +55,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Oder_Verknuepfung_trifft_zu_wenn_ein_Zweig_wahr_ist()
+    public void Or_combination_matches_when_one_branch_is_true()
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
@@ -63,7 +63,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Bool_Antwort_kann_direkt_als_Bedingung_genutzt_werden()
+    public void Boolean_answer_can_be_used_directly_as_a_condition()
     {
         var context = Context(new Dictionary<string, string?> { ["verified"] = "true" });
 
@@ -71,7 +71,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void String_Antwort_wird_aus_JSON_deserialisiert()
+    public void String_answer_is_deserialized_from_JSON()
     {
         var context = Context(new Dictionary<string, string?> { ["name"] = "\"Ada\"" });
 
@@ -80,16 +80,16 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Nicht_JSON_Wert_wird_als_roher_String_behandelt()
+    public void Non_JSON_value_is_treated_as_a_raw_string()
     {
-        // Ein unquotierter Auswahl-Schlüssel ist kein gültiges JSON -> Fallback auf den Rohstring.
+        // An unquoted choice key is not valid JSON -> fall back to the raw string.
         var context = Context(new Dictionary<string, string?> { ["status"] = "active" });
 
         Assert.True(Evaluator.Evaluate("status == \"active\"", context));
     }
 
     [Fact]
-    public void Loop_Collection_Count_ist_auswertbar()
+    public void Loop_collection_Count_is_evaluable()
     {
         var context = Context(collections: new Dictionary<string, IReadOnlyList<string?>>
         {
@@ -101,7 +101,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Leere_Loop_Collection_hat_Count_null()
+    public void Empty_loop_collection_has_Count_zero()
     {
         var context = Context(collections: new Dictionary<string, IReadOnlyList<string?>>
         {
@@ -112,7 +112,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Kontext_Variable_now_ist_verfuegbar()
+    public void Context_variable_now_is_available()
     {
         var context = Context(now: new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
 
@@ -120,17 +120,17 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Theory]
-    [InlineData("System.IO.File.ReadAllText(\"secret.txt\") != null")] // nicht gewhitelisteter Typ
-    [InlineData("\"x\".GetType().Assembly != null")]                    // Reflection ist blockiert
-    [InlineData("typeof(System.Environment) != null")]                  // Typ-/Reflection-Zugriff
-    [InlineData("unknownVariable > 1")]                                 // unbekannter Bezeichner
-    public void Nicht_gewhitelistete_oder_ungueltige_Ausdruecke_werfen(string expression)
+    [InlineData("System.IO.File.ReadAllText(\"secret.txt\") != null")] // type not on the whitelist
+    [InlineData("\"x\".GetType().Assembly != null")]                    // reflection is blocked
+    [InlineData("typeof(System.Environment) != null")]                  // type/reflection access
+    [InlineData("unknownVariable > 1")]                                 // unknown identifier
+    public void Non_whitelisted_or_invalid_expressions_throw(string expression)
     {
         Assert.Throws<ExpressionEvaluationException>(() => Evaluator.Evaluate(expression, Context()));
     }
 
     [Fact]
-    public void Zuweisung_ist_deaktiviert_und_wirft()
+    public void Assignment_is_disabled_and_throws()
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
@@ -138,7 +138,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Nicht_boolescher_Ausdruck_wirft()
+    public void Non_boolean_expression_throws()
     {
         var context = Context(new Dictionary<string, string?> { ["age"] = "42" });
 
@@ -146,7 +146,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Geworfene_Exception_traegt_den_Ausdruck()
+    public void The_thrown_exception_carries_the_expression()
     {
         var exception = Assert.Throws<ExpressionEvaluationException>(
             () => Evaluator.Evaluate("unknownVariable > 1", Context()));
@@ -156,24 +156,24 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Leerer_Ausdruck_wirft_ArgumentException()
+    public void Empty_expression_throws_ArgumentException()
     {
         Assert.Throws<ArgumentException>(() => Evaluator.Evaluate("   ", Context()));
     }
 
     [Fact]
-    public void Null_Ausdruck_wirft_ArgumentNullException()
+    public void Null_expression_throws_ArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => Evaluator.Evaluate(null!, Context()));
     }
 
     [Fact]
-    public void Null_Kontext_wirft_ArgumentNullException()
+    public void Null_context_throws_ArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => Evaluator.Evaluate("age > 18", null!));
     }
 
-    // ---- Validierung / Compile-Check (Issue #24) ----
+    // ---- Validation / compile check (issue #24) ----
 
     private static ExpressionContext ValidationContext() => Context(
         answers: new Dictionary<string, string?>
@@ -189,14 +189,14 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
         now: new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
 
     [Theory]
-    [InlineData("age > 18")]                     // Vergleichsoperator
-    [InlineData("age > 18 && verified == true")] // UND-Verknüpfung
-    [InlineData("age > 100 || age > 18")]        // ODER-Verknüpfung
-    [InlineData("verified")]                      // boolesche Antwort direkt
-    [InlineData("positions.Count > 0")]          // Loop-Collection
-    [InlineData("name == \"Ada\"")]              // String-Vergleich
-    [InlineData("now.Year == 2026")]             // Kontext-Variable
-    public void Validate_gueltiger_Ausdruck_ist_valide(string expression)
+    [InlineData("age > 18")]                     // comparison operator
+    [InlineData("age > 18 && verified == true")] // AND combination
+    [InlineData("age > 100 || age > 18")]        // OR combination
+    [InlineData("verified")]                      // boolean answer used directly
+    [InlineData("positions.Count > 0")]          // loop collection
+    [InlineData("name == \"Ada\"")]              // string comparison
+    [InlineData("now.Year == 2026")]             // context variable
+    public void Validate_a_valid_expression_is_valid(string expression)
     {
         var result = Evaluator.Validate(expression, ValidationContext());
 
@@ -209,18 +209,18 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_leerer_Ausdruck_ist_valide(string? expression)
+    public void Validate_an_empty_expression_is_valid(string? expression)
     {
-        // Null/leer gilt als „bedingungslos zutreffend" (konsistent zur Runtime-Semantik).
+        // Null/empty counts as "unconditionally matching" (consistent with the runtime semantics).
         var result = Evaluator.Validate(expression!, ValidationContext());
 
         Assert.True(result.IsValid);
     }
 
     [Theory]
-    [InlineData("age > > 18")] // doppelter Operator
-    [InlineData("(age > 18")]  // unbalancierte Klammer
-    public void Validate_syntaxfehler_ist_ungueltig(string expression)
+    [InlineData("age > > 18")] // duplicated operator
+    [InlineData("(age > 18")]  // unbalanced parenthesis
+    public void Validate_a_syntax_error_is_invalid(string expression)
     {
         var result = Evaluator.Validate(expression, ValidationContext());
 
@@ -229,10 +229,10 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Theory]
-    [InlineData("System.IO.File.ReadAllText(\"secret.txt\") != null")] // nicht gewhitelisteter Typ
-    [InlineData("\"x\".GetType().Assembly != null")]                    // Reflection ist blockiert
-    [InlineData("typeof(System.Environment) != null")]                  // Typ-/Reflection-Zugriff
-    public void Validate_injection_ist_ungueltig(string expression)
+    [InlineData("System.IO.File.ReadAllText(\"secret.txt\") != null")] // type not on the whitelist
+    [InlineData("\"x\".GetType().Assembly != null")]                    // reflection is blocked
+    [InlineData("typeof(System.Environment) != null")]                  // type/reflection access
+    public void Validate_an_injection_is_invalid(string expression)
     {
         var result = Evaluator.Validate(expression, ValidationContext());
 
@@ -241,42 +241,41 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     /// <summary>
-    /// Ein Reflexions-Zugriff wird nicht nur abgelehnt, sondern auch verständlich begründet: DynamicExpresso
-    /// rät in seiner eigenen Meldung dazu, Reflection per <c>Interpreter.EnableReflection()</c>
-    /// einzuschalten – ein Hinweis an den Einbettenden der Bibliothek, nicht an den Dialog-Autor im
-    /// Designer, und der Sandbox-Entscheidung (ADR 0004) entgegengesetzt.
+    /// A reflection access is not only rejected but also explained understandably: in its own message
+    /// DynamicExpresso advises turning reflection on via <c>Interpreter.EnableReflection()</c> – a hint
+    /// aimed at whoever embeds the library, not at the dialog author in the designer, and opposed to
+    /// the sandbox decision (ADR 0004).
     /// </summary>
     /// <remarks>
-    /// Wo die Grenze der Bibliothek verläuft: Sie greift bei Membern, die selbst wieder ein reflexives
-    /// Objekt liefern (<c>Assembly</c>, <c>MethodInfo</c> …). Ein blankes <c>GetType()</c> und
-    /// <c>GetType().Name</c> (ein String) laufen durch – daraus lässt sich kein Code ausführen, es bleibt
-    /// beim Typnamen.
+    /// Where the library's boundary runs: it kicks in on members that themselves return a reflective
+    /// object (<c>Assembly</c>, <c>MethodInfo</c> …). A bare <c>GetType()</c> and <c>GetType().Name</c>
+    /// (a string) pass through – no code can be executed from those, it stays at the type name.
     /// </remarks>
     [Theory]
     [InlineData("\"x\".GetType().Assembly != null")]
     [InlineData("session.GetType().Assembly != null")]
-    public void Validate_Reflexion_meldet_eigene_Begruendung_ohne_EnableReflection_Rat(string expression)
+    public void Validate_reflection_reports_its_own_reason_without_the_EnableReflection_advice(string expression)
     {
         var result = Evaluator.Validate(expression, Context());
 
         Assert.False(result.IsValid);
-        Assert.Contains("Reflexion", result.Error!, StringComparison.Ordinal);
+        Assert.Contains("reflection", result.Error!, StringComparison.Ordinal);
         Assert.DoesNotContain("EnableReflection", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Dieselbe Meldung greift auch zur Laufzeit – ein Ausdruck kann am Designer vorbei entstehen.</summary>
+    /// <summary>The same message applies at runtime too – an expression can come into being bypassing the designer.</summary>
     [Fact]
-    public void Evaluate_Reflexion_meldet_eigene_Begruendung_ohne_EnableReflection_Rat()
+    public void Evaluate_reflection_reports_its_own_reason_without_the_EnableReflection_advice()
     {
         var exception = Assert.Throws<ExpressionEvaluationException>(
             () => Evaluator.Evaluate("session.GetType().Assembly != null", Context()));
 
-        Assert.Contains("Reflexion", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("reflection", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("EnableReflection", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Validate_unbekannter_Bezeichner_ist_ungueltig_mit_Position()
+    public void Validate_an_unknown_identifier_is_invalid_with_a_position()
     {
         var result = Evaluator.Validate("unknownVariable > 1", Context());
 
@@ -286,7 +285,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Validate_Zuweisung_ist_ungueltig()
+    public void Validate_an_assignment_is_invalid()
     {
         var result = Evaluator.Validate("age = 99", ValidationContext());
 
@@ -295,18 +294,18 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Theory]
-    [InlineData("age")] // long-Ergebnis
-    [InlineData("42")]  // int-Ergebnis
-    public void Validate_nicht_boolescher_Ausdruck_ist_ungueltig(string expression)
+    [InlineData("age")] // long result
+    [InlineData("42")]  // int result
+    public void Validate_a_non_boolean_expression_is_invalid(string expression)
     {
         var result = Evaluator.Validate(expression, ValidationContext());
 
         Assert.False(result.IsValid);
-        Assert.Contains("boolesch", result.Error!);
+        Assert.Contains("boolean", result.Error!);
     }
 
     [Fact]
-    public void Validate_wirft_nicht_bei_fehlerhaftem_Ausdruck()
+    public void Validate_does_not_throw_on_a_faulty_expression()
     {
         var exception = Record.Exception(
             () => Evaluator.Validate("System.IO.File.ReadAllText(\"x\")", Context()));
@@ -315,7 +314,7 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     }
 
     [Fact]
-    public void Validate_null_Kontext_wirft_ArgumentNullException()
+    public void Validate_with_a_null_context_throws_ArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => Evaluator.Validate("age > 18", null!));
     }

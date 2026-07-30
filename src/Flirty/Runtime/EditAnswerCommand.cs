@@ -7,28 +7,28 @@ using Mediator;
 namespace Flirty.Runtime;
 
 /// <summary>
-/// Editiert die bereits gegebene Antwort auf eine frühere Frage <see cref="QuestionId"/> der Session
-/// <see cref="SessionId"/>: Der bestehende Antwortwert wird durch <see cref="Value"/> <b>überschrieben</b>,
-/// alle <b>nachgelagerten</b> Antworten (die nach der editierten Frage gegebenen) werden verworfen
-/// (invalidiert) und der Pfad wird ab der editierten Frage über die Übergänge (Branching) <b>neu
-/// berechnet</b>. Eine bereits abgeschlossene Session wird dabei wieder geöffnet, sofern die
-/// Neuberechnung auf eine nicht-terminale Folgefrage führt.
+/// Edits the answer already given to an earlier question <see cref="QuestionId"/> of session
+/// <see cref="SessionId"/>: the existing answer value is <b>overwritten</b> by <see cref="Value"/>,
+/// all <b>downstream</b> answers (those given after the edited question) are discarded
+/// (invalidated) and the path is <b>recomputed</b> from the edited question onwards via the transitions
+/// (branching). An already completed session is reopened if the recomputation leads to a non-terminal
+/// follow-up question.
 /// </summary>
-/// <param name="SessionId">Der Primärschlüssel der <see cref="DialogSession"/>, deren Antwort editiert wird.</param>
+/// <param name="SessionId">The primary key of the <see cref="DialogSession"/> whose answer is edited.</param>
 /// <param name="QuestionId">
-/// Die Id der Frage, deren Antwort überschrieben werden soll. Sie muss zum gepinnten Dialog gehören und
-/// in dieser Session bereits beantwortet worden sein (im Gegensatz zu <see cref="SubmitAnswerCommand"/>
-/// muss sie <b>nicht</b> die aktuell offene Frage sein).
+/// The id of the question whose answer is to be overwritten. It must belong to the pinned dialog and
+/// must already have been answered in this session (unlike <see cref="SubmitAnswerCommand"/>
+/// it does <b>not</b> have to be the currently open question).
 /// </param>
 /// <param name="Value">
-/// Der neue Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp, z. B. der
-/// <see cref="AnswerOption.Value"/> einer Auswahl).
+/// The new answer value as raw JSON text (format depends on the question type, e.g. the
+/// <see cref="AnswerOption.Value"/> of a choice).
 /// </param>
 /// <param name="IterationIndex">
-/// Optionaler nullbasierter Iterationsindex, um innerhalb einer Schleife gezielt die Antwort einer
-/// bestimmten Iteration zu editieren (eine Frage kann je Iteration eine Antwort tragen). Bleibt er
-/// <see langword="null"/>, wird – wie außerhalb von Schleifen – die früheste Antwort der Frage editiert
-/// (Iteration 0 bei einer Loop-Frage).
+/// Optional zero-based iteration index to edit, within a loop, the answer of a specific iteration
+/// (a question can carry one answer per iteration). If it stays
+/// <see langword="null"/>, the earliest answer of the question is edited – as outside loops
+/// (iteration 0 for a loop question).
 /// </param>
 public sealed record EditAnswerCommand(
     [property: Required] Guid SessionId,
@@ -37,9 +37,9 @@ public sealed record EditAnswerCommand(
     int? IterationIndex = null) : ICommand<EditAnswerResult>, IAnswerCommand;
 
 /// <summary>
-/// Handler für <see cref="EditAnswerCommand"/>: überschreibt die bestehende Antwort, invalidiert die
-/// nachgelagerten Antworten und berechnet den Pfad ab der editierten Frage über den
-/// <see cref="TransitionResolver"/> neu (Weiterschalten, Abschluss oder Wieder-Öffnen der Session).
+/// Handler for <see cref="EditAnswerCommand"/>: overwrites the existing answer, invalidates the
+/// downstream answers and recomputes the path from the edited question onwards via the
+/// <see cref="TransitionResolver"/> (advancing, completion or reopening of the session).
 /// </summary>
 internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerCommand, EditAnswerResult>
 {
@@ -48,14 +48,14 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
     private readonly IPublisher _publisher;
 
     /// <summary>
-    /// Erstellt den Handler über den angegebenen <see cref="IDialogStore"/>,
-    /// <see cref="IExpressionEvaluator"/> und <see cref="IPublisher"/>.
+    /// Creates the handler over the given <see cref="IDialogStore"/>,
+    /// <see cref="IExpressionEvaluator"/> and <see cref="IPublisher"/>.
     /// </summary>
-    /// <param name="store">Das Repository für Dialoge und Sessions.</param>
-    /// <param name="evaluator">Die Engine zur Auswertung der Übergangs-Bedingungsausdrücke.</param>
-    /// <param name="publisher">Der Mediator-Publisher für die In-Process-Trigger-Notifications.</param>
+    /// <param name="store">The repository for dialogs and sessions.</param>
+    /// <param name="evaluator">The engine for evaluating the transition condition expressions.</param>
+    /// <param name="publisher">The Mediator publisher for the in-process trigger notifications.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/>, <paramref name="evaluator"/> oder <paramref name="publisher"/> ist
+    /// <paramref name="store"/>, <paramref name="evaluator"/> or <paramref name="publisher"/> is
     /// <see langword="null"/>.
     /// </exception>
     public EditAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher)
@@ -70,13 +70,13 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
 
     /// <inheritdoc />
     /// <exception cref="SessionNotFoundException">
-    /// Keine Session mit der angegebenen <see cref="EditAnswerCommand.SessionId"/> existiert.
+    /// No session with the given <see cref="EditAnswerCommand.SessionId"/> exists.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Session ist abgebrochen (<see cref="SessionStatus.Abandoned"/>), die gepinnte Dialogversion
-    /// fehlt, die Frage gehört nicht zum Dialog, die Frage (bzw. die angegebene Iteration) wurde in dieser
-    /// Session noch nicht beantwortet, oder das Branching ist fehlkonfiguriert (kein passender Übergang und
-    /// kein Default bzw. unbekannte Zielfrage).
+    /// The session is abandoned (<see cref="SessionStatus.Abandoned"/>), the pinned dialog version
+    /// is missing, the question does not belong to the dialog, the question (or the given iteration) has not
+    /// yet been answered in this session, or the branching is misconfigured (no matching transition and
+    /// no default, or an unknown target question).
     /// </exception>
     public async ValueTask<EditAnswerResult> Handle(
         EditAnswerCommand command, CancellationToken cancellationToken)
@@ -86,38 +86,38 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
         var session = await _store.GetSessionAsync(command.SessionId, cancellationToken)
             ?? throw SessionNotFoundException.ForId(command.SessionId);
 
-        // Editieren ist für laufende und abgeschlossene Sessions erlaubt (nachträgliche Korrektur),
-        // aber nicht für abgebrochene.
+        // Editing is allowed for running and completed sessions (subsequent correction),
+        // but not for abandoned ones.
         if (session.Status == SessionStatus.Abandoned)
         {
             throw new InvalidOperationException(
-                $"Die Session '{session.Id}' ist abgebrochen (Status: {session.Status}) und kann nicht editiert werden.");
+                $"The session '{session.Id}' is abandoned (status: {session.Status}) and cannot be edited.");
         }
 
-        // Die von der Session gepinnte Dialogversion laden (unabhängig vom Veröffentlichungsstatus).
+        // Load the dialog version pinned by the session (regardless of the publication status).
         var dialog = await _store.GetDialogAsync(session.DialogId, cancellationToken)
             ?? throw new InvalidOperationException(
-                $"Die von Session '{session.Id}' gepinnte Dialogversion '{session.DialogId}' existiert nicht.");
+                $"The dialog version '{session.DialogId}' pinned by session '{session.Id}' does not exist.");
 
         if (dialog.Questions.All(question => question.Id != command.QuestionId))
         {
             throw new InvalidOperationException(
-                $"Die Frage '{command.QuestionId}' gehört nicht zum Dialog '{dialog.Key}'.");
+                $"The question '{command.QuestionId}' does not belong to dialog '{dialog.Key}'.");
         }
 
-        // Die zu editierende Antwort auf die Frage suchen; ohne bestehende Antwort gibt es nichts zu
-        // editieren. Innerhalb einer Schleife wählt der optionale IterationIndex gezielt die Iteration,
-        // sonst greift wie bisher die früheste Antwort der Frage.
+        // Find the answer to the question that is to be edited; without an existing answer there is nothing
+        // to edit. Within a loop the optional IterationIndex selects the iteration specifically,
+        // otherwise the earliest answer of the question applies as before.
         var candidates = session.Answers.Where(answer => answer.QuestionId == command.QuestionId);
         var target = (command.IterationIndex is int iteration
                 ? candidates.FirstOrDefault(answer => answer.IterationIndex == iteration)
                 : candidates.OrderBy(answer => answer.Sequence).FirstOrDefault())
             ?? throw new InvalidOperationException(
-                $"Die Frage '{command.QuestionId}' wurde in Session '{session.Id}'"
-                + (command.IterationIndex is int it ? $" in Iteration {it}" : string.Empty)
-                + " noch nicht beantwortet und kann daher nicht editiert werden.");
+                $"The question '{command.QuestionId}' has not yet been answered in session '{session.Id}'"
+                + (command.IterationIndex is int it ? $" in iteration {it}" : string.Empty)
+                + " and therefore cannot be edited.");
 
-        // Antwort überschreiben (Sequence bleibt erhalten, Zeitpunkt spiegelt die Editierung wider).
+        // Overwrite the answer (Sequence is preserved, the timestamp reflects the edit).
         target.Value = command.Value;
         target.AnsweredAt = DateTimeOffset.UtcNow;
 
@@ -129,8 +129,8 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
             Complete(session);
             await _store.SaveChangesAsync(cancellationToken);
 
-            // In-Process-Trigger (EPIC 4): schließt die Neuberechnung die Session ab, wird DialogCompleted
-            // gemeldet. Ein bloßes Wieder-Öffnen (Reopen) löst bewusst keine Notification aus.
+            // In-process trigger (EPIC 4): if the recomputation completes the session, DialogCompleted
+            // is reported. A mere reopen deliberately triggers no notification.
             await _publisher.Publish(
                 new DialogCompletedNotification(
                     session.Id, dialog.Key, SessionAnswerProjection.Project(dialog, session)),
@@ -146,14 +146,14 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
     }
 
     /// <summary>
-    /// Verwirft alle nachgelagerten Antworten der Session – jene mit einer <see cref="SessionAnswer.Sequence"/>
-    /// oberhalb der editierten Antwort – aus dem getrackten Antwort-Graphen. Das Entfernen aus der
-    /// Collection löscht die Zeilen beim <see cref="IDialogStore.SaveChangesAsync"/> (Cascade-/Orphan-Delete)
-    /// und hält zugleich den In-Memory-Kontext für die anschließende Pfad-Neuberechnung konsistent.
+    /// Discards all downstream answers of the session – those with a <see cref="SessionAnswer.Sequence"/>
+    /// above the edited answer – from the tracked answer graph. Removing them from the
+    /// collection deletes the rows on <see cref="IDialogStore.SaveChangesAsync"/> (cascade/orphan delete)
+    /// and at the same time keeps the in-memory context consistent for the subsequent path recomputation.
     /// </summary>
-    /// <param name="session">Die getrackte Session.</param>
-    /// <param name="editedSequence">Die <see cref="SessionAnswer.Sequence"/> der editierten Antwort.</param>
-    /// <returns>Die Anzahl der verworfenen nachgelagerten Antworten.</returns>
+    /// <param name="session">The tracked session.</param>
+    /// <param name="editedSequence">The <see cref="SessionAnswer.Sequence"/> of the edited answer.</param>
+    /// <returns>The number of discarded downstream answers.</returns>
     private static int InvalidateDownstream(DialogSession session, int editedSequence)
     {
         var downstream = session.Answers
@@ -169,10 +169,10 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
     }
 
     /// <summary>
-    /// Öffnet die Session (wieder) für die neu berechnete Folgefrage: setzt sie auf
-    /// <see cref="SessionStatus.InProgress"/>, löscht einen etwaigen Abschlusszeitpunkt und richtet die
-    /// aktuell offene Frage neu aus. Wirkt bei einer laufenden Session als reines Umsetzen der Frage und
-    /// öffnet eine zuvor abgeschlossene Session erneut.
+    /// (Re)opens the session for the newly computed follow-up question: sets it to
+    /// <see cref="SessionStatus.InProgress"/>, clears any completion timestamp and re-aligns the
+    /// currently open question. For a running session this acts as a plain repositioning of the question and
+    /// reopens a previously completed session.
     /// </summary>
     private static void Reopen(DialogSession session, Guid currentQuestionId)
     {
@@ -181,7 +181,7 @@ internal sealed class EditAnswerCommandHandler : ICommandHandler<EditAnswerComma
         session.CurrentQuestionId = currentQuestionId;
     }
 
-    /// <summary>Schließt die Session ab: Status, Abschlusszeitpunkt und Löschen der offenen Frage.</summary>
+    /// <summary>Completes the session: status, completion timestamp and clearing the open question.</summary>
     private static void Complete(DialogSession session)
     {
         session.Status = SessionStatus.Completed;

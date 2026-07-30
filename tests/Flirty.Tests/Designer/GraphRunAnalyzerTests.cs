@@ -13,17 +13,18 @@ using Microsoft.EntityFrameworkCore;
 namespace Flirty.Tests.Designer;
 
 /// <summary>
-/// Tests für den <see cref="GraphRunAnalyzer"/> – den Laufzustand über dem Graphen (#104).
+/// Tests for the <see cref="GraphRunAnalyzer"/> – the run state on top of the graph (#104).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Gespielt wird mit der <b>echten Engine</b> (dieselben Handler, die der Runner über die Gateways ruft),
-/// weil genau das den Kern der Ableitung prüft: Der Pfad steht nirgends gespeichert, sondern entsteht aus
-/// der Antwortfolge. Ein handgebauter <see cref="ResumeDialogResult"/> würde die Erwartung nur wiederholen.
+/// Played with the <b>real engine</b> (the same handlers the runner calls over the gateways), because
+/// that is exactly what checks the core of the derivation: the path is stored nowhere, it arises from
+/// the answer sequence. A hand-built <see cref="ResumeDialogResult"/> would only repeat the
+/// expectation.
 /// </para>
 /// <para>
-/// Die Trigger-Zuordnung ist der eine Fall, der ohne Engine geprüft wird: Sie hängt am
-/// <c>DesignerTriggerLog</c>, dessen Einträge im Test direkt gestellt werden können.
+/// The trigger assignment is the one case checked without the engine: it hangs on the
+/// <c>DesignerTriggerLog</c>, whose entries can be supplied directly in the test.
 /// </para>
 /// </remarks>
 public sealed class GraphRunAnalyzerTests : IDisposable
@@ -32,8 +33,8 @@ public sealed class GraphRunAnalyzerTests : IDisposable
     private readonly DbContextOptions<FlirtyDbContext> _options;
 
     /// <summary>
-    /// Öffnet eine SQLite-in-memory-Verbindung (die offen bleiben muss, sonst wird die DB verworfen) und
-    /// erzeugt das Schema einmalig via <c>EnsureCreated()</c>.
+    /// Opens a SQLite in-memory connection (which has to stay open, otherwise the database is
+    /// discarded) and creates the schema once via <c>EnsureCreated()</c>.
     /// </summary>
     public GraphRunAnalyzerTests()
     {
@@ -48,20 +49,20 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         context.Database.EnsureCreated();
     }
 
-    /// <summary>Schließt die Verbindung und verwirft damit die in-memory-Datenbank.</summary>
+    /// <summary>Closes the connection and thereby discards the in-memory database.</summary>
     public void Dispose() => _connection.Dispose();
 
     /// <summary>
-    /// Der Kern des Akzeptanzkriteriums: besuchte Knoten, die offene Frage und die tatsächlich
-    /// gegriffenen Kanten – und ausdrücklich <b>nicht</b> die nicht gegriffenen.
+    /// The core of the acceptance criterion: visited nodes, the open question and the edges that
+    /// actually took effect – and explicitly <b>not</b> the ones that did not.
     /// </summary>
     [Fact]
-    public async Task Build_hebt_besuchte_Knoten_die_offene_Frage_und_gegriffene_Kanten_hervor()
+    public async Task Build_highlights_visited_nodes_the_open_question_and_the_edges_that_took_effect()
     {
         var (sessionId, ids) = SeedLoopSession();
         var detail = LoadDetail(sessionId);
 
-        // Direkt nach dem Start: die Einstiegsfrage ist offen, nichts ist beantwortet, nichts gegriffen.
+        // Right after the start: the entry question is open, nothing is answered, nothing took effect.
         var started = BuildOverlay(sessionId);
         var entry = Assert.Single(started.Visits);
         Assert.Equal(ids.PositionQuestionId, entry.QuestionId);
@@ -79,32 +80,32 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.Null(overlay.Visit(ids.SummaryQuestionId));
         Assert.Equal(1, overlay.Steps);
 
-        // Der lesbare Wert kommt aus dem AnswerValueCodec, der Rohwert bleibt daneben stehen.
+        // The readable value comes from the AnswerValueCodec, the raw value stays next to it.
         var answer = Assert.Single(overlay.Visit(ids.PositionQuestionId)!.Answers);
         Assert.Equal("Backend", answer.Display);
         Assert.Equal("\"Backend\"", answer.Value);
 
-        // Die Einstiegsfrage liegt im Schleifen-Bereich, die Engine vergibt also schon in der ERSTEN
-        // Runde einen Iterationsindex – der Knoten trägt darum von Anfang an „Iteration 1".
+        // The entry question lies inside the loop range, so the engine assigns an iteration index
+        // already in the FIRST round – which is why the node carries "Iteration 1" from the start.
         Assert.Equal(0, answer.IterationIndex);
 
-        // Gegriffen hat genau der Übergang position → more.
+        // Exactly the transition position -> more took effect.
         var taken = Assert.Single(overlay.TakenEdges);
         Assert.Equal(TransitionOf(detail, ids.PositionQuestionId, ids.MoreQuestionId).Id, taken.TransitionId);
         Assert.Equal(1, taken.Count);
         Assert.False(taken.IsAmbiguous);
 
-        // Der Rücksprung und der Ausstieg sind nicht gegriffen – die Kante zeigt das, nicht der Graph.
+        // The back jump and the exit did not take effect – the edge shows that, not the graph.
         Assert.Null(overlay.Edge(TransitionOf(detail, ids.MoreQuestionId, ids.PositionQuestionId).Id));
         Assert.Null(overlay.Edge(TransitionOf(detail, ids.MoreQuestionId, ids.SummaryQuestionId).Id));
     }
 
     /// <summary>
-    /// Die Iterationszahl am Schleifenrahmen: zwei Durchläufe, danach der Ausstieg. Der Rücksprung ist
-    /// eine <b>einmal</b> gegriffene Kante, die Schleife nach dem Ausstieg nicht mehr aktiv.
+    /// The iteration count on the loop frame: two passes, then the exit. The back jump is an edge
+    /// that took effect <b>once</b>, and after the exit the loop is no longer active.
     /// </summary>
     [Fact]
-    public async Task Build_zaehlt_die_Iterationen_der_Schleife_und_verlaesst_sie_wieder()
+    public async Task Build_counts_the_loop_iterations_and_leaves_it_again()
     {
         var (sessionId, ids) = SeedLoopSession();
         var detail = LoadDetail(sessionId);
@@ -122,7 +123,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
             [ids.PositionQuestionId, ids.MoreQuestionId],
             running.Body);
 
-        // Der Knoten der Einstiegsfrage trägt beide Antworten – eine je Iteration.
+        // The entry question's node carries both answers – one per iteration.
         var visits = inLoop.Visit(ids.PositionQuestionId)!.Answers;
         Assert.Equal(2, visits.Count);
         Assert.Equal([0, 1], visits.Select(answer => answer.IterationIndex));
@@ -139,18 +140,18 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.NotNull(afterExit.Edge(TransitionOf(detail, ids.MoreQuestionId, ids.SummaryQuestionId).Id));
         Assert.Equal(ids.SummaryQuestionId, afterExit.CurrentQuestionId);
 
-        // Und die Zusammenfassung – für Screenreader die einzige Fassung der Hervorhebung.
+        // And the summary – for screen readers the only rendition of the highlighting.
         Assert.Contains("open question summary", afterExit.Summary, StringComparison.Ordinal);
         Assert.Contains("positions: 2 iterations", afterExit.Summary, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Das Akzeptanzkriterium zum Editieren: Ein Edit rechnet den Pfad neu – <b>auch</b> wenn der neue
-    /// Pfad einen anderen Zweig nimmt. Dafür braucht es keine eigene Logik: Der Pfad ist aus der
-    /// Antwortfolge abgeleitet, und <c>EditAnswerCommand</c> verwirft die nachgelagerten Antworten.
+    /// The acceptance criterion for editing: an edit recomputes the path – <b>even</b> when the new
+    /// path takes a different branch. That needs no logic of its own: the path is derived from the
+    /// answer sequence, and <c>EditAnswerCommand</c> discards the downstream answers.
     /// </summary>
     [Fact]
-    public async Task Build_rechnet_den_Pfad_nach_einem_Edit_neu_und_wechselt_den_Zweig()
+    public async Task Build_recomputes_the_path_after_an_edit_and_switches_the_branch()
     {
         var (sessionId, ids) = SeedBranchingSession();
         var detail = LoadDetail(sessionId);
@@ -164,13 +165,13 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.NotNull(devPath.Edge(toDev.Id));
         Assert.Null(devPath.Edge(toPm.Id));
         Assert.NotNull(devPath.Visit(ids.DevQuestionId));
-        Assert.Equal("Entwickler", devPath.Visit(ids.RoleQuestionId)!.Answers[0].Display);
+        Assert.Equal("Developer", devPath.Visit(ids.RoleQuestionId)!.Answers[0].Display);
 
         await EditAsync(sessionId, ids.RoleQuestionId, "\"pm\"");
 
         var pmPath = BuildOverlay(sessionId);
 
-        // Der alte Zweig ist weg – Kante UND Knoten.
+        // The old branch is gone – edge AND node.
         Assert.Null(pmPath.Edge(toDev.Id));
         Assert.Null(pmPath.Visit(ids.DevQuestionId));
 
@@ -181,15 +182,15 @@ public sealed class GraphRunAnalyzerTests : IDisposable
     }
 
     /// <summary>
-    /// Mehrere Übergänge zwischen denselben zwei Fragen sind <b>nicht</b> unterscheidbar: Die Engine hält
-    /// nicht fest, welcher gegriffen hat. Dann sind alle markiert und alle als mehrdeutig ausgewiesen –
-    /// einen davon zu behaupten wäre eine Erfindung.
+    /// Several transitions between the same two questions are <b>not</b> distinguishable: the engine
+    /// does not record which one took effect. Then all of them are marked and all reported as
+    /// ambiguous – claiming one of them would be an invention.
     /// </summary>
     [Fact]
-    public async Task Build_weist_parallele_Uebergaenge_als_mehrdeutig_aus()
+    public async Task Build_reports_parallel_transitions_as_ambiguous()
     {
-        // Ein zweiter Übergang mit derselben Bedingung auf dasselbe Ziel: Zur Laufzeit gewinnt der mit
-        // der niedrigeren Priorität, aber die Antwortfolge kennt nur das Fragenpaar.
+        // A second transition with the same condition to the same target: at runtime the one with the
+        // lower priority wins, but the answer sequence knows only the question pair.
         var (sessionId, ids) = SeedBranchingSession((dialog, graph) => dialog.Transitions.Add(new Transition
         {
             Id = Guid.NewGuid(),
@@ -216,17 +217,17 @@ public sealed class GraphRunAnalyzerTests : IDisposable
                 Assert.Equal(ids.DevQuestionId, transition.TargetQuestionId);
             });
 
-        // Der Default auf den anderen Zweig bleibt unmarkiert – mehrdeutig heißt nicht „alles an".
+        // The default into the other branch stays unmarked – ambiguous does not mean "everything on".
         Assert.Null(overlay.Edge(TransitionOf(detail, ids.RoleQuestionId, ids.PmQuestionId).Id));
     }
 
     /// <summary>
-    /// Die Trigger-Ereignisse hängen an der auslösenden Frage; die ohne Frage-Bezug bleiben dialogweit –
-    /// und ein Ereignis zu einer gelöschten Frage ebenfalls, statt still zu verschwinden. <c>freshFrom</c>
-    /// markiert genau die Ereignisse des letzten Schritts (sie blitzen einmal auf).
+    /// The trigger events hang on the question that fired them; those without a question reference
+    /// stay dialog-wide – and so does an event for a deleted question, instead of vanishing silently.
+    /// <c>freshFrom</c> marks exactly the events of the last step (they flash up once).
     /// </summary>
     [Fact]
-    public void Build_ordnet_die_Trigger_dem_ausloesenden_Knoten_zu_und_markiert_die_neuen()
+    public void Build_assigns_the_triggers_to_the_firing_node_and_marks_the_new_ones()
     {
         var detail = AdminProjection.ToDetail(TestDialogFactory.BuildLoopDialog(Guid.NewGuid(), out var ids));
         var state = new ResumeDialogResult(Guid.NewGuid(), SessionStatus.InProgress, null, []);
@@ -236,7 +237,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
             new(TestDialogFactory.SampleTime, TriggerScope.OnDialogStarted, "DialogStartedNotification",
                 ids.PositionQuestionId, "Session gestartet."),
             new(TestDialogFactory.SampleTime, TriggerScope.AfterQuestion, "QuestionAnsweredNotification",
-                Guid.NewGuid(), "Übergang ausgewertet."),
+                Guid.NewGuid(), "Transition evaluated."),
             new(TestDialogFactory.SampleTime, TriggerScope.OnDialogCompleted, "DialogCompletedNotification",
                 null, "Dialog abgeschlossen."),
         ];
@@ -248,18 +249,18 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.Contains("OnDialogStarted", atNode.Title, StringComparison.Ordinal);
         Assert.False(atNode.IsFresh);
 
-        // Das Ereignis zur gelöschten Frage verliert seinen Ort, nicht seine Sichtbarkeit.
+        // The event for the deleted question loses its place, not its visibility.
         Assert.Equal(2, overlay.DialogTriggers.Count);
         Assert.True(overlay.Triggers[^1].IsFresh);
         Assert.False(overlay.Triggers[1].IsFresh);
     }
 
     /// <summary>
-    /// Vor dem ersten Lauf ist der Zustand leer, aber gültig – Canvas und Inspector kennen deshalb keinen
-    /// <see langword="null"/>-Fall.
+    /// Before the first run the state is empty but valid – which is why canvas and inspector know no
+    /// <see langword="null"/> case.
     /// </summary>
     [Fact]
-    public void NotStarted_liefert_einen_leeren_aber_gueltigen_Zustand()
+    public void NotStarted_returns_an_empty_but_valid_state()
     {
         var overlay = GraphRunAnalyzer.NotStarted();
 
@@ -272,22 +273,22 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         Assert.Contains("not started yet", overlay.Summary, StringComparison.Ordinal);
     }
 
-    // ---- Aufbau --------------------------------------------------------------------------------------
+    // ---- Setup ---------------------------------------------------------------------------------------
 
     private FlirtyDbContext CreateContext() => new(_options);
 
-    /// <summary>Baut den Laufzustand aus demselben Zustand, den auch der Runner liest.</summary>
-    /// <param name="sessionId">Die laufende Session.</param>
-    /// <returns>Der Laufzustand.</returns>
+    /// <summary>Builds the run state from the same state the runner reads.</summary>
+    /// <param name="sessionId">The running session.</param>
+    /// <returns>The run state.</returns>
     private GraphRunOverlay BuildOverlay(Guid sessionId)
         => GraphRunAnalyzer.Build(LoadDetail(sessionId), LoadState(sessionId), []);
 
-    /// <summary>Der Übergang zwischen zwei Fragen – im Testgraphen jeweils eindeutig.</summary>
+    /// <summary>The transition between two questions – unambiguous in the test graph.</summary>
     private static TransitionDetail TransitionOf(DialogDetail detail, Guid from, Guid target)
         => detail.Transitions.Single(
             transition => transition.FromQuestionId == from && transition.TargetQuestionId == target);
 
-    /// <summary>Liest den Session-Zustand über dieselbe Query, die auch der Runner nutzt.</summary>
+    /// <summary>Reads the session state over the same query the runner uses.</summary>
     private ResumeDialogResult LoadState(Guid sessionId)
     {
         using var context = CreateContext();
@@ -298,7 +299,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
             .GetResult();
     }
 
-    /// <summary>Liest den Dialog-Graphen in derselben navigationsfreien Sicht, die der Runner nutzt.</summary>
+    /// <summary>Reads the dialog graph in the same navigation-free view the runner uses.</summary>
     private DialogDetail LoadDetail(Guid sessionId)
     {
         using var context = CreateContext();
@@ -312,7 +313,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
             .Single(dialog => dialog.Id == dialogId));
     }
 
-    /// <summary>Legt den Loop-Dialog samt einer laufenden Session an der Einstiegsfrage an.</summary>
+    /// <summary>Creates the loop dialog together with a running session on the entry question.</summary>
     private (Guid SessionId, LoopDialogIds Ids) SeedLoopSession()
     {
         var dialogId = Guid.NewGuid();
@@ -322,8 +323,8 @@ public sealed class GraphRunAnalyzerTests : IDisposable
     }
 
     /// <summary>
-    /// Legt den Branching-Dialog samt laufender Session an. Über <paramref name="arrange"/> lässt sich der
-    /// Graph vorher noch ergänzen (etwa um einen zweiten, parallelen Übergang).
+    /// Creates the branching dialog together with a running session. Via <paramref name="arrange"/>
+    /// the graph can be extended beforehand (e.g. with a second, parallel transition).
     /// </summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedBranchingSession(
         Action<Dialog, BranchingDialogIds>? arrange = null)
@@ -356,7 +357,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         return sessionId;
     }
 
-    /// <summary>Reicht eine Antwort über den echten Handler in eigenem Kontext ein.</summary>
+    /// <summary>Submits an answer over the real handler in its own context.</summary>
     private async Task SubmitAsync(Guid sessionId, Guid questionId, string value)
     {
         using var context = CreateContext();
@@ -366,7 +367,7 @@ public sealed class GraphRunAnalyzerTests : IDisposable
         _ = await handler.Handle(new SubmitAnswerCommand(sessionId, questionId, value), default);
     }
 
-    /// <summary>Überschreibt eine Antwort über den echten Handler in eigenem Kontext.</summary>
+    /// <summary>Overwrites an answer over the real handler in its own context.</summary>
     private async Task EditAsync(Guid sessionId, Guid questionId, string value)
     {
         using var context = CreateContext();

@@ -6,10 +6,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Flirty.Tests.Persistence;
 
 /// <summary>
-/// Tests für die öffentliche Provider-Abbildung (#37): <see cref="FlirtyDatabaseProviderExtensions.UseFlirtyProvider"/>
-/// muss je <see cref="FlirtyDatabaseProvider"/> den korrekten EF-Core-Provider und die passende
-/// <c>MigrationsAssembly</c> setzen. Zusätzlich wird verifiziert, dass die <c>FlirtyOptions.Use*</c>-Methoden
-/// weiterhin auf dieselbe Abbildung delegieren.
+/// Tests for the public provider mapping (#37): per <see cref="FlirtyDatabaseProvider"/>,
+/// <see cref="FlirtyDatabaseProviderExtensions.UseFlirtyProvider"/> has to set the correct EF Core
+/// provider and the matching <c>MigrationsAssembly</c>. On top, it is verified that the
+/// <c>FlirtyOptions.Use*</c> methods still delegate to that same mapping.
 /// </summary>
 public sealed class FlirtyDatabaseProviderExtensionsTests
 {
@@ -17,7 +17,7 @@ public sealed class FlirtyDatabaseProviderExtensionsTests
     [InlineData(FlirtyDatabaseProvider.Sqlite, "Microsoft.EntityFrameworkCore.Sqlite", "Flirty.Migrations.Sqlite")]
     [InlineData(FlirtyDatabaseProvider.PostgreSql, "Npgsql.EntityFrameworkCore.PostgreSQL", "Flirty.Migrations.PostgreSql")]
     [InlineData(FlirtyDatabaseProvider.SqlServer, "Microsoft.EntityFrameworkCore.SqlServer", "Flirty.Migrations.SqlServer")]
-    public void UseFlirtyProvider_setzt_Provider_und_MigrationsAssembly(
+    public void UseFlirtyProvider_sets_the_provider_and_the_migrations_assembly(
         FlirtyDatabaseProvider provider,
         string expectedProviderName,
         string expectedMigrationsAssembly)
@@ -33,14 +33,14 @@ public sealed class FlirtyDatabaseProviderExtensionsTests
     }
 
     [Fact]
-    public void UseFlirtyProvider_wirft_bei_leerem_ConnectionString()
+    public void UseFlirtyProvider_throws_on_an_empty_connection_string()
     {
         var builder = new DbContextOptionsBuilder<FlirtyDbContext>();
         Assert.Throws<ArgumentException>(() => builder.UseFlirtyProvider(FlirtyDatabaseProvider.Sqlite, "  "));
     }
 
     [Fact]
-    public void UseSqlite_delegiert_auf_dieselbe_Abbildung()
+    public void UseSqlite_delegates_to_the_same_mapping()
     {
         var options = new FlirtyOptions();
         options.UseSqlite("Data Source=flirty.db");
@@ -49,7 +49,7 @@ public sealed class FlirtyDatabaseProviderExtensionsTests
     }
 
     [Fact]
-    public void UseProvider_setzt_die_gewaehlte_Abbildung()
+    public void UseProvider_sets_the_chosen_mapping()
     {
         var options = new FlirtyOptions();
         options.UseProvider(FlirtyDatabaseProvider.PostgreSql, "Host=localhost;Database=flirty");
@@ -61,7 +61,7 @@ public sealed class FlirtyDatabaseProviderExtensionsTests
     {
         var builder = new DbContextOptionsBuilder<FlirtyDbContext>();
         var configure = flirtyOptions.ConfigureDbContext
-            ?? throw new InvalidOperationException("ConfigureDbContext wurde nicht gesetzt.");
+            ?? throw new InvalidOperationException("ConfigureDbContext was not set.");
         configure(builder);
         return builder.Options;
     }

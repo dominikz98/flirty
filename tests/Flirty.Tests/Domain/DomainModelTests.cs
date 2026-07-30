@@ -3,14 +3,14 @@ using Flirty.Domain;
 namespace Flirty.Tests.Domain;
 
 /// <summary>
-/// Verifiziert das Domänenmodell aus Issue #17: die Enum-Werte (inkl. gepinnter Ordinalwerte
-/// als Guard gegen eine versehentliche Verschiebung des späteren DB-Storages) sowie die
-/// Konstruktion der Aggregat-Graphen (Dialog- und Session-Aggregat) über ihre Navigationen.
+/// Verifies the domain model from issue #17: the enum values (incl. pinned ordinals as a guard
+/// against an accidental shift of the later DB storage) as well as the construction of the
+/// aggregate graphs (dialog and session aggregate) over their navigations.
 /// </summary>
 public class DomainModelTests
 {
     [Fact]
-    public void QuestionType_hat_erwartete_Werte()
+    public void QuestionType_has_the_expected_values()
     {
         Assert.Equal(0, (int)QuestionType.SingleChoice);
         Assert.Equal(1, (int)QuestionType.MultiChoice);
@@ -22,7 +22,7 @@ public class DomainModelTests
     }
 
     [Fact]
-    public void TriggerScope_hat_erwartete_Werte()
+    public void TriggerScope_has_the_expected_values()
     {
         Assert.Equal(0, (int)TriggerScope.OnDialogStarted);
         Assert.Equal(1, (int)TriggerScope.AfterAnswer);
@@ -32,7 +32,7 @@ public class DomainModelTests
     }
 
     [Fact]
-    public void TriggerKind_hat_erwartete_Werte()
+    public void TriggerKind_has_the_expected_values()
     {
         Assert.Equal(0, (int)TriggerKind.InProcess);
         Assert.Equal(1, (int)TriggerKind.Webhook);
@@ -40,14 +40,14 @@ public class DomainModelTests
     }
 
     [Fact]
-    public void LayoutElementKind_hat_erwartete_Werte()
+    public void LayoutElementKind_has_the_expected_values()
     {
         Assert.Equal(0, (int)LayoutElementKind.Question);
         Assert.Single(Enum.GetValues<LayoutElementKind>());
     }
 
     [Fact]
-    public void SessionStatus_hat_erwartete_Werte()
+    public void SessionStatus_has_the_expected_values()
     {
         Assert.Equal(0, (int)SessionStatus.InProgress);
         Assert.Equal(1, (int)SessionStatus.Completed);
@@ -56,19 +56,19 @@ public class DomainModelTests
     }
 
     [Fact]
-    public void Dialog_Aggregat_laesst_sich_ueber_Navigationen_aufbauen()
+    public void Dialog_aggregate_can_be_built_over_its_navigations()
     {
         var question = new Question
         {
             Id = Guid.NewGuid(),
             Key = "role",
-            Text = "Welche Rolle?",
+            Text = "Which role?",
             Type = QuestionType.SingleChoice,
             Order = 0,
             IsRequired = true,
             Options =
             {
-                new AnswerOption { Id = Guid.NewGuid(), Key = "dev", Label = "Entwickler", Value = "dev", Order = 0 },
+                new AnswerOption { Id = Guid.NewGuid(), Key = "dev", Label = "Developer", Value = "dev", Order = 0 },
             },
         };
 
@@ -86,13 +86,13 @@ public class DomainModelTests
         Assert.Equal(dialog.StartQuestionId, onlyQuestion.Id);
         var onlyOption = Assert.Single(onlyQuestion.Options);
         Assert.Equal("dev", onlyOption.Value);
-        // Optionale/nicht gesetzte Werte sind wie erwartet leer bzw. Default.
+        // Optional / unset values are empty or default, as expected.
         Assert.Null(dialog.Description);
         Assert.False(dialog.IsPublished);
     }
 
     [Fact]
-    public void Session_Aggregat_haelt_mehrere_Antworten_pro_Frage_je_Iteration()
+    public void Session_aggregate_holds_several_answers_per_question_one_per_iteration()
     {
         var questionId = Guid.NewGuid();
         var loopInstanceId = Guid.NewGuid();
@@ -120,7 +120,7 @@ public class DomainModelTests
             },
         };
 
-        // Zwei Antworten auf dieselbe Frage, unterschieden über den Iterationsindex.
+        // Two answers to the same question, told apart by the iteration index.
         Assert.Equal(2, session.Answers.Count);
         Assert.All(session.Answers, answer => Assert.Equal(questionId, answer.QuestionId));
         Assert.Equal([0, 1], session.Answers.Select(answer => answer.IterationIndex).Order());

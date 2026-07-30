@@ -3,15 +3,15 @@ using Flirty.Domain;
 namespace Flirty.AspNetCore.Dtos.Admin;
 
 /// <summary>
-/// Anfrage-Körper zum Anlegen einer Frage in einem Dialog
+/// Request body for creating a question in a dialog
 /// (<c>POST {prefix}/dialogs/{dialogId}/questions</c>).
 /// </summary>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage (im Dialog eindeutig).</param>
-/// <param name="Text">Der angezeigte Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
-/// <param name="Order">Der Reihenfolge-Index der Frage innerhalb des Dialogs.</param>
-/// <param name="IsRequired">Gibt an, ob eine Antwort erforderlich ist.</param>
-/// <param name="ValidationRules">Optionale Validierungsregeln als JSON.</param>
+/// <param name="Key">The business, stable key of the question (unique within the dialog).</param>
+/// <param name="Text">The displayed question text.</param>
+/// <param name="Type">The answer type of the question.</param>
+/// <param name="Order">The order index of the question within the dialog.</param>
+/// <param name="IsRequired">Indicates whether an answer is required.</param>
+/// <param name="ValidationRules">Optional validation rules as JSON.</param>
 public sealed record CreateQuestionRequest(
     string Key,
     string Text,
@@ -21,15 +21,15 @@ public sealed record CreateQuestionRequest(
     string? ValidationRules);
 
 /// <summary>
-/// Anfrage-Körper zum Ändern einer Frage
+/// Request body for changing a question
 /// (<c>PUT {prefix}/dialogs/{dialogId}/questions/{questionId}</c>).
 /// </summary>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage (im Dialog eindeutig).</param>
-/// <param name="Text">Der angezeigte Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
-/// <param name="Order">Der Reihenfolge-Index der Frage innerhalb des Dialogs.</param>
-/// <param name="IsRequired">Gibt an, ob eine Antwort erforderlich ist.</param>
-/// <param name="ValidationRules">Optionale Validierungsregeln als JSON.</param>
+/// <param name="Key">The business, stable key of the question (unique within the dialog).</param>
+/// <param name="Text">The displayed question text.</param>
+/// <param name="Type">The answer type of the question.</param>
+/// <param name="Order">The order index of the question within the dialog.</param>
+/// <param name="IsRequired">Indicates whether an answer is required.</param>
+/// <param name="ValidationRules">Optional validation rules as JSON.</param>
 public sealed record UpdateQuestionRequest(
     string Key,
     string Text,
@@ -39,17 +39,17 @@ public sealed record UpdateQuestionRequest(
     string? ValidationRules);
 
 /// <summary>
-/// Antwort mit einer Frage samt ihren Antwortoptionen.
+/// Response with a question together with its answer options.
 /// </summary>
-/// <param name="Id">Der Primärschlüssel der Frage.</param>
-/// <param name="DialogId">Der Fremdschlüssel auf den zugehörigen Dialog.</param>
-/// <param name="Key">Der fachliche, stabile Schlüssel der Frage.</param>
-/// <param name="Text">Der angezeigte Fragetext.</param>
-/// <param name="Type">Der Antworttyp der Frage.</param>
-/// <param name="Order">Der Reihenfolge-Index der Frage innerhalb des Dialogs.</param>
-/// <param name="IsRequired">Gibt an, ob eine Antwort erforderlich ist.</param>
-/// <param name="ValidationRules">Optionale Validierungsregeln als JSON.</param>
-/// <param name="Options">Die Antwortoptionen der Frage, nach <c>Order</c> sortiert.</param>
+/// <param name="Id">The primary key of the question.</param>
+/// <param name="DialogId">The foreign key to the associated dialog.</param>
+/// <param name="Key">The business, stable key of the question.</param>
+/// <param name="Text">The displayed question text.</param>
+/// <param name="Type">The answer type of the question.</param>
+/// <param name="Order">The order index of the question within the dialog.</param>
+/// <param name="IsRequired">Indicates whether an answer is required.</param>
+/// <param name="ValidationRules">Optional validation rules as JSON.</param>
+/// <param name="Options">The answer options of the question, sorted by <c>Order</c>.</param>
 public sealed record QuestionResponse(
     Guid Id,
     Guid DialogId,

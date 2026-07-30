@@ -3,32 +3,32 @@ using Flirty.Domain;
 namespace Flirty.Validation;
 
 /// <summary>
-/// Validiert eine eingereichte Antwort fachlich anhand des Fragetyps
-/// (<see cref="Question.Type"/>) und der optionalen Regeln (<see cref="Question.ValidationRules"/>).
-/// Die Default-Implementierung ist der <see cref="AnswerValidator"/>; das
-/// <c>AnswerValidationPipelineBehavior</c> ruft den Validator vor den Runtime-Handlern
-/// (Submit/Edit) auf und weist ungültige Antworten mit einer <see cref="AnswerValidationException"/> ab.
+/// Validates a submitted answer against the domain rules based on the question type
+/// (<see cref="Question.Type"/>) and the optional rules (<see cref="Question.ValidationRules"/>).
+/// The default implementation is the <see cref="AnswerValidator"/>; the
+/// <c>AnswerValidationPipelineBehavior</c> calls the validator before the runtime handlers
+/// (submit/edit) and rejects invalid answers with an <see cref="AnswerValidationException"/>.
 /// </summary>
 public interface IAnswerValidator
 {
     /// <summary>
-    /// Prüft, ob der rohe Antwortwert <paramref name="value"/> zum Typ und zu den Regeln der Frage
-    /// <paramref name="question"/> passt.
+    /// Checks whether the raw answer value <paramref name="value"/> fits the type and rules of the
+    /// question <paramref name="question"/>.
     /// </summary>
-    /// <param name="question">Die Frage samt <see cref="Question.Type"/>, Optionen und
+    /// <param name="question">The question including <see cref="Question.Type"/>, options and
     /// <see cref="Question.ValidationRules"/>.</param>
-    /// <param name="value">Der abgegebene Antwortwert als roher JSON-Text (Format abhängig vom Fragetyp,
-    /// z. B. der <see cref="Flirty.Domain.AnswerOption.Value"/> einer Auswahl als JSON-String).</param>
+    /// <param name="value">The submitted answer value as raw JSON text (format depends on the question type,
+    /// e.g. the <see cref="Flirty.Domain.AnswerOption.Value"/> of a selection as a JSON string).</param>
     /// <returns>
-    /// <see cref="AnswerValidationResult.Valid"/> bei einer gültigen Antwort, andernfalls ein Ergebnis mit
-    /// <see cref="AnswerValidationResult.IsValid"/> = <see langword="false"/> und den Verstößen.
+    /// <see cref="AnswerValidationResult.Valid"/> for a valid answer, otherwise a result with
+    /// <see cref="AnswerValidationResult.IsValid"/> = <see langword="false"/> and the violations.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="question"/> oder <paramref name="value"/> ist <see langword="null"/>.
+    /// <paramref name="question"/> or <paramref name="value"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// Die Frage ist fehlkonfiguriert: unbekannter <see cref="Question.Type"/>, ungültiges
-    /// <see cref="Question.ValidationRules"/>-JSON oder ein ungültiges Regex-Muster.
+    /// The question is misconfigured: unknown <see cref="Question.Type"/>, invalid
+    /// <see cref="Question.ValidationRules"/> JSON or an invalid regex pattern.
     /// </exception>
     AnswerValidationResult Validate(Question question, string value);
 }
