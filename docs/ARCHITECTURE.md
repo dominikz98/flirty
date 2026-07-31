@@ -43,7 +43,8 @@ app. That is repetitive and error-prone.
 | Triggers | **in-process (Mediator notifications) + outbound webhooks** |
 | Mediator | **Mediator (martinothamar)** – source generator, MIT – [ADR 0002](./adr/0002-mediator-as-in-process-bus.md) |
 | Endpoints | **optional**, own project `Flirty.AspNetCore`; core stays **ASP.NET-free** – [ADR 0003](./adr/0003-aspnet-free-core.md) |
-| NuGet | `Flirty` + `Flirty.AspNetCore` as **publishable packages** |
+| MCP server | **optional**, own project `Flirty.Mcp`; the web package stays **MCP-free** – [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md) |
+| NuGet | `Flirty` + `Flirty.AspNetCore` + `Flirty.Mcp` as **publishable packages** |
 | Documentation | XML docs (CS1591 as error) + `docs/` guides + ADRs, part of every DoD |
 
 ## 4. Solution structure
@@ -57,6 +58,8 @@ Flirty.sln
 │  │                        expression engine, triggers, DI extensions
 │  ├─ Flirty.AspNetCore   OPTIONAL: WebAPI endpoint mapping (MapFlirtyEndpoints),
 │  │                        thin layer over the Mediator commands
+│  ├─ Flirty.Mcp          OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp),
+│  │                        the same thin layer as tools; references Flirty only
 │  ├─ Flirty.Designer     Blazor Web App (server-interactive): dialog/question/answer/
 │  │                        branching/loop/trigger configuration, test runner, multi-DB,
 │  │                        graph canvas (SVG) with editing gestures
@@ -64,8 +67,9 @@ Flirty.sln
 │  ├─ Flirty.Migrations.PostgreSql    } EF migrations per provider (IsPackable=false,
 │  ├─ Flirty.Migrations.SqlServer    /    DLLs are bundled into the Flirty package)
 │  ├─ Flirty.Samples      console single-project (core only + own handler)
-│  └─ Flirty.Samples.Web  minimal API + static chat UI (uses Flirty.AspNetCore):
-│                          resume/edit/branching/loop/trigger + webhook receiver
+│  └─ Flirty.Samples.Web  minimal API + static chat UI (uses Flirty.AspNetCore
+│                          and Flirty.Mcp): resume/edit/branching/loop/trigger,
+│                          webhook receiver, MCP server at /mcp
 └─ tests/
    ├─ Flirty.Tests        xUnit unit/integration tests (EF Core SQLite in-memory)
    └─ Flirty.E2E          Playwright E2E (designer + web sample)
@@ -74,6 +78,11 @@ Flirty.sln
 **Important:** `Flirty` has **no** ASP.NET dependency and can be plugged unchanged into a pure
 console/worker app. `Flirty.AspNetCore` (`FrameworkReference
 Microsoft.AspNetCore.App`) is referenced only when web/endpoints are wanted.
+
+The same holds one layer out: `Flirty.Mcp` is its own package so that the MCP SDK does not become a hard
+dependency of `Flirty.AspNetCore`. The two web packages sit **beside** each other, not on top of each
+other – `Flirty.Mcp` references `Flirty` only, and either can be dropped without touching the other
+([ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md)).
 
 ## 5. Domain model (configuration)
 
@@ -145,6 +154,10 @@ services.AddScoped<INotificationHandler<DialogCompletedNotification>, MyDoneHand
 
 // ONLY for web/endpoints (package Flirty.AspNetCore):
 app.MapFlirtyEndpoints("/flirty");
+
+// ONLY for an MCP client (package Flirty.Mcp) – independent of the above:
+services.AddFlirtyMcp();                  // does deliberately NOT call AddFlirty()
+app.MapFlirtyMcp("/mcp").RequireAuthorization();
 ```
 
 **Endpoints** (`Flirty.AspNetCore`): `POST /flirty/sessions`, `GET /flirty/sessions/{id}`,
@@ -157,6 +170,17 @@ manages the configuration graph – dialogs (`/dialogs`, incl. `publish`/`unpubl
 questions (`.../questions`), options (`.../options`), transitions (`.../transitions`), loop markers
 (`.../loops`) and triggers (`.../triggers`) – over the same Mediator/DTO/filter mechanics. Implemented in
 #36, the loop endpoints in #41, the trigger endpoints in #42; details ibid.
+
+**MCP tools** (`Flirty.Mcp`): `services.AddFlirtyMcp()` + `app.MapFlirtyMcp("/mcp")` expose the same
+engine operations as MCP tools over Streamable HTTP, so a Model Context Protocol client can configure
+dialogs where the designer is the human path. It is the *same* kind of thin adapter – tools send the
+Mediator commands via `ISender`, and one call-tool filter mirrors `FlirtyExceptionEndpointFilter`'s
+status/title mapping – but it serializes the **core** records instead of rebuilding the DTO layer, because
+a tool call is one flat argument object. Opt-in and securable via `RequireAuthorization()` for the same
+reason the admin CRUD is. The transport runs **stateless** (protocol revision `2026-07-28` removed the
+session header), which is also why the tools need no scope handling of their own. Implemented in #126
+(host + the dialog tools); details in [MCP.md](./MCP.md), rationale for the separate package in
+[ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
 
 ## 10. Loops
 

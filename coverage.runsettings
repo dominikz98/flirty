@@ -19,8 +19,10 @@
           <!-- Cobertura: the input format of ReportGenerator (see docs/CI.md). -->
           <Format>cobertura</Format>
 
-          <!-- What is measured is what ships: the two NuGet packages. -->
-          <Include>[Flirty]*,[Flirty.AspNetCore]*</Include>
+          <!-- What is measured is what ships: the three NuGet packages. Careful when adding a fourth –
+               without its entry here the new package is silently unmeasured and simply missing from the
+               CI job summary, with no warning anywhere. -->
+          <Include>[Flirty]*,[Flirty.AspNetCore]*,[Flirty.Mcp]*</Include>
 
           <!-- Deliberately left out:
                - Flirty.Migrations.*  generated EF code (designer output), says nothing;

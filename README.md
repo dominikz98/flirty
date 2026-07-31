@@ -33,10 +33,11 @@ console, worker and web applications. HTTP endpoints are opt-in via the add-on p
 |---|---|
 | `src/Flirty` | Core engine (domain, runtime, EF Core persistence, Mediator, DI extensions). **No ASP.NET** → usable in console/worker too. NuGet package. |
 | `src/Flirty.AspNetCore` | Optional WebAPI endpoints (`MapFlirtyEndpoints`, `MapFlirtyAdminEndpoints`). NuGet package. |
+| `src/Flirty.Mcp` | Optional **MCP server** (`MapFlirtyMcp`): the engine operations as Model Context Protocol tools → [`docs/MCP.md`](https://github.com/dominikz98/flirty/blob/main/docs/MCP.md). NuGet package. |
 | `src/Flirty.Designer` | Blazor Web App for configuring dialogs/questions/answers/branching/loops/triggers, incl. test runner. Multi-DB → [`docs/DESIGNER.md`](https://github.com/dominikz98/flirty/blob/main/docs/DESIGNER.md). |
 | `src/Flirty.Migrations.*` | EF migrations per provider (SQLite, PostgreSQL, SQL Server); bundled into the `Flirty` package. |
 | `src/Flirty.Samples` | Runnable **console sample** (core only, no ASP.NET) → [`docs/GETTING-STARTED-Console.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Console.md). |
-| `src/Flirty.Samples.Web` | Runnable **web sample** (minimal API + static chat UI): resume/edit/branching/loop/trigger + webhook receiver → [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md). |
+| `src/Flirty.Samples.Web` | Runnable **web sample** (minimal API + static chat UI): resume/edit/branching/loop/trigger + webhook receiver, plus the MCP server at `/mcp` → [`docs/GETTING-STARTED-Sample-Web.md`](https://github.com/dominikz98/flirty/blob/main/docs/GETTING-STARTED-Sample-Web.md). |
 | `tests/Flirty.Tests` | Unit/integration tests (xUnit). |
 | `tests/Flirty.E2E` | Playwright E2E tests (web-sample chat UI and Blazor designer). |
 
@@ -45,6 +46,7 @@ console, worker and web applications. HTTP endpoints are opt-in via the add-on p
 ```pwsh
 dotnet add package Flirty                 # Core engine (usable without ASP.NET)
 dotnet add package Flirty.AspNetCore      # optional: ready-made WebAPI endpoints
+dotnet add package Flirty.Mcp             # optional: MCP server (independent of the above)
 ```
 
 > The target framework is **.NET 10**. The version scheme is date-based (`YYYYMM.Revision.0`, e.g.
@@ -171,13 +173,14 @@ resume after a reload, editing individual answers as well as fired triggers and 
 - Loops: [`docs/LOOPS.md`](https://github.com/dominikz98/flirty/blob/main/docs/LOOPS.md)
 - Triggers (notifications + webhooks): [`docs/TRIGGERS.md`](https://github.com/dominikz98/flirty/blob/main/docs/TRIGGERS.md)
 - Answer validation: [`docs/VALIDATION.md`](https://github.com/dominikz98/flirty/blob/main/docs/VALIDATION.md)
+- MCP server (tools for an MCP client): [`docs/MCP.md`](https://github.com/dominikz98/flirty/blob/main/docs/MCP.md)
 
 **Project & operations**
 
 - NuGet packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
 - CI pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
 - Roadmap / backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
-- Decisions (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – why Mediator, why an ASP.NET-free core, why a sandboxed expression engine, why migrations per provider, why published dialog versions are immutable, why the designer canvas is built in-house, why the canvas layout lives in its own table
+- Decisions (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – why Mediator, why an ASP.NET-free core, why a sandboxed expression engine, why migrations per provider, why published dialog versions are immutable, why the designer canvas is built in-house, why the canvas layout lives in its own table, why the MCP server is a package of its own
 
 ## Build & Test
 

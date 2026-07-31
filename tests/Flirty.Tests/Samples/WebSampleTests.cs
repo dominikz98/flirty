@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Client;
 
 namespace Flirty.Tests.Samples;
 
@@ -149,6 +150,30 @@ public sealed class WebSampleTests
         var receipt = Assert.Single(receipts!);
         Assert.Equal(nameof(TriggerScope.OnDialogCompleted), receipt.Event);
         Assert.Contains(DemoDialog.DialogKey, receipt.Payload);
+    }
+
+    /// <summary>
+    /// The sample serves the MCP endpoint too (#126): an MCP client can configure dialogs where the chat UI
+    /// only plays them. Driven by a real <c>McpClient</c> against the sample's own composition, so the
+    /// opt-in wiring is checked and not just the package.
+    /// </summary>
+    [Fact]
+    public async Task WebSample_serves_the_mcp_endpoint()
+    {
+        await using var host = await WebSampleTestHost.StartAsync();
+
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri("http://localhost/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+            },
+            host.Client);
+        await using var mcp = await McpClient.CreateAsync(transport);
+
+        var tools = await mcp.ListToolsAsync();
+
+        Assert.Contains("flirty_dialog_list", tools.Select(tool => tool.Name));
     }
 
     private static async Task<StartSessionResponse> StartAsync(HttpClient client, string userKey)
