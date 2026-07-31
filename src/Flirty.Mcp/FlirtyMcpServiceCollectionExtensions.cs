@@ -104,8 +104,11 @@ public static class FlirtyMcpServiceCollectionExtensions
                 .WithTools<FlirtyLayoutTools>();
         }
 
-        // The runtime tool class follows in the next build-out stage (#128); FlirtyMcpSurface.Runtime
-        // registers nothing today.
+        if (options.Surface.HasFlag(FlirtyMcpSurface.Runtime))
+        {
+            builder.WithTools<FlirtySessionTools>();
+        }
+
         return builder;
     }
 }

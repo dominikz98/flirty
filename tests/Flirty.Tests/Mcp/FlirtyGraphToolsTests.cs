@@ -862,9 +862,10 @@ public sealed class FlirtyGraphToolsTests
     /// </summary>
     /// <remarks>
     /// This is the honest proof of AC 1 of #127: <c>tools/list</c> only shows that the tools exist. The
-    /// runtime half runs over HTTP because the runtime tools arrive in the next stage (#128) – which is also
-    /// what keeps this from duplicating the round-trip test that stage 5 (#130) owns, where both halves are
-    /// MCP.
+    /// runtime half runs over HTTP, which since #128 is a choice rather than the only option – and it stays
+    /// the right one, because playing it over MCP too would make this the round-trip test that stage 5
+    /// (#130) owns, leaving that stage nothing to prove. Here the HTTP replay is also the stronger claim:
+    /// what a graph authored over MCP has to be is startable by an ordinary production consumer.
     /// </remarks>
     [Fact]
     public async Task Dialog_built_purely_over_mcp_is_startable_over_the_runtime()

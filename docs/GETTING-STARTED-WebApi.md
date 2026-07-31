@@ -64,11 +64,13 @@ body. Answer values are **raw JSON text** (format per question type, e.g. `"dev"
 | `PUT /flirty/sessions/{id}/answers/{questionId}` | `EditAnswerCommand` | `200 OK`, `EditAnswerResponse` |
 
 > **Deliberately without an endpoint:** `StartDialogVersionCommand` (#43) starts a **specific dialog
-> version regardless of the publication status** and is reachable only via the facade
-> `IFlirtyEngine.StartDialogVersionAsync` (used by the
-> [designer's test runner](./DESIGNER.md#test-runner-43)). Over HTTP the publish status stays the
-> production barrier – a draft should not go live via a request. Details:
-> [RUNTIME.md](./RUNTIME.md#startdialogversioncommand-43).
+> version regardless of the publication status**, and none of the routes above reaches it. Over
+> `MapFlirtyEndpoints` the publish status stays the production barrier – a draft should not go live via a
+> request. It is reachable via the facade `IFlirtyEngine.StartDialogVersionAsync` (used by the
+> [designer's test runner](./DESIGNER.md#test-runner-43)) and, since #128, as the MCP tool
+> `flirty_session_start_version` in the **separate, opt-in** package `Flirty.Mcp` – which is also served
+> over HTTP, so the barrier is a property of *this* route group rather than of the protocol. Details:
+> [RUNTIME.md](./RUNTIME.md#startdialogversioncommand-43) and [MCP.md](./MCP.md).
 
 ### Start a dialog (or resume it)
 

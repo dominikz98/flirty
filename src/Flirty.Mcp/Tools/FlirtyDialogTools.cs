@@ -7,13 +7,13 @@ namespace Flirty.Mcp.Tools;
 
 /// <summary>
 /// The dialog-level MCP tools: create, read, change, publish, version and clean up a dialog. The MCP
-/// counterpart of <c>MapDialogEndpoints</c> and one of the seven tool classes of this package – a thin
+/// counterpart of <c>MapDialogEndpoints</c> and one of the eight tool classes of this package – a thin
 /// layer over the admin CRUD commands of <c>Flirty.Runtime.Admin</c>, dispatched via
 /// <see cref="ISender"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This class is the <b>documentation home</b> for the tool-shape conventions of all seven: the six
+/// This class is the <b>documentation home</b> for the tool-shape conventions of all eight: the seven
 /// others state only what is specific to their area and point here for the rest.
 /// </para>
 /// <para>
@@ -44,7 +44,10 @@ namespace Flirty.Mcp.Tools;
 /// derived name turns a C# rename into a client-visible breaking change, and an <i>omitted</i> hint is not
 /// a neutral one – it is absent from the wire, and the protocol then lets a client assume
 /// <c>destructive</c> and <c>openWorld</c>. Unset, every <c>create</c> would look like it might destroy
-/// data. <c>OpenWorld = false</c> throughout is a fact about this server: it touches only its own database.
+/// data. <c>OpenWorld = false</c> across the seven configuration classes is a fact about them: they touch
+/// only their own database. It is <b>not</b> a fact about the server, and the distinction is worth keeping
+/// straight - <see cref="FlirtySessionTools"/> sets <c>OpenWorld = true</c> on its four writing tools,
+/// because running a dialog publishes notifications and the core delivers those as outbound webhooks.
 /// </para>
 /// <para>
 /// The results are the <b>core</b> records, serialized directly. <see cref="DialogDetail"/> therefore keeps

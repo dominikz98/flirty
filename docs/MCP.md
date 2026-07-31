@@ -4,11 +4,11 @@
 that an MCP client can do what an operator does in the Blazor designer. Like `Flirty.AspNetCore` it is a
 **thin adapter over the existing Mediator commands** – no engine logic, no new command.
 
-> **Build-out status.** This guide describes what exists today: the host and the **27 admin tools** – the
-> ten dialog-level ones (EPIC 13 stage 1, #126) plus the whole configuration graph: questions, answer
-> options, transitions, loop markers, triggers and the canvas layout (stage 2, #127). The runtime/test-run
-> tools and the multi-database targets follow in the later stages of the EPIC, so
-> `FlirtyMcpSurface.Runtime` still registers nothing.
+> **Build-out status.** This guide describes what exists today: the host and **32 tools**. Twenty-seven of
+> them are the configuration surface – the ten dialog-level ones (EPIC 13 stage 1, #126) plus the whole
+> graph: questions, answer options, transitions, loop markers, triggers and the canvas layout (stage 2,
+> #127). The other five are the runtime surface (stage 3, #128), which plays a dialog through. The
+> multi-database targets follow in stage 4 (#129).
 
 Why it is a package of its own rather than a folder in `Flirty.AspNetCore`:
 [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
@@ -49,9 +49,12 @@ builder.Services.AddFlirtyMcp(o =>
 });
 ```
 
-`FlirtyMcpSurface.Runtime` registers nothing today (its tools are a later stage). Note that an MCP server
+The two surfaces are worth choosing between rather than defaulting past. `Admin` is configuration only and
+touches nothing but its own database; `Runtime` **runs dialogs for real** – it writes sessions, delivers
+configured webhooks, and one of its tools starts an unpublished draft (see *A test run is a real run*
+below). A host that wants an authoring client and nothing else registers `Admin`. Note also that a server
 with **no** tools at all advertises no tools capability, which makes `tools/list` itself unavailable
-(JSON-RPC `-32601`). That is the SDK's semantics, not a Flirty decision.
+(JSON-RPC `-32601`) – that is the SDK's semantics, not a Flirty decision.
 
 The sample serves the endpoint at `/mcp` (`src/Flirty.Samples.Web/WebSampleApp.cs`) – deliberately
 **without** `RequireAuthorization()`, as the admin endpoints there are.
@@ -76,9 +79,10 @@ The default has moved once already, hence the explicit setting.
 
 ## Tools
 
-Names are `flirty_<area>_<action>`. **27 admin tools in six areas**, and the split into tool classes is not
-cosmetic: there is **one tool class per existing `MapXxxEndpoints` counterpart**, which is what makes the
-parity claim reviewable file against file instead of by counting.
+Names are `flirty_<area>_<action>`. **32 tools in eight tool classes** – 27 of configuration and 5 of
+runtime – and the split is not cosmetic: there is **one tool class per existing `MapXxxEndpoints`
+counterpart**, which is what makes the parity claim reviewable file against file instead of by counting.
+`FlirtySessionTools` is the eighth, and it mirrors `MapFlirtyEndpoints`, the runtime route group.
 
 Every name lives as a `const string` in `Tools/FlirtyToolNames.cs` – **the single parity checklist** – and
 every `[McpServerTool]` takes its `Name` from there. Never let the SDK derive one: `DeriveName` strips an
@@ -201,6 +205,77 @@ Neither tool guards its input: an empty batch, a duplicate element and a negativ
 rejected by the command's own validation as a 400. Catching them in the tool would produce the same 400 by a
 longer road and duplicate a rule that has one home.
 
+### Sessions – the runtime and test run (#128)
+
+| Tool | Command / query | Returns | HTTP twin |
+|---|---|---|---|
+| `flirty_session_start` | `StartDialogCommand` | `StartDialogResult` | `POST /flirty/sessions` |
+| `flirty_session_start_version` | `StartDialogVersionCommand` | `StartDialogResult` | **none – deliberately** |
+| `flirty_session_get` | `ResumeDialogQuery` | `ResumeDialogResult` | `GET /flirty/sessions/{id}` |
+| `flirty_session_submit_answer` | `SubmitAnswerCommand` | `SubmitAnswerResult` | `POST …/answers` |
+| `flirty_session_edit_answer` | `EditAnswerCommand` | `EditAnswerResult` | `PUT …/answers/{questionId}` |
+
+The order is: start, then answer whatever `flirty_session_get` reports as `currentQuestion` until
+`isCompleted`. Editing an earlier answer discards every answer given after it – `invalidatedAnswers` says
+how many – because a different answer can lead down a different branch; a completed session reopens if the
+new path has a follow-up question. Inside a loop each pass is one answer with its own `iterationIndex`, and
+`flirty_session_edit_answer` takes that index to say which pass it means (omit it and the *earliest* answer
+is corrected, which is what you want outside a loop).
+
+The results are the **runtime** core records. `QuestionView` is deliberately leaner than the admin
+`QuestionDetail` – it carries what a client needs to *render* a question, not what it needs to *edit* one –
+and the MCP surface keeps them apart exactly as the engine does.
+
+### A test run is a real run
+
+`flirty_session_start_version` starts one dialog version **regardless of publication status**. That is why
+it is the only tool with no HTTP counterpart: over HTTP the publish status stays the production barrier.
+It exists because otherwise a draft is untestable and the only way to try one out is to publish it briefly
+– which arms it for real users in the meantime. The designer's test runner (#43) uses the same facade
+operation for the same reason.
+
+The caveat the designer carries applies here word for word: **a test run writes real sessions and delivers
+real webhooks.** The engine's notifications are published as usual, so a trigger of kind `Webhook` really
+posts to its configured url. Two consequences the surface makes visible rather than leaves to the reader:
+
+- Sessions started by `flirty_session_start_version` are stored with the external user key **prefixed
+  `mcp-test-`**, alongside the designer's own `designer-test-`, so a test run is identifiable afterwards.
+  The server applies the prefix, so it does not depend on a client remembering to. `flirty_session_start`
+  does **not** prefix – it is the ordinary production path, and prefixing there would hand an MCP client
+  and an HTTP client two different sessions for the same user. A *blank* key stays blank, deliberately:
+  prefixing it would turn `""` into a non-empty string and silently satisfy the `[Required]` the engine
+  owes the caller a 400 for.
+- The four writing session tools declare `openWorldHint: true` (see the annotation table below). A host
+  that wants none of this registers `FlirtyMcpSurface.Admin`.
+
+### The answer `value` is JSON whose shape depends on the question type
+
+This is the third payload that is JSON inside a string, and the one most likely to be got wrong, because
+its schema is `"string"` and getting it wrong is not always an error. The rule of thumb, from the sample
+chat UI's own bug (#47): **the label is displayed, the value is stored.**
+
+| `QuestionType` | `value` | |
+|---|---|---|
+| `FreeText`, `Date` | `"hello"`, `"2026-07-31"` | JSON string; dates ISO-8601 |
+| `SingleChoice` | `"dev"` | the option's **`value`**, not its `label` |
+| `MultiChoice` | `["a","b"]` | JSON array of strings – note `MultiChoice`, not `MultipleChoice` |
+| `Number` | `42`, `3.14` | bare JSON number, dot as the decimal separator |
+| `Boolean` | `true` / `false` | bare literal – see below |
+
+`Boolean` is the trap worth naming, and **not for the reason #128's issue text gives**. There is no MCP
+input that silently flips a boolean: `AnswerValidator.IsBoolean` accepts the bare literal and the quoted
+`"true"`/`"false"`, and rejects everything else with a 400 – the #47 flip happened inside the sample chat
+UI's own JS codec, before a value ever reached the engine, so it is a fact about that client and not about
+this surface. What *is* silent here is a type change: the quoted form passes validation and is stored, but
+`ParseJsonValue` binds a JSON string as a `string` where the bare literal binds as a `bool`, so a branching
+condition comparing that answer to a boolean simply stops matching. Nothing is rejected along the way. Send
+the bare literal.
+
+`SingleChoice` by contrast fails loudly on a label-instead-of-value – and that 400 is the only error in the
+package carrying structured field errors, under `errors.value`. The designer has `AnswerValueCodec` as the
+single source of this contract; an MCP client has only these descriptions, which is why the table is
+repeated in the parameter description of both tools that take a `value`.
+
 ### Return shapes: the core records, directly
 
 The tools serialize the **core** `Flirty.Runtime[.Admin]` records. `Flirty.AspNetCore`'s DTO layer is
@@ -239,40 +314,57 @@ above.
 
 ### Annotations, and why they are set explicitly
 
-All 27 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
+All 32 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
 reason is a measurement: the four hints are `bool?` from the attribute all the way to the wire, an *unset*
 one is simply **absent**, and the protocol then lets a client assume `destructive: true` and
 `openWorld: true`. Omitting is therefore not neutral – unset, every `create` looks to a client like it might
-destroy data, and every tool claims it talks to an open world. `openWorld = false` throughout is a fact
-about this server: it touches only its own database.
+destroy data, and every tool claims it talks to an open world.
 
-| Group | `readOnlyHint` | `destructiveHint` | `idempotentHint` |
-|---|---|---|---|
-| `dialog_get`, `dialog_list`, `dialog_count_active_sessions` | `true` | `false` | `true` |
-| the six `_create` + `dialog_create_version` | `false` | `false` | `false` |
-| the six `_update` | `false` | `false` | `true` |
-| the six `_delete` | `false` | **`true`** | `false` |
-| `dialog_publish`, `dialog_unpublish` | `false` | `false` | `true` |
-| `dialog_abandon_sessions` | `false` | **`true`** | `true` |
-| `flirty_layout_set` | `false` | `false` | `true` |
-| `flirty_layout_reset` | `false` | **`true`** | `true` |
+| Group | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
+|---|---|---|---|---|
+| `dialog_get`, `dialog_list`, `dialog_count_active_sessions` | `true` | `false` | `true` | `false` |
+| the six `_create` + `dialog_create_version` | `false` | `false` | `false` | `false` |
+| the six `_update` | `false` | `false` | `true` | `false` |
+| the six `_delete` | `false` | **`true`** | `false` | `false` |
+| `dialog_publish`, `dialog_unpublish` | `false` | `false` | `true` | `false` |
+| `dialog_abandon_sessions` | `false` | **`true`** | `true` | `false` |
+| `flirty_layout_set` | `false` | `false` | `true` | `false` |
+| `flirty_layout_reset` | `false` | **`true`** | `true` | `false` |
+| `session_start`, `session_start_version` | `false` | `false` | `true` | **`true`** |
+| `session_get` | `true` | `false` | `true` | `false` |
+| `session_submit_answer` | `false` | `false` | **`false`** | **`true`** |
+| `session_edit_answer` | `false` | **`true`** | `true` | **`true`** |
 
-Three cells are judgement calls worth recording. `dialog_publish` is **not** destructive – retiring the
-predecessor version loses no data and is reversible by publishing it again – but its description names that
-side effect all the same, because a boolean cannot. `dialog_abandon_sessions` **is** destructive although it
-deletes nothing: ending live user sessions is irreversible, and that is exactly what a client should confirm.
-And the deletes are *not* idempotent because the repeat is a 404, whereas `flirty_layout_reset` is: it
-succeeds on an already empty layout.
+Four cells are judgement calls worth recording.
 
-The whole matrix is asserted per tool. The one trap there: `Assert.False` accepts a `bool?` and reads `null`
-as `false`, so an assertion written that way would pass on exactly the bug this test exists to catch – the
-comparisons are `Assert.Equal<bool?>`.
+`dialog_publish` is **not** destructive – retiring the predecessor version loses no data and is reversible
+by publishing it again – but its description names that side effect all the same, because a boolean cannot.
+`dialog_abandon_sessions` **is** destructive although it deletes nothing: ending live user sessions is
+irreversible, and that is exactly what a client should confirm. The deletes are *not* idempotent because the
+repeat is a 404, whereas `flirty_layout_reset` is: it succeeds on an already empty layout. `session_start`
+and `session_start_version` **are** idempotent, which surprises: a repeat resumes the caller's running
+session (`isResumed: true`) rather than opening a second one, while `session_submit_answer` is not, because
+its repeat answers a question that is no longer open and is refused with a 409.
+
+The fourth is `openWorldHint`, and it is a **correction** rather than an addition. Through #127 the value
+was `false` on all 27 tools and this guide called that "a fact about this server: it touches only its own
+database". It was a fact about the *configuration* tools. Running a dialog publishes engine notifications,
+and the core's `WebhookNotificationHandler` turns those into outbound HTTP calls to whatever absolute url a
+trigger names – so the four writing session tools reach outside, and declaring otherwise while the
+description says "delivers configured webhook triggers" would be a contradiction on the wire.
+`session_get` publishes nothing and stays `false`.
+
+The whole matrix is asserted per tool, and `openWorld` had to *become* a column of that theory: it was a
+hard-coded `Assert.Equal<bool?>(false, …)`, which would now have pinned the wrong answer for five tools. The
+other trap there: `Assert.False` accepts a `bool?` and reads `null` as `false`, so an assertion written that
+way would pass on exactly the bug this test exists to catch – the comparisons are `Assert.Equal<bool?>`.
 
 ### Server instructions
 
 `AddFlirtyMcp` sets `ServerInstructions` (`FlirtyMcpInstructions.Text`). It explains what a client needs
 before it picks a tool at all – the shape of a dialog, the typical build order, that ids are the currency,
-the publish lock and its layout exception – and above all the two JSON-in-a-string payloads below.
+the publish lock and its layout exception, the order a dialog is played in – and above all the three
+JSON-in-a-string payloads below.
 
 **How they actually travel, measured rather than assumed – and it is not what the setup section suggests.**
 They arrive in `InitializeResult.Instructions`, because the SDK's own client **still performs the
@@ -285,7 +377,7 @@ client works fine otherwise – `tools/list` and `tools/call` both answer it –
 instructions in `DiscoverResult.Instructions`, this server does not expose the `discover` method (it answers
 `-32601`). So the redundancy rule is load-bearing, not belt-and-braces: **every fact in the instructions is
 also in a tool or parameter `[Description]`**, and those travel with `tools/list`, which every client reads.
-The two JSON-in-a-string payloads are the reason that rule exists.
+The three JSON-in-a-string payloads are the reason that rule exists.
 
 A host can append its own guidance after `AddFlirtyMcp`, since the SDK's server options are plain `IOptions`:
 
@@ -296,13 +388,13 @@ builder.Services.Configure<McpServerOptions>(o => o.ServerInstructions += "\n\nH
 
 A *replace* knob is deliberately not offered on `FlirtyMcpOptions`: the content is a fact about Flirty's
 contract, not a host preference, and dropping it would silently strand every write tool's description that
-assumes the two JSON shapes were stated once.
+assumes the three JSON shapes were stated once.
 
-### The two JSON-in-a-string payloads
+### The three JSON-in-a-string payloads
 
-`validationRules` on a question and `config` on a trigger are `string` on the commands and stay strings here.
-Their schema is therefore `"type": "string"`, which tells a model **nothing** – so the shape is written out
-in prose, in the parameter `[Description]` and once in the server instructions. Both are camelCase:
+`validationRules` on a question, `config` on a trigger and `value` on an answer are `string` on the commands
+and stay strings here. Their schema is therefore `"type": "string"`, which tells a model **nothing** – so
+the shape is written out in prose, in the parameter `[Description]` and once in the server instructions:
 
 - **`validationRules`**, type-scoped, every field optional
   ([VALIDATION.md](./VALIDATION.md)). `FreeText`: `{"minLength":3,"maxLength":50,"pattern":"^[a-z]+$"}` –
@@ -315,6 +407,10 @@ in prose, in the parameter `[Description]` and once in the server instructions. 
   `{}` – an empty string is rejected by `[Required]`. Only these two fields survive a write: `TriggerConfig`
   writes exclusively what it declares, so **unknown fields do not survive a read/write cycle**. That caveat
   is part of the contract, not a defect.
+- **`value`** on `flirty_session_submit_answer` / `_edit_answer`, whose shape follows the question's type –
+  `"hello"`, `"dev"`, `["a","b"]`, `42`, `true`. Written out in full under
+  [*The answer `value`…*](#the-answer-value-is-json-whose-shape-depends-on-the-question-type) above,
+  because it is the only one of the three that is a *table* rather than a shape.
 
 ### Enums are names, not numbers – and that differs from HTTP
 
@@ -424,9 +520,10 @@ The files, and what each is responsible for:
 | `FlirtyMcpTestHost` | the host itself: one TestServer, both HTTP surfaces and `/mcp` over one database |
 | `FlirtyMcpToolCalls` | the shared `Read<T>` and the graph builders – extension methods on the host, the MCP counterparts of the private helpers in `MapFlirtyAdminEndpointsTests` |
 | `FlirtyToolSurfaceTests` | the surface contract: the golden name list, the checklist in both directions, assembly-vs-wire registration, the name shape, `outputSchema` + description on every tool, the annotation matrix, the instructions, the layout batch schema |
-| `FlirtyGraphToolsTests` | the per-area happy paths, with the **same section banners** as `MapFlirtyAdminEndpointsTests`; the ADR-0007 pair; and a dialog built purely over MCP then played through the runtime |
-| `MapFlirtyMcpTests` | the wiring: input schemas, return shapes, request scoping, the two `Map`/`Add` prerequisites |
-| `FlirtyMcpExceptionParityTests` | HTTP-vs-MCP error parity, six rows, in two honesty tiers (below) |
+| `FlirtyGraphToolsTests` | the per-area happy paths, with the **same section banners** as `MapFlirtyAdminEndpointsTests`; the ADR-0007 pair; and a dialog built purely over MCP then replayed over the **HTTP** runtime – deliberately not over MCP, which is #130's round trip |
+| `FlirtySessionToolsTests` | the runtime tools: a dialog played through, resume-on-restart, the draft/published pair, the `mcp-test-` marker, two loop iterations and the edits that discard downstream answers |
+| `MapFlirtyMcpTests` | the wiring: input schemas, return shapes, request scoping, surface scoping in both directions, the two `Map`/`Add` prerequisites |
+| `FlirtyMcpExceptionParityTests` | HTTP-vs-MCP error parity, six rows, all real on both sides (below) |
 | `FlirtyMcpExceptionFilterTests` | the MCP-only filter branches and the catch order |
 | `FlirtyThrowingTestTools` | the injection seam for the exceptions no real tool can raise |
 
@@ -453,24 +550,38 @@ The acceptance criterion hides two logically independent halves in one sentence:
 - **H2 – same exception, same status/title/detail.** The only half the new filter can get wrong, and what
   "mirrors" means.
 
-Only three of the six exceptions are reachable through the 27 admin tools of stages 1 and 2
-(`ConfigurationNotFoundException`, `ValidationException`, `InvalidOperationException`); the other three
-need the runtime operations, which are a later stage. Those three therefore go through a **test-only**
-tool (`FlirtyThrowingTestTools`) on the MCP side and prove **H2 only** – H1 for them is covered by the
-existing core handler tests. The HTTP side is the real endpoint in all six. Saying which half a row proves
-is the difference between an honest criterion and a quietly reduced one.
+**Since #128 every row proves both halves**, and the history is worth keeping because it is what the
+honesty was for. Stage 1 could reach only three of the six exceptions through real tools
+(`ConfigurationNotFoundException`, `ValidationException`, `InvalidOperationException`); the other three –
+dialog-not-found, session-not-found and answer-validation – all need the runtime operations, so on the MCP
+side they went through a **test-only** tool (`FlirtyThrowingTestTools`) and proved **H2 only**, with H1
+covered by the core handler tests. The file said which half each row proved, which is the difference between
+an honest criterion and a quietly reduced one. Stage 2 added no runtime tool and so could not shrink that
+set; the runtime tools close it, and the tier split is gone from the file.
 
-Stage 2 did **not** shrink that tier – it added no runtime tool – but it deepened Tier 1 from three exception
-paths to six: a nested 404 (an option under an unknown question, whose `detail` differs from the
-unknown-dialog one, and `detail` is the field a translation table gets wrong), a `ValidationException` from
-the trigger commands' cross-field `IValidatableObject` (a different branch from the `[Required]` one), and a
-`DialogPublishedException` from a real graph command. The last matters most: the filter's catch order depends
-on that subtype preceding its base, the compiler enforces the *order* but not its correctness, and until the
-graph tools existed the exception could only be raised through the test seam.
+Stage 2 did deepen the real-on-both-sides set from three exception paths to six: a nested 404 (an option
+under an unknown question, whose `detail` differs from the unknown-dialog one, and `detail` is the field a
+translation table gets wrong), a `ValidationException` from the trigger commands' cross-field
+`IValidatableObject` (a different branch from the `[Required]` one), and a `DialogPublishedException` from a
+real graph command. The last matters most: the filter's catch order depends on that subtype preceding its
+base, the compiler enforces the *order* but not its correctness, and until the graph tools existed the
+exception could only be raised through the test seam.
+
+`FlirtyThrowingTestTools` stays regardless. Four of its kinds – an `McpException`, a cancellation, an
+`ArgumentNullException` and an unexpected one – are unreachable through any real tool *by design*, and they
+are what `FlirtyMcpExceptionFilterTests` drives. The six engine kinds stay beside them because the mapping
+table is also asserted as a **table**, one row per exception, which is a different claim from "this call
+path maps correctly".
 
 One more trap the tests pin: over MCP, an **omitted** required argument never reaches the pipeline
 validation – the marshaller rejects it first. So the "invalid request" parity row uses an **empty** key
-(`[Required]` rejects empty strings too), not a missing one.
+(`[Required]` rejects empty strings too), not a missing one. The same fact is why an empty
+`externalUserKey` is left unprefixed by `flirty_session_start_version`: prefixing would make it non-empty
+and the `[Required]` behind it would never fire.
+
+The answer-validation row is the one place the two surfaces answer **their own** session rather than
+sharing one – a submitted answer advances the session, so the first call would leave the second nothing to
+reject. Same dialog, same database, same question, which is all the comparison needs.
 
 ## Coverage and release
 

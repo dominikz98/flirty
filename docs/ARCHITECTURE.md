@@ -179,8 +179,10 @@ status/title mapping – but it serializes the **core** records instead of rebui
 a tool call is one flat argument object. Opt-in and securable via `RequireAuthorization()` for the same
 reason the admin CRUD is. The transport runs **stateless** (protocol revision `2026-07-28` removed the
 session header), which is also why the tools need no scope handling of their own. Implemented in #126
-(host + the dialog tools) and #127 (the whole configuration graph – questions, answer options, transitions,
-loop markers, triggers, canvas layout – as one tool class per `MapXxxEndpoints` counterpart); details in
+(host + the dialog tools), #127 (the whole configuration graph – questions, answer options, transitions,
+loop markers, triggers, canvas layout – as one tool class per `MapXxxEndpoints` counterpart) and #128 (the
+runtime: starting, playing, reading and correcting a session, including the start-a-specific-version
+operation that deliberately has no HTTP endpoint); details in
 [MCP.md](./MCP.md), rationale for the separate package in
 [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
 

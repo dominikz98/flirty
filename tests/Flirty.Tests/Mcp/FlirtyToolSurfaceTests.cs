@@ -30,11 +30,11 @@ namespace Flirty.Tests.Mcp;
 public sealed class FlirtyToolSurfaceTests
 {
     /// <summary>
-    /// The 27 admin tools of stages 1 and 2 are registered, and nothing else. The list is ordinal-sorted so
-    /// a diff on it reads by area.
+    /// The 27 admin tools of stages 1 and 2 plus the 5 session tools of stage 3 are registered, and
+    /// nothing else. The list is ordinal-sorted so a diff on it reads by area.
     /// </summary>
     [Fact]
-    public async Task ListTools_returns_the_twenty_seven_admin_tools()
+    public async Task ListTools_returns_the_thirty_two_tools()
     {
         await using var host = await FlirtyMcpTestHost.StartAsync();
 
@@ -99,7 +99,7 @@ public sealed class FlirtyToolSurfaceTests
 
     /// <summary>Every tool name follows the <c>flirty_&lt;area&gt;_&lt;action&gt;</c> shape.</summary>
     /// <remarks>
-    /// Redundant for the 27 names the golden list pins, and kept anyway: it is the only guard left when a
+    /// Redundant for the 32 names the golden list pins, and kept anyway: it is the only guard left when a
     /// later stage adds a tool and updates the literal list to match a badly shaped name.
     /// </remarks>
     [Fact]
@@ -158,11 +158,17 @@ public sealed class FlirtyToolSurfaceTests
     /// <c>bool?</c> and reads <see langword="null"/> as <see langword="false"/>, so it would pass on exactly
     /// the bug this test exists to catch.
     /// </para>
+    /// <para>
+    /// <c>openWorld</c> became a column in #128 and was a hard-coded <c>false</c> before it. That was
+    /// right while the surface was configuration only – the tools touched nothing but their own database –
+    /// but the session tools run dialogs, and a run delivers the engine's notifications as outbound
+    /// webhooks. A constant in the assertion would now be pinning the wrong answer for five tools.
+    /// </para>
     /// </remarks>
     [Theory]
     [MemberData(nameof(ToolAnnotations))]
     public async Task Every_tool_declares_the_annotations_a_client_gates_its_prompts_on(
-        string tool, bool readOnly, bool destructive, bool idempotent)
+        string tool, bool readOnly, bool destructive, bool idempotent, bool openWorld)
     {
         await using var host = await FlirtyMcpTestHost.StartAsync();
 
@@ -173,7 +179,7 @@ public sealed class FlirtyToolSurfaceTests
         Assert.Equal<bool?>(readOnly, annotations.ReadOnlyHint);
         Assert.Equal<bool?>(destructive, annotations.DestructiveHint);
         Assert.Equal<bool?>(idempotent, annotations.IdempotentHint);
-        Assert.Equal<bool?>(false, annotations.OpenWorldHint);
+        Assert.Equal<bool?>(openWorld, annotations.OpenWorldHint);
     }
 
     /// <summary>
@@ -206,16 +212,26 @@ public sealed class FlirtyToolSurfaceTests
     }
 
     /// <summary>
-    /// The server instructions reach the client and name the two arguments that are JSON inside a string.
+    /// The server instructions reach the client and name all three arguments that are JSON inside a string.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Worth pinning because the property's own documentation says instructions travel "during the
     /// initialization handshake" – and revision <c>2026-07-28</c>, which this stateless server serves, has no
-    /// handshake. They arrive all the same, over <c>discover</c>. Asserted by keyword rather than as a whole
-    /// text: editing the wording of a documentation string must not turn a test red.
+    /// handshake. They arrive all the same, but <b>not</b> over <c>discover</c>: this server answers that
+    /// method with <c>-32601</c>, and the SDK's own client still handshakes, negotiating <c>2025-06-18</c>.
+    /// Stateless removed the session header, not the handshake.
+    /// </para>
+    /// <para>
+    /// All three payloads are asserted, not two. The redundancy rule these instructions rest on is that
+    /// every fact here is <i>also</i> in a tool or parameter description – which only matters because a
+    /// client that skips the handshake receives none of this text. A payload that quietly stopped being
+    /// mentioned would take the guidance with it. Asserted by keyword rather than as a whole text: editing
+    /// the wording of a documentation string must not turn a test red.
+    /// </para>
     /// </remarks>
     [Fact]
-    public async Task Server_instructions_reach_the_client_and_name_the_two_json_payloads()
+    public async Task Server_instructions_reach_the_client_and_name_the_three_json_payloads()
     {
         await using var host = await FlirtyMcpTestHost.StartAsync();
 
@@ -226,43 +242,52 @@ public sealed class FlirtyToolSurfaceTests
         Assert.Contains("pattern", instructions, StringComparison.Ordinal);
         Assert.Contains("X-Flirty-Trigger", instructions, StringComparison.Ordinal);
         Assert.Contains("url", instructions, StringComparison.Ordinal);
+        Assert.Contains("MultiChoice", instructions, StringComparison.Ordinal);
+        Assert.Contains("decimal separator", instructions, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The annotation matrix, tool by tool. <c>OpenWorld</c> is <see langword="false"/> throughout – a fact
-    /// about this server, which touches only its own database – and therefore not a column.
+    /// The annotation matrix, tool by tool. <c>openWorld</c> separates the two halves of the surface: it is
+    /// <see langword="false"/> for all 27 configuration tools, which touch only their own database, and
+    /// <see langword="true"/> for the four session tools that write – running a dialog publishes engine
+    /// notifications, and the core delivers those to whatever url a webhook trigger names.
     /// </summary>
-    public static TheoryData<string, bool, bool, bool> ToolAnnotations =>
+    public static TheoryData<string, bool, bool, bool, bool> ToolAnnotations =>
         new()
         {
-            // tool, readOnly, destructive, idempotent
-            { FlirtyToolNames.DialogCreate, false, false, false },
-            { FlirtyToolNames.DialogList, true, false, true },
-            { FlirtyToolNames.DialogGet, true, false, true },
-            { FlirtyToolNames.DialogUpdate, false, false, true },
-            { FlirtyToolNames.DialogDelete, false, true, false },
-            { FlirtyToolNames.DialogPublish, false, false, true },
-            { FlirtyToolNames.DialogUnpublish, false, false, true },
-            { FlirtyToolNames.DialogCreateVersion, false, false, false },
-            { FlirtyToolNames.DialogAbandonSessions, false, true, true },
-            { FlirtyToolNames.DialogCountActiveSessions, true, false, true },
-            { FlirtyToolNames.QuestionCreate, false, false, false },
-            { FlirtyToolNames.QuestionUpdate, false, false, true },
-            { FlirtyToolNames.QuestionDelete, false, true, false },
-            { FlirtyToolNames.OptionCreate, false, false, false },
-            { FlirtyToolNames.OptionUpdate, false, false, true },
-            { FlirtyToolNames.OptionDelete, false, true, false },
-            { FlirtyToolNames.TransitionCreate, false, false, false },
-            { FlirtyToolNames.TransitionUpdate, false, false, true },
-            { FlirtyToolNames.TransitionDelete, false, true, false },
-            { FlirtyToolNames.LoopCreate, false, false, false },
-            { FlirtyToolNames.LoopUpdate, false, false, true },
-            { FlirtyToolNames.LoopDelete, false, true, false },
-            { FlirtyToolNames.TriggerCreate, false, false, false },
-            { FlirtyToolNames.TriggerUpdate, false, false, true },
-            { FlirtyToolNames.TriggerDelete, false, true, false },
-            { FlirtyToolNames.LayoutSet, false, false, true },
-            { FlirtyToolNames.LayoutReset, false, true, true },
+            // tool, readOnly, destructive, idempotent, openWorld
+            { FlirtyToolNames.DialogCreate, false, false, false, false },
+            { FlirtyToolNames.DialogList, true, false, true, false },
+            { FlirtyToolNames.DialogGet, true, false, true, false },
+            { FlirtyToolNames.DialogUpdate, false, false, true, false },
+            { FlirtyToolNames.DialogDelete, false, true, false, false },
+            { FlirtyToolNames.DialogPublish, false, false, true, false },
+            { FlirtyToolNames.DialogUnpublish, false, false, true, false },
+            { FlirtyToolNames.DialogCreateVersion, false, false, false, false },
+            { FlirtyToolNames.DialogAbandonSessions, false, true, true, false },
+            { FlirtyToolNames.DialogCountActiveSessions, true, false, true, false },
+            { FlirtyToolNames.QuestionCreate, false, false, false, false },
+            { FlirtyToolNames.QuestionUpdate, false, false, true, false },
+            { FlirtyToolNames.QuestionDelete, false, true, false, false },
+            { FlirtyToolNames.OptionCreate, false, false, false, false },
+            { FlirtyToolNames.OptionUpdate, false, false, true, false },
+            { FlirtyToolNames.OptionDelete, false, true, false, false },
+            { FlirtyToolNames.TransitionCreate, false, false, false, false },
+            { FlirtyToolNames.TransitionUpdate, false, false, true, false },
+            { FlirtyToolNames.TransitionDelete, false, true, false, false },
+            { FlirtyToolNames.LoopCreate, false, false, false, false },
+            { FlirtyToolNames.LoopUpdate, false, false, true, false },
+            { FlirtyToolNames.LoopDelete, false, true, false, false },
+            { FlirtyToolNames.TriggerCreate, false, false, false, false },
+            { FlirtyToolNames.TriggerUpdate, false, false, true, false },
+            { FlirtyToolNames.TriggerDelete, false, true, false, false },
+            { FlirtyToolNames.LayoutSet, false, false, true, false },
+            { FlirtyToolNames.LayoutReset, false, true, true, false },
+            { FlirtyToolNames.SessionStart, false, false, true, true },
+            { FlirtyToolNames.SessionStartVersion, false, false, true, true },
+            { FlirtyToolNames.SessionGet, true, false, true, false },
+            { FlirtyToolNames.SessionSubmitAnswer, false, false, false, true },
+            { FlirtyToolNames.SessionEditAnswer, false, true, true, true },
         };
 
     /// <summary>
@@ -292,6 +317,11 @@ public sealed class FlirtyToolSurfaceTests
             "flirty_question_create",
             "flirty_question_delete",
             "flirty_question_update",
+            "flirty_session_edit_answer",
+            "flirty_session_get",
+            "flirty_session_start",
+            "flirty_session_start_version",
+            "flirty_session_submit_answer",
             "flirty_transition_create",
             "flirty_transition_delete",
             "flirty_transition_update",

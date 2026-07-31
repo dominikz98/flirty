@@ -54,19 +54,21 @@ internal enum FlirtyTestThrowKind
 /// </summary>
 /// <remarks>
 /// <para>
-/// It exists because of a scope fact, not for convenience. Of the six engine exceptions the filter maps,
-/// only three are reachable through the 27 admin tools of build-out stages 1 and 2 – the other three need
-/// the runtime operations (start / resume / submit), which are a later stage. Without this seam the
-/// acceptance criterion "maps all six" would silently shrink to three.
+/// It began as a scope fact rather than a convenience: of the six engine exceptions the filter maps, only
+/// three were reachable through the 27 admin tools of build-out stages 1 and 2, and without this seam the
+/// acceptance criterion "maps all six" would silently have shrunk to three. That gap is now closed –
+/// <see cref="FlirtyTestThrowKind.DialogPublished"/> gained a real counterpart in #127 (a graph change over
+/// <c>flirty_question_create</c>), and #128 gave the remaining three one apiece over the session tools, so
+/// <see cref="FlirtyMcpExceptionParityTests"/> no longer routes any of the six through here.
 /// </para>
 /// <para>
-/// The seam does not shrink as the surface grows, and it is not scaffolding:
+/// The seam stays all the same, and it is not scaffolding left behind:
 /// <see cref="FlirtyTestThrowKind.McpProtocol"/>, <see cref="FlirtyTestThrowKind.Cancellation"/>,
 /// <see cref="FlirtyTestThrowKind.ArgumentNull"/> and <see cref="FlirtyTestThrowKind.Unexpected"/> are
-/// unreachable through any real tool <i>by design</i>, permanently. Only
-/// <see cref="FlirtyTestThrowKind.DialogPublished"/> gained a real counterpart in #127 (a graph change on a
-/// published dialog over
-/// <c>flirty_question_create</c>) and is kept here for the reason recorded on the filter test that uses it.
+/// unreachable through any real tool <i>by design</i>, permanently – they are the branches
+/// <see cref="FlirtyMcpExceptionFilterTests"/> exists for. The six engine kinds are kept beside them
+/// because the mapping table is also asserted as a <i>table</i>, one row per exception, which is a
+/// different claim from "this call path maps correctly" and is worth stating separately.
 /// </para>
 /// <para>
 /// It raises each exception through its own <b>public factory</b>, the same one the engine uses, so the

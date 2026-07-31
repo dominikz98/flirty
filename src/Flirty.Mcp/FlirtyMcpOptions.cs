@@ -11,8 +11,10 @@ public enum FlirtyMcpSurface
     None = 0,
 
     /// <summary>
-    /// The dialog runtime: starting, resuming, submitting and editing answers. Filled in a later
-    /// build-out stage; today this flag registers no tools.
+    /// The dialog runtime: starting, resuming, submitting and editing answers – the five
+    /// <c>flirty_session_*</c> tools. Note that these run dialogs for real: they write sessions and
+    /// deliver configured webhook triggers, and one of them starts an unpublished draft. A host that
+    /// wants configuration only registers <see cref="Admin"/>.
     /// </summary>
     Runtime = 1,
 

@@ -97,7 +97,10 @@ public static class WebSampleApp
         app.MapFlirtyAdminEndpoints("/flirty/admin");
 
         // The MCP server. In the sample deliberately WITHOUT RequireAuthorization() (simplicity) – the
-        // tools include write operations, so in production make sure to secure it.
+        // tools include write operations, and since #128 also the runtime ones, which start real sessions
+        // (flirty_session_start_version even on an unpublished draft) and deliver the outbound webhook
+        // registered above. So in production secure it, and register FlirtyMcpSurface.Admin if a client
+        // should be able to author dialogs but not run them.
         app.MapFlirtyMcp("/mcp");
 
         MapDemoEndpoints(app);
