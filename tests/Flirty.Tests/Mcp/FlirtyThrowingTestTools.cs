@@ -1,0 +1,117 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using Flirty.Runtime;
+using Flirty.Validation;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
+
+namespace Flirty.Tests.Mcp;
+
+/// <summary>
+/// The exception kinds <see cref="FlirtyThrowingTestTools"/> can raise. Doubles as the evidence that an
+/// enum parameter reaches the client as a camelCase name with an <c>enum</c> constraint in the input
+/// schema rather than as a number.
+/// </summary>
+internal enum FlirtyTestThrowKind
+{
+    /// <summary>A runtime start against an unknown dialog key.</summary>
+    DialogNotFound,
+
+    /// <summary>A resume of an unknown session.</summary>
+    SessionNotFound,
+
+    /// <summary>An unknown configuration element.</summary>
+    ConfigurationNotFound,
+
+    /// <summary>An answer rejected by the answer validator.</summary>
+    AnswerValidation,
+
+    /// <summary>A request rejected by the pipeline validation.</summary>
+    Validation,
+
+    /// <summary>A key or state conflict.</summary>
+    InvalidOperation,
+
+    /// <summary>A graph change on a published dialog – an <c>InvalidOperationException</c> subtype.</summary>
+    DialogPublished,
+
+    /// <summary>An <c>McpException</c>, whose control flow the SDK owns.</summary>
+    McpProtocol,
+
+    /// <summary>A cancellation, whose control flow the SDK owns.</summary>
+    Cancellation,
+
+    /// <summary>A handler bug: an <c>ArgumentNullException</c> that must not be read as a binder failure.</summary>
+    ArgumentNull,
+
+    /// <summary>Any other exception – the catch-all branch.</summary>
+    Unexpected,
+}
+
+/// <summary>
+/// A test-only tool that raises a chosen engine exception through the real MCP pipeline. Registered only
+/// by <see cref="FlirtyMcpTestHost"/> when asked for; it is not part of <c>Flirty.Mcp</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// It exists because of a scope fact, not for convenience. Of the six engine exceptions the filter maps,
+/// only three are reachable through the ten dialog tools of this build-out stage – the other three need the
+/// runtime operations (start / resume / submit), which are a later stage. Without this seam the acceptance
+/// criterion "maps all six" would silently shrink to three.
+/// </para>
+/// <para>
+/// It raises each exception through its own <b>public factory</b>, the same one the engine uses, so the
+/// message is identical to the one the real command produces by construction rather than by copying a
+/// string. And it is driven through a real <c>McpClient</c>, so the assertions cover the real tool
+/// registration, the SDK's real filter composition, the real Streamable-HTTP wire and the real ASP.NET
+/// request scope – none of which a hand-built <c>RequestContext</c> would touch.
+/// </para>
+/// </remarks>
+[McpServerToolType]
+internal sealed class FlirtyThrowingTestTools
+{
+    [McpServerTool(Name = "flirty_test_throw")]
+    [Description("Test-only: raises the chosen engine exception so the error mapping can be observed.")]
+    internal static string Throw(
+        FlirtyTestThrowKind kind,
+        CancellationToken cancellationToken,
+        string? key = null,
+        Guid? id = null,
+        string[]? errors = null)
+        => kind switch
+        {
+            FlirtyTestThrowKind.DialogNotFound =>
+                throw DialogNotFoundException.ForKey(key ?? "unknown"),
+            FlirtyTestThrowKind.SessionNotFound =>
+                throw SessionNotFoundException.ForId(id ?? Guid.Empty),
+            FlirtyTestThrowKind.ConfigurationNotFound =>
+                throw ConfigurationNotFoundException.ForDialog(id ?? Guid.Empty),
+            FlirtyTestThrowKind.AnswerValidation =>
+                throw AnswerValidationException.For(id ?? Guid.Empty, errors ?? ["The value must be a number."]),
+            FlirtyTestThrowKind.Validation =>
+                throw new ValidationException(key ?? "Validation of 'TestCommand' failed."),
+            FlirtyTestThrowKind.InvalidOperation =>
+                throw new InvalidOperationException(key ?? "A conflicting state was found."),
+            FlirtyTestThrowKind.DialogPublished =>
+                throw DialogPublishedException.ForGraphChange(key ?? "published", 1),
+            FlirtyTestThrowKind.McpProtocol =>
+                throw new McpException(key ?? "A protocol level failure."),
+            FlirtyTestThrowKind.Cancellation =>
+                throw Cancel(cancellationToken),
+            FlirtyTestThrowKind.ArgumentNull =>
+                throw new ArgumentNullException("command", "A handler bug, not a binder failure."),
+            _ =>
+                throw new NotSupportedException("A secret that must not reach the client."),
+        };
+
+    /// <summary>
+    /// Cancels a token of its own and throws with it, so the filter's guard sees a cancellation whose
+    /// token really is cancelled – the SDK's own predicate demands both halves.
+    /// </summary>
+    private static Exception Cancel(CancellationToken cancellationToken)
+    {
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        source.Cancel();
+        return new OperationCanceledException(source.Token);
+    }
+}

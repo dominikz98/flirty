@@ -5,7 +5,8 @@ namespace Flirty.Samples.Web;
 
 /// <summary>
 /// Central, reusable composition of the web sample. <see cref="ConfigureServices"/> wires up the
-/// Flirty stack (persistence, runtime endpoints, in-process handler, outbound webhook, provisioning) and
+/// Flirty stack (persistence, runtime endpoints, MCP server, in-process handler, outbound webhook,
+/// provisioning) and
 /// <see cref="MapEndpoints"/> registers the HTTP endpoints together with the static chat UI. Both are used by
 /// <c>Program.cs</c> (real Kestrel) and by the integration tests (in-process <c>TestServer</c>),
 /// so that app and test share the same setup.
@@ -59,6 +60,10 @@ public static class WebSampleApp
             }
         });
 
+        // MCP server over the same engine: an MCP client can configure dialogs where the chat UI only
+        // plays them. Deliberately after AddFlirty – AddFlirtyMcp does not register a provider itself.
+        builder.Services.AddFlirtyMcp();
+
         // Own in-process handler (trigger back channel) + in-memory sinks for the UI display.
         builder.Services.AddFlirtyHandler<DialogCompletedNotification, DemoDialogCompletedHandler>();
         builder.Services.AddSingleton<TriggerLog>();
@@ -72,7 +77,7 @@ public static class WebSampleApp
     }
 
     /// <summary>
-    /// Registers the static chat UI, the Flirty runtime and admin endpoints as well as the
+    /// Registers the static chat UI, the Flirty runtime and admin endpoints, the MCP server as well as the
     /// demo endpoints (inbound webhook receiver + trigger/webhook display).
     /// </summary>
     /// <param name="app">The built web app.</param>
@@ -90,6 +95,10 @@ public static class WebSampleApp
         // Admin CRUD for building the demo dialog. In the sample deliberately WITHOUT RequireAuthorization()
         // (simplicity) – in production make sure to secure it (see docs/GETTING-STARTED-Sample-Web.md).
         app.MapFlirtyAdminEndpoints("/flirty/admin");
+
+        // The MCP server. In the sample deliberately WITHOUT RequireAuthorization() (simplicity) – the
+        // tools include write operations, so in production make sure to secure it.
+        app.MapFlirtyMcp("/mcp");
 
         MapDemoEndpoints(app);
     }

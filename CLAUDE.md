@@ -15,7 +15,7 @@ persistence, answer validation, **branching**, **loops**, **resume**, editable a
 Detailed docs live in `docs/` (see the guide below) – **the actual depth is there**, not in this file
 and not in the GitHub issues (those are only a backlog index).
 
-## Solution layout (`Flirty.sln`, 10 projects)
+## Solution layout (`Flirty.sln`, 11 projects)
 
 ```
 src/
@@ -23,6 +23,9 @@ src/
 │                               Domain, Persistence (EF Core), Runtime (Mediator), Expressions,
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
+├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
+│                               EPIC 13 stage 1 (#126): host, the ten dialog tools, one call-tool
+│                               filter mirroring FlirtyExceptionEndpointFilter. References Flirty ONLY.
 ├─ Flirty.Designer            Blazor Web App (server-interactive). EPIC 7 complete: connection-profile
 │                               management (multi-DB, #37), dialog CRUD (#38), question editor (#39),
 │                               branching editor (#40), loop editor (#41), trigger editor (#42),
@@ -36,7 +39,8 @@ src/
 └─ Flirty.Migrations.SqlServer    /
    Flirty.Samples             Runnable console sample (core only, no ASP.NET).
    Flirty.Samples.Web         Runnable web sample: minimal API + static chat UI (uses
-                                Flirty.AspNetCore); resume/edit/branching/loop/trigger + webhook receiver.
+                                Flirty.AspNetCore and Flirty.Mcp); resume/edit/branching/loop/trigger,
+                                webhook receiver, MCP server at /mcp.
 tests/
 ├─ Flirty.Tests               xUnit unit/integration tests.
 └─ Flirty.E2E                 Playwright E2E of the web-sample chat UI (#45/#47) and the designer (#46).
@@ -44,6 +48,9 @@ tests/
 
 **Invariant:** The core (`Flirty`) has **no** ASP.NET dependency and runs unchanged in
 console/worker. Web is opt-in via `Flirty.AspNetCore` (`FrameworkReference Microsoft.AspNetCore.App`).
+The same holds one layer out: MCP is opt-in via `Flirty.Mcp`, which references `Flirty` **only** – the two
+web packages sit beside each other, not on top of each other, so `Flirty.AspNetCore` never drags the MCP
+SDK along. Reason: ADR `docs/adr/0009-mcp-as-its-own-opt-in-package.md`.
 
 ## Hard build conventions (Do / Don't)
 
@@ -60,9 +67,13 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   Apps/tests/designer are exempted via `NoWarn`.
 - **Central Package Management:** pin versions **only** in `Directory.Packages.props`, in the `.csproj`
   `<PackageReference Include="…" />` **without** `Version`.
-- **Packaging:** only `Flirty` + `Flirty.AspNetCore` set `IsPackable=true`; all others inherit
-  `false`. The package version is **date-based** `YYYYMM.Revision` (e.g. `202607.1`); never bump it
+- **Packaging:** only `Flirty` + `Flirty.AspNetCore` + `Flirty.Mcp` set `IsPackable=true`; all others
+  inherit `false`. The package version is **date-based** `YYYYMM.Revision` (e.g. `202607.1`); never bump it
   manually. Details: `docs/NUGET-PACKAGING.md`.
+- **A new packable project touches six places, and each fails silently when forgotten:** `Flirty.sln`,
+  `Directory.Packages.props`, `coverage.runsettings` (`<Include>` – otherwise unmeasured, no warning),
+  `.github/workflows/release.yml` (the *Verify packages* pairs – otherwise it ships unpacked),
+  `tests/Flirty.Tests/Flirty.Tests.csproj`, and the project count in this file's § Solution layout.
 - **Convention:** new domain/runtime types preferably `sealed record`/`sealed class`, `internal` where
   not part of the public API. Timestamps always **UTC** (`DateTimeOffset`, `UtcNow`).
 
@@ -74,6 +85,14 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   the `AddMediator` call live in `Flirty`. Open-generic behaviors are registered **manually**.
   Reason: ADR `docs/adr/0002-mediator-as-in-process-bus.md`.
 - **ASP.NET-free in the core** (see above). Reason: ADR `docs/adr/0003-aspnet-free-core.md`.
+- **The MCP transport runs stateless, unconditionally** (`WithHttpTransport(t => t.Stateless = true)`).
+  Protocol revision `2026-07-28` removed the `initialize` handshake and the `Mcp-Session-Id` header, so a
+  stateful server **refuses** current clients with `-32022`. In stateless mode the SDK resolves a
+  `tools/call`'s scoped services from the **ASP.NET request scope** – that is why `Flirty.Mcp` needs no
+  gateway and no `IServiceScopeFactory` (the designer's `DesignerGateway` exists only because a Blazor
+  circuit scope lives forever). Error mapping is **one** `AddCallToolFilter`, not one `try` per tool: it is
+  composed inside the SDK's own try/catch, so it sees the raw exception first – without it the SDK swallows
+  every message as `"An error occurred invoking 'x'."`. Details: `docs/MCP.md`.
 - **Expression engine sandboxed:** branching conditions run via `IExpressionEvaluator` (default
   `DynamicExpresso`, member whitelist) – **no** raw C# `eval`. In the designer, expressions are
   compiled/validated on save (`Validate`). Reason: ADR
@@ -125,6 +144,15 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
 - **Web endpoints:** `src/Flirty.AspNetCore/FlirtyEndpointRouteBuilderExtensions.cs` (runtime) and
   `FlirtyAdminEndpointRouteBuilderExtensions.cs` (admin), error mapping in
   `FlirtyExceptionEndpointFilter.cs` (namespace `Microsoft.AspNetCore.Builder`).
+- **MCP server:** `AddFlirtyMcp(Action<FlirtyMcpOptions>?)` in
+  `src/Flirty.Mcp/FlirtyMcpServiceCollectionExtensions.cs` (namespace deliberately
+  `Microsoft.Extensions.DependencyInjection`; returns the SDK's `IMcpServerBuilder`, so a host – and the
+  test host – can add its own tools) and `MapFlirtyMcp(string pattern = "/mcp")` in
+  `FlirtyMcpEndpointRouteBuilderExtensions.cs` (namespace `Microsoft.AspNetCore.Builder`; returns the
+  `IEndpointConventionBuilder` so `RequireAuthorization()` chains). Options + `[Flags] FlirtyMcpSurface` in
+  `FlirtyMcpOptions.cs`, error mapping in `FlirtyMcpExceptionFilter.cs` (+ payload `FlirtyProblem.cs`),
+  tools in `Tools/FlirtyDialogTools.cs`, the four result wrappers in `FlirtyToolResults.cs`. `AddFlirtyMcp`
+  deliberately does **not** call `AddFlirty()`.
 
 ## Standard commands (pwsh)
 
@@ -198,6 +226,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Branching / expressions | `docs/BRANCHING-EXPRESSIONS.md` |
 | Loops | `docs/LOOPS.md` |
 | Triggers (notifications + webhooks) | `docs/TRIGGERS.md` |
+| MCP server (tools, error mapping) | `docs/MCP.md` |
 | Answer validation | `docs/VALIDATION.md` |
 | NuGet packaging | `docs/NUGET-PACKAGING.md` |
 | CI pipeline | `docs/CI.md` |
@@ -205,7 +234,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Getting Started (Web sample / chat UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0008 |
+| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0009 |
 
 ## Status & open work
 
@@ -800,3 +829,65 @@ files returns exactly **one** known hit: the line in the stage-4 paragraph above
 search pattern itself. That one is there by construction and is not a finding. Both suites are green
 and count-identical to the baseline (608 unit + 17 E2E), and the E2E suite ran green three times in a
 row.
+
+**MCP host scaffolding (EPIC 13, #124 / stage 1 #126) done** – the **11th project** and the **third NuGet
+package**: `src/Flirty.Mcp` serves the engine as a Model Context Protocol server over Streamable HTTP
+(`AddFlirtyMcp()` + `MapFlirtyMcp("/mcp")`), with the ten dialog-level tools as its smoke surface. **No core
+code, no schema change, no new command** – it is the same kind of thin `ISender` adapter that
+`Flirty.AspNetCore` is. Reason for the separate package: ADR
+`docs/adr/0009-mcp-as-its-own-opt-in-package.md`. Suite 608 → **646** (37 MCP + 1 web-sample test).
+Six things that shaped the work:
+
+- **The EPIC said "no new project is introduced"; measuring the dependency overturned that.** Hosted inside
+  `Flirty.AspNetCore`, the MCP SDK plus `Microsoft.Extensions.AI.Abstractions` and
+  `Microsoft.Extensions.Caching.Abstractions` become **hard dependencies of an already published package** –
+  someone who wants four HTTP routes over a dialog engine would restore an AI SDK. That is ADR 0003's
+  argument one layer out: web is opt-in over the core, so MCP is opt-in over web. Six infrastructure edits
+  are a one-time cost; a dependency is paid forever, by people who never asked.
+- **`Stateless = true` is not tuning, it is what makes clients work.** Revision `2026-07-28` removed
+  `initialize` (SEP-2575) and `Mcp-Session-Id` (SEP-2567); a stateful server **refuses** those clients with
+  `-32022`. The dividend is the whole reason this package needs no gateway: in stateless mode the SDK sets
+  the tool call's provider to the **ASP.NET request scope**, so `ISender` and `FlirtyDbContext` resolve with
+  a minimal-API endpoint's lifetime. The designer's `DesignerGateway` exists only because a Blazor circuit
+  scope lives forever – there is nothing to work around here.
+- **The error mapping is one `AddCallToolFilter`, and that is load-bearing.** The SDK swallows messages:
+  anything not deriving from `McpException` reaches the client as `"An error occurred invoking 'x'."`. A
+  call-tool filter is composed **inside** the SDK's own try/catch, so it sees the raw exception first – the
+  exact structural analogue of `AddEndpointFilter` on the two route groups, which is what makes "mirrors
+  `FlirtyExceptionEndpointFilter`" true by construction instead of by 32 copies of a `try`. **Worth knowing:
+  this was broken in the SDK until Oct 2025** (issue #820, fixed by #844) – the exception was converted
+  *before* the filter. Without that fix the whole approach is impossible, which is why the tests drive a
+  real `McpClient` and not the filter delegate: a unit test of the mapping table would stay green while the
+  package silently reverted. The six engine branches are verbatim, the compiler enforces their order
+  (CS0160), and two MCP-only branches follow: a binder failure → 400 (over HTTP the `{id:guid}` constraint
+  rejects that at routing) and a catch-all → 500 with a generic detail plus a log. `type` from
+  `ProblemDetails` is deliberately **not** carried across – it points into HTTP *response* semantics – so
+  parity is compared field by field, never whole-object.
+- **Three of the issue's own premises were wrong, and each cost a cycle.** (1) `UseStructuredContent = true`
+  is **not** the SDK default: without it every successful call returns prose only, `structuredContent` stays
+  empty and no `outputSchema` is advertised. It is now set on all ten tools; ten tests were red until it
+  was. (2) Enums arrive as **names** (the real advantage over HTTP, where they are integers) – but the names
+  are **PascalCase**, not camelCase: `McpJsonUtilities` adds a bare `JsonStringEnumConverter` with no naming
+  policy. Reading is case-insensitive, so camelCase *works*, which is exactly why the wrong claim survives
+  testing unless you assert on the **schema**. (3) An **omitted** required argument never reaches
+  `ValidationPipelineBehavior` – the marshaller rejects it first with `ArgumentException(ParamName:
+  "arguments")`. Hence: every optional tool parameter needs an explicit `= null`, and the validation parity
+  row uses an **empty** key, not a missing one.
+- **`AddFlirtyMcp` returns `IMcpServerBuilder`, and that is the test seam.** Of the six mapped exceptions
+  only three are reachable through dialog tools; the other three need the runtime operations of #128. So
+  `FlirtyMcpTestHost` chains a test-only `flirty_test_throw` onto the returned builder – no hook in
+  production code – and all six run through the real registration, the real SDK composition and the real
+  wire. It is also a genuine host feature. The honest bookkeeping is written into the test's own docs: the
+  AC hides two halves (H1 *same command ⇒ same exception*, H2 *same exception ⇒ same status/title/detail*),
+  and the three runtime rows prove **H2 only**. The HTTP side is the real endpoint in all six.
+- **The test host maps both HTTP surfaces *and* `/mcp` over one database.** That is what makes "the same
+  seeded database through both surfaces" literal instead of two hosts sharing a connection string. Side
+  effect worth having: these are the **first** tests in the repo to pin the HTTP `title` and `detail`
+  strings – the existing endpoint tests only ever asserted status codes.
+
+**Mnemonic:** a premise recorded in an issue is not a measurement, even when the issue says it was spiked.
+All three wrong ones were *plausible* and two of them still let the tests pass by accident – the
+case-insensitive enum read is the sharp example: the feature worked, the claim about it did not, and only
+an assertion on the advertised **schema** could tell the difference. And a second one for new packages: of
+the six places a new project must be registered, four fail **silently** – an unlisted assembly is simply
+unmeasured, an unlisted package simply ships unpacked.

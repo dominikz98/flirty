@@ -21,6 +21,7 @@ here.
 | [0006](./0006-canvas-technology-in-the-designer.md) | Canvas technology in the designer: in-house SVG instead of a diagram library | Accepted | #100 |
 | [0007](./0007-layout-as-its-own-table.md) | Canvas layout as its own table, with a guard-free layout command | Accepted | #102 |
 | [0008](./0008-gestures-on-the-canvas.md) | Editing gestures on the canvas: existing commands, reload, lock per gesture | Accepted | #103 |
+| [0009](./0009-mcp-as-its-own-opt-in-package.md) | MCP server as its own opt-in package | Accepted | #126 |
 
 The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
 (a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
@@ -36,7 +37,11 @@ table, the guard-free layout command is not a gap but the edge of the scope.
 0007: its "the commit does not reload" still holds, but only for the *layout* path, because
 only its command returns the complete state – a graph change must reload, otherwise
 the graph-wide computed warnings would be a claim of the client. Here too 0007 is not
-rewritten but quoted.
+rewritten but quoted. 0009 finally applies 0003 one layer further out: there the *core* is kept free of
+ASP.NET so that a console consumer does not pay for HTTP, and by the same argument the *web* package is
+kept free of the MCP SDK so that an HTTP consumer does not pay for MCP. It is thereby the first ADR that
+overturns a sentence in its own EPIC – the EPIC had promised "no new project", and the measured
+dependency was the reason not to keep that promise.
 
 ## Format
 

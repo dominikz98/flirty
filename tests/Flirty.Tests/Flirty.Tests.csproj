@@ -38,6 +38,15 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
+  <!-- A real MCP client for the Flirty.Mcp integration tests (#126): McpClient + HttpClientTransport
+       drive the actual Streamable-HTTP wire against the same in-process TestServer. Deliberately a real
+       client rather than a hand-built RequestContext: only this way do the tests exercise the real tool
+       registration, the SDK's real filter composition and the real ASP.NET request scope. Version
+       pinned centrally. -->
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.Core" />
+  </ItemGroup>
+
   <!-- Testcontainers: real PostgreSQL/SQL Server databases for the provider migration tests (#19).
        They need a running Docker; without Docker the affected tests skip themselves at runtime. -->
   <ItemGroup>
@@ -64,6 +73,10 @@
     <ProjectReference Include="..\..\src\Flirty\Flirty.csproj" />
     <!-- WebAPI endpoints (#35): MapFlirtyEndpoints + DTOs, tested over the in-process TestServer. -->
     <ProjectReference Include="..\..\src\Flirty.AspNetCore\Flirty.AspNetCore.csproj" />
+    <!-- MCP server (#126): MapFlirtyMcp + the dialog tools, tested over a real McpClient against the
+         same TestServer; the internals (FlirtyProblem, the result wrappers) are visible via
+         InternalsVisibleTo("Flirty.Tests") in Flirty.Mcp. -->
+    <ProjectReference Include="..\..\src\Flirty.Mcp\Flirty.Mcp.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.PostgreSql\Flirty.Migrations.PostgreSql.csproj" />
     <ProjectReference Include="..\..\src\Flirty.Migrations.SqlServer\Flirty.Migrations.SqlServer.csproj" />

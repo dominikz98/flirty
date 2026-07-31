@@ -9,6 +9,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Flirty\Flirty.csproj" />
     <ProjectReference Include="..\Flirty.AspNetCore\Flirty.AspNetCore.csproj" />
+    <!-- The MCP server served at /mcp (#126). Opt-in, exactly as the package is meant to be. -->
+    <ProjectReference Include="..\Flirty.Mcp\Flirty.Mcp.csproj" />
     <ProjectReference Include="..\Flirty.Migrations.Sqlite\Flirty.Migrations.Sqlite.csproj" />
   </ItemGroup>
 

@@ -56,9 +56,9 @@ if the unit suite runs in parallel with it (including the Testcontainers tests f
 share the two cores of the runner, and the E2E runs into Playwright timeouts. Run sequentially,
 the E2E runtime is independent of how large the unit suite currently is; the coverage does not change.
 
-Since `pack` runs on the **solution** and only `Flirty` and `Flirty.AspNetCore` carry `IsPackable=true`,
-exactly those two packages arise automatically – each a `.nupkg` **and** a `.snupkg` (symbol package).
-See [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
+Since `pack` runs on the **solution** and only `Flirty`, `Flirty.AspNetCore` and `Flirty.Mcp` carry
+`IsPackable=true`, exactly those three packages arise automatically – each a `.nupkg` **and** a `.snupkg`
+(symbol package). See [NUGET-PACKAGING.md](./NUGET-PACKAGING.md).
 
 ## Coverage
 
@@ -70,15 +70,21 @@ reproducible 1:1 locally.
 ### What gets measured
 
 The filters are centralized in **`coverage.runsettings`** at the repo root, so that CI and local run
-deliver the same numbers. Measured are **only the two NuGet packages**:
+deliver the same numbers. Measured are **only the NuGet packages**:
 
 | Assembly | in the report | Why |
 |---|---|---|
 | `Flirty` | **yes** | is shipped |
 | `Flirty.AspNetCore` | **yes** | is shipped |
+| `Flirty.Mcp` | **yes** | is shipped (#126) |
 | `Flirty.Migrations.*` | no | generated EF code, no significance |
 | `Flirty.Samples`, `Flirty.Samples.Web` | no | demo applications, not the product |
 | `Flirty.Designer` | no | own app, not a package |
+
+**A new packable project must be added to `<Include>`.** There is no gate for this: an unlisted assembly
+is simply not instrumented, so it is missing from the job summary and the HTML report without a single
+warning – it reads as "not covered by any test" being invisible rather than as zero. `Flirty.Mcp` was the
+first project to walk into that trap (#126).
 
 Additionally out of the quota: compiler-generated and `[Obsolete]`-marked members
 (`ExcludeByAttribute`) as well as auto-properties (`SkipAutoProps`) – the latter have no code path
@@ -161,15 +167,15 @@ GitHub Actions sets `CI=true`.
 ## Artifacts
 
 A run uploads two artifacts: **`coverage`** (HTML report, see [Coverage](#coverage)) and
-**`nupkg`** with both packages:
+**`nupkg`** with all packages:
 
 ```
-artifacts/*.nupkg      Flirty.202607.<run>.0.nupkg      Flirty.AspNetCore.202607.<run>.0.nupkg
-artifacts/*.snupkg     Flirty.202607.<run>.0.snupkg     Flirty.AspNetCore.202607.<run>.0.snupkg
+artifacts/*.nupkg      Flirty.202607.<run>.0.nupkg      Flirty.AspNetCore.202607.<run>.0.nupkg      Flirty.Mcp.202607.<run>.0.nupkg
+artifacts/*.snupkg     Flirty.202607.<run>.0.snupkg     Flirty.AspNetCore.202607.<run>.0.snupkg     Flirty.Mcp.202607.<run>.0.snupkg
 ```
 
 `if-no-files-found: error` makes the pipeline fail if no package arises – with that the
-acceptance criterion "artifacts = both `.nupkg`" is hardly secured. The coverage upload carries the same
+acceptance criterion "artifacts = the `.nupkg`" is hardly secured. The coverage upload carries the same
 setting: if the report stays empty, it is noticed instead of vanishing silently.
 
 ## The second workflow: Release (#49)
@@ -182,7 +188,7 @@ flow stands in [NUGET-PACKAGING.md § Publishing](./NUGET-PACKAGING.md#publishin
 One difference is relevant here: the release run runs **only the unit suite** (`tests/Flirty.Tests`,
 without coverage), not the E2E. It rebuilds the binaries – therefore it must test *those* –, but the
 rationale from ["Why only the unit suite is instrumented"](#why-only-the-unit-suite-is-instrumented)
-holds: the E2E covers no path of the two packages additionally (measured: one branch of 430) and
+holds: the E2E covers no path of the packages additionally (measured: one branch of 430) and
 costs a browser installation. The full coverage including E2E was already delivered by the `ci.yml` run on the same
 commit.
 

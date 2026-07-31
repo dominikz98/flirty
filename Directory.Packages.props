@@ -29,6 +29,12 @@
          real Kestrel. Browsers are provided via `playwright.ps1 install`; if they are missing, the
          tests skip themselves (SkippableFact) instead of failing. -->
     <PackageVersion Include="Microsoft.Playwright" Version="1.61.0" />
+    <!-- Real MCP client for the in-process Flirty.Mcp integration tests (#126): McpClient +
+         HttpClientTransport over the TestServer's HttpClient, so the tests drive the actual
+         Streamable-HTTP wire instead of calling handlers directly. Test project only – the server side
+         comes from ModelContextProtocol.AspNetCore, which depends on this package anyway. Version kept
+         in lockstep with it. -->
+    <PackageVersion Include="ModelContextProtocol.Core" Version="2.0.0" />
   </ItemGroup>
 
   <!-- Core dependencies (pinned centrally; wired up via
@@ -68,6 +74,14 @@
          dotnet/extensions version line (10.x). -->
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
+    <!-- MCP server SDK (#126): the Streamable-HTTP transport, tool discovery and the call-tool filter
+         pipeline of Flirty.Mcp. Deliberately the ONLY dependency of that package beyond the core, and
+         deliberately not referenced by Flirty.AspNetCore – see
+         docs/adr/0009-mcp-as-its-own-opt-in-package.md. Its transitive
+         Microsoft.Extensions.AI.Abstractions 10.8.x sits on the same dotnet/extensions line as the
+         already-pinned Http.Resilience 10.8.0, so no NU1109 downgrade against the runtime extensions
+         10.0.10 above. -->
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.0.0" />
   </ItemGroup>
 
   <!-- SourceLink: embeds GitHub source references for debugging (packaging issue #15).

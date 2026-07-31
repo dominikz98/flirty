@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared properties + package metadata/symbols/version/README/icon come centrally from
+       Directory.Build.props/Directory.Build.targets. Only the package identity here. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Flirty.Mcp</PackageId>
+    <Description>Optional Model Context Protocol server (MapFlirtyMcp) for the Flirty dialog engine.</Description>
+    <PackageTags>chatbot;dialog;mcp;model-context-protocol;aspnetcore;flirty</PackageTags>
+  </PropertyGroup>
+
+  <!-- The MCP server is hosted over Streamable HTTP; therefore NOT in the core project Flirty. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- The MCP SDK. This package reference is the whole reason Flirty.Mcp is its own package rather
+       than a folder in Flirty.AspNetCore: it would otherwise become a hard dependency of an already
+       published package (along with Microsoft.Extensions.AI.Abstractions and
+       Microsoft.Extensions.Caching.Abstractions), and every consumer who only wants
+       MapFlirtyEndpoints would pay for a feature they never asked for. See
+       docs/adr/0009-mcp-as-its-own-opt-in-package.md. Version centrally in Directory.Packages.props. -->
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+
+  <!-- Deliberately only the core: the DTOs, mappings and the exception filter of Flirty.AspNetCore are
+       all internal, so there is nothing to reuse there. The tools send the public Mediator commands. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Flirty\Flirty.csproj" />
+  </ItemGroup>
+
+  <!-- The tool classes, the exception filter and the result wrappers are internal (see
+       FlirtyMcpServiceCollectionExtensions); the tests assert on them directly. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Flirty.Tests" />
+  </ItemGroup>
+
+</Project>

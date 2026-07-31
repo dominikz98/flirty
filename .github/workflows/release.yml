@@ -1,6 +1,6 @@
 name: Release
 
-# Publishing of the two NuGet packages (#49). DELIBERATELY manual: a push to NuGet.org is
+# Publishing of the three NuGet packages (#49, third added in #126). DELIBERATELY manual: a push to NuGet.org is
 # irreversible (versions can only be unlisted, not deleted). Hence no tag/push trigger, but
 # workflow_dispatch + an approval gate via the "nuget" environment. Details: docs/NUGET-PACKAGING.md.
 on:
@@ -59,12 +59,13 @@ jobs:
       - name: Test (unit/integration)
         run: dotnet test tests/Flirty.Tests -c Release --no-build
 
-      - name: Pack (both NuGet packages)
+      - name: Pack (all NuGet packages)
         run: dotnet pack Flirty.sln -c Release --no-build -o artifacts
 
-      # Hard guard before the push: checks the issue's acceptance criterion ("both packages incl.
+      # Hard guard before the push: checks the issue's acceptance criterion ("all packages incl.
       # symbols") against the real files – plus the four DLLs from IncludeFlirtyMigrationAssemblies
       # (src/Flirty/Flirty.csproj), without which package consumers cannot auto-migrate.
+      # A new packable project needs its pair added here, or it would ship unpacked and unnoticed.
       - name: Verify packages
         run: |
           set -euo pipefail
@@ -77,7 +78,9 @@ jobs:
             "artifacts/Flirty.[0-9]*.nupkg" \
             "artifacts/Flirty.[0-9]*.snupkg" \
             "artifacts/Flirty.AspNetCore.[0-9]*.nupkg" \
-            "artifacts/Flirty.AspNetCore.[0-9]*.snupkg"
+            "artifacts/Flirty.AspNetCore.[0-9]*.snupkg" \
+            "artifacts/Flirty.Mcp.[0-9]*.nupkg" \
+            "artifacts/Flirty.Mcp.[0-9]*.snupkg"
           do
             compgen -G "$expected" > /dev/null || fail "Expected file missing: $expected"
           done

@@ -6,12 +6,20 @@ and how versioning works. Implemented in issue **#15**, publishing in **#49**
 
 ## What gets packaged?
 
-Exactly **two** projects are publishable (`IsPackable=true`):
+Exactly **three** projects are publishable (`IsPackable=true`):
 
 | Package | Project | Purpose |
 |---|---|---|
 | `Flirty` | `src/Flirty` | Core engine (ASP.NET-free). |
 | `Flirty.AspNetCore` | `src/Flirty.AspNetCore` | Optional ASP.NET Core endpoints. |
+| `Flirty.Mcp` | `src/Flirty.Mcp` | Optional Model Context Protocol server (#126). |
+
+Each of the three is **opt-in on the one below it**: web is optional over the core
+([ADR 0003](./adr/0003-aspnet-free-core.md)), and MCP is a package of its own rather than a folder in the
+web package for the same reason one layer out – otherwise the MCP SDK and its transitive
+`Microsoft.Extensions.AI.Abstractions` would become hard dependencies of an already published package
+([ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md)). `Flirty.Mcp` references **only** `Flirty`, not
+`Flirty.AspNetCore`.
 
 The remaining eight projects of the solution (`Flirty.Designer`, the three `Flirty.Migrations.*`,
 `Flirty.Samples`, `Flirty.Samples.Web`, `Flirty.Tests`, `Flirty.E2E`) inherit `IsPackable=false` from
@@ -21,7 +29,7 @@ are shipped nonetheless – but as a DLL **inside** the `Flirty` package, not as
 
 ## Where does the metadata live?
 
-Centrally, so both packages stay consistent – per `.csproj` only the package identity remains.
+Centrally, so all packages stay consistent – per `.csproj` only the package identity remains.
 
 | Location | Content |
 |---|---|
@@ -36,7 +44,7 @@ packed as `icon.png`. README: the root `README.md`.
 
 ### The root README is the package page (#52)
 
-`PackageReadmeFile` makes the root `README.md` the **description page of both packages** on nuget.org –
+`PackageReadmeFile` makes the root `README.md` the **description page of every package** on nuget.org –
 so it is not only the GitHub start page. There is no repo root directory there, so two
 rules apply when editing:
 
@@ -164,9 +172,9 @@ Both must be set up **manually**, otherwise the push job fails:
 
 1. **API key on nuget.org** (Account → *API Keys*):
    - Scope: *Push* → **Push new packages and package versions**
-     (the IDs `Flirty`/`Flirty.AspNetCore` do not yet exist on the first run, so "only new
+     (the IDs `Flirty`/`Flirty.AspNetCore`/`Flirty.Mcp` do not yet exist on the first run, so "only new
      versions" is not enough),
-   - Glob pattern: `Flirty*` – covers both packages and future offshoots,
+   - Glob pattern: `Flirty*` – covers all packages and future offshoots,
    - Note the expiry date; an expired key manifests as a `403` in the push step.
 2. **GitHub → Settings → Environments → `nuget`**:
    - Secret **`NUGET_API_KEY`** with the key from above,
@@ -209,8 +217,13 @@ push:   load artifact -> dotnet nuget push -> summary
   `Flirty` package all **four** DLLs lie under `lib/net10.0/` (core + the three migration assemblies,
   see [above](#bundled-migration-dlls-20)). If something is missing, the run breaks **before** the push.
 
-  > When editing: the glob `Flirty.*.nupkg` also matches `Flirty.AspNetCore.*.nupkg`. The core package
-  > is therefore isolated via `Flirty.[0-9]*` – the version always starts with a digit.
+  > When editing: the glob `Flirty.*.nupkg` also matches `Flirty.AspNetCore.*.nupkg` and
+  > `Flirty.Mcp.*.nupkg`. The core package is therefore isolated via `Flirty.[0-9]*` – the version always
+  > starts with a digit.
+
+  > **A new packable project needs its own pair added here.** The list is enumerated, not derived, so a
+  > forgotten package does not break the run – it simply ships unpacked and unnoticed, and a version on
+  > nuget.org cannot be taken back. `Flirty.Mcp` was the first project to walk into that trap (#126).
 
 - **`permissions` stays `contents: read`.** The push needs no GitHub right, only the secret.
 - `concurrency: release` **without** `cancel-in-progress`: do not cut off a running upload.
@@ -238,6 +251,6 @@ not "already listed".
 The original issue text (#49) named the feed as configurable (NuGet.org **or** Azure
 Artifacts). Implemented is **only NuGet.org** – deliberately: Azure Artifacts does not accept symbol packages via
 `dotnet nuget push`, so the path there would need `--no-symbols` and would fail exactly the
-acceptance criterion "both packages **incl. symbols**". A second code path, never
+acceptance criterion "all packages **incl. symbols**". A second code path, never
 exercised here, would be worse than none. Should an internal feed become necessary, the place is clear:
 `--source` in the push step plus a second secret.
