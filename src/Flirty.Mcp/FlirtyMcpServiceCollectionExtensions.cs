@@ -69,21 +69,43 @@ public static class FlirtyMcpServiceCollectionExtensions
         configure?.Invoke(options);
 
         var builder = services
-            .AddMcpServer(server => server.ServerInfo = new()
+            .AddMcpServer(server =>
             {
-                Name = options.ServerName,
-                Version = typeof(FlirtyMcpOptions).Assembly.GetName().Version?.ToString() ?? "1.0.0",
+                server.ServerInfo = new()
+                {
+                    Name = options.ServerName,
+                    Version = typeof(FlirtyMcpOptions).Assembly.GetName().Version?.ToString() ?? "1.0.0",
+                };
+
+                // Delivered in InitializeResult.Instructions. Measured, because the combination is not
+                // obvious: the SDK's own client still performs the initialize handshake and negotiates
+                // 2025-06-18, even against this stateless server. A client that instead speaks 2026-07-28
+                // with per-request metadata gets no instructions at all - the SDK can carry them in
+                // DiscoverResult.Instructions, but this server does not expose the discover method
+                // (-32601). Hence the rule that everything stated here is ALSO stated in a tool or
+                // parameter description: those travel with tools/list, which every client can read.
+                server.ServerInstructions = FlirtyMcpInstructions.Text;
             })
             .WithHttpTransport(transport => transport.Stateless = true)
             .WithRequestFilters(filters => filters.AddCallToolFilter(FlirtyMcpExceptionFilter.Instance));
 
         if (options.Surface.HasFlag(FlirtyMcpSurface.Admin))
         {
-            builder.WithTools<FlirtyDialogTools>();
+            // One WithTools per tool class, and the class list is the surface: a class added under Tools/
+            // and forgotten here compiles, ships and is invisible to every client. A test compares the
+            // assembly's [McpServerToolType] types against what tools/list returns for exactly that reason.
+            builder
+                .WithTools<FlirtyDialogTools>()
+                .WithTools<FlirtyQuestionTools>()
+                .WithTools<FlirtyAnswerOptionTools>()
+                .WithTools<FlirtyTransitionTools>()
+                .WithTools<FlirtyLoopTools>()
+                .WithTools<FlirtyTriggerTools>()
+                .WithTools<FlirtyLayoutTools>();
         }
 
-        // The runtime tool class follows in a later build-out stage; FlirtyMcpSurface.Runtime registers
-        // nothing today.
+        // The runtime tool class follows in the next build-out stage (#128); FlirtyMcpSurface.Runtime
+        // registers nothing today.
         return builder;
     }
 }

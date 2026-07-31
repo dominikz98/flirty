@@ -1,47 +1,24 @@
-using System.Text.Json;
 using Flirty.Mcp;
 using Flirty.Runtime.Admin;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol;
-using ModelContextProtocol.Protocol;
+using static Flirty.Tests.Mcp.FlirtyMcpToolCalls;
 
 namespace Flirty.Tests.Mcp;
 
 /// <summary>
 /// Integration tests for <c>AddFlirtyMcp</c> / <c>MapFlirtyMcp</c> (#126): a real <c>McpClient</c> lists and
 /// calls the dialog tools over an in-process TestServer against a SQLite in-memory database (Docker-free).
-/// Checked are the tool surface, the input schemas, the return shapes (including the wrappers the core has
-/// no record for) and the two prerequisites the extension methods document.
+/// Checked are the input schemas, the return shapes (including the wrappers the core has no record for) and
+/// the two prerequisites the extension methods document.
 /// </summary>
+/// <remarks>
+/// The tool <i>surface</i> – which tools exist, and what each advertises – lives in
+/// <see cref="FlirtyToolSurfaceTests"/> since #127, because it grows with every build-out stage while the
+/// wiring checked here does not.
+/// </remarks>
 public sealed class MapFlirtyMcpTests
 {
-    /// <summary>The ten dialog-level tools are registered, and nothing else.</summary>
-    [Fact]
-    public async Task ListTools_returns_the_ten_dialog_tools()
-    {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
-
-        var tools = await host.Mcp.ListToolsAsync();
-
-        Assert.Equal(
-            [
-                "flirty_dialog_abandon_sessions",
-                "flirty_dialog_count_active_sessions",
-                "flirty_dialog_create",
-                "flirty_dialog_create_version",
-                "flirty_dialog_delete",
-                "flirty_dialog_get",
-                "flirty_dialog_list",
-                "flirty_dialog_publish",
-                "flirty_dialog_unpublish",
-                "flirty_dialog_update",
-            ],
-            tools.Select(tool => tool.Name).OrderBy(name => name, StringComparer.Ordinal));
-    }
-
     /// <summary>A dialog created over MCP is readable over the HTTP surface – it is one database.</summary>
     [Fact]
     public async Task CreateDialog_over_mcp_persists_the_dialog()
@@ -329,14 +306,5 @@ public sealed class MapFlirtyMcpTests
         Assert.NotEqual(first.Id, second.Id);
         var list = Read<FlirtyDialogList>(await host.Mcp.CallToolAsync("flirty_dialog_list"));
         Assert.Equal(2, list.Dialogs.Count);
-    }
-
-    private static T Read<T>(CallToolResult result)
-    {
-        Assert.NotEqual(true, result.IsError);
-        Assert.NotNull(result.StructuredContent);
-        var value = result.StructuredContent.Value.Deserialize<T>(McpJsonUtilities.DefaultOptions);
-        Assert.NotNull(value);
-        return value;
     }
 }

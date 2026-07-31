@@ -59,6 +59,13 @@ public sealed class FlirtyMcpExceptionFilterTests
     /// A graph change on a published dialog is an <c>InvalidOperationException</c> subtype and therefore
     /// lands on 409 without a branch of its own – the publish lock keeps the HTTP semantics over MCP.
     /// </summary>
+    /// <remarks>
+    /// Since #127 the same exception is reachable through a real tool, and
+    /// <c>FlirtyMcpExceptionParityTests.CreateQuestion_on_a_published_dialog_maps_the_same_over_http_and_mcp</c>
+    /// is that witness. This test is kept anyway, and deliberately: it isolates the <i>clause order</i>
+    /// claim from a four-call graph setup, so when it fails it says "the catch order broke", where a red
+    /// parity test could equally mean the guard, the publish flow or the filter.
+    /// </remarks>
     [Fact]
     public async Task DialogPublishedException_is_mapped_to_409_like_its_base_type()
     {

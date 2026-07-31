@@ -12,8 +12,8 @@ public static class FlirtyMcpEndpointRouteBuilderExtensions
 {
     /// <summary>
     /// Maps the Flirty MCP server (Streamable HTTP) under the given <paramref name="pattern"/>. A client
-    /// connecting there can list and call the Flirty tools – dialog configuration today, the dialog runtime
-    /// and the remaining graph tools in the following build-out stages.
+    /// connecting there can list and call the Flirty tools – the whole dialog configuration graph today,
+    /// the dialog runtime in the following build-out stage.
     /// </summary>
     /// <remarks>
     /// The prerequisite is a Flirty stack registered via <c>services.AddFlirty(...)</c> <b>and</b> an MCP

@@ -37,8 +37,8 @@ internal sealed record FlirtyDialogList(IReadOnlyList<DialogSummary> Dialogs);
 internal sealed record FlirtyActiveSessionCount(Guid DialogId, int ActiveSessions);
 
 /// <summary>
-/// The stored canvas positions of a dialog – the object wrapper around the result of
-/// <c>SetDialogLayoutCommand</c>. Used by the layout tools of a later build-out stage.
+/// The stored canvas positions of a dialog – the object wrapper around the array result of
+/// <c>SetDialogLayoutCommand</c>, returned by <c>flirty_layout_set</c>.
 /// </summary>
 /// <param name="Entries">The layout rows, sorted by element kind and element id.</param>
 internal sealed record FlirtyDialogLayout(IReadOnlyList<DialogLayoutDetail> Entries);

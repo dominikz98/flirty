@@ -4,6 +4,7 @@ using Flirty.AspNetCore.Dtos;
 using Flirty.AspNetCore.Dtos.Admin;
 using Flirty.Domain;
 using Flirty.Mcp;
+using Flirty.Mcp.Tools;
 using Flirty.Persistence;
 using Flirty.Tests.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -14,10 +15,11 @@ using ModelContextProtocol.Protocol;
 namespace Flirty.Tests.Mcp;
 
 /// <summary>
-/// Error-mapping parity between the HTTP surface and the MCP surface (#126): the same failure must carry
-/// the same status, title and detail on both, since <c>FlirtyMcpExceptionFilter</c> mirrors
-/// <c>FlirtyExceptionEndpointFilter</c>. Both surfaces run on <b>one</b> host over <b>one</b> seeded SQLite
-/// in-memory database, so the comparison is literal rather than two hosts sharing a connection string.
+/// Error-mapping parity between the HTTP surface and the MCP surface (#126, extended in #127): the same
+/// failure must carry the same status, title and detail on both, since <c>FlirtyMcpExceptionFilter</c>
+/// mirrors <c>FlirtyExceptionEndpointFilter</c>. Both surfaces run on <b>one</b> host over <b>one</b> seeded
+/// SQLite in-memory database, so the comparison is literal rather than two hosts sharing a connection
+/// string.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,12 +33,20 @@ namespace Flirty.Tests.Mcp;
 /// filter can get wrong, and it is what "mirrors" means.
 /// </para>
 /// <para>
-/// The first three tests below prove <b>both</b> halves: the exception really arises from the real engine on
-/// both sides. The remaining three – dialog-not-found, session-not-found and answer-validation – need the
-/// runtime operations (start / resume / submit), which are a later build-out stage, so on the MCP side they
-/// go through <see cref="FlirtyThrowingTestTools"/> and prove <b>H2 only</b>. H1 for them is covered by the
+/// The Tier-1 tests below prove <b>both</b> halves: the exception really arises from the real engine on both
+/// sides. The three in Tier 2 – dialog-not-found, session-not-found and answer-validation – need the runtime
+/// operations (start / resume / submit), which are a later build-out stage, so on the MCP side they go
+/// through <see cref="FlirtyThrowingTestTools"/> and prove <b>H2 only</b>. H1 for them is covered by the
 /// existing core handler tests, and will be covered end-to-end once the runtime tools exist. The HTTP side
 /// is the real endpoint in every one of the six.
+/// </para>
+/// <para>
+/// Stage 2 (#127) did not shrink Tier 2 – no runtime tool arrived – but it deepened Tier 1 from three
+/// exception paths to six, and one of those matters more than the count: a
+/// <c>DialogPublishedException</c> from a real graph command. The filter's clause order depends on that
+/// subtype being caught before its base <see cref="InvalidOperationException"/> (the compiler enforces the
+/// order via CS0160, not the correctness of it), and until the graph tools existed it could only be raised
+/// through the throwing test tool.
 /// </para>
 /// </remarks>
 public sealed class FlirtyMcpExceptionParityTests
@@ -96,6 +106,99 @@ public sealed class FlirtyMcpExceptionParityTests
             new Dictionary<string, object?> { ["key"] = "dup", ["name"] = "Third" });
 
         await AssertSameProblemAsync(http, mcp, 409, "Conflict");
+    }
+
+    /// <summary>
+    /// A nested lookup that misses – an option under a question that does not exist – yields the same 404
+    /// over both surfaces.
+    /// </summary>
+    /// <remarks>
+    /// Not covered by the unknown-dialog test above: the nested lookup produces a different <c>detail</c>
+    /// string, and <c>detail</c> is precisely the field a mapping table would get wrong while status and
+    /// title still matched.
+    /// </remarks>
+    [Fact]
+    public async Task CreateOption_under_an_unknown_question_maps_the_same_over_http_and_mcp()
+    {
+        await using var host = await FlirtyMcpTestHost.StartAsync();
+        var dialog = await host.CreateDialogAsync("nested-404");
+        var unknownQuestion = Guid.NewGuid();
+
+        var http = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{unknownQuestion}/options",
+            new CreateAnswerOptionRequest("dev", "Developer", "dev", 0));
+        var mcp = await host.Mcp.CallToolAsync(
+            FlirtyToolNames.OptionCreate,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialog.Id,
+                ["questionId"] = unknownQuestion,
+                ["key"] = "dev",
+                ["label"] = "Developer",
+                ["value"] = "dev",
+                ["order"] = 0,
+            });
+
+        await AssertSameProblemAsync(http, mcp, 404, "Not found");
+    }
+
+    /// <summary>
+    /// A graph change on a published dialog is the same 409 on both surfaces – the first end-to-end witness
+    /// for <c>DialogPublishedException</c>, whose position before its base type the filter depends on.
+    /// </summary>
+    [Fact]
+    public async Task CreateQuestion_on_a_published_dialog_maps_the_same_over_http_and_mcp()
+    {
+        await using var host = await FlirtyMcpTestHost.StartAsync();
+        var (dialog, _) = await host.CreatePublishedDialogAsync("published-parity");
+
+        var http = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions",
+            new CreateQuestionRequest("second", "And?", QuestionType.FreeText, 1, false, null));
+        var mcp = await host.Mcp.CallToolAsync(
+            FlirtyToolNames.QuestionCreate,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialog.Id,
+                ["key"] = "third",
+                ["text"] = "And then?",
+                ["type"] = nameof(QuestionType.FreeText),
+                ["order"] = 2,
+                ["isRequired"] = false,
+            });
+
+        await AssertSameProblemAsync(http, mcp, 409, "Conflict");
+    }
+
+    /// <summary>
+    /// A trigger whose fields contradict each other is the same 400 on both surfaces.
+    /// </summary>
+    /// <remarks>
+    /// A different branch from the empty-key test: that one is an attribute failure
+    /// (<c>[Required]</c>), this one is the cross-field <c>IValidatableObject</c> of the trigger commands,
+    /// which builds its <c>ValidationResult</c>s itself and is aggregated into <c>detail</c> separately.
+    /// </remarks>
+    [Fact]
+    public async Task CreateTrigger_with_an_inconsistent_config_maps_the_same_over_http_and_mcp()
+    {
+        await using var host = await FlirtyMcpTestHost.StartAsync();
+        var dialog = await host.CreateDialogAsync("trigger-parity");
+
+        var http = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/triggers",
+            new CreateTriggerRequest(
+                TriggerScope.OnDialogCompleted, null, TriggerKind.Webhook, "{\"name\":\"no-url\"}", null));
+        var mcp = await host.Mcp.CallToolAsync(
+            FlirtyToolNames.TriggerCreate,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialog.Id,
+                ["scope"] = nameof(TriggerScope.OnDialogCompleted),
+                ["kind"] = nameof(TriggerKind.Webhook),
+                ["config"] = "{\"name\":\"no-url\"}",
+            });
+
+        await AssertSameProblemAsync(http, mcp, 400, "Invalid request");
     }
 
     // ---- Tier 2: the three runtime exceptions (H2) ----
