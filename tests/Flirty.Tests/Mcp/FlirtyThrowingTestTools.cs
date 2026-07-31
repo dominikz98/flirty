@@ -9,8 +9,8 @@ namespace Flirty.Tests.Mcp;
 
 /// <summary>
 /// The exception kinds <see cref="FlirtyThrowingTestTools"/> can raise. Doubles as the evidence that an
-/// enum parameter reaches the client as a camelCase name with an <c>enum</c> constraint in the input
-/// schema rather than as a number.
+/// enum parameter reaches the client as a <b>name</b> with an <c>enum</c> constraint in the input schema
+/// rather than as a number – the C# member name verbatim, i.e. PascalCase.
 /// </summary>
 internal enum FlirtyTestThrowKind
 {
@@ -55,9 +55,18 @@ internal enum FlirtyTestThrowKind
 /// <remarks>
 /// <para>
 /// It exists because of a scope fact, not for convenience. Of the six engine exceptions the filter maps,
-/// only three are reachable through the ten dialog tools of this build-out stage – the other three need the
-/// runtime operations (start / resume / submit), which are a later stage. Without this seam the acceptance
-/// criterion "maps all six" would silently shrink to three.
+/// only three are reachable through the 27 admin tools of build-out stages 1 and 2 – the other three need
+/// the runtime operations (start / resume / submit), which are a later stage. Without this seam the
+/// acceptance criterion "maps all six" would silently shrink to three.
+/// </para>
+/// <para>
+/// The seam does not shrink as the surface grows, and it is not scaffolding:
+/// <see cref="FlirtyTestThrowKind.McpProtocol"/>, <see cref="FlirtyTestThrowKind.Cancellation"/>,
+/// <see cref="FlirtyTestThrowKind.ArgumentNull"/> and <see cref="FlirtyTestThrowKind.Unexpected"/> are
+/// unreachable through any real tool <i>by design</i>, permanently. Only
+/// <see cref="FlirtyTestThrowKind.DialogPublished"/> gained a real counterpart in #127 (a graph change on a
+/// published dialog over
+/// <c>flirty_question_create</c>) and is kept here for the reason recorded on the filter test that uses it.
 /// </para>
 /// <para>
 /// It raises each exception through its own <b>public factory</b>, the same one the engine uses, so the

@@ -6,10 +6,16 @@ using ModelContextProtocol.Server;
 namespace Flirty.Mcp.Tools;
 
 /// <summary>
-/// The dialog-level MCP tools: create, read, change, publish, version and clean up a dialog. A thin layer
-/// over the admin CRUD commands of <c>Flirty.Runtime.Admin</c>, dispatched via <see cref="ISender"/>.
+/// The dialog-level MCP tools: create, read, change, publish, version and clean up a dialog. The MCP
+/// counterpart of <c>MapDialogEndpoints</c> and one of the seven tool classes of this package – a thin
+/// layer over the admin CRUD commands of <c>Flirty.Runtime.Admin</c>, dispatched via
+/// <see cref="ISender"/>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// This class is the <b>documentation home</b> for the tool-shape conventions of all seven: the six
+/// others state only what is specific to their area and point here for the rest.
+/// </para>
 /// <para>
 /// The class is <c>internal sealed</c> and its methods are <c>internal static</c> on purpose.
 /// <c>WithTools&lt;T&gt;()</c> scans with <c>BindingFlags.NonPublic</c>, so they are discovered; being
@@ -23,10 +29,22 @@ namespace Flirty.Mcp.Tools;
 /// throws for a required parameter that has no default.
 /// </para>
 /// <para>
-/// The tool parameters are primitives and <see cref="Guid"/> only. Any type registered in the host
+/// The tool parameters are primitives, <see cref="Guid"/> and enums only. Any type registered in the host
 /// container is silently excluded from the input schema (the SDK injects it instead), which is how
 /// <see cref="ISender"/> arrives without appearing in the schema – and why a parameter must never be a
-/// type a host might register.
+/// type a host might register. There is exactly <b>one</b> exception in the package, and it is documented
+/// on <see cref="FlirtyLayoutTools"/>: <c>flirty_layout_set</c> takes a batch
+/// (<see cref="DialogLayoutEntry"/><c>[]</c>), because a batch is not expressible as a scalar parameter.
+/// It is admissible there because the type is the core's own input record and the generated schema was
+/// verified to be inline, camelCase and name-enumerated rather than an opaque blob.
+/// </para>
+/// <para>
+/// Every tool takes its <c>Name</c> from <see cref="FlirtyToolNames"/> and never lets the SDK derive one,
+/// and every tool sets all four annotation hints explicitly. Both are load-bearing rather than tidy: a
+/// derived name turns a C# rename into a client-visible breaking change, and an <i>omitted</i> hint is not
+/// a neutral one – it is absent from the wire, and the protocol then lets a client assume
+/// <c>destructive</c> and <c>openWorld</c>. Unset, every <c>create</c> would look like it might destroy
+/// data. <c>OpenWorld = false</c> throughout is a fact about this server: it touches only its own database.
 /// </para>
 /// <para>
 /// The results are the <b>core</b> records, serialized directly. <see cref="DialogDetail"/> therefore keeps
@@ -45,7 +63,14 @@ namespace Flirty.Mcp.Tools;
 [McpServerToolType]
 internal sealed class FlirtyDialogTools
 {
-    [McpServerTool(Name = "flirty_dialog_create", UseStructuredContent = true)]
+    // Not idempotent: the key is unique across all dialogs, so a repeat is a conflict rather than a no-op.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogCreate,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = false,
+        OpenWorld = false)]
     [Description("Creates a new, unpublished dialog with version 1. The entry question stays unset at "
         + "first and is set with flirty_dialog_update once questions exist.")]
     internal static async Task<DialogSummary> CreateDialogAsync(
@@ -59,14 +84,26 @@ internal sealed class FlirtyDialogTools
         string? description = null)
         => await sender.Send(new CreateDialogCommand(key, name, description), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_list", UseStructuredContent = true)]
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogList,
+        UseStructuredContent = true,
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Lists all configured dialogs as metadata, without their graphs, sorted by key and "
         + "version. Read-only.")]
     internal static async Task<FlirtyDialogList> ListDialogsAsync(
         ISender sender, CancellationToken cancellationToken)
         => new(await sender.Send(new ListDialogsQuery(), cancellationToken));
 
-    [McpServerTool(Name = "flirty_dialog_get", UseStructuredContent = true)]
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogGet,
+        UseStructuredContent = true,
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Reads one dialog along with its configuration graph: questions including answer "
         + "options, transitions, loop markers, triggers and the stored canvas positions. The dialog "
         + "metadata sits nested under 'dialog'. Read-only.")]
@@ -77,7 +114,14 @@ internal sealed class FlirtyDialogTools
         CancellationToken cancellationToken)
         => await sender.Send(new GetDialogQuery(dialogId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_update", UseStructuredContent = true)]
+    // Idempotent: a full overwrite to a stated target state, so a retry after a timeout is safe.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogUpdate,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Updates the metadata of a dialog and optionally sets its entry question. On a published "
         + "dialog, name and description stay editable, but changing the entry question is refused - "
         + "derive a new version with flirty_dialog_create_version instead.")]
@@ -97,7 +141,14 @@ internal sealed class FlirtyDialogTools
         => await sender.Send(
             new UpdateDialogCommand(dialogId, key, name, description, startQuestionId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_delete", UseStructuredContent = true)]
+    // Destructive, and not idempotent: the repeat is a 404, so a blind retry is not safe.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogDelete,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = true,
+        Idempotent = false,
+        OpenWorld = false)]
     [Description("Deletes a dialog together with its entire configuration graph. Refused while sessions "
         + "are still running on this version - end them with flirty_dialog_abandon_sessions first.")]
     internal static async Task<FlirtyAck> DeleteDialogAsync(
@@ -110,7 +161,16 @@ internal sealed class FlirtyDialogTools
         return FlirtyAck.Instance;
     }
 
-    [McpServerTool(Name = "flirty_dialog_publish", UseStructuredContent = true)]
+    // Idempotent (an assignment; the repeat only bumps UpdatedAt) and NOT destructive: retiring the
+    // predecessor version loses no data and is reversible by publishing it again. The description has to
+    // name that side effect all the same, because a boolean cannot.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogPublish,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Publishes a dialog so it can be started in production. Requires an entry question, and "
         + "retires any previously published version of the same key. A published graph is locked.")]
     internal static async Task<DialogSummary> PublishDialogAsync(
@@ -120,7 +180,13 @@ internal sealed class FlirtyDialogTools
         CancellationToken cancellationToken)
         => await sender.Send(new PublishDialogCommand(dialogId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_unpublish", UseStructuredContent = true)]
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogUnpublish,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Withdraws a dialog from production. New sessions can no longer be started on it; "
         + "sessions already running keep their pinned version.")]
     internal static async Task<DialogSummary> UnpublishDialogAsync(
@@ -130,7 +196,14 @@ internal sealed class FlirtyDialogTools
         CancellationToken cancellationToken)
         => await sender.Send(new UnpublishDialogCommand(dialogId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_create_version", UseStructuredContent = true)]
+    // Genuinely not idempotent: every call produces one more version.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogCreateVersion,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = false,
+        OpenWorld = false)]
     [Description("Derives a new version from an existing dialog: clones the whole graph as an unpublished "
         + "draft with the version number raised by one. The intended way to evolve a published dialog "
         + "without breaking running sessions. Note that every cloned element gets a new id.")]
@@ -141,7 +214,16 @@ internal sealed class FlirtyDialogTools
         CancellationToken cancellationToken)
         => await sender.Send(new CreateDialogVersionCommand(dialogId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_abandon_sessions", UseStructuredContent = true)]
+    // Destructive although it deletes nothing: ending live user sessions is irreversible, and that is
+    // exactly what a client should ask about before doing. Idempotent all the same – the repeat ends 0
+    // sessions and does not error.
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogAbandonSessions,
+        UseStructuredContent = true,
+        ReadOnly = false,
+        Destructive = true,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Ends all sessions still running on a dialog version by setting them to abandoned, and "
         + "reports how many were ended. The precondition for deleting a dialog that is still in use.")]
     internal static async Task<AbandonSessionsResult> AbandonDialogSessionsAsync(
@@ -151,7 +233,13 @@ internal sealed class FlirtyDialogTools
         CancellationToken cancellationToken)
         => await sender.Send(new AbandonDialogSessionsCommand(dialogId), cancellationToken);
 
-    [McpServerTool(Name = "flirty_dialog_count_active_sessions", UseStructuredContent = true)]
+    [McpServerTool(
+        Name = FlirtyToolNames.DialogCountActiveSessions,
+        UseStructuredContent = true,
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
     [Description("Counts the sessions still in progress on a dialog version. Read-only; an operating aid "
         + "before unpublishing, deleting or deriving a version.")]
     internal static async Task<FlirtyActiveSessionCount> CountActiveSessionsAsync(

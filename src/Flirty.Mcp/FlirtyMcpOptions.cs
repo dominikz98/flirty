@@ -17,8 +17,8 @@ public enum FlirtyMcpSurface
     Runtime = 1,
 
     /// <summary>
-    /// The dialog configuration: dialogs, and in later build-out stages questions, answer options,
-    /// transitions, loop markers, triggers and canvas layout.
+    /// The dialog configuration: dialogs, questions, answer options, transitions, loop markers, triggers
+    /// and the canvas layout – the whole configuration graph.
     /// </summary>
     Admin = 2,
 

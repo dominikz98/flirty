@@ -24,8 +24,10 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 stage 1 (#126): host, the ten dialog tools, one call-tool
-│                               filter mirroring FlirtyExceptionEndpointFilter. References Flirty ONLY.
+│                               EPIC 13 stages 1–2 (#126/#127): host, 27 admin tools in six tool classes
+│                               (one per MapXxxEndpoints counterpart) + Tools/FlirtyToolNames.cs as the
+│                               name checklist, ServerInstructions, one call-tool filter mirroring
+│                               FlirtyExceptionEndpointFilter. References Flirty ONLY.
 ├─ Flirty.Designer            Blazor Web App (server-interactive). EPIC 7 complete: connection-profile
 │                               management (multi-DB, #37), dialog CRUD (#38), question editor (#39),
 │                               branching editor (#40), loop editor (#41), trigger editor (#42),
@@ -120,6 +122,10 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   exception to the publish lock and not a gap, but its edge. The runtime never reads the table
   (`IDialogStore` does not load `Layout`). The price: cloning (`CreateDialogVersionCommand`) and cleanup
   (`DeleteQuestionCommand`) are manual work. Reason: ADR `docs/adr/0007-layout-as-its-own-table.md`.
+  Since #127 the MCP surface carries the same exception: `flirty_layout_set`/`_reset` are the only two
+  tools without `DialogEditGuard` behind them, both say so in their `[Description]`, and the pair hangs
+  in **one** test (layout on a published dialog succeeds *and* a graph change on it returns 409) –
+  written apart, the first half would claim "layout works" without showing that the lock holds.
 - **Canvas gestures write through the existing admin commands** (#103): a palette drop is
   `CreateQuestionCommand` + `SetDialogLayoutCommand`, a connection `CreateTransitionCommand` – all in
   **one** gateway call. No canvas CRUD, no new core command. After every graph mutation there is a
@@ -151,8 +157,11 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   `FlirtyMcpEndpointRouteBuilderExtensions.cs` (namespace `Microsoft.AspNetCore.Builder`; returns the
   `IEndpointConventionBuilder` so `RequireAuthorization()` chains). Options + `[Flags] FlirtyMcpSurface` in
   `FlirtyMcpOptions.cs`, error mapping in `FlirtyMcpExceptionFilter.cs` (+ payload `FlirtyProblem.cs`),
-  tools in `Tools/FlirtyDialogTools.cs`, the four result wrappers in `FlirtyToolResults.cs`. `AddFlirtyMcp`
-  deliberately does **not** call `AddFlirty()`.
+  server instructions in `FlirtyMcpInstructions.cs`, the four result wrappers in `FlirtyToolResults.cs`.
+  Tools in `Tools/`: `FlirtyToolNames.cs` (**every** wire name as a const – the single parity checklist,
+  reflected over by the golden test) plus `Flirty{Dialog,Question,AnswerOption,Transition,Loop,Trigger,
+  Layout}Tools.cs`, one per `MapXxxEndpoints` counterpart. The shape conventions of all seven are
+  documented **once**, on `FlirtyDialogTools`. `AddFlirtyMcp` deliberately does **not** call `AddFlirty()`.
 
 ## Standard commands (pwsh)
 
@@ -891,3 +900,68 @@ case-insensitive enum read is the sharp example: the feature worked, the claim a
 an assertion on the advertised **schema** could tell the difference. And a second one for new packages: of
 the six places a new project must be registered, four fail **silently** – an unlisted assembly is simply
 unmeasured, an unlisted package simply ships unpacked.
+
+**MCP graph tools (EPIC 13 stage 2, #127) done** – the whole dialog configuration graph is editable over
+MCP: 17 new tools in six tool classes, **one class per existing `MapXxxEndpoints` counterpart**, so the
+parity AC is reviewable file-against-file instead of by counting. Plus `Tools/FlirtyToolNames.cs`, which
+holds **every** wire name as a const, and `ServerInstructions`. **No core code, no schema change, no new
+command, no ADR** – and, worth saying because this file trains the opposite reflex, **no new project**, so
+none of the six registration places applies. Suite 647 → **708**. Six things that shaped the work:
+
+- **A golden list that reflects both sides is not a golden list.** The checklist only pays off if exactly
+  one side of the comparison is hard-coded: derive the expectation *and* the actual value from
+  `FlirtyToolNames` and a renamed const changes both at once, so the test stays green through the very
+  rename it exists to surface. Literals in the test force a visible three-place edit (attribute, const,
+  list). What no assertion can see, and is therefore written into the test docs rather than assumed: a tool
+  spelling its name as a literal instead of referencing the const emits an identical wire name.
+- **An unset annotation is not a neutral annotation.** Measured: the four hints are `bool?` from the
+  attribute to the wire, an omitted one is *absent*, and the protocol then lets a client assume
+  `destructive: true` / `openWorld: true`. So the ten stage-1 tools looked, to every client, like each of
+  them might destroy data. That is why all four are now set on all 27 rather than only on the ones the issue
+  named – and the same fact makes the test sharp: **`Assert.False` accepts a `bool?` and reads `null` as
+  `false`**, so the naive assertion passes on exactly this bug. Every hint is compared as
+  `Assert.Equal<bool?>`. Three cells deviate from the issue's wording on purpose: `Destructive = false` on
+  every create (see above), `Destructive = true` on `flirty_dialog_abandon_sessions` (ending live sessions is
+  irreversible even though nothing is deleted), `Idempotent = true` on `flirty_layout_reset` (unlike the
+  deletes it succeeds on an empty layout).
+- **A tool class forgotten in the `WithTools<>()` chain is invisible.** It compiles, ships, and no other
+  test in the suite notices – the same family as the four *silent* registration places of a new project. The
+  guard is a test that compares the assembly's `[McpServerToolType]` metadata against what `tools/list`
+  actually returns; it also pins that every `[McpServerTool]` sets `Name`, i.e. that `DeriveName` is nowhere
+  in play.
+- **The layout tool takes the batch, and that is the package's one exception to "primitives, `Guid` and
+  enums only".** A model is not the canvas: the designer moves one node per gesture (ADR 0008) over HTTP,
+  whereas an MCP caller that just authored a twelve-question graph arranges it in one call – one element per
+  call would be twelve transactions, each answering with the *whole* layout. Admissible because it was
+  measured, not assumed: the SDK generates the schema inline (no `$defs`), camelCase, `elementKind` as
+  `enum: ["Question"]`, all four fields required. A test asserts that shape, because the exception stops
+  being defensible the day the SDK stops generating it. The core `DialogLayoutEntry` is used directly –
+  `Flirty.AspNetCore`'s copy of it exists only because HTTP needs a body wrapper.
+- **`ServerInstructions` arrive – but not the way both the issue's premise and my own planning said.** The
+  planning measured (by IL) that the SDK *can* copy them into `DiscoverResult.Instructions`, concluded the
+  handshake-free `2026-07-28` path was covered, and wrote that into the docs. Driving the **running sample**
+  with curl showed the truth: this server answers `discover` with `-32601`, and the instructions arrive via
+  `InitializeResult.Instructions` because the SDK's own client **still handshakes**, negotiating
+  `2025-06-18`. Stateless removed the *session header*, not the handshake. So the risk is real but latent: a
+  client that speaks `2026-07-28` with per-request `_meta` lists and calls tools fine and gets **no
+  instructions**. That makes the redundancy rule load-bearing rather than tidy – **every fact in the
+  instructions is also in a tool or parameter `[Description]`**, which travels with `tools/list`. The
+  existence of a code path is not the existence of a channel; only the wire says which one is used.
+- **The issue's own count was wrong (32, not 27) and its table was right.** 32 is the state after stage 3's
+  five `flirty_session_*` tools. Pre-declaring them would have made the bidirectional golden test red on the
+  day it was written, and both ways out – a subtraction in the test, a `Planned` sub-class it must skip –
+  hide precisely the parity bug the checklist exists for.
+
+Along the way Tier 1 of the error-parity suite grew from three exception paths to six, and one of them is
+the point rather than the count: **`DialogPublishedException` now has a real end-to-end witness** (a graph
+change on a published dialog via `flirty_question_create`). The filter's catch order depends on that subtype
+preceding its base; the compiler enforces the order (CS0160) but not that it is the right one, and until the
+graph tools existed the exception was reachable only through the `flirty_test_throw` seam. Tier 2 did **not**
+shrink – its three exceptions still need the runtime operations of #128 – so the "H2 only" caveat stands
+verbatim.
+
+**Mnemonic:** the absence of a declaration is itself a declaration. An omitted annotation hint, a tool class
+missing from a registration chain, a const nobody wrote – none of them produce an error, a warning or a
+failing test, and each one means something specific and wrong to whoever reads the wire. What made this
+stage cheap was measuring what *absence* looks like on the client side first, and only then deciding what to
+write down.
