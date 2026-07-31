@@ -43,14 +43,22 @@ internal sealed class FlirtyMcpTestHost : IAsyncDisposable
     public RecordingLoggerProvider Logs { get; }
 
     /// <summary>
+    /// The host's service provider, for the few assertions that have to look at the database directly
+    /// rather than through a surface – a session's stored <c>ExternalUserKey</c>, for instance, which no
+    /// tool result carries. Open a scope on it; the <c>FlirtyDbContext</c> is scoped.
+    /// </summary>
+    public IServiceProvider Services => _app.Services;
+
+    /// <summary>
     /// Starts an in-process TestServer with the complete Flirty stack (SQLite in-memory), the two HTTP
     /// surfaces and the MCP server, applies the optional <paramref name="seed"/> and connects an MCP client.
     /// </summary>
     /// <param name="seed">Optional delegate for seeding the database before the first request.</param>
     /// <param name="includeThrowingTools">
-    /// Registers <see cref="FlirtyThrowingTestTools"/> in addition. The injection seam that makes all six
-    /// engine exceptions reachable over MCP while the runtime tools do not exist yet – see the class docs
-    /// of <see cref="FlirtyMcpExceptionParityTests"/>.
+    /// Registers <see cref="FlirtyThrowingTestTools"/> in addition – the injection seam for the exceptions
+    /// no real tool can raise. Since #128 the six <i>engine</i> exceptions all have real call paths, so the
+    /// parity suite no longer needs it; what it still serves are the four SDK-owned branches and the
+    /// mapping table asserted as a table. See the class docs of <see cref="FlirtyThrowingTestTools"/>.
     /// </param>
     /// <param name="configureMcp">Optional configuration of the MCP server (tool surfaces, server name).</param>
     /// <returns>The started, usable test host.</returns>

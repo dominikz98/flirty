@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Flirty.Domain;
 using Flirty.Mcp.Tools;
+using Flirty.Runtime;
 using Flirty.Runtime.Admin;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -184,4 +185,88 @@ internal static class FlirtyMcpToolCalls
 
         return (published, question);
     }
+
+    // ---- Runtime (#128) ----------------------------------------------------------------------------
+
+    /// <summary>Starts the published dialog with the given key over <c>flirty_session_start</c>.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogKey">The business key of the dialog.</param>
+    /// <param name="externalUserKey">The caller's identifier for the user.</param>
+    /// <returns>The started (or resumed) session.</returns>
+    internal static async Task<StartDialogResult> StartSessionAsync(
+        this FlirtyMcpTestHost host, string dialogKey, string externalUserKey = "user-1")
+        => await host.CallAsync<StartDialogResult>(
+            FlirtyToolNames.SessionStart,
+            new Dictionary<string, object?>
+            {
+                ["dialogKey"] = dialogKey,
+                ["externalUserKey"] = externalUserKey,
+            });
+
+    /// <summary>
+    /// Starts one dialog version by id over <c>flirty_session_start_version</c>, published or not.
+    /// </summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The dialog version to start.</param>
+    /// <param name="externalUserKey">The caller's identifier for the user, before the test prefix.</param>
+    /// <returns>The started (or resumed) session.</returns>
+    internal static async Task<StartDialogResult> StartSessionVersionAsync(
+        this FlirtyMcpTestHost host, Guid dialogId, string externalUserKey = "user-1")
+        => await host.CallAsync<StartDialogResult>(
+            FlirtyToolNames.SessionStartVersion,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialogId,
+                ["externalUserKey"] = externalUserKey,
+            });
+
+    /// <summary>Reads the state of a session over <c>flirty_session_get</c>.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="sessionId">The session to read.</param>
+    /// <returns>The session state.</returns>
+    internal static async Task<ResumeDialogResult> GetSessionAsync(
+        this FlirtyMcpTestHost host, Guid sessionId)
+        => await host.CallAsync<ResumeDialogResult>(
+            FlirtyToolNames.SessionGet,
+            new Dictionary<string, object?> { ["sessionId"] = sessionId });
+
+    /// <summary>Answers the open question of a session over <c>flirty_session_submit_answer</c>.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="sessionId">The session to answer in.</param>
+    /// <param name="questionId">The question being answered.</param>
+    /// <param name="value">The answer as raw JSON text.</param>
+    /// <returns>The result of the submission.</returns>
+    internal static async Task<SubmitAnswerResult> SubmitAnswerAsync(
+        this FlirtyMcpTestHost host, Guid sessionId, Guid questionId, string value)
+        => await host.CallAsync<SubmitAnswerResult>(
+            FlirtyToolNames.SessionSubmitAnswer,
+            new Dictionary<string, object?>
+            {
+                ["sessionId"] = sessionId,
+                ["questionId"] = questionId,
+                ["value"] = value,
+            });
+
+    /// <summary>Corrects an answer over <c>flirty_session_edit_answer</c>.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="sessionId">The session whose answer is corrected.</param>
+    /// <param name="questionId">The question whose answer is corrected.</param>
+    /// <param name="value">The new answer as raw JSON text.</param>
+    /// <param name="iterationIndex">The loop iteration to correct, or <see langword="null"/>.</param>
+    /// <returns>The result of the edit.</returns>
+    internal static async Task<EditAnswerResult> EditAnswerAsync(
+        this FlirtyMcpTestHost host,
+        Guid sessionId,
+        Guid questionId,
+        string value,
+        int? iterationIndex = null)
+        => await host.CallAsync<EditAnswerResult>(
+            FlirtyToolNames.SessionEditAnswer,
+            new Dictionary<string, object?>
+            {
+                ["sessionId"] = sessionId,
+                ["questionId"] = questionId,
+                ["value"] = value,
+                ["iterationIndex"] = iterationIndex,
+            });
 }

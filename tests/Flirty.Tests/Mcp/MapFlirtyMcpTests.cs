@@ -236,21 +236,64 @@ public sealed class MapFlirtyMcpTests
 
     /// <summary>
     /// <c>FlirtyMcpSurface</c> really scopes the registration: a host that only asks for the runtime surface
-    /// gets no admin tools. The runtime tool class itself follows in a later build-out stage, so the surface
-    /// is empty today – and an MCP server with no tools at all advertises no tools capability, which makes
-    /// <c>tools/list</c> itself unavailable (JSON-RPC <c>-32601</c>). That is the SDK's semantics, not a
-    /// Flirty decision, and it is pinned here so the flag's effect is visible before the runtime tools exist.
+    /// gets the five session tools and no configuration tool at all.
     /// </summary>
+    /// <remarks>
+    /// Until #128 this test asserted the opposite – that <c>tools/list</c> was unavailable with
+    /// <c>-32601</c>, because a server with no tools advertises no tools capability. That was the SDK's
+    /// semantics showing through an empty surface, not the flag's meaning, and it stopped being observable
+    /// the moment the flag registered something. What is worth pinning is the scoping itself, which is why
+    /// <see cref="Surface_Admin_registers_no_session_tools"/> now states the other direction: the flag has
+    /// two meanings and only one of them was ever tested.
+    /// </remarks>
     [Fact]
-    public async Task Surface_Runtime_registers_no_admin_tools()
+    public async Task Surface_Runtime_registers_only_the_session_tools()
     {
         await using var host = await FlirtyMcpTestHost.StartAsync(
             configureMcp: options => options.Surface = FlirtyMcpSurface.Runtime);
+
+        var tools = (await host.Mcp.ListToolsAsync()).Select(tool => tool.Name).ToList();
+
+        Assert.Equal(5, tools.Count);
+        Assert.All(tools, name => Assert.StartsWith("flirty_session_", name, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A server with no tools at all advertises no tools capability, which makes <c>tools/list</c> itself
+    /// unavailable (JSON-RPC <c>-32601</c>).
+    /// </summary>
+    /// <remarks>
+    /// That is the SDK's semantics rather than a Flirty decision, and it is pinned here because it is a
+    /// documented claim in <c>docs/MCP.md</c> that lost its witness in #128: it used to fall out of
+    /// <c>Surface = Runtime</c> back when that flag registered nothing. <c>None</c> is now the only
+    /// configuration that observes it.
+    /// </remarks>
+    [Fact]
+    public async Task Surface_None_leaves_the_server_without_a_tools_capability()
+    {
+        await using var host = await FlirtyMcpTestHost.StartAsync(
+            configureMcp: options => options.Surface = FlirtyMcpSurface.None);
 
         var exception = await Record.ExceptionAsync(async () => await host.Mcp.ListToolsAsync());
 
         Assert.NotNull(exception);
         Assert.Contains("tools/list", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The other direction of the same flag: a host that only asks for the configuration surface gets no
+    /// session tool, so it cannot start a dialog – let alone an unpublished draft.
+    /// </summary>
+    [Fact]
+    public async Task Surface_Admin_registers_no_session_tools()
+    {
+        await using var host = await FlirtyMcpTestHost.StartAsync(
+            configureMcp: options => options.Surface = FlirtyMcpSurface.Admin);
+
+        var tools = (await host.Mcp.ListToolsAsync()).Select(tool => tool.Name).ToList();
+
+        Assert.Equal(27, tools.Count);
+        Assert.DoesNotContain(tools, name => name.StartsWith("flirty_session_", StringComparison.Ordinal));
     }
 
     /// <summary>

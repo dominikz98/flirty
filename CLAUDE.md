@@ -24,9 +24,10 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 stages 1–2 (#126/#127): host, 27 admin tools in six tool classes
-│                               (one per MapXxxEndpoints counterpart) + Tools/FlirtyToolNames.cs as the
-│                               name checklist, ServerInstructions, one call-tool filter mirroring
+│                               EPIC 13 stages 1–3 (#126/#127/#128): host, 32 tools in eight tool classes
+│                               (one per MapXxxEndpoints counterpart) – 27 configuration + the 5
+│                               flirty_session_* of FlirtySessionTools – plus Tools/FlirtyToolNames.cs as
+│                               the name checklist, ServerInstructions, one call-tool filter mirroring
 │                               FlirtyExceptionEndpointFilter. References Flirty ONLY.
 ├─ Flirty.Designer            Blazor Web App (server-interactive). EPIC 7 complete: connection-profile
 │                               management (multi-DB, #37), dialog CRUD (#38), question editor (#39),
@@ -160,8 +161,10 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   server instructions in `FlirtyMcpInstructions.cs`, the four result wrappers in `FlirtyToolResults.cs`.
   Tools in `Tools/`: `FlirtyToolNames.cs` (**every** wire name as a const – the single parity checklist,
   reflected over by the golden test) plus `Flirty{Dialog,Question,AnswerOption,Transition,Loop,Trigger,
-  Layout}Tools.cs`, one per `MapXxxEndpoints` counterpart. The shape conventions of all seven are
-  documented **once**, on `FlirtyDialogTools`. `AddFlirtyMcp` deliberately does **not** call `AddFlirty()`.
+  Layout,Session}Tools.cs`, one per `MapXxxEndpoints` counterpart – `FlirtySessionTools` (#128) mirrors the
+  **runtime** group `MapFlirtyEndpoints` and is the only class whose tools set `OpenWorld = true`. The shape
+  conventions of all eight are documented **once**, on `FlirtyDialogTools`. `AddFlirtyMcp` deliberately does
+  **not** call `AddFlirty()`.
 
 ## Standard commands (pwsh)
 
@@ -965,3 +968,55 @@ missing from a registration chain, a const nobody wrote – none of them produce
 failing test, and each one means something specific and wrong to whoever reads the wire. What made this
 stage cheap was measuring what *absence* looks like on the client side first, and only then deciding what to
 write down.
+
+**MCP runtime and test run (EPIC 13 stage 3, #128) done** – the other half of the surface: five
+`flirty_session_*` tools in `Tools/FlirtySessionTools.cs`, so a client that authors a dialog can now also
+**play it through** and find out whether what it authored works. Surface 27 → **32** tools, eight tool
+classes. **No core code, no schema change, no new command, no ADR, no new project** – the same thin `ISender`
+adapter as the other 27, mirroring `MapFlirtyEndpoints` file-against-file. Suite 708 → **725**. Five things
+that shaped the work:
+
+- **The issue's table names `IFlirtyEngine`; the tools inject `ISender` anyway.** That column names the
+  *operation*, not the injection type. The HTTP twin `FlirtyEndpointRouteBuilderExtensions` sends the
+  commands over `ISender` too, and the package's whole parity claim is "one tool class per
+  `MapXxxEndpoints` counterpart, reviewable file-against-file" – which only stays literally true if the two
+  files say the same thing. `IFlirtyEngine` would have made one class of eight differ, and its own
+  conventions doc names `ISender` as the dispatch route.
+- **`OpenWorld = false` was a fact about the tools that existed, and it had been written down as a fact
+  about the server.** Running a dialog publishes engine notifications, and the core's auto-registered
+  `WebhookNotificationHandler` posts those to whatever absolute url a trigger names – so the four writing
+  session tools reach outside the database. Declaring `false` while the DoD requires documenting "a test run
+  delivers real webhooks" is a contradiction on the wire, so they declare `true` and `flirty_session_get`
+  (which publishes nothing) stays `false`. This cost the annotation theory a **column**: it asserted
+  `Assert.Equal<bool?>(false, …)` as a constant, which would have pinned the wrong answer for five tools
+  while looking like a passing test.
+- **The `mcp-test-` marker is applied by the server, and only by `flirty_session_start_version`.** Prefixing
+  in the *other* start would be wrong, not merely unnecessary: that one is the production path (twin of
+  `POST /flirty/sessions`), and prefixing there hands an MCP client and an HTTP client two different
+  sessions for the same user. **The sharp edge is the empty string:** prefixing unconditionally turns `""`
+  into a non-empty key and thereby *satisfies* the `[Required]` on `StartDialogVersionCommand`, so the 400
+  the engine owes the caller never arrives and the run is stored under the bare prefix. A blank key
+  therefore stays blank. `string.IsNullOrWhiteSpace` is the exactly right guard rather than an
+  approximation: `RequiredAttribute` trims before testing for empty, so the two agree on every input.
+- **Tier 2 of the error-parity suite is gone, and that was the point of the stage for that file.** Its three
+  exceptions – dialog-not-found, session-not-found, answer-validation – proved *H2 only* because they were
+  reachable on the MCP side only through the `flirty_test_throw` seam. All six engine exceptions now arise
+  from the real engine on **both** sides. `FlirtyThrowingTestTools` stays regardless: four of its kinds are
+  unreachable through any real tool by design, and the six-row mapping-table theory is a different claim
+  from "this call path maps correctly". The answer-validation row is the one where the two surfaces answer
+  **their own** session – a submitted answer advances the session, so sharing one would leave the second
+  call nothing to reject.
+- **`FlirtyMcpSurface.Runtime` finally means something, and a test had to invert.**
+  `Surface_Runtime_registers_no_admin_tools` asserted that `tools/list` fails with `-32601`; that was the
+  SDK's no-tools-no-capability semantics showing through an *empty* surface, not the flag's meaning, and it
+  stopped being observable the moment the flag registered anything. It now pins the five session tools, and
+  a new mirror pins the other direction — the flag has two meanings and only one was ever tested. The value
+  of the split is real: `Admin` is an authoring client that touches nothing but its own database, `Runtime`
+  runs dialogs for real and starts unpublished drafts.
+
+**Mnemonic:** an invariant stated as "throughout" is a claim about the code that exists when you write it.
+`OpenWorld = false` was true of 27 configuration tools and got recorded as a property of the server; the
+first tool that reached outside made it a wrong declaration to every client, and no compiler, warning or
+existing test could have said so — the assertion that should have caught it was itself written as the
+constant. What generalizes: when a doc sentence and a test both hard-code the same "always", adding the
+first exception makes the test *defend* the error.

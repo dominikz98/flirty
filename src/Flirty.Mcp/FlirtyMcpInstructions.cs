@@ -61,8 +61,15 @@ internal static class FlirtyMcpInstructions
         Every update overwrites all fields, so read first and pass the current value for whatever stays the
         same. Enum arguments are the C# member names in PascalCase: FreeText, AfterQuestion, Webhook.
 
-        Two arguments are JSON inside a string. Their schema is "string", so it tells you nothing - here is
-        what goes in, camelCase in both cases:
+        Running a dialog is the other half of the surface: flirty_session_start plays a published dialog by
+        key, flirty_session_start_version plays one version by id whether published or not (the way to test
+        a draft), then flirty_session_submit_answer answers whatever flirty_session_get reports as the open
+        question, and flirty_session_edit_answer corrects an earlier answer and discards everything after
+        it. Such a run is real: it writes a session and configured Webhook triggers really do fire. Sessions
+        from flirty_session_start_version are stored with the external user key prefixed 'mcp-test-'.
+
+        Three arguments are JSON inside a string. Their schema is "string", so it tells you nothing - here
+        is what goes in, camelCase throughout:
 
         - validationRules on a question, type-scoped, every field optional. FreeText:
           {"minLength":3,"maxLength":50,"pattern":"^[a-z]+$"} - pattern is a .NET regular expression
@@ -72,6 +79,12 @@ internal static class FlirtyMcpInstructions
           for kind Webhook and must be an absolute http or https address; name is optional and is
           delivered as the X-Flirty-Trigger header. For kind InProcess pass {} - an empty string is
           rejected. Only these two fields survive a write; unknown fields are dropped.
+        - value on an answer, whose shape follows the question's type. FreeText and Date: a JSON string,
+          "hello" or "2026-07-31" (ISO-8601). SingleChoice: a JSON string holding the option's value, not
+          its label. MultiChoice: a JSON array of strings, ["a","b"]. Number: a bare number with a dot as
+          the decimal separator, 42 or 3.14. Boolean: bare true or false - the quoted "true" also passes
+          validation but is stored as a string, and a branching condition comparing it to a boolean then
+          stops matching, so send the bare literal.
 
         Errors arrive as isError with {"status","title","detail"} in structuredContent: 404 for an unknown
         element, 400 for an invalid request or answer, 409 for a conflict (published dialog, duplicate key,

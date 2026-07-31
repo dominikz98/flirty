@@ -162,9 +162,14 @@ on a genuine fresh start – stays the same. This works without a special path b
 | Empty/`null` `ExternalUserKey` | `ValidationException` (from the pipeline) |
 
 > **Deliberately without an HTTP endpoint.** In `Flirty.AspNetCore` the publish status is the production
-> barrier: over HTTP only published dialogs can be started. Bypassing it remains reserved for in-process
-> callers (designer, worker, tests). Whoever exposes the command in their own host app reintroduces the
-> barrier themselves.
+> barrier: over `MapFlirtyEndpoints` only published dialogs can be started, and that has not changed.
+> What *has* changed is who may bypass it. Until #128 the bypass was reserved for in-process callers
+> (designer, worker, tests); since then the optional package `Flirty.Mcp` exposes it deliberately as the
+> tool `flirty_session_start_version`, because an MCP client authoring a dialog needs to test a draft for
+> the same reason the designer's test runner does. That is an opt-in surface behind
+> `FlirtyMcpSurface.Runtime` and behind whatever `MapFlirtyMcp().RequireAuthorization()` the host adds –
+> a host that does not want the bypass reachable registers `FlirtyMcpSurface.Admin`, and one that exposes
+> the command from its own routes reintroduces the barrier itself. See [MCP.md](./MCP.md).
 
 ## SubmitAnswerCommand
 

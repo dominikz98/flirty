@@ -14,11 +14,11 @@ namespace Flirty.Mcp.Tools;
 /// <para>
 /// This list is the checklist itself, not a copy of one: the golden tool-list test reflects over the
 /// literal fields of this class and compares that set with what <c>tools/list</c> returns, in both
-/// directions. A const without a tool fails as loudly as a tool without a const, which is why the five
-/// <c>flirty_session_*</c> names of the runtime stage (#128) are deliberately <b>not</b> pre-declared
-/// here. Twenty-seven today; thirty-two once that stage lands. For the same reason the class holds nothing
-/// but string literals – the test filters on exactly that, so any other member would silently join the
-/// checklist.
+/// directions. A const without a tool fails as loudly as a tool without a const, which is why a name is
+/// declared here in the stage that registers its tool and never ahead of it. Thirty-two today: the
+/// twenty-seven admin tools of stages #126 and #127, and the five <c>flirty_session_*</c> of the runtime
+/// stage #128. For the same reason the class holds nothing but string literals – the test filters on
+/// exactly that, so any other member would silently join the checklist.
 /// </para>
 /// <para>
 /// Note <c>flirty_option_*</c>: the wire name is short where the class mirroring
@@ -124,4 +124,22 @@ internal static class FlirtyToolNames
 
     /// <summary>Discards all stored canvas positions; works on a published dialog.</summary>
     internal const string LayoutReset = "flirty_layout_reset";
+
+    // ---- Sessions (5) – FlirtySessionTools, mirrors MapFlirtyEndpoints. The runtime half; the only
+    //      area whose tools reach outside the database, because a run delivers webhooks. -------------
+
+    /// <summary>Starts the published dialog with a key, or resumes the user's running session.</summary>
+    internal const string SessionStart = "flirty_session_start";
+
+    /// <summary>Starts one dialog version by id regardless of publication status.</summary>
+    internal const string SessionStartVersion = "flirty_session_start_version";
+
+    /// <summary>Reads the state of a session: status, open question and the answers so far.</summary>
+    internal const string SessionGet = "flirty_session_get";
+
+    /// <summary>Answers the open question and advances the session.</summary>
+    internal const string SessionSubmitAnswer = "flirty_session_submit_answer";
+
+    /// <summary>Corrects an answer already given and discards the downstream answers.</summary>
+    internal const string SessionEditAnswer = "flirty_session_edit_answer";
 }
