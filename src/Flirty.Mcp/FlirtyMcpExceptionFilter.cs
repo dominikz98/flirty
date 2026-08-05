@@ -34,7 +34,7 @@ namespace Flirty.Mcp;
 /// is load-bearing for the same reason: <see cref="AnswerValidationException"/> derives from
 /// <see cref="ValidationException"/>, and <c>DialogPublishedException</c> from
 /// <see cref="InvalidOperationException"/>. The compiler enforces it – a wrong order is CS0160, not a
-/// warning. Two MCP-only branches follow the six deliberately, so those six read verbatim like the HTTP
+/// warning. Three MCP-only branches follow the six deliberately, so those six read verbatim like the HTTP
 /// filter.
 /// </para>
 /// </remarks>
@@ -98,6 +98,16 @@ internal static class FlirtyMcpExceptionFilter
         catch (InvalidOperationException exception)
         {
             return Problem(StatusCodes.Status409Conflict, "Conflict", exception.Message);
+        }
+        // MCP-only: the database itself failed – unreachable, or a missing Flirty.Migrations.* assembly.
+        // It has no HTTP twin because the endpoints expose no such operation. Not logged, unlike the
+        // catch-all below: only that one hides the message from the client, and hiding is the reason it
+        // logs. Raised by two of the four flirty_db_* tools; see FlirtyMcpDatabaseOperations for why not
+        // by the third.
+        catch (FlirtyMcpDatabaseException exception)
+        {
+            return Problem(
+                StatusCodes.Status500InternalServerError, "Database error", exception.Message);
         }
         // MCP-only: over HTTP the {id:guid} route constraint rejects an unbindable value at routing, so
         // the HTTP filter never sees this class of failure.

@@ -22,6 +22,7 @@ here.
 | [0007](./0007-layout-as-its-own-table.md) | Canvas layout as its own table, with a guard-free layout command | Accepted | #102 |
 | [0008](./0008-gestures-on-the-canvas.md) | Editing gestures on the canvas: existing commands, reload, lock per gesture | Accepted | #103 |
 | [0009](./0009-mcp-as-its-own-opt-in-package.md) | MCP server as its own opt-in package | Accepted | #126 |
+| [0010](./0010-mcp-database-targets-by-route.md) | MCP database targets declared by the host, selected by the route | Accepted | #129 |
 
 The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
 (a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
@@ -41,7 +42,11 @@ rewritten but quoted. 0009 finally applies 0003 one layer further out: there the
 ASP.NET so that a console consumer does not pay for HTTP, and by the same argument the *web* package is
 kept free of the MCP SDK so that an HTTP consumer does not pay for MCP. It is thereby the first ADR that
 overturns a sentence in its own EPIC – the EPIC had promised "no new project", and the measured
-dependency was the reason not to keep that promise.
+dependency was the reason not to keep that promise. 0010 redeems the one **Open** point 0009 left, and
+overturns a second sentence of the same EPIC, this time not on a measurement but on a *protocol fact*: the
+revision that makes 0009's stateless transport mandatory also removed the session the EPIC wanted to keep
+the selected database in. So the authority moves to the host, and the client names a target in the route –
+which is why 0009 is not rewritten either: nothing in it prejudged this, and its own text says so.
 
 ## Format
 

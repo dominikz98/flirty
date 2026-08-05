@@ -25,6 +25,14 @@ namespace Flirty.Mcp;
 /// with <c>tools/list</c>, which every client can read.
 /// </para>
 /// <para>
+/// Route-selected database targets (#129) are the fact that came closest to breaking that rule, because a
+/// route is not a parameter and so has no description of its own to live in. It is carried instead by the
+/// <c>[Description]</c> of <c>flirty_db_list_targets</c>, which spells out that the target is the last path
+/// segment – so the discovery tool a client reaches for anyway is also the channel of last resort. Worth
+/// keeping in mind when the next non-argument fact appears: the rule is satisfied by <i>some</i> tool
+/// description carrying it, not necessarily by an obvious one.
+/// </para>
+/// <para>
 /// The text deliberately does not restate individual tool descriptions – the protocol's own guidance is
 /// that instructions should not duplicate what <c>tools/list</c> already carries.
 /// </para>
@@ -45,6 +53,11 @@ internal static class FlirtyMcpInstructions
         Flirty is a dialog (chatbot) engine for .NET. This server exposes its dialog configuration: every
         tool is a thin wrapper over one engine command, so the rules below are the engine's, not this
         layer's. A host may expose only part of the surface - trust tools/list.
+
+        Which database you are editing is decided by the route you connected to, not by any argument: a
+        host can declare several targets, and /mcp/staging works against the one named staging. There is
+        no tool to switch - open a second connection instead. Call flirty_db_list_targets to see what
+        this server offers; an empty list means it serves a single database.
 
         The shape of a dialog: a dialog owns questions, a question owns answer options, transitions connect
         two questions, loop markers mark a cycle in the graph, triggers call back into the host

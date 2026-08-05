@@ -4,11 +4,11 @@
 that an MCP client can do what an operator does in the Blazor designer. Like `Flirty.AspNetCore` it is a
 **thin adapter over the existing Mediator commands** – no engine logic, no new command.
 
-> **Build-out status.** This guide describes what exists today: the host and **32 tools**. Twenty-seven of
+> **Build-out status.** This guide describes what exists today: the host and **36 tools**. Twenty-seven of
 > them are the configuration surface – the ten dialog-level ones (EPIC 13 stage 1, #126) plus the whole
 > graph: questions, answer options, transitions, loop markers, triggers and the canvas layout (stage 2,
-> #127). The other five are the runtime surface (stage 3, #128), which plays a dialog through. The
-> multi-database targets follow in stage 4 (#129).
+> #127). Five are the runtime surface (stage 3, #128), which plays a dialog through. The last four are the
+> database targets (stage 4, #129), and one of those is registered only on request.
 
 Why it is a package of its own rather than a folder in `Flirty.AspNetCore`:
 [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
@@ -44,15 +44,16 @@ app.Run();
 ```csharp
 builder.Services.AddFlirtyMcp(o =>
 {
-    o.Surface = FlirtyMcpSurface.Admin;   // Runtime | Admin | All (default), or None
+    o.Surface = FlirtyMcpSurface.Admin;   // Runtime | Admin | Database | All (default), or None
     o.ServerName = "Flirty";
 });
 ```
 
-The two surfaces are worth choosing between rather than defaulting past. `Admin` is configuration only and
+The three surfaces are worth choosing between rather than defaulting past. `Admin` is configuration only and
 touches nothing but its own database; `Runtime` **runs dialogs for real** – it writes sessions, delivers
 configured webhooks, and one of its tools starts an unpublished draft (see *A test run is a real run*
-below). A host that wants an authoring client and nothing else registers `Admin`. Note also that a server
+below); `Database` is the target administration described in the next section. A host that wants an
+authoring client and nothing else registers `Admin`. Note also that a server
 with **no** tools at all advertises no tools capability, which makes `tools/list` itself unavailable
 (JSON-RPC `-32601`) – that is the SDK's semantics, not a Flirty decision.
 
@@ -77,12 +78,75 @@ SDK's current default. Two reasons, both worth knowing:
 
 The default has moved once already, hence the explicit setting.
 
+## Database targets (#129)
+
+A host can serve several databases from one MCP server. It **declares** them by name; a client **picks**
+one by connecting to the route that carries the name. Nothing else selects a database, and in particular
+no tool argument does.
+
+```csharp
+builder.Services.AddFlirty(o => o.UseSqlite(conn));      // the host's own database
+builder.Services.AddFlirtyMcp(o =>
+{
+    o.AddTarget("staging", FlirtyDatabaseProvider.PostgreSql, stagingConn, "nightly restore");
+    o.AddTarget("local", FlirtyDatabaseProvider.Sqlite, "Data Source=local.db");
+    o.UseDefaultTarget("staging");   // optional: what /mcp serves
+    o.AllowMigrations();             // default: off
+});
+
+var app = builder.Build();
+app.MapFlirtyMcp("/mcp").RequireAuthorization();           // the default target
+app.MapFlirtyMcp("/mcp/{target}").RequireAuthorization();  // a named target
+```
+
+Both routes are ordinary endpoints, so each needs its own `RequireAuthorization()`. Reasoning for the whole
+arrangement: [ADR 0010](./adr/0010-mcp-database-targets-by-route.md). Four consequences are worth having in
+front of you before reading the tools.
+
+**Why the route and not a tool argument, and why there is no `select_target` tool.** Revision `2026-07-28`
+removed sessions from the wire, so there is nowhere to hold a selection between two calls; behind a load
+balancer a `select` followed by an `edit` would reach two different processes and the edit would land in
+the wrong database. The route decides per connection, which is idempotent by construction – and it keeps a
+`target` parameter off all 36 tool schemas, so not one tool of stages 2 and 3 changed when this landed.
+
+**No connection string ever crosses the wire.** `flirty_db_list_targets` reports name, provider,
+description and `isDefault`, and nothing else. The type that holds a connection string, `FlirtyMcpTarget`,
+appears in no tool signature. Note what does *not* guarantee this, because it is an easy assumption:
+`internal` is no barrier – `System.Text.Json` serializes internal types happily, as every result wrapper in
+`FlirtyToolResults.cs` demonstrates. The guarantee is the two facts above plus a test that reads the **raw
+serialized text** of the listing and asserts there is no `Data Source` in it.
+
+**Declaring a target does not repoint anything else.** Only the `FlirtyDbContext` registration is replaced,
+and only when at least one target is declared; the `DbContextOptions<FlirtyDbContext>` that `AddFlirty`
+registered stay in place as the fallback. So `MapFlirtyEndpoints`, `MapFlirtyAdminEndpoints` and
+`FlirtyMigrationHostedService` keep talking to the host's own database, and a scope opened outside a
+request does too. That is structural rather than careful: the target is captured in the transport's
+per-request session callback, which fires **only** on an MCP request, so nothing else can ever see one.
+Declaring no target at all registers no replacement, and the single-database path is untouched.
+
+**Naming a target that is not declared is a validation error**, never a silent fallback – on a
+multi-database server *and* on a single-database one. The message enumerates the declared names, so the
+error carries what the client came for. It is raised by a second call-tool filter composed inside the error
+filter, which is why it applies to every tool, `flirty_db_list_targets` included.
+
+Two smaller rules the compiler cannot state: a target name must be routable (ASCII letters, digits, `.`,
+`_`, `-`), and `MapFlirtyMcp` refuses a pattern whose route parameter is not called `target` – `{db}` would
+simply never be read, and the client would work against the default database without any symptom. Lookup is
+case-insensitive, because route values are.
+
 ## Tools
 
-Names are `flirty_<area>_<action>`. **32 tools in eight tool classes** – 27 of configuration and 5 of
-runtime – and the split is not cosmetic: there is **one tool class per existing `MapXxxEndpoints`
-counterpart**, which is what makes the parity claim reviewable file against file instead of by counting.
-`FlirtySessionTools` is the eighth, and it mirrors `MapFlirtyEndpoints`, the runtime route group.
+Names are `flirty_<area>_<action>`. **36 tools in ten tool classes** – 27 of configuration, 5 of runtime
+and 4 of database administration – and the split is not cosmetic: for the first 32 there is **one tool
+class per existing `MapXxxEndpoints` counterpart**, which is what makes the parity claim reviewable file
+against file instead of by counting. `FlirtySessionTools` is the eighth, and it mirrors
+`MapFlirtyEndpoints`, the runtime route group.
+
+The two database classes are the exception to that rule, and the exception is honest rather than
+awkward: the engine has **no command** for "is this database reachable?", so they have no endpoint group
+to mirror. What they mirror instead is the designer's `ConnectionProfileOperations`, and the comparison
+lives in one file, `FlirtyMcpDatabaseOperations.cs`. They are two classes rather than one only because
+`WithTools<T>()` takes a class as its unit and `flirty_db_migrate` is registered conditionally.
 
 Every name lives as a `const string` in `Tools/FlirtyToolNames.cs` – **the single parity checklist** – and
 every `[McpServerTool]` takes its `Name` from there. Never let the SDK derive one: `DeriveName` strips an
@@ -276,6 +340,44 @@ package carrying structured field errors, under `errors.value`. The designer has
 single source of this contract; an MCP client has only these descriptions, which is why the table is
 repeated in the parameter description of both tools that take a `value`.
 
+### Databases (#129)
+
+| Tool | Operation | Returns |
+|---|---|---|
+| `flirty_db_list_targets` | the declared targets, from configuration | `FlirtyTargetList` |
+| `flirty_db_test_connection` | `Database.CanConnectAsync` | `FlirtyConnectionTest` |
+| `flirty_db_pending_migrations` | `Database.GetPendingMigrationsAsync` | `FlirtyPendingMigrations` |
+| `flirty_db_migrate` | pending captured, then `Database.MigrateAsync` | `FlirtyMigrationsApplied` |
+
+The only tools that do not go through `ISender`: the engine has no command for any of this. They mirror the
+designer's `ConnectionProfileOperations` instead, and `FlirtyMcpDatabaseOperations` is where the two can be
+read side by side.
+
+**`flirty_db_migrate` is gated by absence.** Without `o.AllowMigrations()` it is not registered, so it
+never appears in `tools/list`. That is deliberately not the same as a tool that exists and refuses: a model
+reasons better about a capability that is simply not there, it costs no round trip to discover, and
+invisible is the stronger security posture. Two tests pin it, one with the flag off and one with it on.
+
+**The error handling differs per tool, and the split is the interesting part.**
+`flirty_db_test_connection` reports an unreachable database as its **result** (`succeeded: false`) and never
+fails – "no" is the answer it was asked for, exactly as in the designer. The other two **cannot** answer
+when the database is silent, so they fail with `isError` and a 500 `Database error`. This also closes the
+one designer operation whose error handling was never exercised:
+`ConnectionProfileOperations.GetPendingMigrationsAsync` has no try/catch and no UI caller.
+
+Two behaviours that look alike and are not: a database that does **not exist yet** is no error at all –
+`flirty_db_pending_migrations` answers "everything is pending", which is exactly what a caller wants before
+migrating. Only content EF cannot read is a failure. And on SQLite `flirty_db_test_connection` only reports
+success once the file exists, so a fresh SQLite target is **migrated first and tested afterwards**, not the
+other way round; that sentence is in the tool's own description, where the person hitting it is.
+
+A host that declares targets across providers and builds from source must reference the
+`Flirty.Migrations.*` projects itself – `Flirty.Mcp` deliberately does not, because a `ProjectReference`
+from a packable to a non-packable project yields neither a dependency nor a bundled DLL. NuGet consumers
+get all three inside the `Flirty` package. A missing one is translated into a message naming it, read out
+of the exception rather than derived from the provider, so the provider-to-assembly mapping stays in the
+single place that owns it (`UseFlirtyProvider`).
+
 ### Return shapes: the core records, directly
 
 The tools serialize the **core** `Flirty.Runtime[.Admin]` records. `Flirty.AspNetCore`'s DTO layer is
@@ -314,7 +416,7 @@ above.
 
 ### Annotations, and why they are set explicitly
 
-All 32 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
+All 36 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
 reason is a measurement: the four hints are `bool?` from the attribute all the way to the wire, an *unset*
 one is simply **absent**, and the protocol then lets a client assume `destructive: true` and
 `openWorld: true`. Omitting is therefore not neutral – unset, every `create` looks to a client like it might
@@ -334,8 +436,10 @@ destroy data, and every tool claims it talks to an open world.
 | `session_get` | `true` | `false` | `true` | `false` |
 | `session_submit_answer` | `false` | `false` | **`false`** | **`true`** |
 | `session_edit_answer` | `false` | **`true`** | `true` | **`true`** |
+| `db_list_targets`, `db_test_connection`, `db_pending_migrations` | `true` | `false` | `true` | `false` |
+| `flirty_db_migrate` | `false` | **`true`** | `true` | `false` |
 
-Four cells are judgement calls worth recording.
+Five cells are judgement calls worth recording.
 
 `dialog_publish` is **not** destructive – retiring the predecessor version loses no data and is reversible
 by publishing it again – but its description names that side effect all the same, because a boolean cannot.
@@ -447,9 +551,16 @@ The order is copied verbatim from the HTTP filter and is load-bearing: `AnswerVa
 derives from `ValidationException`, and `DialogPublishedException` from `InvalidOperationException`. It is
 enforced by the **compiler** – a wrong order is CS0160, not a warning.
 
-Two branches follow those six, both **MCP-only**, deliberately placed after them so the six read verbatim
+Three branches follow those six, all **MCP-only**, deliberately placed after them so the six read verbatim
 like the HTTP filter:
 
+- **A database failure → 500 `Database error`.** Raised by `flirty_db_pending_migrations` and
+  `flirty_db_migrate` when the target does not answer or its `Flirty.Migrations.*` assembly is missing. No
+  HTTP twin exists because the endpoints expose no such operation. `FlirtyMcpDatabaseException` derives from
+  `Exception` and deliberately **not** from `InvalidOperationException` – the latter would make CS0160 force
+  it above the 409 branch and split the verbatim six – and 409 would be the wrong answer anyway: nothing
+  about the request is in conflict. Unlike the catch-all it is **not** logged, because it does not hide its
+  message from the client, and hiding is what the catch-all logs for.
 - **An argument-binding failure → 400.** Over HTTP the `{id:guid}` route constraint rejects an unbindable
   value at routing, so the HTTP filter never sees this class of failure. It covers both an unbindable value
   (`"dialogId": "not-a-guid"`, a `JsonException`) and a *missing* required argument (an `ArgumentException`
@@ -479,7 +590,7 @@ falls through to the 500 branch, exactly as the SDK treats it.
 
 The member names are those of the HTTP `ProblemDetails` (RFC 9457) on purpose: same names means the parity
 test between the two surfaces is three field comparisons instead of a translation table, and a translation
-table is exactly where a parity bug hides. The text block carries `"{title}: {detail}"` in all eight
+table is exactly where a parity bug hides. The text block carries `"{title}: {detail}"` in all nine
 branches – one rule, no per-branch prose – because an LLM consumer reads `content[0].text` while a host
 branches on `structuredContent`.
 
@@ -492,7 +603,7 @@ Two deliberate differences from the HTTP payload:
 - **`status` is advisory.** It has no meaning in the MCP protocol. It exists because it is the most compact
   signal of the error class, and because it is the comparison key against the HTTP surface.
 
-All eight branches use `isError: true` and never `throw new McpException(...)`: `isError` is how the
+All nine branches use `isError: true` and never `throw new McpException(...)`: `isError` is how the
 protocol reports a tool *execution* failure the model can react to, whereas a JSON-RPC error reports a
 *protocol* failure. It is also the shape the SDK's own fallback produces, so clients already expect it.
 
@@ -517,7 +628,7 @@ The files, and what each is responsible for:
 
 | File | Proves |
 |---|---|
-| `FlirtyMcpTestHost` | the host itself: one TestServer, both HTTP surfaces and `/mcp` over one database |
+| `FlirtyMcpTestHost` | the host itself: one TestServer, both HTTP surfaces, `/mcp` and `/mcp/{target}`; the host database plus one in-memory database per declared target, each with its own keep-alive connection |
 | `FlirtyMcpToolCalls` | the shared `Read<T>` and the graph builders – extension methods on the host, the MCP counterparts of the private helpers in `MapFlirtyAdminEndpointsTests` |
 | `FlirtyToolSurfaceTests` | the surface contract: the golden name list, the checklist in both directions, assembly-vs-wire registration, the name shape, `outputSchema` + description on every tool, the annotation matrix, the instructions, the layout batch schema |
 | `FlirtyGraphToolsTests` | the per-area happy paths, with the **same section banners** as `MapFlirtyAdminEndpointsTests`; the ADR-0007 pair; and a dialog built purely over MCP then replayed over the **HTTP** runtime – deliberately not over MCP, which is #130's round trip |
@@ -525,6 +636,8 @@ The files, and what each is responsible for:
 | `MapFlirtyMcpTests` | the wiring: input schemas, return shapes, request scoping, surface scoping in both directions, the two `Map`/`Add` prerequisites |
 | `FlirtyMcpExceptionParityTests` | HTTP-vs-MCP error parity, six rows, all real on both sides (below) |
 | `FlirtyMcpExceptionFilterTests` | the MCP-only filter branches and the catch order |
+| `FlirtyDatabaseToolsTests` | the database targets: write isolation between two targets, the unknown-target and no-targets rejections, the raw-text check that no connection string is serialized, the migrate gate in both directions, and the failure-vs-answer split of the three operations |
+| `FlirtyMcpTargetRegistrationTests` | the negative half, without an MCP client: that the HTTP surfaces and an out-of-request scope still see the host database, that the replacement works in either registration order and not at all without targets, and the two `MapFlirtyMcp` route guards |
 | `FlirtyThrowingTestTools` | the injection seam for the exceptions no real tool can raise |
 
 Two traps in these tests are worth carrying forward, because both produce a **green** test on the very bug

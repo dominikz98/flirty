@@ -1,5 +1,8 @@
 using Flirty.Mcp;
 using Flirty.Mcp.Tools;
+using Flirty.Persistence;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ModelContextProtocol.AspNetCore;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -32,6 +35,15 @@ public static class FlirtyMcpServiceCollectionExtensions
     /// stateless mode the SDK resolves a tool call's scoped services from the ASP.NET request scope, so the
     /// tools resolve <c>ISender</c> and the <c>FlirtyDbContext</c> with exactly the lifetime story of a
     /// minimal-API endpoint – no scope factory of this package's own.
+    /// </para>
+    /// <para>
+    /// A host may declare <b>database targets</b> with <c>FlirtyMcpOptions.AddTarget</c>; a client then
+    /// selects one by connecting to <c>/mcp/{target}</c>. Only then is anything about the database
+    /// registration touched, and then only the <c>FlirtyDbContext</c> registration itself – the
+    /// <c>DbContextOptions&lt;FlirtyDbContext&gt;</c> that <c>AddFlirty</c> registered stay in place as the
+    /// fallback, so <c>MapFlirtyEndpoints</c>, <c>MapFlirtyAdminEndpoints</c> and the migration hosted
+    /// service keep talking to the host's own database. Without declared targets nothing of this applies
+    /// and the single-database path is unchanged. See ADR 0010.
     /// </para>
     /// <para>
     /// The returned builder is the SDK's own, so a host can add its own tools, prompts or filters to the
@@ -68,6 +80,57 @@ public static class FlirtyMcpServiceCollectionExtensions
         var options = new FlirtyMcpOptions();
         configure?.Invoke(options);
 
+        // Cross-checked here and not in the setter: AddTarget and UseDefaultTarget may be called in either
+        // order inside the lambda. A default that names nothing must fail loudly - a client that connects
+        // to /mcp expecting "staging" and silently gets the host's database is the exact confusion this
+        // whole stage exists to prevent.
+        if (options.DefaultTargetName is { } defaultTargetName
+            && !options.Targets.ContainsKey(defaultTargetName))
+        {
+            throw new ArgumentException(
+                $"UseDefaultTarget(\"{defaultTargetName}\") names a target that AddTarget never declared. "
+                + $"Declared: {(options.Targets.Count == 0
+                    ? "none"
+                    : string.Join(", ", options.Targets.Values.Select(target => target.Name)))}.",
+                nameof(configure));
+        }
+
+        // Registered even when no target is declared, and that is deliberate: a route that names a target
+        // must be a validation error rather than a silent fallback, and with nothing registered there
+        // would be nothing to notice it.
+        services.Replace(ServiceDescriptor.Singleton(
+            new FlirtyMcpTargetRegistry(options.Targets, options.DefaultTargetName)));
+        services.TryAddScoped(provider =>
+            new FlirtyMcpRequestTarget(provider.GetRequiredService<FlirtyMcpTargetRegistry>()));
+
+        // THE SEAM. In stateless mode the SDK builds the per-request server with
+        // HttpContext.RequestServices and ScopeRequests = false, so the scoped holder captured here is the
+        // very instance the tool resolves - no IHttpContextAccessor, no endpoint metadata, no scope
+        // factory. PostConfigure and not Configure, because WithHttpTransport registers with Configure:
+        // ours therefore runs last whatever order the host calls things in, and `previous` keeps a host's
+        // own callback instead of overwriting it.
+        services.PostConfigure<HttpServerTransportOptions>(transport =>
+        {
+            var previous = transport.ConfigureSessionOptions;
+            transport.ConfigureSessionOptions = (context, serverOptions, cancellationToken) =>
+            {
+                context.RequestServices.GetRequiredService<FlirtyMcpRequestTarget>().Capture(context);
+                return previous?.Invoke(context, serverOptions, cancellationToken) ?? Task.CompletedTask;
+            };
+        });
+
+        // Only with declared targets, so the single-database path stays byte for byte what it was. Order
+        // independent in both directions: AddFlirty first -> EF has TryAdd'ed FlirtyDbContext and Replace
+        // swaps it; AddFlirtyMcp first -> Replace on an absent service type simply adds, and EF's TryAdd
+        // then finds it and skips. Either way DbContextOptions<FlirtyDbContext> is never touched - that is
+        // the fallback, and the reason a declared target cannot repoint MapFlirtyEndpoints,
+        // MapFlirtyAdminEndpoints or FlirtyMigrationHostedService.
+        if (options.Targets.Count > 0)
+        {
+            services.Replace(
+                ServiceDescriptor.Scoped<FlirtyDbContext>(FlirtyMcpDbContextFactory.Create));
+        }
+
         var builder = services
             .AddMcpServer(server =>
             {
@@ -87,7 +150,12 @@ public static class FlirtyMcpServiceCollectionExtensions
                 server.ServerInstructions = FlirtyMcpInstructions.Text;
             })
             .WithHttpTransport(transport => transport.Stateless = true)
-            .WithRequestFilters(filters => filters.AddCallToolFilter(FlirtyMcpExceptionFilter.Instance));
+            // Order is the composition order: the exception filter is registered first and therefore wraps
+            // the target filter, so the ValidationException the latter raises for an undeclared target is
+            // mapped by the former's existing 400 branch.
+            .WithRequestFilters(filters => filters
+                .AddCallToolFilter(FlirtyMcpExceptionFilter.Instance)
+                .AddCallToolFilter(FlirtyMcpTargetFilter.Instance));
 
         if (options.Surface.HasFlag(FlirtyMcpSurface.Admin))
         {
@@ -107,6 +175,18 @@ public static class FlirtyMcpServiceCollectionExtensions
         if (options.Surface.HasFlag(FlirtyMcpSurface.Runtime))
         {
             builder.WithTools<FlirtySessionTools>();
+        }
+
+        if (options.Surface.HasFlag(FlirtyMcpSurface.Database))
+        {
+            builder.WithTools<FlirtyDatabaseTools>();
+
+            // The migrate gate works by absence, not by refusal: a tool that exists and always says no
+            // costs a model a call to learn nothing, and an invisible tool is the stronger posture.
+            if (options.MigrationsAllowed)
+            {
+                builder.WithTools<FlirtyDatabaseMigrationTools>();
+            }
         }
 
         return builder;
