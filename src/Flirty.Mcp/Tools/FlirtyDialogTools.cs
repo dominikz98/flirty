@@ -7,13 +7,13 @@ namespace Flirty.Mcp.Tools;
 
 /// <summary>
 /// The dialog-level MCP tools: create, read, change, publish, version and clean up a dialog. The MCP
-/// counterpart of <c>MapDialogEndpoints</c> and one of the eight tool classes of this package – a thin
+/// counterpart of <c>MapDialogEndpoints</c> and one of the ten tool classes of this package – a thin
 /// layer over the admin CRUD commands of <c>Flirty.Runtime.Admin</c>, dispatched via
 /// <see cref="ISender"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This class is the <b>documentation home</b> for the tool-shape conventions of all eight: the seven
+/// This class is the <b>documentation home</b> for the tool-shape conventions of all ten: the nine
 /// others state only what is specific to their area and point here for the rest.
 /// </para>
 /// <para>

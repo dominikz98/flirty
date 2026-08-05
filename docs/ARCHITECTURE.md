@@ -216,10 +216,14 @@ collected collection in the expression context (e.g. `positions.Count > 0`).
 Docs are the **definition of done of every issue**:
 - XML doc comments on all public types/members; `GenerateDocumentationFile` + **CS1591 as error** (centralized in `Directory.Build.props`).
 - `docs/` guides: `ARCHITECTURE.md`, `DOMAIN-MODEL.md`, `MEDIATOR.md`, `PERSISTENCE.md`, `RUNTIME.md`,
-  `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `VALIDATION.md`, `TRIGGERS.md`, `DESIGNER.md`,
+  `BRANCHING-EXPRESSIONS.md`, `LOOPS.md`, `VALIDATION.md`, `TRIGGERS.md`, `DESIGNER.md`, `MCP.md`,
   `GETTING-STARTED-Console.md`, `GETTING-STARTED-WebApi.md`, `GETTING-STARTED-Sample-Web.md`,
   `NUGET-PACKAGING.md`, `CI.md`, `ROADMAP.md`, `BACKLOG.md`. The guide with one line per guide stands
   in the `CLAUDE.md` in the repo root.
+- One skill per recurring extension path under [`.claude/skills/`](../.claude/skills/) –
+  `flirty-runtime-command`, `flirty-ef-migration`, `flirty-trigger-notification`, `flirty-question-type`,
+  `flirty-nuget-package`, `flirty-designer`, `flirty-mcp`. They carry the *steps*; the guides carry the
+  *how*, the ADRs the *why*.
 - ADRs under [`docs/adr/`](./adr/README.md) – the decisions together with their **discarded alternatives**:
   [0001 migrations per provider](./adr/0001-migrations-per-provider.md),
   [0002 Mediator](./adr/0002-mediator-as-in-process-bus.md),
@@ -234,7 +238,7 @@ Docs are the **definition of done of every issue**:
   describe **how** something works and grow with the code; ADRs describe **why** it is
   the way it is, and are not rewritten (addendum or supersession instead of rewriting).
 - Root `README.md` with a quickstart (console + web); code examples from the compilable samples (no
-  doc drift). It is at the same time the **package page of both NuGet packages** (`PackageReadmeFile`) – hence only
+  doc drift). It is at the same time the **package page of all three NuGet packages** (`PackageReadmeFile`) – hence only
   absolute links and images from the nuget.org allowlist, recorded in
   [NUGET-PACKAGING.md](./NUGET-PACKAGING.md#the-root-readme-is-the-package-page-52) and secured by
   `tests/Flirty.Tests/Docs/PackageReadmeTests.cs`.
@@ -249,8 +253,12 @@ Docs are the **definition of done of every issue**:
 - **Web E2E**: web sample + designer via Playwright (branching, loop, resume after reload, edit) – #45/#47
   and #46; the designer's graph canvas additionally over #101–#105 (gestures, layout persistence, read mode,
   test run in the graph).
-- **Coverage**: CI measures `Flirty` + `Flirty.AspNetCore` (coverlet + ReportGenerator, without a
-  threshold gate), see [CI.md § Coverage](./CI.md#coverage).
+- **MCP**: a real `McpClient` over an in-process `TestServer`, both HTTP surfaces and `/mcp` on the **same**
+  database – error parity per exception and one round trip that authors, publishes, versions and plays a
+  dialog through over MCP alone (#130). Deliberately **no** Playwright suite: MCP has no browser surface,
+  see [MCP.md § Tests](./MCP.md#tests-126130).
+- **Coverage**: CI measures `Flirty` + `Flirty.AspNetCore` + `Flirty.Mcp` (coverlet + ReportGenerator,
+  without a threshold gate), see [CI.md § Coverage](./CI.md#coverage).
 - **NuGet**: `dotnet pack` produces both `.nupkg` (+ `.snupkg`); publishing happens via the separate,
   manually triggered workflow behind an approval gate, see
   [NUGET-PACKAGING.md § Publishing](./NUGET-PACKAGING.md#publishing-49).

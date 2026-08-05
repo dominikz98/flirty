@@ -24,6 +24,8 @@ Order = rough MVP prioritization. Architecture reference: [ARCHITECTURE.md](./AR
 - **M3 – Designer**: EPIC 7
 - **M4 – Quality & release**: EPIC 9, 10
 - **M5 – Visual graph designer**: EPIC 11
+- **M6 – English repository**: EPIC 12
+- **M7 – MCP server**: EPIC 13
 
 > **Definition of Done (all issues):** code + XML docs (the build breaks on missing public-API docs, CS1591=Error) + green tests + the relevant `docs/` guide updated.
 
@@ -344,3 +346,60 @@ commit: the graph warning wordings are a contract asserted verbatim by the unit 
 All test methods, comments, local variables and test data. Goes **last**, so the renames do not
 collide with any stage still in flight. The proof is an unchanged test count, measured from the TRX
 `total` and diffed per class.
+
+---
+
+## EPIC 13 – MCP server exposing all designer actions `type:epic` `area:core` `area:api` `area:designer`
+
+Everything an operator can do in the Blazor designer, drivable by an **MCP client**: dialogs, questions,
+answer options, branching, loops, triggers, layout, publishing/versioning, a test run and
+selecting/testing/migrating a target database. A **thin adapter over the existing Mediator commands**,
+exactly as `Flirty.AspNetCore` already is – no new engine logic, no schema change, no new command in any
+of the five stages. The designer is **not** replaced: MCP is an alternative client, both stay valid.
+
+Two premises of the original issue text were overturned by measuring, and both are recorded as ADRs
+rather than edited away:
+
+- **"No new project is introduced" → `src/Flirty.Mcp` is its own package.** Inside `Flirty.AspNetCore`
+  the MCP SDK plus `Microsoft.Extensions.AI.Abstractions` would become hard dependencies of an
+  already published package – so someone who wants four HTTP routes over a dialog engine would restore
+  an AI SDK. That is ADR 0003's argument one layer out: web is opt-in over the core, so MCP is opt-in
+  over web. ADR 0009.
+- **"The active DB is held per MCP session" → the host declares named targets, the client picks one per
+  route.** Not a preference but a protocol fact: revision `2026-07-28` removed the `initialize`
+  handshake and the `Mcp-Session-Id` header, so there is no session to hold a selection in – and behind
+  a load balancer a `select` + `edit` pair would edit the wrong database. ADR 0010.
+
+### MCP host scaffolding
+`type:feature` `area:api`
+The packable project, `AddFlirtyMcp()`/`MapFlirtyMcp()`, the `AddCallToolFilter` error mapping (mirrors
+`FlirtyExceptionEndpointFilter`), the ten dialog tools as a smoke surface, sample wiring, the in-process
+`McpClient` test host, ADR 0009 and the six infrastructure edits a new packable project needs – four of
+which fail **silently** when forgotten.
+
+### Tools for the dialog configuration graph
+`type:feature` `area:api`
+Questions, answer options, transitions, loop markers, triggers, layout – 17 tools, **one class per
+existing `MapXxxEndpoints` counterpart**, so the parity claim is reviewable file against file instead of
+by counting. Plus `FlirtyToolNames` as the single checklist and the server instructions.
+
+### Tools for the dialog runtime and test run
+`type:feature` `area:api`
+The five `IFlirtyEngine` operations including `StartDialogVersionAsync`, which deliberately has **no**
+HTTP endpoint: over HTTP the publish status stays the production barrier, but without it a draft is
+untestable. Sessions it writes carry the `mcp-test-` prefix. Independent of the graph stage.
+
+### Database targets
+`type:feature` `area:api`
+Host-declared named targets (`o.AddTarget`), a client picks one by connecting to `/mcp/{target}`; list /
+test connection / pending migrations / migrate, the last one gated by `o.AllowMigrations()` and left out
+of the registration entirely when off. ADR 0010. Lands **after** the two tool stages deliberately:
+because the target comes from the route, no tool method mentions it and neither stage needs a rewrite.
+
+### Round-trip test, docs/MCP.md and the flirty-mcp skill
+`type:test` `type:docs`
+Goes **last**. One test that *is* the EPIC's acceptance criterion – author, publish, counter-check the
+publish lock against the layout exception, derive a version, play the draft through both branches with
+two loop iterations, correct one, resume, finish – plus the HTTP-vs-MCP error-parity theory over all six
+engine exceptions, the guide, the skill and the context sync. Deliberately **no** `tests/Flirty.E2E`
+coverage: MCP has no browser surface.
