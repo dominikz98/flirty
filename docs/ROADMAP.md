@@ -133,6 +133,7 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 | **M4 – quality & release** | E2E tests `#46`/`#47`, coverage `#48`, NuGet publish `#49`, docs `#50`–`#52` | test, publish and docs strands in parallel |
 | **M5 – visual graph designer** | EPIC 11 canvas (`#100`–`#105`) | largely sequential, `#104` independent of `#103` |
 | **M6 – English repository** | EPIC 12 language switch (`#113`–`#117`) | `#113` first, `#117` last, `#114`–`#116` in parallel |
+| **M7 – MCP server** | EPIC 13 MCP server (`#126`–`#130`) | `#126` first, `#130` last, `#127`/`#128` in parallel |
 
 > **Status M3: complete** – `#37`–`#43` are implemented (see [DESIGNER.md](./DESIGNER.md)).
 >
@@ -178,3 +179,22 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 > hour after that branch had itself already reached `main`. It therefore never landed, went unnoticed
 > for four days – GitHub shows a merged PR either way – and was restored under `#117`. A merged PR is
 > not a landed PR; only `git merge-base --is-ancestor` answers that.
+
+> **Status M7: complete** – the engine is drivable by an MCP client: `#126` (host scaffolding, the
+> **third** NuGet package `Flirty.Mcp`, result [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md)),
+> `#127` (the configuration graph), `#128` (the runtime and test run) and `#129` (database targets by
+> route, result [ADR 0010](./adr/0010-mcp-database-targets-by-route.md)) built the 36 tools; `#130`
+> closed it with the round trip that *is* the acceptance criterion, the guide and the `flirty-mcp` skill
+> (see [MCP.md](./MCP.md)). **No core code, no schema change and no new command in any of the five
+> stages** – the surface is the same kind of thin `ISender` adapter that `Flirty.AspNetCore` is.
+>
+> The **order** carries two decisions. `#126` first, because every later stage adds tools to the host it
+> builds. `#129` deliberately *after* the two tool stages: the database target is resolved from the
+> **route**, so no tool method mentions it and the multi-database work added no rewrite to `#127`/`#128` –
+> had it landed first, the same feature would have put a `target` parameter on 32 tool schemas. `#127`
+> and `#128` are independent of each other, `#130` last.
+>
+> Two premises written into the EPIC were overturned by measuring, which is why both are ADRs: the MCP
+> server is **its own package** (inside `Flirty.AspNetCore` the MCP SDK would become a hard dependency of
+> an already published package), and the database target is **host-declared per route** rather than held
+> per session (revision `2026-07-28` removed the session from the wire).

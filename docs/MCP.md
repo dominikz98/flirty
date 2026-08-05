@@ -4,16 +4,18 @@
 that an MCP client can do what an operator does in the Blazor designer. Like `Flirty.AspNetCore` it is a
 **thin adapter over the existing Mediator commands** – no engine logic, no new command.
 
-> **Build-out status.** This guide describes what exists today: the host and **36 tools**. Twenty-seven of
-> them are the configuration surface – the ten dialog-level ones (EPIC 13 stage 1, #126) plus the whole
-> graph: questions, answer options, transitions, loop markers, triggers and the canvas layout (stage 2,
-> #127). Five are the runtime surface (stage 3, #128), which plays a dialog through. The last four are the
-> database targets (stage 4, #129), and one of those is registered only on request.
+> **Build-out status: EPIC 13 is complete.** This guide describes the host and its **36 tools**.
+> Twenty-seven of them are the configuration surface – the ten dialog-level ones (stage 1, #126) plus the
+> whole graph: questions, answer options, transitions, loop markers, triggers and the canvas layout
+> (stage 2, #127). Five are the runtime surface (stage 3, #128), which plays a dialog through. The last four
+> are the database targets (stage 4, #129), and one of those is registered only on request. Stage 5 (#130)
+> added no tool: it closed the EPIC with the round trip that *is* the acceptance criterion
+> ([§ Tests](#tests-126130)) and this guide.
 
 Why it is a package of its own rather than a folder in `Flirty.AspNetCore`:
 [ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
 
-## Setup
+## Setup (#126)
 
 Two calls, both opt-in, mirroring `AddFlirty` / `MapFlirtyEndpoints`:
 
@@ -134,7 +136,7 @@ Two smaller rules the compiler cannot state: a target name must be routable (ASC
 simply never be read, and the client would work against the default database without any symptom. Lookup is
 case-insensitive, because route values are.
 
-## Tools
+## Tools (#126–#129)
 
 Names are `flirty_<area>_<action>`. **36 tools in ten tool classes** – 27 of configuration, 5 of runtime
 and 4 of database administration – and the split is not cosmetic: for the first 32 there is **one tool
@@ -378,6 +380,12 @@ get all three inside the `Flirty` package. A missing one is translated into a me
 of the exception rather than derived from the provider, so the provider-to-assembly mapping stays in the
 single place that owns it (`UseFlirtyProvider`).
 
+## Conventions
+
+Six rules that hold across all 36 tools. Each of them is here rather than in a tool's own documentation
+because breaking one has **no local symptom**: the package still compiles, the tool still answers, and only
+a client notices – which is the definition of a rule that has to be written down.
+
 ### Return shapes: the core records, directly
 
 The tools serialize the **core** `Flirty.Runtime[.Admin]` records. `Flirty.AspNetCore`'s DTO layer is
@@ -527,7 +535,7 @@ The names are the C# member names **verbatim, i.e. PascalCase**: the converter i
 policy. Reading is case-insensitive, so a camelCase argument is accepted too, but PascalCase is what the
 schema advertises and therefore what a client will send.
 
-## Error mapping
+## Error mapping (#126)
 
 One `AddCallToolFilter` (`FlirtyMcpExceptionFilter`) maps the engine's exceptions. It is the structural
 analogue of `group.AddEndpointFilter<FlirtyExceptionEndpointFilter>()` on the two HTTP route groups: **one
@@ -611,7 +619,7 @@ One footnote, documented rather than solved: the SDK's authorization guard inser
 **outside** ours. Flirty's tools carry no `[Authorize]` metadata, so it is inert today; if a later stage
 adds one, that particular exception would bypass this mapping.
 
-## Tests
+## Tests (#126–#130)
 
 `tests/Flirty.Tests/Mcp/` – a real `McpClient` over `HttpClientTransport` against an in-process
 `TestServer` (Docker-free). `FlirtyMcpTestHost` is a **sibling** of `AspNetCore/FlirtyTestHost`, not an
@@ -629,10 +637,11 @@ The files, and what each is responsible for:
 | File | Proves |
 |---|---|
 | `FlirtyMcpTestHost` | the host itself: one TestServer, both HTTP surfaces, `/mcp` and `/mcp/{target}`; the host database plus one in-memory database per declared target, each with its own keep-alive connection |
-| `FlirtyMcpToolCalls` | the shared `Read<T>` and the graph builders – extension methods on the host, the MCP counterparts of the private helpers in `MapFlirtyAdminEndpointsTests` |
+| `FlirtyMcpToolCalls` | the shared `Read<T>`, the graph builders and the layout batch entry – extension methods on the host, the MCP counterparts of the private helpers in `MapFlirtyAdminEndpointsTests` |
 | `FlirtyToolSurfaceTests` | the surface contract: the golden name list, the checklist in both directions, assembly-vs-wire registration, the name shape, `outputSchema` + description on every tool, the annotation matrix, the instructions, the layout batch schema |
-| `FlirtyGraphToolsTests` | the per-area happy paths, with the **same section banners** as `MapFlirtyAdminEndpointsTests`; the ADR-0007 pair; and a dialog built purely over MCP then replayed over the **HTTP** runtime – deliberately not over MCP, which is #130's round trip |
+| `FlirtyGraphToolsTests` | the per-area happy paths, with the **same section banners** as `MapFlirtyAdminEndpointsTests`; the ADR-0007 pair; and a dialog built purely over MCP then replayed over the **HTTP** runtime – deliberately not over MCP, which is the round trip below |
 | `FlirtySessionToolsTests` | the runtime tools: a dialog played through, resume-on-restart, the draft/published pair, the `mcp-test-` marker, two loop iterations and the edits that discard downstream answers |
+| `FlirtyMcpRoundTripTests` | the whole workflow in one test – the acceptance criterion of EPIC 13 (below) |
 | `MapFlirtyMcpTests` | the wiring: input schemas, return shapes, request scoping, surface scoping in both directions, the two `Map`/`Add` prerequisites |
 | `FlirtyMcpExceptionParityTests` | HTTP-vs-MCP error parity, six rows, all real on both sides (below) |
 | `FlirtyMcpExceptionFilterTests` | the MCP-only filter branches and the catch order |
@@ -653,6 +662,60 @@ it was written for:
 What no test can see, and it is said rather than assumed: a tool writing its name as a string literal
 instead of referencing the const emits an identical wire name. That one is a review concern; the tests close
 the *completeness* of the checklist, not whether it is referenced.
+
+The golden list carries more weight than its size suggests, and it is worth naming what: **a renamed tool is
+a breaking change for every client.** A tool name is not an implementation detail a refactoring may move –
+it is the identifier a model was prompted with and a host has configured. That is the whole reason
+`FlirtyToolNames` exists, the reason the SDK's `DeriveName` is never used, and the reason the checklist is
+compared in **both** directions rather than as a subset. No second guard is added on top of it: another test
+asserting the same thing in prose would restate the claim without deepening it.
+
+### The round trip is the acceptance criterion (#130)
+
+`FlirtyMcpRoundTripTests` is one `[Fact]` that does what EPIC 13 promises, over MCP and nothing else:
+author a dialog with questions, options, two branching questions with a conditional edge each, a loop
+marker, a trigger and a canvas layout → set the entry question → publish → **counter-check** → derive the
+next version → start that *draft* → play both branches with two loop iterations → correct one iteration →
+resume → finish. Four things about its shape are deliberate.
+
+**It is one test, not seven.** The per-area suites answer "does this tool work" and are narrow on purpose.
+What none of them can show is that the tools *compose* into the workflow, and that claim is one sequence –
+split up, each piece would assert a precondition it had just built itself.
+
+**The counter-check sits in the middle, where a client meets it.** After publishing, `flirty_question_create`
+is a 409 while `flirty_layout_set` still succeeds: ADR 0005 and ADR 0007 in two calls, on a real graph. The
+focused pair in `FlirtyGraphToolsTests` stays, and the overlap is wanted – that one fails pointing at the
+rule, this one fails pointing at the workflow step that broke it.
+
+**The test is built around one trap: the clone renames everything.** `CreateDialogVersionCommand` gives
+every cloned question a new id, so a client carrying ids from the published version into the draft
+addresses elements of a dialog it is not running, and finds out several calls later with a 404 nowhere near
+the mistake. Every id for the runtime half therefore comes out of the clone, matched by `Key`, and *that the
+ids differ* is asserted rather than remarked on. The round trip is also the only place where the layout
+table and the version derivation are visible together: the arrangement survives the clone with its element
+references rewritten.
+
+**Every assertion reads a server-produced quantity** – a status, a question key, an `iterationIndex`, an
+`invalidatedAnswers` count, an `isCompleted` flag – never a wait. On this surface a discarded call looks
+exactly like one that did nothing, so nothing may rest on a call having "probably" taken effect.
+
+The single trigger is `InProcess` on purpose. A `Webhook` trigger really posts (see *A test run is a real
+run* above), and a test that needs a listening endpoint to stay green would be a worse test of the same
+thing.
+
+### There is deliberately no `tests/Flirty.E2E` coverage
+
+The first question a reviewer asks, so it is answered here rather than left to inference. `Flirty.E2E`
+exists for the two **browser** surfaces – the designer and the sample chat UI – where the thing under test
+is a rendered page and a gesture. MCP has no browser surface at all: its client is a program, its wire is
+JSON-RPC over HTTP, and that wire is already driven end to end here by a real `McpClient` against a real
+`TestServer`. A Playwright run would add a Kestrel port, a browser process and a class of flakiness
+(`InteractWhenReadyAsync`, `data-canvas-ready`) in exchange for **no** additional coverage of anything.
+
+What would change that: a *host* UI over MCP, or an MCP client whose behaviour depends on a browser. Neither
+exists. Note the boundary the other way too – the round trip is not a substitute for the designer's E2E
+suite, because a graph authored over MCP and one authored by gesture are different code paths on the way
+in, and both are covered where they live.
 
 ### The parity claim, stated honestly
 

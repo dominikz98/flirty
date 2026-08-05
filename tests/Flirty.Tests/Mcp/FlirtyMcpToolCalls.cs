@@ -143,6 +143,87 @@ internal static class FlirtyMcpToolCalls
                 ["expression"] = expression,
             });
 
+    /// <summary>Marks a cycle in the graph as a loop.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The dialog the marker belongs to.</param>
+    /// <param name="collectionKey">The name the captured answers appear under in an expression.</param>
+    /// <param name="entryQuestionId">The first question of the loop body.</param>
+    /// <param name="breakingQuestionId">The question whose answer decides whether it runs again.</param>
+    /// <returns>The created loop marker.</returns>
+    internal static async Task<LoopDetail> CreateLoopAsync(
+        this FlirtyMcpTestHost host,
+        Guid dialogId,
+        string collectionKey,
+        Guid entryQuestionId,
+        Guid breakingQuestionId)
+        => await host.CallAsync<LoopDetail>(
+            FlirtyToolNames.LoopCreate,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialogId,
+                ["collectionKey"] = collectionKey,
+                ["entryQuestionId"] = entryQuestionId,
+                ["breakingQuestionId"] = breakingQuestionId,
+            });
+
+    /// <summary>Creates a trigger on a dialog.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The dialog the trigger belongs to.</param>
+    /// <param name="scope">When it fires.</param>
+    /// <param name="kind">How it is delivered.</param>
+    /// <param name="config">The JSON configuration (<c>url</c>/<c>name</c>).</param>
+    /// <param name="questionId">The question of an <c>AfterQuestion</c> trigger.</param>
+    /// <returns>The created trigger.</returns>
+    internal static async Task<TriggerDetail> CreateTriggerAsync(
+        this FlirtyMcpTestHost host,
+        Guid dialogId,
+        TriggerScope scope,
+        TriggerKind kind,
+        string config,
+        Guid? questionId = null)
+        => await host.CallAsync<TriggerDetail>(
+            FlirtyToolNames.TriggerCreate,
+            new Dictionary<string, object?>
+            {
+                ["dialogId"] = dialogId,
+                ["scope"] = scope.ToString(),
+                ["questionId"] = questionId,
+                ["kind"] = kind.ToString(),
+                ["config"] = config,
+            });
+
+    /// <summary>Places or moves canvas positions in one batch and asserts the call succeeded.</summary>
+    /// <remarks>
+    /// Only for the paths that expect success. The batch-validation tests keep calling the tool directly,
+    /// because they have to read an <c>isError</c> result rather than a layout.
+    /// </remarks>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The dialog whose layout is written.</param>
+    /// <param name="entries">The entries, built by <see cref="LayoutEntry"/>.</param>
+    /// <returns>The complete layout after the write.</returns>
+    internal static async Task<FlirtyDialogLayoutView> SetLayoutAsync(
+        this FlirtyMcpTestHost host, Guid dialogId, params Dictionary<string, object?>[] entries)
+        => await host.CallAsync<FlirtyDialogLayoutView>(
+            FlirtyToolNames.LayoutSet,
+            new Dictionary<string, object?> { ["dialogId"] = dialogId, ["entries"] = entries });
+
+    /// <summary>
+    /// One entry of the layout batch, in the wire shape the generated schema advertises: camelCase members
+    /// and the element kind as a name.
+    /// </summary>
+    /// <param name="elementId">The element being placed.</param>
+    /// <param name="x">The horizontal position.</param>
+    /// <param name="y">The vertical position.</param>
+    /// <returns>The entry as the tool takes it.</returns>
+    internal static Dictionary<string, object?> LayoutEntry(Guid elementId, int x, int y)
+        => new()
+        {
+            ["elementKind"] = nameof(LayoutElementKind.Question),
+            ["elementId"] = elementId,
+            ["x"] = x,
+            ["y"] = y,
+        };
+
     /// <summary>
     /// Sets the entry question of a dialog – the one metadata field that a publish needs and that
     /// <c>flirty_dialog_update</c> refuses to change once the dialog is published.
@@ -164,6 +245,35 @@ internal static class FlirtyMcpToolCalls
                 ["startQuestionId"] = startQuestionId,
             });
 
+    /// <summary>Publishes a dialog and asserts that it now is.</summary>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The dialog version to publish.</param>
+    /// <returns>The published dialog.</returns>
+    internal static async Task<DialogSummary> PublishAsync(this FlirtyMcpTestHost host, Guid dialogId)
+    {
+        var published = await host.CallAsync<DialogSummary>(
+            FlirtyToolNames.DialogPublish, new Dictionary<string, object?> { ["dialogId"] = dialogId });
+        Assert.True(published.IsPublished);
+        return published;
+    }
+
+    /// <summary>
+    /// Derives the next version of a dialog – the only way forward once a version is published.
+    /// </summary>
+    /// <remarks>
+    /// The clone assigns every question a <b>new</b> id (ADR 0005), so a caller that goes on working with
+    /// the ids of the source version silently addresses the wrong dialog. The returned
+    /// <see cref="DialogDetail"/> is the only place the new ids exist.
+    /// </remarks>
+    /// <param name="host">The test host.</param>
+    /// <param name="dialogId">The version to clone.</param>
+    /// <returns>The new draft version with its own question ids.</returns>
+    internal static async Task<DialogDetail> CreateVersionAsync(
+        this FlirtyMcpTestHost host, Guid dialogId)
+        => await host.CallAsync<DialogDetail>(
+            FlirtyToolNames.DialogCreateVersion,
+            new Dictionary<string, object?> { ["dialogId"] = dialogId });
+
     /// <summary>
     /// Creates a published dialog with exactly one (terminal) question – the starting point of every test
     /// about the publish lock.
@@ -178,12 +288,7 @@ internal static class FlirtyMcpToolCalls
         var question = await host.CreateQuestionAsync(dialog.Id, "start", QuestionType.FreeText, 0);
         await host.SetStartQuestionAsync(dialog, question.Id);
 
-        var published = await host.CallAsync<DialogSummary>(
-            FlirtyToolNames.DialogPublish,
-            new Dictionary<string, object?> { ["dialogId"] = dialog.Id });
-        Assert.True(published.IsPublished);
-
-        return (published, question);
+        return (await host.PublishAsync(dialog.Id), question);
     }
 
     // ---- Runtime (#128) ----------------------------------------------------------------------------
@@ -270,3 +375,12 @@ internal static class FlirtyMcpToolCalls
                 ["iterationIndex"] = iterationIndex,
             });
 }
+
+/// <summary>
+/// Read model of the <c>flirty_layout_set</c> result. The production wrapper
+/// <c>Flirty.Mcp.FlirtyDialogLayout</c> is <c>internal</c> and visible here, but deserializing into a
+/// test-local record keeps the assertion independent of its member names – and the wrapper's own shape is
+/// already pinned by the output-schema test.
+/// </summary>
+/// <param name="Entries">The complete layout after the write, not only the rows that were set.</param>
+internal sealed record FlirtyDialogLayoutView(IReadOnlyList<DialogLayoutDetail> Entries);

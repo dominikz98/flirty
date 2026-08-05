@@ -257,32 +257,14 @@ public sealed class FlirtyGraphToolsTests
         var second = await host.CreateQuestionAsync(dialog.Id, "second", QuestionType.FreeText, 1);
         await host.CreateTransitionAsync(dialog.Id, first.Id, second.Id, isDefault: true);
         await host.CreateTransitionAsync(dialog.Id, second.Id, first.Id, isDefault: true);
-        await host.CallAsync<LoopDetail>(
-            FlirtyToolNames.LoopCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["collectionKey"] = "rounds",
-                ["entryQuestionId"] = first.Id,
-                ["breakingQuestionId"] = second.Id,
-            });
-        await host.CallAsync<TriggerDetail>(
-            FlirtyToolNames.TriggerCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["scope"] = nameof(TriggerScope.AfterQuestion),
-                ["questionId"] = first.Id,
-                ["kind"] = nameof(TriggerKind.Webhook),
-                ["config"] = "{\"url\":\"https://example.test/hook\"}",
-            });
-        await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(first.Id, 100, 200) },
-            });
+        await host.CreateLoopAsync(dialog.Id, "rounds", first.Id, second.Id);
+        await host.CreateTriggerAsync(
+            dialog.Id,
+            TriggerScope.AfterQuestion,
+            TriggerKind.Webhook,
+            "{\"url\":\"https://example.test/hook\"}",
+            first.Id);
+        await host.SetLayoutAsync(dialog.Id, FlirtyMcpToolCalls.LayoutEntry(first.Id, 100, 200));
         await host.SetStartQuestionAsync(dialog, first.Id);
 
         await host.CallAsync<FlirtyAck>(
@@ -663,31 +645,13 @@ public sealed class FlirtyGraphToolsTests
         var more = await host.CreateQuestionAsync(dialog.Id, "more", QuestionType.Boolean, 1);
         await host.CreateTransitionAsync(dialog.Id, role.Id, more.Id, isDefault: true);
         await host.CreateTransitionAsync(dialog.Id, more.Id, role.Id, isDefault: true);
-        await host.CallAsync<LoopDetail>(
-            FlirtyToolNames.LoopCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["collectionKey"] = "roles",
-                ["entryQuestionId"] = role.Id,
-                ["breakingQuestionId"] = more.Id,
-            });
-        await host.CallAsync<TriggerDetail>(
-            FlirtyToolNames.TriggerCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["scope"] = nameof(TriggerScope.OnDialogCompleted),
-                ["kind"] = nameof(TriggerKind.Webhook),
-                ["config"] = "{\"url\":\"https://example.test/hook\"}",
-            });
-        await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(role.Id, 40, 80) },
-            });
+        await host.CreateLoopAsync(dialog.Id, "roles", role.Id, more.Id);
+        await host.CreateTriggerAsync(
+            dialog.Id,
+            TriggerScope.OnDialogCompleted,
+            TriggerKind.Webhook,
+            "{\"url\":\"https://example.test/hook\"}");
+        await host.SetLayoutAsync(dialog.Id, FlirtyMcpToolCalls.LayoutEntry(role.Id, 40, 80));
 
         var detail = await host.CallAsync<DialogDetail>(
             FlirtyToolNames.DialogGet, new Dictionary<string, object?> { ["dialogId"] = dialog.Id });
@@ -714,23 +678,15 @@ public sealed class FlirtyGraphToolsTests
         var first = await host.CreateQuestionAsync(dialog.Id, "one", QuestionType.FreeText, 0);
         var second = await host.CreateQuestionAsync(dialog.Id, "two", QuestionType.FreeText, 1);
 
-        var set = await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(first.Id, 100, 200), LayoutEntry(second.Id, 300, 400) },
-            });
+        var set = await host.SetLayoutAsync(
+            dialog.Id,
+            FlirtyMcpToolCalls.LayoutEntry(first.Id, 100, 200),
+            FlirtyMcpToolCalls.LayoutEntry(second.Id, 300, 400));
         Assert.Equal(2, set.Entries.Count);
 
         // Only the first question is named; the second must keep its position.
-        var moved = await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(first.Id, 140, 260) },
-            });
+        var moved = await host.SetLayoutAsync(
+            dialog.Id, FlirtyMcpToolCalls.LayoutEntry(first.Id, 140, 260));
 
         Assert.Equal(2, moved.Entries.Count);
         Assert.Equal(140, Assert.Single(moved.Entries, row => row.ElementId == first.Id).X);
@@ -760,13 +716,8 @@ public sealed class FlirtyGraphToolsTests
         await using var host = await FlirtyMcpTestHost.StartAsync();
         var (dialog, question) = await host.CreatePublishedDialogAsync("locked");
 
-        var set = await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(question.Id, 120, 40) },
-            });
+        var set = await host.SetLayoutAsync(
+            dialog.Id, FlirtyMcpToolCalls.LayoutEntry(question.Id, 120, 40));
 
         Assert.Equal(120, Assert.Single(set.Entries).X);
 
@@ -819,7 +770,11 @@ public sealed class FlirtyGraphToolsTests
             new Dictionary<string, object?>
             {
                 ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(question.Id, 10, 10), LayoutEntry(question.Id, 20, 20) },
+                ["entries"] = new[]
+                {
+                    FlirtyMcpToolCalls.LayoutEntry(question.Id, 10, 10),
+                    FlirtyMcpToolCalls.LayoutEntry(question.Id, 20, 20),
+                },
             });
         Assert.Equal(400, FlirtyMcpExceptionParityTests.ReadProblem(duplicate).Status);
 
@@ -828,7 +783,7 @@ public sealed class FlirtyGraphToolsTests
             new Dictionary<string, object?>
             {
                 ["dialogId"] = dialog.Id,
-                ["entries"] = new[] { LayoutEntry(question.Id, -1, 10) },
+                ["entries"] = new[] { FlirtyMcpToolCalls.LayoutEntry(question.Id, -1, 10) },
             });
         Assert.Equal(400, FlirtyMcpExceptionParityTests.ReadProblem(negative).Status);
     }
@@ -845,7 +800,7 @@ public sealed class FlirtyGraphToolsTests
             new Dictionary<string, object?>
             {
                 ["dialogId"] = unknown,
-                ["entries"] = new[] { LayoutEntry(Guid.NewGuid(), 10, 10) },
+                ["entries"] = new[] { FlirtyMcpToolCalls.LayoutEntry(Guid.NewGuid(), 10, 10) },
             });
         var reset = await host.Mcp.CallToolAsync(
             FlirtyToolNames.LayoutReset, new Dictionary<string, object?> { ["dialogId"] = unknown });
@@ -886,42 +841,18 @@ public sealed class FlirtyGraphToolsTests
             dialog.Id, more.Id, detailQuestion.Id, isDefault: false, expression: "more == true");
         await host.CreateTransitionAsync(dialog.Id, more.Id, summary.Id, isDefault: true, priority: 1);
 
-        await host.CallAsync<LoopDetail>(
-            FlirtyToolNames.LoopCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["collectionKey"] = "details",
-                ["entryQuestionId"] = detailQuestion.Id,
-                ["breakingQuestionId"] = more.Id,
-            });
-        await host.CallAsync<TriggerDetail>(
-            FlirtyToolNames.TriggerCreate,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["scope"] = nameof(TriggerScope.OnDialogStarted),
-                ["kind"] = nameof(TriggerKind.InProcess),
-                ["config"] = "{\"name\":\"started\"}",
-            });
-        await host.CallAsync<FlirtyDialogLayoutView>(
-            FlirtyToolNames.LayoutSet,
-            new Dictionary<string, object?>
-            {
-                ["dialogId"] = dialog.Id,
-                ["entries"] = new[]
-                {
-                    LayoutEntry(role.Id, 0, 0),
-                    LayoutEntry(detailQuestion.Id, 0, 120),
-                    LayoutEntry(more.Id, 0, 240),
-                    LayoutEntry(summary.Id, 0, 360),
-                },
-            });
+        await host.CreateLoopAsync(dialog.Id, "details", detailQuestion.Id, more.Id);
+        await host.CreateTriggerAsync(
+            dialog.Id, TriggerScope.OnDialogStarted, TriggerKind.InProcess, "{\"name\":\"started\"}");
+        await host.SetLayoutAsync(
+            dialog.Id,
+            FlirtyMcpToolCalls.LayoutEntry(role.Id, 0, 0),
+            FlirtyMcpToolCalls.LayoutEntry(detailQuestion.Id, 0, 120),
+            FlirtyMcpToolCalls.LayoutEntry(more.Id, 0, 240),
+            FlirtyMcpToolCalls.LayoutEntry(summary.Id, 0, 360));
 
         await host.SetStartQuestionAsync(dialog, role.Id);
-        var published = await host.CallAsync<DialogSummary>(
-            FlirtyToolNames.DialogPublish, new Dictionary<string, object?> { ["dialogId"] = dialog.Id });
-        Assert.True(published.IsPublished);
+        await host.PublishAsync(dialog.Id);
 
         // From here on the runtime, over HTTP: the engine sees a dialog no designer ever touched.
         var start = await host.Client.PostAsJsonAsync(
@@ -971,25 +902,4 @@ public sealed class FlirtyGraphToolsTests
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<SubmitAnswerResponse>())!;
     }
-
-    /// <summary>
-    /// One entry of the layout batch, in the wire shape the generated schema advertises: camelCase members
-    /// and the element kind as a name.
-    /// </summary>
-    private static Dictionary<string, object?> LayoutEntry(Guid elementId, int x, int y)
-        => new()
-        {
-            ["elementKind"] = nameof(LayoutElementKind.Question),
-            ["elementId"] = elementId,
-            ["x"] = x,
-            ["y"] = y,
-        };
-
-    /// <summary>
-    /// Read model of the <c>flirty_layout_set</c> result. The production wrapper
-    /// <c>Flirty.Mcp.FlirtyDialogLayout</c> is <c>internal</c> and visible here, but deserializing into a
-    /// test-local record keeps the assertion independent of its member names – and the wrapper's own shape is
-    /// already pinned by the output-schema test.
-    /// </summary>
-    private sealed record FlirtyDialogLayoutView(IReadOnlyList<DialogLayoutDetail> Entries);
 }

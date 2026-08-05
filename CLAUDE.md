@@ -24,7 +24,7 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 stages 1–4 (#126/#127/#128/#129): host, 36 tools in ten tool
+│                               EPIC 13 complete (#126–#130): host, 36 tools in ten tool
 │                               classes – 27 configuration + the 5 flirty_session_* of FlirtySessionTools,
 │                               each class mirroring one MapXxxEndpoints counterpart, plus the 4
 │                               flirty_db_* of the two database classes, which mirror the designer's
@@ -32,7 +32,7 @@ src/
 │                               Plus Tools/FlirtyToolNames.cs as the name checklist, ServerInstructions
 │                               and two call-tool filters: the error mapping (mirrors
 │                               FlirtyExceptionEndpointFilter) and, inside it, the target resolution.
-│                               References Flirty ONLY.
+│                               References Flirty ONLY. Guide: docs/MCP.md, skill: flirty-mcp.
 ├─ Flirty.Designer            Blazor Web App (server-interactive). EPIC 7 complete: connection-profile
 │                               management (multi-DB, #37), dialog CRUD (#38), question editor (#39),
 │                               branching editor (#40), loop editor (#41), trigger editor (#42),
@@ -229,7 +229,7 @@ dotnet reportgenerator -reports:artifacts/coverage/unit/**/coverage.cobertura.xm
 
 Under `.claude/skills/` there are function-specific guides – check first when a task fits:
 `flirty-runtime-command`, `flirty-ef-migration`, `flirty-trigger-notification`, `flirty-question-type`,
-`flirty-nuget-package`, `flirty-designer`.
+`flirty-nuget-package`, `flirty-designer`, `flirty-mcp`.
 
 ## Keeping context & docs in sync (important)
 
@@ -1095,3 +1095,58 @@ anyone re-checks it. "It is `internal`, so it cannot be serialized" reads like a
 it is a fact about nothing, and the counter-example was already in the same folder. Before recording a
 safety property, ask what would have to be true for it to fail and whether a test can see that – if the
 answer is "the type would need a different modifier", the property is decoration.
+
+**MCP round trip, guide and skill (EPIC 13 stage 5, #130) done** – and thereby **EPIC 13 / M7 completed**.
+One test that *is* the EPIC's acceptance criterion, `docs/MCP.md` closed out, the seventh skill
+`flirty-mcp`, and the backlog/roadmap entries no stage had owned. **No core code, no schema change, no new
+command, no new tool, no ADR** – the surface stayed at 36 tools in ten classes. Suite 765 → **766**, and
+that `+1` is the point of the stage rather than a small number: what was missing was never coverage of a
+*tool*, it was coverage of the tools **composing**. Five things that shaped the work:
+
+- **Most of the issue's scope was already done, and by the DoD rather than by accident.** Measured before
+  writing anything: `docs/MCP.md` existed at ~700 lines with the ADR-0009/0010 reasoning, the error-mapping
+  table and the core-record shape; `FlirtyMcpExceptionParityTests` had covered all six engine exceptions
+  real-on-both-sides since #128, so the "error-parity theory" AC needed *verifying*, not building; and the
+  README, `ARCHITECTURE.md` §3/§4/§9 and the `CLAUDE.md` docs table already carried `Flirty.Mcp` with
+  absolute links. Genuinely open were the round trip, the skill, `## Conventions`, the "no E2E" rationale –
+  and `docs/BACKLOG.md`/`docs/ROADMAP.md`, which had **no EPIC 13 section and no M7 at all**. That is the
+  general lesson about a closing stage: the per-stage DoD makes the *guides* current and leaves exactly the
+  cross-cutting indices stale, because no stage owns them. The backlog was missing EPIC 12/M6 too.
+- **The round trip is built around the one thing that makes such a test die far from its cause.**
+  `CreateDialogVersionCommand` gives every cloned question a **new** id (ADR 0005) and hands out no
+  `questionIdMap`. A client – or a test – that carries the ids of the published version into the draft
+  addresses elements of a dialog it is not running, and finds out several calls later with a 404 nowhere
+  near the mistake. Every id for the runtime half therefore comes out of the clone, matched by `Key`, and
+  *that the ids differ* is an assertion rather than a comment. The round trip is also the only place where
+  the layout table and the version derivation are visible **together**: the arrangement survives the clone
+  with its element references rewritten, which neither ADR 0005's nor ADR 0007's own tests can show.
+- **It is one test on purpose, and the counter-check sits in its middle.** The per-area suites answer "does
+  this tool work" and are narrow by design; split into seven, the round trip would assert seven
+  preconditions it had just built itself. After publishing, `flirty_question_create` is a 409 while
+  `flirty_layout_set` still succeeds – ADR 0005 and ADR 0007 in two calls, on a real graph, at the step
+  where a client meets them. The focused pair in `FlirtyGraphToolsTests` stays: that one fails pointing at
+  the rule, this one at the workflow step that broke it, and duplicated coverage of a *pair of rules* is
+  worth its cost.
+- **Of the three spike findings the issue asked to record, two were already written down – so this records
+  where.** "Enums serialize as names" is in the #126 paragraph above and in `MCP.md § Conventions`; CS0718
+  (`WithTools<T>()` cannot take a `static class`) is in the class docs of `FlirtyDialogTools`. Only the
+  third had no home: **`CallToolResult.StructuredContent` is a `JsonElement?`**, so every read goes
+  `.Value.Deserialize<T>(McpJsonUtilities.DefaultOptions)` – which is why the suite has exactly one
+  `Read<T>` helper instead of that expression scattered through 160 assertions. Re-recording the other two
+  in a third place would have been the same mistake as a doc that enumerates instead of deriving (#118).
+- **`## Conventions` cost a decision about *where the heading goes*, not about what to move.** The guide
+  already had the six convention sections; putting the heading immediately before `### Return shapes` makes
+  `## Tools` end with the per-area tables and sweeps up return shapes, the three easy-to-get-wrong rules,
+  the annotation matrix, the server instructions, the JSON-in-a-string payloads and the enum divergence –
+  in that order, with **no text moved** and no in-doc anchor broken. Moving blocks would have produced the
+  same structure and a diff nobody can review.
+
+Along the way the doc pass found one real defect of the kind #50's mnemonic names: `FlirtyDialogTools` –
+the documentation home for the conventions of *all* the tool classes – still said "one of the **eight** tool
+classes" and "the **seven** others". True at #128, wrong since #129 added the two database classes, and
+invisible to every test in the repo because a count in prose compiles.
+
+**Mnemonic:** the stage that closes an EPIC finds what no stage owned. Per-issue DoD keeps the guides
+honest, because each issue's own guide is in its diff – but the backlog, the roadmap and the milestone
+table describe the *whole*, so they are the one thing a stage-shaped process structurally cannot keep
+current. Look there first, not at the guide you just edited.

@@ -180,7 +180,7 @@ resume after a reload, editing individual answers as well as fired triggers and 
 - NuGet packaging: [`docs/NUGET-PACKAGING.md`](https://github.com/dominikz98/flirty/blob/main/docs/NUGET-PACKAGING.md)
 - CI pipeline: [`docs/CI.md`](https://github.com/dominikz98/flirty/blob/main/docs/CI.md)
 - Roadmap / backlog: [`docs/ROADMAP.md`](https://github.com/dominikz98/flirty/blob/main/docs/ROADMAP.md), [`docs/BACKLOG.md`](https://github.com/dominikz98/flirty/blob/main/docs/BACKLOG.md)
-- Decisions (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – why Mediator, why an ASP.NET-free core, why a sandboxed expression engine, why migrations per provider, why published dialog versions are immutable, why the designer canvas is built in-house, why the canvas layout lives in its own table, why the MCP server is a package of its own
+- Decisions (ADRs): [`docs/adr/`](https://github.com/dominikz98/flirty/blob/main/docs/adr/README.md) – why Mediator, why an ASP.NET-free core, why a sandboxed expression engine, why migrations per provider, why published dialog versions are immutable, why the designer canvas is built in-house, why the canvas layout lives in its own table, why the MCP server is a package of its own, why an MCP client picks its database by route
 
 ## Build & Test
 
