@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Flirty.Mcp.Tools;
@@ -26,17 +26,30 @@ namespace Flirty.Tests.Mcp;
 /// a tool class added under <c>Tools/</c> and forgotten in the <c>WithTools</c> chain of
 /// <c>AddFlirtyMcp</c>, which compiles, ships and is invisible to every client.
 /// </para>
+/// <para>
+/// Every test here runs against <see cref="StartFullSurfaceAsync"/> rather than the default host, because
+/// since #129 one tool is registered conditionally. A default host would serve 35 of the 36 and the golden
+/// list would have to subtract one – which is precisely the shape of hiding this checklist exists to
+/// prevent. The gate itself is asserted where it belongs, in <see cref="FlirtyDatabaseToolsTests"/>.
+/// </para>
 /// </remarks>
 public sealed class FlirtyToolSurfaceTests
 {
     /// <summary>
-    /// The 27 admin tools of stages 1 and 2 plus the 5 session tools of stage 3 are registered, and
-    /// nothing else. The list is ordinal-sorted so a diff on it reads by area.
+    /// A host serving the whole surface, migrate tool included. <c>AllowMigrations()</c> is the only way to
+    /// see <c>flirty_db_migrate</c> at all – gating by absence means the tool is not registered without it.
+    /// </summary>
+    private static Task<FlirtyMcpTestHost> StartFullSurfaceAsync() =>
+        FlirtyMcpTestHost.StartAsync(configureMcp: options => options.AllowMigrations());
+
+    /// <summary>
+    /// The 27 admin tools of stages 1 and 2, the 5 session tools of stage 3 and the 4 database tools of
+    /// stage 4 are registered, and nothing else. The list is ordinal-sorted so a diff on it reads by area.
     /// </summary>
     [Fact]
-    public async Task ListTools_returns_the_thirty_two_tools()
+    public async Task ListTools_returns_the_thirty_six_tools()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var tools = await host.Mcp.ListToolsAsync();
 
@@ -76,7 +89,7 @@ public sealed class FlirtyToolSurfaceTests
     [Fact]
     public async Task Every_tool_type_of_the_package_is_registered_with_the_server()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
         var served = (await host.Mcp.ListToolsAsync()).Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
 
         var declared = typeof(FlirtyToolNames).Assembly
@@ -99,13 +112,13 @@ public sealed class FlirtyToolSurfaceTests
 
     /// <summary>Every tool name follows the <c>flirty_&lt;area&gt;_&lt;action&gt;</c> shape.</summary>
     /// <remarks>
-    /// Redundant for the 32 names the golden list pins, and kept anyway: it is the only guard left when a
+    /// Redundant for the 36 names the golden list pins, and kept anyway: it is the only guard left when a
     /// later stage adds a tool and updates the literal list to match a badly shaped name.
     /// </remarks>
     [Fact]
     public async Task Every_tool_name_follows_the_flirty_area_action_shape()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var tools = await host.Mcp.ListToolsAsync();
 
@@ -125,7 +138,7 @@ public sealed class FlirtyToolSurfaceTests
     [Fact]
     public async Task Every_tool_advertises_an_output_schema_and_a_non_empty_description()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var tools = await host.Mcp.ListToolsAsync();
 
@@ -170,7 +183,7 @@ public sealed class FlirtyToolSurfaceTests
     public async Task Every_tool_declares_the_annotations_a_client_gates_its_prompts_on(
         string tool, bool readOnly, bool destructive, bool idempotent, bool openWorld)
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var annotations = Assert.Single(await host.Mcp.ListToolsAsync(), t => t.Name == tool)
             .ProtocolTool.Annotations;
@@ -195,7 +208,7 @@ public sealed class FlirtyToolSurfaceTests
     [Fact]
     public async Task The_layout_batch_is_advertised_as_an_array_of_entry_objects()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var tool = Assert.Single(await host.Mcp.ListToolsAsync(), t => t.Name == FlirtyToolNames.LayoutSet);
 
@@ -233,7 +246,7 @@ public sealed class FlirtyToolSurfaceTests
     [Fact]
     public async Task Server_instructions_reach_the_client_and_name_the_three_json_payloads()
     {
-        await using var host = await FlirtyMcpTestHost.StartAsync();
+        await using var host = await StartFullSurfaceAsync();
 
         var instructions = host.Mcp.ServerInstructions;
 
@@ -244,14 +257,28 @@ public sealed class FlirtyToolSurfaceTests
         Assert.Contains("url", instructions, StringComparison.Ordinal);
         Assert.Contains("MultiChoice", instructions, StringComparison.Ordinal);
         Assert.Contains("decimal separator", instructions, StringComparison.Ordinal);
+
+        // The route-selected target is the one fact with no parameter of its own to live in, so its
+        // fallback channel is the description of flirty_db_list_targets. Both halves are pinned.
+        Assert.Contains("/mcp/staging", instructions, StringComparison.Ordinal);
+        Assert.Contains(
+            "path segment",
+            Assert.Single(await host.Mcp.ListToolsAsync(), t => t.Name == FlirtyToolNames.DatabaseListTargets)
+                .ProtocolTool.Description,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The annotation matrix, tool by tool. <c>openWorld</c> separates the two halves of the surface: it is
-    /// <see langword="false"/> for all 27 configuration tools, which touch only their own database, and
-    /// <see langword="true"/> for the four session tools that write – running a dialog publishes engine
-    /// notifications, and the core delivers those to whatever url a webhook trigger names.
+    /// <see langword="false"/> for the 27 configuration and 4 database tools, which touch only their own
+    /// database, and <see langword="true"/> for the four session tools that write – running a dialog
+    /// publishes engine notifications, and the core delivers those to whatever url a webhook trigger names.
     /// </summary>
+    /// <remarks>
+    /// <c>flirty_db_migrate</c> is the second entry after <c>flirty_dialog_abandon_sessions</c> to be
+    /// <c>destructive</c> while deleting nothing: an applied migration cannot be taken back through this
+    /// surface. It stays <c>idempotent</c>, because a second call finds nothing pending.
+    /// </remarks>
     public static TheoryData<string, bool, bool, bool, bool> ToolAnnotations =>
         new()
         {
@@ -288,6 +315,10 @@ public sealed class FlirtyToolSurfaceTests
             { FlirtyToolNames.SessionGet, true, false, true, false },
             { FlirtyToolNames.SessionSubmitAnswer, false, false, false, true },
             { FlirtyToolNames.SessionEditAnswer, false, true, true, true },
+            { FlirtyToolNames.DatabaseListTargets, true, false, true, false },
+            { FlirtyToolNames.DatabaseTestConnection, true, false, true, false },
+            { FlirtyToolNames.DatabasePendingMigrations, true, false, true, false },
+            { FlirtyToolNames.DatabaseMigrate, false, true, true, false },
         };
 
     /// <summary>
@@ -296,6 +327,10 @@ public sealed class FlirtyToolSurfaceTests
     /// </summary>
     private static string[] ExpectedToolNames =>
         [
+            "flirty_db_list_targets",
+            "flirty_db_migrate",
+            "flirty_db_pending_migrations",
+            "flirty_db_test_connection",
             "flirty_dialog_abandon_sessions",
             "flirty_dialog_count_active_sessions",
             "flirty_dialog_create",

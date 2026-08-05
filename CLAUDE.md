@@ -24,11 +24,15 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 stages 1–3 (#126/#127/#128): host, 32 tools in eight tool classes
-│                               (one per MapXxxEndpoints counterpart) – 27 configuration + the 5
-│                               flirty_session_* of FlirtySessionTools – plus Tools/FlirtyToolNames.cs as
-│                               the name checklist, ServerInstructions, one call-tool filter mirroring
-│                               FlirtyExceptionEndpointFilter. References Flirty ONLY.
+│                               EPIC 13 stages 1–4 (#126/#127/#128/#129): host, 36 tools in ten tool
+│                               classes – 27 configuration + the 5 flirty_session_* of FlirtySessionTools,
+│                               each class mirroring one MapXxxEndpoints counterpart, plus the 4
+│                               flirty_db_* of the two database classes, which mirror the designer's
+│                               ConnectionProfileOperations because the engine has no command for them.
+│                               Plus Tools/FlirtyToolNames.cs as the name checklist, ServerInstructions
+│                               and two call-tool filters: the error mapping (mirrors
+│                               FlirtyExceptionEndpointFilter) and, inside it, the target resolution.
+│                               References Flirty ONLY.
 ├─ Flirty.Designer            Blazor Web App (server-interactive). EPIC 7 complete: connection-profile
 │                               management (multi-DB, #37), dialog CRUD (#38), question editor (#39),
 │                               branching editor (#40), loop editor (#41), trigger editor (#42),
@@ -96,6 +100,16 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   circuit scope lives forever). Error mapping is **one** `AddCallToolFilter`, not one `try` per tool: it is
   composed inside the SDK's own try/catch, so it sees the raw exception first – without it the SDK swallows
   every message as `"An error occurred invoking 'x'."`. Details: `docs/MCP.md`.
+- **The MCP database target comes from the route, and is captured in `ConfigureSessionOptions`** (#129).
+  A host declares targets by name (`o.AddTarget(...)`), a client picks one by connecting to
+  `/mcp/{target}`; there is no `select_target` tool and no `target` argument, because revision
+  `2026-07-28` left no session to hold a selection in. The seam is the transport's session callback,
+  which **in stateless mode the SDK invokes per HTTP request** – so it fires *only* on an MCP request,
+  which is what makes "declaring a target does not repoint `MapFlirtyEndpoints`" structural rather than
+  careful. Concretely: only the `FlirtyDbContext` registration is replaced, only when a target is
+  declared, and `DbContextOptions<FlirtyDbContext>` stays as the fallback. Naming an undeclared target is
+  a 400, never a silent fallback – on a single-database server too. Reason: ADR
+  `docs/adr/0010-mcp-database-targets-by-route.md`.
 - **Expression engine sandboxed:** branching conditions run via `IExpressionEvaluator` (default
   `DynamicExpresso`, member whitelist) – **no** raw C# `eval`. In the designer, expressions are
   compiled/validated on save (`Validate`). Reason: ADR
@@ -156,15 +170,23 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   `Microsoft.Extensions.DependencyInjection`; returns the SDK's `IMcpServerBuilder`, so a host – and the
   test host – can add its own tools) and `MapFlirtyMcp(string pattern = "/mcp")` in
   `FlirtyMcpEndpointRouteBuilderExtensions.cs` (namespace `Microsoft.AspNetCore.Builder`; returns the
-  `IEndpointConventionBuilder` so `RequireAuthorization()` chains). Options + `[Flags] FlirtyMcpSurface` in
-  `FlirtyMcpOptions.cs`, error mapping in `FlirtyMcpExceptionFilter.cs` (+ payload `FlirtyProblem.cs`),
-  server instructions in `FlirtyMcpInstructions.cs`, the four result wrappers in `FlirtyToolResults.cs`.
+  `IEndpointConventionBuilder` so `RequireAuthorization()` chains; also accepts `"/mcp/{target}"` and
+  rejects any other route parameter). Options + `[Flags] FlirtyMcpSurface` (`Runtime`/`Admin`/`Database`)
+  in `FlirtyMcpOptions.cs`, error mapping in `FlirtyMcpExceptionFilter.cs` (+ payload `FlirtyProblem.cs`),
+  server instructions in `FlirtyMcpInstructions.cs`, the result wrappers in `FlirtyToolResults.cs`.
+  Target resolution (#129) in `FlirtyMcpTarget.cs` (the only type holding a connection string – in no
+  tool signature), `FlirtyMcpTargetRegistry.cs` (singleton, prebuilt `DbContextOptions` per target),
+  `FlirtyMcpRequestTarget.cs` (scoped), `FlirtyMcpDbContextFactory.cs` and `FlirtyMcpTargetFilter.cs`;
+  the three database operations in `FlirtyMcpDatabaseOperations.cs` (+ `FlirtyMcpDatabaseException.cs`).
   Tools in `Tools/`: `FlirtyToolNames.cs` (**every** wire name as a const – the single parity checklist,
   reflected over by the golden test) plus `Flirty{Dialog,Question,AnswerOption,Transition,Loop,Trigger,
   Layout,Session}Tools.cs`, one per `MapXxxEndpoints` counterpart – `FlirtySessionTools` (#128) mirrors the
-  **runtime** group `MapFlirtyEndpoints` and is the only class whose tools set `OpenWorld = true`. The shape
-  conventions of all eight are documented **once**, on `FlirtyDialogTools`. `AddFlirtyMcp` deliberately does
-  **not** call `AddFlirty()`.
+  **runtime** group `MapFlirtyEndpoints` and is the only class whose tools set `OpenWorld = true` – and
+  `FlirtyDatabaseTools.cs` + `FlirtyDatabaseMigrationTools.cs` (#129), the two without such a counterpart;
+  the second exists only because `flirty_db_migrate` is registered **conditionally**
+  (`o.AllowMigrations()`) and `WithTools<T>()` takes a class as its unit. The shape conventions of all ten
+  are documented **once**, on `FlirtyDialogTools`. `AddFlirtyMcp` deliberately does **not** call
+  `AddFlirty()`.
 
 ## Standard commands (pwsh)
 
@@ -246,7 +268,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Getting Started (Web sample / chat UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0009 |
+| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0010 |
 
 ## Status & open work
 
@@ -1020,3 +1042,56 @@ first tool that reached outside made it a wrong declaration to every client, and
 existing test could have said so — the assertion that should have caught it was itself written as the
 constant. What generalizes: when a doc sentence and a test both hard-code the same "always", adding the
 first exception makes the test *defend* the error.
+
+**MCP database targets (EPIC 13 stage 4, #129) done** – the multi-database parity with the designer, and the
+stage with a real design decision in it. A host declares targets by name (`o.AddTarget(...)`), a client picks
+one by connecting to `/mcp/{target}`; four `flirty_db_*` tools list, test, read pending migrations and –
+only under `o.AllowMigrations()` – apply them. Surface 32 → **36** tools, ten tool classes. **No core code,
+no schema change, no new command, no new project**; ADR `docs/adr/0010-mcp-database-targets-by-route.md`.
+Suite 725 → **765**. Six things that shaped the work:
+
+- **The issue's own security argument is false, and the package disproves it in its own source.** It says the
+  type holding a connection string "stays `internal`, so no tool result *can* serialize it – the guarantee is
+  structural, not a review rule." `System.Text.Json` ignores accessibility: every result wrapper in
+  `FlirtyToolResults.cs` is `internal` and reaches the client in full. Writing that sentence into ADR 0010
+  would have enshrined a guarantee that does not exist, and the next person to add a field would have trusted
+  it. The real guarantee is three checkable facts – `FlirtyMcpTarget` in no tool signature, a projection with
+  no member that holds one, and a test asserting on the **raw serialized text** of the listing rather than on
+  the projection's declaration. Asserting on the record's members would only have restated the record.
+- **`ConfigureSessionOptions`, not `IHttpContextAccessor`** – and the difference is what makes AC 7 provable
+  rather than careful. The accessor route works, but it needs an endpoint marker (`/mcp` and
+  `/flirty/dialogs` are indistinguishable by route values, so the default target would leak into the HTTP
+  endpoints), and it silently dies if a host sets `PerSessionExecutionContext = true`, which the SDK
+  documents as "prevents you from using IHttpContextAccessor in handlers". The transport's session callback
+  fires **only** on an MCP request, so nothing else can ever capture a target – no marker, no accessor, no
+  scope factory. Its price is one guard: `MapFlirtyMcp` refuses declared targets on a stateful transport,
+  where the callback would fire once per session on a scope long gone by tool time and every target would
+  quietly fall back to the host database.
+- **A third `FlirtyMcpSurface` flag was *cheaper* than folding the tools into `Admin`.** Not gold-plating:
+  `Admin` would have moved `Surface_Admin_registers_no_session_tools` from 27 to 31 and made a database tool
+  invisible to a runtime-only client for no reason, whereas `Database = 4` left all three surface tests
+  untouched. The cost is that `All` changes from `3` to `7` – source-compatible, recorded in the ADR.
+- **A SQLite database that does not exist is not an error for `GetPendingMigrationsAsync`.** The planned AC-5
+  test pointed a target at a missing file in `Mode=ReadOnly` and expected a failure; EF answers "nothing
+  applied yet" for a database it cannot find, so the call succeeded and reported every migration as pending –
+  which is exactly right, and exactly what a caller wants before migrating. Only content EF cannot *read* is
+  a real failure, so the test now writes a real file with garbage in it (`Pooling=False`, or the pooled
+  connection outlives the host and the cleanup hits a sharing violation). Both behaviours are pinned side by
+  side, because they look alike and are not.
+- **Gating by absence makes the golden list conditional, and that has to be handled by widening the host, not
+  by subtracting.** `flirty_db_migrate` is registered only with `AllowMigrations()`, so a default host serves
+  35 of 36. Every test in `FlirtyToolSurfaceTests` now starts from one `StartFullSurfaceAsync()` helper; the
+  alternative – "36 minus one" in the expectation – is the exact shape of hiding that the checklist exists to
+  prevent. The gate itself is pinned where it belongs, in both directions, in the database tests.
+- **The route parameter name is guarded at startup because it has no runtime symptom at all.**
+  `MapFlirtyMcp("/mcp/{db}")` would match every request, never be read, and serve the default database while
+  the client believed it had selected one. Contrast the *unknown target name*, which is a client input and
+  therefore cannot be caught at startup – that one is a 400 whose message enumerates the declared names, and
+  it is raised by a second call-tool filter rather than lazily on the first `FlirtyDbContext`, because
+  `flirty_db_list_targets` never resolves a context and would otherwise answer happily on `/mcp/typo`.
+
+**Mnemonic:** a guarantee written as prose is not a guarantee, and the more structural it *sounds* the less
+anyone re-checks it. "It is `internal`, so it cannot be serialized" reads like a fact about the type system;
+it is a fact about nothing, and the counter-example was already in the same folder. Before recording a
+safety property, ask what would have to be true for it to fail and whether a test can see that – if the
+answer is "the type would need a different modifier", the property is decoration.

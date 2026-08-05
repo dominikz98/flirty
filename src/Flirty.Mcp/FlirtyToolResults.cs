@@ -1,3 +1,4 @@
+using Flirty.Persistence;
 using Flirty.Runtime.Admin;
 
 namespace Flirty.Mcp;
@@ -42,3 +43,46 @@ internal sealed record FlirtyActiveSessionCount(Guid DialogId, int ActiveSession
 /// </summary>
 /// <param name="Entries">The layout rows, sorted by element kind and element id.</param>
 internal sealed record FlirtyDialogLayout(IReadOnlyList<DialogLayoutDetail> Entries);
+
+// The four database results below (#129) are not wrappers around a core record - the engine has no
+// command for "is this database reachable?". They are this package's own shapes, and two of them carry
+// an explicit Succeeded flag on purpose: for flirty_db_test_connection "no" is the ANSWER, not a
+// failure, exactly as it is for the designer's ConnectionTestResult.
+
+/// <summary>
+/// The wire projection of a declared database target: everything a client needs to choose one, and
+/// nothing that could identify the server it lives on.
+/// </summary>
+/// <param name="Name">The name to put in the route, e.g. <c>/mcp/staging</c>.</param>
+/// <param name="Provider">The database provider of the target.</param>
+/// <param name="Description">The host's optional description, or <see langword="null"/>.</param>
+/// <param name="IsDefault">Whether a route without a <c>{target}</c> segment serves this target.</param>
+internal sealed record FlirtyMcpTargetInfo(
+    string Name,
+    FlirtyDatabaseProvider Provider,
+    string? Description,
+    bool IsDefault);
+
+/// <summary>The declared database targets, returned by <c>flirty_db_list_targets</c>.</summary>
+/// <param name="Targets">The declared targets, ordered by name. Empty when the server runs single-database.</param>
+/// <param name="Note">
+/// A hint when <paramref name="Targets"/> is empty, so an empty list is not mistaken for a failure or
+/// for a permission problem; <see langword="null"/> otherwise.
+/// </param>
+internal sealed record FlirtyTargetList(IReadOnlyList<FlirtyMcpTargetInfo> Targets, string? Note);
+
+/// <summary>The outcome of <c>flirty_db_test_connection</c>.</summary>
+/// <param name="Succeeded">Whether the database answered.</param>
+/// <param name="Message">A human-readable result, including the provider's message on a failure.</param>
+internal sealed record FlirtyConnectionTest(bool Succeeded, string Message);
+
+/// <summary>The EF Core migrations not yet applied, returned by <c>flirty_db_pending_migrations</c>.</summary>
+/// <param name="Pending">The pending migration ids in the order EF Core would apply them; empty when up to date.</param>
+internal sealed record FlirtyPendingMigrations(IReadOnlyList<string> Pending);
+
+/// <summary>The outcome of <c>flirty_db_migrate</c>.</summary>
+/// <param name="Applied">
+/// The migration ids that were pending before the call and have now been applied; empty when the
+/// database was already up to date.
+/// </param>
+internal sealed record FlirtyMigrationsApplied(IReadOnlyList<string> Applied);

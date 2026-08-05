@@ -15,10 +15,17 @@ namespace Flirty.Mcp.Tools;
 /// This list is the checklist itself, not a copy of one: the golden tool-list test reflects over the
 /// literal fields of this class and compares that set with what <c>tools/list</c> returns, in both
 /// directions. A const without a tool fails as loudly as a tool without a const, which is why a name is
-/// declared here in the stage that registers its tool and never ahead of it. Thirty-two today: the
-/// twenty-seven admin tools of stages #126 and #127, and the five <c>flirty_session_*</c> of the runtime
-/// stage #128. For the same reason the class holds nothing but string literals – the test filters on
-/// exactly that, so any other member would silently join the checklist.
+/// declared here in the stage that registers its tool and never ahead of it. Thirty-six today: the
+/// twenty-seven admin tools of stages #126 and #127, the five <c>flirty_session_*</c> of the runtime
+/// stage #128 and the four <c>flirty_db_*</c> of the database stage #129. For the same reason the class
+/// holds nothing but string literals – the test filters on exactly that, so any other member would
+/// silently join the checklist.
+/// </para>
+/// <para>
+/// One of the thirty-six is <b>conditional</b>: <c>flirty_db_migrate</c> is registered only when the host
+/// called <c>AllowMigrations()</c>, so the golden test has to start its host with that flag. That is the
+/// price of gating by absence rather than by refusal, and it is worth paying – see
+/// <see cref="FlirtyMcpOptions.AllowMigrations"/>.
 /// </para>
 /// <para>
 /// Note <c>flirty_option_*</c>: the wire name is short where the class mirroring
@@ -142,4 +149,20 @@ internal static class FlirtyToolNames
 
     /// <summary>Corrects an answer already given and discards the downstream answers.</summary>
     internal const string SessionEditAnswer = "flirty_session_edit_answer";
+
+    // ---- Databases (4) – FlirtyDatabaseTools and FlirtyDatabaseMigrationTools. The only area with no
+    //      MapXxxEndpoints counterpart: the engine has no command for these, and the designer does them
+    //      through its connection profiles (#129). --------------------------------------------------
+
+    /// <summary>Lists the database targets the host declared.</summary>
+    internal const string DatabaseListTargets = "flirty_db_list_targets";
+
+    /// <summary>Checks whether the selected target answers.</summary>
+    internal const string DatabaseTestConnection = "flirty_db_test_connection";
+
+    /// <summary>Reads the EF Core migrations not yet applied to the selected target.</summary>
+    internal const string DatabasePendingMigrations = "flirty_db_pending_migrations";
+
+    /// <summary>Applies the pending migrations; registered only with <c>AllowMigrations()</c>.</summary>
+    internal const string DatabaseMigrate = "flirty_db_migrate";
 }

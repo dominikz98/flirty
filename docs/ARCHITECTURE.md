@@ -180,11 +180,14 @@ a tool call is one flat argument object. Opt-in and securable via `RequireAuthor
 reason the admin CRUD is. The transport runs **stateless** (protocol revision `2026-07-28` removed the
 session header), which is also why the tools need no scope handling of their own. Implemented in #126
 (host + the dialog tools), #127 (the whole configuration graph – questions, answer options, transitions,
-loop markers, triggers, canvas layout – as one tool class per `MapXxxEndpoints` counterpart) and #128 (the
+loop markers, triggers, canvas layout – as one tool class per `MapXxxEndpoints` counterpart), #128 (the
 runtime: starting, playing, reading and correcting a session, including the start-a-specific-version
-operation that deliberately has no HTTP endpoint); details in
+operation that deliberately has no HTTP endpoint) and #129 (**database targets**: the host declares them by
+name, a client picks one by connecting to `/mcp/{target}`, and only the `FlirtyDbContext` registration is
+replaced – so declaring a target cannot repoint `MapFlirtyEndpoints`); details in
 [MCP.md](./MCP.md), rationale for the separate package in
-[ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md).
+[ADR 0009](./adr/0009-mcp-as-its-own-opt-in-package.md), for the targets in
+[ADR 0010](./adr/0010-mcp-database-targets-by-route.md).
 
 ## 10. Loops
 
@@ -223,7 +226,11 @@ Docs are the **definition of done of every issue**:
   [0003 ASP.NET-free core](./adr/0003-aspnet-free-core.md),
   [0004 expression engine](./adr/0004-sandboxed-expression-engine.md),
   [0005 immutable dialog version](./adr/0005-immutable-published-dialog-version.md),
-  [0006 canvas technology in the designer](./adr/0006-canvas-technology-in-the-designer.md). Delineation: guides
+  [0006 canvas technology in the designer](./adr/0006-canvas-technology-in-the-designer.md),
+  [0007 layout as its own table](./adr/0007-layout-as-its-own-table.md),
+  [0008 gestures on the canvas](./adr/0008-gestures-on-the-canvas.md),
+  [0009 MCP as its own opt-in package](./adr/0009-mcp-as-its-own-opt-in-package.md),
+  [0010 MCP database targets by route](./adr/0010-mcp-database-targets-by-route.md). Delineation: guides
   describe **how** something works and grow with the code; ADRs describe **why** it is
   the way it is, and are not rewritten (addendum or supersession instead of rewriting).
 - Root `README.md` with a quickstart (console + web); code examples from the compilable samples (no
