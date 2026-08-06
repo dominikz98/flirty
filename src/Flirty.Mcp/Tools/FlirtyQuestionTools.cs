@@ -54,8 +54,9 @@ internal sealed class FlirtyQuestionTools
         [Description("The question text shown to the user.")]
         string text,
         [Description("The answer type. It decides which validation rules apply and whether answer options "
-            + "are needed: SingleChoice and MultiChoice need them, FreeText, Number, Date and Boolean do "
-            + "not.")]
+            + "are needed: SingleChoice and MultiChoice need them, FreeText, Number, Date, Boolean and "
+            + "Json do not. Json accepts any well-formed JSON document and is also the type a "
+            + "host-declared custom question type is authored on - see customTypeKey.")]
         QuestionType type,
         [Description("The sort index within the dialog, ascending. Duplicates are allowed but leave the "
             + "order of the tied questions arbitrary - use a gap-free ascending sequence.")]
@@ -68,9 +69,15 @@ internal sealed class FlirtyQuestionTools
             + "regex matched partially - anchor it for a full match), {\"min\":0,\"max\":10} for Number. "
             + "Every field is optional; rules that do not apply to the type are ignored. Null means no "
             + "restriction.")]
-        string? validationRules = null)
+        string? validationRules = null,
+        [Description("Optional key of a host-declared custom question type, e.g. \"color\". Only allowed "
+            + "when type is Json - on any other type the call is refused with 400. Call "
+            + "flirty_question_type_list for the declared keys and their sample answers. An unknown key "
+            + "is stored rather than refused, but the answer is then validated as plain JSON only.")]
+        string? customTypeKey = null)
         => await sender.Send(
-            new CreateQuestionCommand(dialogId, key, text, type, order, isRequired, validationRules),
+            new CreateQuestionCommand(
+                dialogId, key, text, type, order, isRequired, validationRules, customTypeKey),
             cancellationToken);
 
     // Idempotent: a full overwrite to a stated target state, so a retry after a timeout is safe.
@@ -105,10 +112,15 @@ internal sealed class FlirtyQuestionTools
         [Description("The validation rules as a JSON object, camelCase and type-scoped: "
             + "{\"minLength\":3,\"maxLength\":50,\"pattern\":\"^[a-z]+$\"} for FreeText, "
             + "{\"min\":0,\"max\":10} for Number. Omitting this argument clears the stored rules.")]
-        string? validationRules = null)
+        string? validationRules = null,
+        [Description("The key of a host-declared custom question type, e.g. \"color\". Only allowed when "
+            + "type is Json - on any other type the call is refused with 400. Omitting this argument "
+            + "clears the stored key, which turns the question back into a plain JSON question. Call "
+            + "flirty_question_type_list for the declared keys.")]
+        string? customTypeKey = null)
         => await sender.Send(
             new UpdateQuestionCommand(
-                dialogId, questionId, key, text, type, order, isRequired, validationRules),
+                dialogId, questionId, key, text, type, order, isRequired, validationRules, customTypeKey),
             cancellationToken);
 
     // Destructive, and not idempotent: the repeat is a 404, so a blind retry is not safe.

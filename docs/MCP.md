@@ -4,7 +4,8 @@
 that an MCP client can do what an operator does in the Blazor designer. Like `Flirty.AspNetCore` it is a
 **thin adapter over the existing Mediator commands** – no engine logic, no new command.
 
-> **Build-out status: EPIC 13 is complete.** This guide describes the host and its **36 tools**.
+> **Build-out status: EPIC 13 is complete.** This guide describes the host and its **37 tools** – the 36
+> of EPIC 13 plus `flirty_question_type_list`, added by #136 for host-declared question types.
 > Twenty-seven of them are the configuration surface – the ten dialog-level ones (stage 1, #126) plus the
 > whole graph: questions, answer options, transitions, loop markers, triggers and the canvas layout
 > (stage 2, #127). Five are the runtime surface (stage 3, #128), which plays a dialog through. The last four
@@ -109,7 +110,7 @@ front of you before reading the tools.
 removed sessions from the wire, so there is nowhere to hold a selection between two calls; behind a load
 balancer a `select` followed by an `edit` would reach two different processes and the edit would land in
 the wrong database. The route decides per connection, which is idempotent by construction – and it keeps a
-`target` parameter off all 36 tool schemas, so not one tool of stages 2 and 3 changed when this landed.
+`target` parameter off all 37 tool schemas, so not one tool of stages 2 and 3 changed when this landed.
 
 **No connection string ever crosses the wire.** `flirty_db_list_targets` reports name, provider,
 description and `isDefault`, and nothing else. The type that holds a connection string, `FlirtyMcpTarget`,
@@ -138,11 +139,14 @@ case-insensitive, because route values are.
 
 ## Tools (#126–#129)
 
-Names are `flirty_<area>_<action>`. **36 tools in ten tool classes** – 27 of configuration, 5 of runtime
-and 4 of database administration – and the split is not cosmetic: for the first 32 there is **one tool
+Names are `flirty_<area>_<action>`. **37 tools in eleven tool classes** – 28 of configuration, 5 of runtime
+and 4 of database administration – and the split is not cosmetic: for 32 of them there is **one tool
 class per existing `MapXxxEndpoints` counterpart**, which is what makes the parity claim reviewable file
 against file instead of by counting. `FlirtySessionTools` is the eighth, and it mirrors
-`MapFlirtyEndpoints`, the runtime route group.
+`MapFlirtyEndpoints`, the runtime route group. The three classes **without** such a counterpart are
+`FlirtyDatabaseTools`, `FlirtyDatabaseMigrationTools` (#129) and `FlirtyQuestionTypeTools` (#136) – each
+because the engine has no route for what it reports: the first two mirror the designer's connection
+profiles, the third reads the registry `AddFlirty` built from the host's `AddQuestionType` calls.
 
 The two database classes are the exception to that rule, and the exception is honest rather than
 awkward: the engine has **no command** for "is this database reachable?", so they have no endpoint group
@@ -187,6 +191,7 @@ refused until `flirty_dialog_abandon_sessions` has ended them.
 | `flirty_question_create` | `CreateQuestionCommand` | `QuestionDetail` |
 | `flirty_question_update` | `UpdateQuestionCommand` | `QuestionDetail` |
 | `flirty_question_delete` | `DeleteQuestionCommand` | `FlirtyAck` |
+| `flirty_question_type_list` | *(none – reads the host's registry)* | `FlirtyQuestionTypeList` |
 | `flirty_option_create` | `CreateAnswerOptionCommand` | `AnswerOptionDetail` |
 | `flirty_option_update` | `UpdateAnswerOptionCommand` | `AnswerOptionDetail` |
 | `flirty_option_delete` | `DeleteAnswerOptionCommand` | `FlirtyAck` |
@@ -327,6 +332,14 @@ chat UI's own bug (#47): **the label is displayed, the value is stored.**
 | `MultiChoice` | `["a","b"]` | JSON array of strings – note `MultiChoice`, not `MultipleChoice` |
 | `Number` | `42`, `3.14` | bare JSON number, dot as the decimal separator |
 | `Boolean` | `true` / `false` | bare literal – see below |
+| `Json` | `{"city":"Berlin"}`, `"#ff0000"` | any well-formed JSON document – see below |
+
+`Json` (#136) is the one open-shaped type: the engine checks well-formedness and nothing else, so the
+shape is the question's own business. If the question carries a `customTypeKey`, the host declared that
+type with `o.AddQuestionType(...)` and its own validator adds the semantics – call
+`flirty_question_type_list` for the declared keys and a **sample answer** per key rather than guessing.
+A key that is not on the list is not an error: the answer is then validated as well-formed JSON only.
+The mistake to expect is the unquoted scalar – `#ff0000` is not JSON, `"#ff0000"` is.
 
 `Boolean` is the trap worth naming, and **not for the reason #128's issue text gives**. There is no MCP
 input that silently flips a boolean: `AnswerValidator.IsBoolean` accepts the bare literal and the quoted
@@ -382,7 +395,7 @@ single place that owns it (`UseFlirtyProvider`).
 
 ## Conventions
 
-Six rules that hold across all 36 tools. Each of them is here rather than in a tool's own documentation
+Six rules that hold across all 37 tools. Each of them is here rather than in a tool's own documentation
 because breaking one has **no local symptom**: the package still compiles, the tool still answers, and only
 a client notices – which is the definition of a rule that has to be written down.
 
@@ -424,7 +437,7 @@ above.
 
 ### Annotations, and why they are set explicitly
 
-All 36 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
+All 37 tools set **all four** annotation hints. That is wider than "annotate the interesting ones", and the
 reason is a measurement: the four hints are `bool?` from the attribute all the way to the wire, an *unset*
 one is simply **absent**, and the protocol then lets a client assume `destructive: true` and
 `openWorld: true`. Omitting is therefore not neutral – unset, every `create` looks to a client like it might

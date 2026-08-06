@@ -10,6 +10,11 @@ namespace Flirty.AspNetCore.Dtos;
 /// <param name="Key">The business, stable key of the question.</param>
 /// <param name="Text">The question text to display.</param>
 /// <param name="Type">The answer type of the question.</param>
+/// <param name="CustomTypeKey">
+/// The key of the host-declared custom question type, or <see langword="null"/>. A renderer picks the
+/// input control for a <see cref="QuestionType.Json"/> question by this key – the engine knows nothing
+/// about controls, so this is what makes a custom type presentable at all.
+/// </param>
 /// <param name="Options">
 /// The answer options of the question in display order (empty for free-text/value types).
 /// </param>
@@ -18,6 +23,7 @@ public sealed record QuestionDto(
     string Key,
     string Text,
     QuestionType Type,
+    string? CustomTypeKey,
     IReadOnlyList<AnswerOptionDto> Options);
 
 /// <summary>

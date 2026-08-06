@@ -10,7 +10,7 @@ namespace Flirty.Mcp.Tools;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The shape conventions of all ten tool classes are documented once, on <see cref="FlirtyDialogTools"/>,
+/// The shape conventions of all eleven tool classes are documented once, on <see cref="FlirtyDialogTools"/>,
 /// and deliberately not repeated here. Four things are specific to this area.
 /// </para>
 /// <para>
@@ -23,7 +23,7 @@ namespace Flirty.Mcp.Tools;
 /// </para>
 /// <para>
 /// <b>No tool here takes a target.</b> The database is chosen by the <i>route</i> a client connects to
-/// (<c>/mcp/staging</c>), which keeps a <c>target</c> parameter off all thirty-six schemas and makes the
+/// (<c>/mcp/staging</c>), which keeps a <c>target</c> parameter off all thirty-seven schemas and makes the
 /// choice explicit at connect time. There is deliberately no <c>select_target</c> tool either: protocol
 /// revision <c>2026-07-28</c> removed sessions from the wire, so there is nothing to hold a selection in,
 /// and a select-then-edit pair behind a load balancer would edit the wrong database. See ADR 0010.

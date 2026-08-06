@@ -814,6 +814,69 @@ public sealed class MapFlirtyAdminEndpointsTests
         return (await response.Content.ReadFromJsonAsync<DialogResponse>())!;
     }
 
+    // ---- Custom question types (#136) --------------------------------------------------------
+
+    /// <summary>
+    /// The key travels through the request DTO, the command and the response. Also the counter-check that
+    /// the response carries it at all: the mapping reads properties off the source and constructs the
+    /// unchanged target, so a forgotten field there is silent rather than a compile error.
+    /// </summary>
+    [Fact]
+    public async Task CreateQuestion_stores_and_returns_the_custom_type_key()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "custom-types");
+
+        var response = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions",
+            new CreateQuestionRequest("colour", "Which colour?", QuestionType.Json, 0, true, null, "color"));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = (await response.Content.ReadFromJsonAsync<QuestionResponse>())!;
+        Assert.Equal("color", created.CustomTypeKey);
+
+        var reloaded = await host.Client.GetFromJsonAsync<DialogDetailResponse>(
+            $"/flirty/admin/dialogs/{dialog.Id}");
+        Assert.Equal("color", Assert.Single(reloaded!.Questions).CustomTypeKey);
+    }
+
+    /// <summary>A custom type key is only meaningful on a <c>Json</c> question – anywhere else it is a 400.</summary>
+    [Fact]
+    public async Task CreateQuestion_refuses_a_custom_type_key_on_another_type()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "guarded");
+
+        var response = await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions",
+            new CreateQuestionRequest("colour", "Which colour?", QuestionType.FreeText, 0, true, null, "color"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    /// <summary>
+    /// An update overwrites every field, so omitting the key clears it – the same rule
+    /// <c>ValidationRules</c> already follows, and the one an author is most likely to trip over.
+    /// </summary>
+    [Fact]
+    public async Task UpdateQuestion_clears_the_custom_type_key_when_it_is_omitted()
+    {
+        await using var host = await FlirtyTestHost.StartAsync();
+        var dialog = await CreateDialogAsync(host, "clearing");
+
+        var created = (await (await host.Client.PostAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions",
+            new CreateQuestionRequest("colour", "Which colour?", QuestionType.Json, 0, true, null, "color")))
+            .Content.ReadFromJsonAsync<QuestionResponse>())!;
+
+        var response = await host.Client.PutAsJsonAsync(
+            $"/flirty/admin/dialogs/{dialog.Id}/questions/{created.Id}",
+            new UpdateQuestionRequest("colour", "Which colour?", QuestionType.Json, 0, true, null));
+
+        response.EnsureSuccessStatusCode();
+        Assert.Null((await response.Content.ReadFromJsonAsync<QuestionResponse>())!.CustomTypeKey);
+    }
+
     private static async Task<QuestionResponse> CreateQuestionAsync(
         FlirtyTestHost host, Guid dialogId, string key, QuestionType type, int order)
     {

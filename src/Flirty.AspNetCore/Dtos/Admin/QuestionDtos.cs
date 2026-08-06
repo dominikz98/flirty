@@ -12,13 +12,18 @@ namespace Flirty.AspNetCore.Dtos.Admin;
 /// <param name="Order">The order index of the question within the dialog.</param>
 /// <param name="IsRequired">Indicates whether an answer is required.</param>
 /// <param name="ValidationRules">Optional validation rules as JSON.</param>
+/// <param name="CustomTypeKey">
+/// Optional key of a host-declared custom question type. Only allowed together with
+/// <see cref="QuestionType.Json"/>; on any other type the request is rejected with 400.
+/// </param>
 public sealed record CreateQuestionRequest(
     string Key,
     string Text,
     QuestionType Type,
     int Order,
     bool IsRequired,
-    string? ValidationRules);
+    string? ValidationRules,
+    string? CustomTypeKey = null);
 
 /// <summary>
 /// Request body for changing a question
@@ -30,13 +35,18 @@ public sealed record CreateQuestionRequest(
 /// <param name="Order">The order index of the question within the dialog.</param>
 /// <param name="IsRequired">Indicates whether an answer is required.</param>
 /// <param name="ValidationRules">Optional validation rules as JSON.</param>
+/// <param name="CustomTypeKey">
+/// Optional key of a host-declared custom question type. Only allowed together with
+/// <see cref="QuestionType.Json"/>; on any other type the request is rejected with 400.
+/// </param>
 public sealed record UpdateQuestionRequest(
     string Key,
     string Text,
     QuestionType Type,
     int Order,
     bool IsRequired,
-    string? ValidationRules);
+    string? ValidationRules,
+    string? CustomTypeKey = null);
 
 /// <summary>
 /// Response with a question together with its answer options.
@@ -46,6 +56,10 @@ public sealed record UpdateQuestionRequest(
 /// <param name="Key">The business, stable key of the question.</param>
 /// <param name="Text">The displayed question text.</param>
 /// <param name="Type">The answer type of the question.</param>
+/// <param name="CustomTypeKey">
+/// The key of the host-declared custom question type, or <see langword="null"/>. Only ever set
+/// together with <see cref="QuestionType.Json"/>.
+/// </param>
 /// <param name="Order">The order index of the question within the dialog.</param>
 /// <param name="IsRequired">Indicates whether an answer is required.</param>
 /// <param name="ValidationRules">Optional validation rules as JSON.</param>
@@ -56,6 +70,7 @@ public sealed record QuestionResponse(
     string Key,
     string Text,
     QuestionType Type,
+    string? CustomTypeKey,
     int Order,
     bool IsRequired,
     string? ValidationRules,

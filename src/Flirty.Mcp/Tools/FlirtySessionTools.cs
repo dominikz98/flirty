@@ -203,7 +203,9 @@ internal sealed class FlirtySessionTools
         + "with flirty_dialog_get. MultiChoice takes a JSON array of strings - [\"a\",\"b\"]. Number takes "
         + "a bare JSON number with a dot as the decimal separator - 42, 3.14. Boolean takes bare true or "
         + "false; the quoted form \"true\" also passes validation but is stored as a string, so a "
-        + "branching condition comparing that answer to a boolean stops matching - send the bare literal.";
+        + "branching condition comparing that answer to a boolean stops matching - send the bare literal. "
+        + "Json takes any well-formed JSON document, so the shape is the question's own business; if it "
+        + "carries a customTypeKey, flirty_question_type_list reports a sample answer for that key.";
 
     /// <summary>Marks an external user key as belonging to a test run.</summary>
     /// <remarks>

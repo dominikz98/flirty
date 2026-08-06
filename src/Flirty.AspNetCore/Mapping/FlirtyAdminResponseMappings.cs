@@ -49,6 +49,7 @@ internal static class FlirtyAdminResponseMappings
             question.Key,
             question.Text,
             question.Type,
+            question.CustomTypeKey,
             question.Order,
             question.IsRequired,
             question.ValidationRules,

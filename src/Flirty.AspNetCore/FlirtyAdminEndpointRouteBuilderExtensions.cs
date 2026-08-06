@@ -156,7 +156,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             var result = await sender.Send(
                 new CreateQuestionCommand(
                     dialogId, request.Key, request.Text, request.Type,
-                    request.Order, request.IsRequired, request.ValidationRules),
+                    request.Order, request.IsRequired, request.ValidationRules, request.CustomTypeKey),
                 cancellationToken);
             var response = result.ToResponse();
             return TypedResults.Created(
@@ -170,7 +170,7 @@ public static class FlirtyAdminEndpointRouteBuilderExtensions
             var result = await sender.Send(
                 new UpdateQuestionCommand(
                     dialogId, questionId, request.Key, request.Text, request.Type,
-                    request.Order, request.IsRequired, request.ValidationRules),
+                    request.Order, request.IsRequired, request.ValidationRules, request.CustomTypeKey),
                 cancellationToken);
             return TypedResults.Ok(result.ToResponse());
         });

@@ -28,7 +28,9 @@ internal static class FlirtyResponseMappings
             [.. result.Answers.Select(answer => answer.ToDto())]);
 
     public static QuestionDto ToDto(this QuestionView view)
-        => new(view.Id, view.Key, view.Text, view.Type, [.. view.Options.Select(option => option.ToDto())]);
+        => new(
+            view.Id, view.Key, view.Text, view.Type, view.CustomTypeKey,
+            [.. view.Options.Select(option => option.ToDto())]);
 
     public static AnswerOptionDto ToDto(this AnswerOptionView view)
         => new(view.Id, view.Key, view.Label, view.Value);

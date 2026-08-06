@@ -9,7 +9,7 @@ namespace Flirty.Mcp.Tools;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The shape conventions of all ten tool classes are documented once, on <see cref="FlirtyDialogTools"/>;
+/// The shape conventions of all eleven tool classes are documented once, on <see cref="FlirtyDialogTools"/>;
 /// what this area adds is on <see cref="FlirtyDatabaseTools"/>. This class exists separately from that
 /// one for a single reason: it is registered <b>conditionally</b>, only when the host called
 /// <c>FlirtyMcpOptions.AllowMigrations()</c>, and a class is the unit <c>WithTools&lt;T&gt;()</c> takes.

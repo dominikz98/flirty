@@ -15,14 +15,14 @@ namespace Flirty.Mcp.Tools;
 /// This list is the checklist itself, not a copy of one: the golden tool-list test reflects over the
 /// literal fields of this class and compares that set with what <c>tools/list</c> returns, in both
 /// directions. A const without a tool fails as loudly as a tool without a const, which is why a name is
-/// declared here in the stage that registers its tool and never ahead of it. Thirty-six today: the
+/// declared here in the stage that registers its tool and never ahead of it. Thirty-seven today: the
 /// twenty-seven admin tools of stages #126 and #127, the five <c>flirty_session_*</c> of the runtime
-/// stage #128 and the four <c>flirty_db_*</c> of the database stage #129. For the same reason the class
-/// holds nothing but string literals – the test filters on exactly that, so any other member would
-/// silently join the checklist.
+/// stage #128, the four <c>flirty_db_*</c> of the database stage #129 and
+/// <c>flirty_question_type_list</c> from #136. For the same reason the class holds nothing but string
+/// literals – the test filters on exactly that, so any other member would silently join the checklist.
 /// </para>
 /// <para>
-/// One of the thirty-six is <b>conditional</b>: <c>flirty_db_migrate</c> is registered only when the host
+/// One of the thirty-seven is <b>conditional</b>: <c>flirty_db_migrate</c> is registered only when the host
 /// called <c>AllowMigrations()</c>, so the golden test has to start its host with that flag. That is the
 /// price of gating by absence rather than by refusal, and it is worth paying – see
 /// <see cref="FlirtyMcpOptions.AllowMigrations"/>.
@@ -78,6 +78,11 @@ internal static class FlirtyToolNames
 
     /// <summary>Deletes a question and everything that referenced it.</summary>
     internal const string QuestionDelete = "flirty_question_delete";
+
+    // ---- Question types (1) – FlirtyQuestionTypeTools, no MapXxxEndpoints counterpart -------------
+
+    /// <summary>Lists the custom question types the host declared with <c>AddQuestionType</c>.</summary>
+    internal const string QuestionTypeList = "flirty_question_type_list";
 
     // ---- Answer options (3) – FlirtyAnswerOptionTools, mirrors MapAnswerOptionEndpoints -----------
 

@@ -165,6 +165,7 @@ public static class FlirtyMcpServiceCollectionExtensions
             builder
                 .WithTools<FlirtyDialogTools>()
                 .WithTools<FlirtyQuestionTools>()
+                .WithTools<FlirtyQuestionTypeTools>()
                 .WithTools<FlirtyAnswerOptionTools>()
                 .WithTools<FlirtyTransitionTools>()
                 .WithTools<FlirtyLoopTools>()
