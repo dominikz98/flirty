@@ -59,6 +59,22 @@
     }
 </div>
 
+@* A scalar field, so it belongs in this panel by its own rule (only substructure stays in the full
+   editor). @oninput rather than @bind: the panel is rebuilt after every gesture, and onchange would
+   lose a value that was never left. *@
+@if (_form.Type == QuestionType.Json)
+{
+    <div class="field">
+        <label for="inspectorCustomTypeKey">Custom type key</label>
+        <input id="inspectorCustomTypeKey" class="input mono" disabled="@Locked"
+               value="@_form.CustomTypeKey" @oninput="OnCustomTypeKeyInput" />
+        <span class="hint">
+            Optional, the key the host declared the type under. Not checked here – the designer has no
+            registry, and an unknown key degrades to the plain JSON check.
+        </span>
+    </div>
+}
+
 <div class="field check">
     <input id="inspectorRequired" type="checkbox" disabled="@Locked"
            checked="@_form.IsRequired" @onchange="OnRequiredChanged" />
@@ -427,8 +443,18 @@ else
         if (Enum.TryParse<QuestionType>(args.Value?.ToString(), out var type))
         {
             _form.Type = type;
+
+            // Cleared as the type leaves Json, so the field does not keep displaying a value that
+            // NormalizedCustomTypeKey is about to drop anyway.
+            if (type != QuestionType.Json)
+            {
+                _form.CustomTypeKey = null;
+            }
         }
     }
+
+    private void OnCustomTypeKeyInput(ChangeEventArgs args)
+        => _form.CustomTypeKey = args.Value?.ToString();
 
     private void OnRequiredChanged(ChangeEventArgs args) => _form.IsRequired = args.Value is true;
 
@@ -445,8 +471,9 @@ else
         }
 
         _formError = null;
-        await Save.InvokeAsync(
-            new QuestionEdit(Node.QuestionId, _form.Key.Trim(), _form.Text.Trim(), _form.Type, _form.IsRequired));
+        await Save.InvokeAsync(new QuestionEdit(
+            Node.QuestionId, _form.Key.Trim(), _form.Text.Trim(), _form.Type, _form.IsRequired,
+            _form.NormalizedCustomTypeKey()));
     }
 
     private async Task ConnectAsync()

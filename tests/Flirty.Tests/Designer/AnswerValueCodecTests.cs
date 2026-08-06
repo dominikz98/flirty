@@ -178,6 +178,65 @@ public sealed class AnswerValueCodecTests
 
     // ---- Test data ---------------------------------------------------------------------------
 
+    // ---- Json (#136) --------------------------------------------------------------------------
+
+    /// <summary>
+    /// The input already <b>is</b> the document, so it is passed through – serializing it would produce
+    /// a JSON string containing JSON.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"city\":\"Berlin\"}", "{\"city\":\"Berlin\"}")]
+    [InlineData("\"#ff0000\"", "\"#ff0000\"")]
+    [InlineData("", "null")]
+    [InlineData("   ", "null")]
+    public void Encode_passes_a_json_value_through(string input, string expected)
+        => Assert.Equal(expected, AnswerValueCodec.Encode(QuestionType.Json, input));
+
+    /// <summary>A multi-line document is collapsed onto the single line these views give it.</summary>
+    [Fact]
+    public void Describe_compacts_a_json_document()
+        => Assert.Equal(
+            "{\"street\":\"Main\",\"city\":\"Berlin\"}",
+            AnswerValueCodec.Describe(
+                NewDetail(QuestionType.Json),
+                "{\n  \"street\": \"Main\",\n  \"city\": \"Berlin\"\n}"));
+
+    /// <summary>
+    /// <b>The rule that makes the type honest.</b> The generic path unwraps a JSON string, which would
+    /// render the JSON string <c>"12"</c> and the JSON number <c>12</c> identically – for a type whose
+    /// whole point is that the value is the document, that is a lie rather than a nicety.
+    /// </summary>
+    [Fact]
+    public void Describe_does_not_unwrap_a_json_string()
+    {
+        var question = NewDetail(QuestionType.Json);
+
+        Assert.Equal("\"#ff0000\"", AnswerValueCodec.Describe(question, "\"#ff0000\""));
+        Assert.Equal("\"12\"", AnswerValueCodec.Describe(question, "\"12\""));
+        Assert.Equal("12", AnswerValueCodec.Describe(question, "12"));
+    }
+
+    /// <summary>Malformed text is shown as stored – the engine is what refuses it on the way in.</summary>
+    [Fact]
+    public void Describe_shows_malformed_json_verbatim()
+        => Assert.Equal("{ not json", AnswerValueCodec.Describe(NewDetail(QuestionType.Json), "{ not json"));
+
+    /// <summary>
+    /// <c>Encode(Decode(x)) == x</c> for a JSON answer. The designer offers no input control for one, but
+    /// this is the property a future editor would be built on.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"city\":\"Berlin\"}")]
+    [InlineData("\"#ff0000\"")]
+    [InlineData("[1,2,3]")]
+    public void Decode_and_Encode_round_trip_a_json_value(string value)
+    {
+        var (text, selected) = AnswerValueCodec.Decode(QuestionType.Json, value);
+
+        Assert.Empty(selected);
+        Assert.Equal(value, AnswerValueCodec.Encode(QuestionType.Json, text));
+    }
+
     private static Question NewQuestion(QuestionType type, params (string Value, string Label)[] options)
     {
         var questionId = Guid.NewGuid();

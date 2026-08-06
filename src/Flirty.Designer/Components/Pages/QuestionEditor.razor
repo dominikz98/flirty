@@ -38,7 +38,7 @@ else
     <p class="intro">
         Position @(_position + 1) of @_detail.Questions.Count in the dialog
         <a href="@($"dialogs/{DialogId}")">@_detail.Dialog.Name</a> ·
-        Type @QuestionTypeLabels.Describe(_question.Type)
+        Type @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey)
     </p>
 
     @if (_detail.Dialog.IsPublished)
@@ -91,6 +91,22 @@ else
                 </InputSelect>
                 <span class="hint">The type determines how the answer is parsed and validated.</span>
             </div>
+
+            @* Only shown for Json, which makes the core guard ("a custom type key needs type Json")
+               unreachable from this form instead of merely enforced afterwards. *@
+            @if (_form.Type == QuestionType.Json)
+            {
+                <div class="field">
+                    <label for="customTypeKey">Custom type key</label>
+                    <InputText id="customTypeKey" class="input mono" @bind-Value="_form.CustomTypeKey" />
+                    <span class="hint">
+                        Optional. The key the host declared the type under
+                        (<code>o.AddQuestionType("color", …)</code>). The designer does not know the host's
+                        registry and therefore does not check the key – an unknown one is not an error, the
+                        answer is then validated as JSON only. Leave empty for a plain JSON question.
+                    </span>
+                </div>
+            }
 
             <div class="field check">
                 <InputCheckbox id="required" @bind-Value="_form.IsRequired" />
@@ -157,6 +173,15 @@ else
                     <InputNumber id="max" class="input" @bind-Value="_form.Max" />
                 </div>
             }
+            else if (_form.Type == QuestionType.Json)
+            {
+                <p class="hint">
+                    The engine only checks that the value is well-formed JSON. A host-declared custom type
+                    adds its own check in the host application (its registered
+                    <code>IQuestionTypeValidator</code>) – the designer does not know it and cannot show
+                    its rules here.
+                </p>
+            }
             else
             {
                 <p class="hint">
@@ -177,7 +202,17 @@ else
         <div class="editor">
             <h2>Answer options</h2>
 
-            @if (!QuestionTypeLabels.UsesOptions(_question.Type))
+            @* A custom type is the one case where "does not evaluate options" must not become "so delete
+               them": its validator receives question.Options and may well read them. *@
+            @if (_question.Type == QuestionType.Json)
+            {
+                <div class="banner warn">
+                    The engine does not evaluate answer options for
+                    @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey) – but it passes
+                    them to the host's validator, which may read them. Only delete them if the host does not.
+                </div>
+            }
+            else if (!QuestionTypeLabels.UsesOptions(_question.Type))
             {
                 <div class="banner warn">
                     The question type @QuestionTypeLabels.Describe(_question.Type) does not evaluate answer
@@ -417,7 +452,7 @@ else
             (sender, token) => sender.Send(
                 new UpdateQuestionCommand(
                     DialogId, QuestionId, _form.Key, _form.Text, _form.Type, _question!.Order,
-                    _form.IsRequired, rules),
+                    _form.IsRequired, rules, _form.NormalizedCustomTypeKey()),
                 token),
             "Question saved.");
     }

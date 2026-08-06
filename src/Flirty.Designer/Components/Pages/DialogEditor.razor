@@ -1167,9 +1167,12 @@ else
                 foreach (var (question, index) in changed)
                 {
                     _ = await sender.Send(
+                        // CustomTypeKey travels along like ValidationRules: an update overwrites every
+                        // field, so leaving it out here would make reordering a question silently wipe
+                        // its custom type.
                         new UpdateQuestionCommand(
                             Id, question.Id, question.Key, question.Text, question.Type, index,
-                            question.IsRequired, question.ValidationRules),
+                            question.IsRequired, question.ValidationRules, question.CustomTypeKey),
                         token);
                 }
 

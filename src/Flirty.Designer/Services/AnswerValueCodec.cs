@@ -21,11 +21,21 @@ namespace Flirty.Designer.Services;
 /// <item><term><see cref="QuestionType.Number"/></term><description>raw number literal (invariant)</description></item>
 /// <item><term><see cref="QuestionType.Boolean"/></term><description><c>true</c> / <c>false</c></description></item>
 /// <item><term><see cref="QuestionType.MultiChoice"/></term><description>JSON array of strings</description></item>
+/// <item><term><see cref="QuestionType.Json"/></term><description>any well-formed JSON document, taken
+/// verbatim – the value <i>is</i> the document</description></item>
 /// </list>
 /// <para>
 /// This class is the <b>only</b> place in the designer that knows this contract: the
 /// <see cref="DesignerExpressionContext"/> derives its sample values from here too, so that expression
 /// validation and test run cannot drift apart.
+/// </para>
+/// <para>
+/// For <see cref="QuestionType.Json"/> the contract is "well-formed, and otherwise none" – and that is
+/// itself the contract, which is why the three methods handle it before their generic paths rather than
+/// in a <c>switch</c> arm. In particular <see cref="Describe"/> must <b>not</b> unwrap a JSON string: the
+/// generic path turns <c>"\"#ff0000\""</c> into <c>#ff0000</c>, which would render the JSON string
+/// <c>"12"</c> and the JSON number <c>12</c> identically. For a type whose whole point is that the value
+/// is the document, that is a lie rather than a nicety.
 /// </para>
 /// </remarks>
 internal static class AnswerValueCodec
@@ -48,6 +58,10 @@ internal static class AnswerValueCodec
             QuestionType.MultiChoice => JsonSerializer.Serialize(selected ?? []),
             QuestionType.Boolean => IsTrue(text) ? "true" : "false",
             QuestionType.Number => EncodeNumber(text),
+            // Passed through: the input already IS the JSON document, so serializing it would produce a
+            // JSON string containing JSON. Unreadable input is passed on unchanged so the ENGINE rejects
+            // it with its own message - the same rule EncodeNumber follows.
+            QuestionType.Json => string.IsNullOrWhiteSpace(text) ? "null" : text,
             _ => JsonSerializer.Serialize(text ?? string.Empty),
         };
 
@@ -70,6 +84,13 @@ internal static class AnswerValueCodec
             return TryReadStringArray(value, out var items)
                 ? string.Join(", ", items.Select(item => LabelOf(question, item)))
                 : value;
+        }
+
+        // Before the unwrapping below, deliberately: a JSON answer is shown as the document it is,
+        // only compacted so a pretty-printed one fits the single line these views give it.
+        if (question?.Type == QuestionType.Json)
+        {
+            return CompactJson(value);
         }
 
         var text = TryReadJsonString(value, out var single) ? single : value.Trim();
@@ -100,8 +121,37 @@ internal static class AnswerValueCodec
             return (string.Empty, TryReadStringArray(value, out var items) ? items : []);
         }
 
+        // Verbatim, so that Encode(Decode(x)) == x holds for a JSON answer. The designer offers no
+        // input control for one (see QuestionTypeLabels.IsAnswerableInDesigner), but the round trip is
+        // the property a future editor would build on.
+        if (type == QuestionType.Json)
+        {
+            return (value, []);
+        }
+
         var text = TryReadJsonString(value, out var single) ? single : value.Trim();
         return (type == QuestionType.Boolean ? (IsTrue(text) ? "true" : "false") : text, []);
+    }
+
+    /// <summary>
+    /// Collapses a JSON document onto one line, so a pretty-printed answer fits the single-line views
+    /// that show it (history step, run inspector, node card). Unreadable text is returned trimmed – the
+    /// value is displayed as stored rather than hidden behind an error, and the engine is what refuses
+    /// it on the way in.
+    /// </summary>
+    /// <param name="value">The stored raw JSON answer value.</param>
+    /// <returns>The compacted document, or the trimmed input if it is not valid JSON.</returns>
+    private static string CompactJson(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return JsonSerializer.Serialize(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return value.Trim();
+        }
     }
 
     /// <summary>The label of the option with this value; otherwise the raw value.</summary>

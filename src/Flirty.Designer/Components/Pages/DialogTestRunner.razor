@@ -155,7 +155,13 @@ else
                                 }
                                 else
                                 {
-                                    <button class="btn" disabled="@_busy"
+                                    @* Disabled rather than opening a form that can only say no: a JSON
+                                       answer is not editable here (AnswerInputModel.CanSubmit). *@
+                                    <button class="btn"
+                                            disabled="@(_busy || !QuestionTypeLabels.IsAnswerableInDesigner(question.Type))"
+                                            title="@(QuestionTypeLabels.IsAnswerableInDesigner(question.Type)
+                                                ? null
+                                                : "A JSON answer cannot be edited in the designer.")"
                                             @onclick="() => StartEdit(entry, question)">Edit</button>
                                 }
                             </li>

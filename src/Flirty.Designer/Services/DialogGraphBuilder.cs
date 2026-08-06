@@ -150,7 +150,7 @@ internal static class DialogGraphBuilder
                 question.Key,
                 Shorten(question.Text, NodeTextLength),
                 question.Text,
-                QuestionTypeLabels.Describe(question.Type),
+                QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey),
                 question.IsRequired,
                 question.Options.Count,
                 QuestionTypeLabels.UsesOptions(question.Type),
@@ -202,7 +202,7 @@ internal static class DialogGraphBuilder
         var parts = new List<string>
         {
             $"Question {question.Key}",
-            QuestionTypeLabels.Describe(question.Type),
+            QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey),
             question.IsRequired ? "required" : "optional",
         };
 

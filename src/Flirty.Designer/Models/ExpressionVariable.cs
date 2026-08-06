@@ -24,6 +24,15 @@ internal enum ExpressionValueKind
     /// not in the snippet inserter – meaningful expressions access members here (<c>now.Year</c>).
     /// </summary>
     Context = 4,
+
+    /// <summary>
+    /// Raw JSON (<see cref="Flirty.Domain.QuestionType.Json"/>). The engine derives the CLR type from
+    /// the JSON <b>shape</b> – an object binds as a dictionary, an array as a list, a scalar as itself –
+    /// so the designer cannot know it in advance. Shown in the reference table but, like
+    /// <see cref="Context"/>, <b>not</b> in the snippet inserter: every snippet it could offer would be
+    /// a guess about a shape only the host knows.
+    /// </summary>
+    Json = 5,
 }
 
 /// <summary>

@@ -21,12 +21,17 @@ namespace Flirty.Designer.Models;
 /// <param name="Text">The question text.</param>
 /// <param name="Type">The answer type.</param>
 /// <param name="IsRequired">Whether an answer is required.</param>
+/// <param name="CustomTypeKey">
+/// The key of a host-declared custom question type, already normalized (dropped unless the type is
+/// <see cref="QuestionType.Json"/>).
+/// </param>
 public sealed record QuestionEdit(
     Guid QuestionId,
     string Key,
     string Text,
     QuestionType Type,
-    bool IsRequired);
+    bool IsRequired,
+    string? CustomTypeKey);
 
 /// <summary>The changed fields of a transition.</summary>
 /// <param name="TransitionId">The edited transition.</param>

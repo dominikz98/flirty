@@ -81,8 +81,19 @@ public sealed class AnswerInputModel
     /// domain-level check deliberately stays with the engine (<c>AnswerValidator</c>), so that the runner
     /// shows exactly the messages a host app would get too.
     /// </summary>
+    /// <remarks>
+    /// The exception is <see cref="QuestionType.Json"/>, which is never submittable from the designer –
+    /// see <see cref="QuestionTypeLabels.IsAnswerableInDesigner"/> for why. This is the <b>hard</b> guard:
+    /// both submit paths and both edit paths of the test runner already ask it, so there is no reachable
+    /// way to send such an answer even if the markup were bypassed.
+    /// </remarks>
     public bool CanSubmit
-        => Type == QuestionType.MultiChoice ? Selected.Count > 0 : !string.IsNullOrWhiteSpace(Text);
+        => Type switch
+        {
+            QuestionType.Json => false,
+            QuestionType.MultiChoice => Selected.Count > 0,
+            _ => !string.IsNullOrWhiteSpace(Text),
+        };
 
     /// <summary>Encodes the input as a raw JSON answer value for the engine.</summary>
     /// <returns>The raw JSON text.</returns>

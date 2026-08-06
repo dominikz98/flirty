@@ -253,6 +253,15 @@ input fields and uses it directly as the serialization type – the schema is **
   runtime as an `InvalidOperationException` when validating an answer. Likewise, swapped
   bounds (`MinLength > MaxLength`, `Min > Max`) are caught.
 - **If no rules are set**, `null` is saved – no empty `{}` in the column.
+- **`Json` has no configurable rules** and says so: the engine only checks well-formedness, and a
+  host-declared custom type adds its check in the host's own `IQuestionTypeValidator`, which the designer
+  cannot see. What it *can* author is the **custom type key**: a plain text field, shown only while the
+  type is `Json`, in the question editor and in the graph inspector alike. It is deliberately **not**
+  checked against a registry – the designer has none, and an unknown key is not an error but degrades to
+  the plain JSON check (#136). Switching the type away from `Json` drops the key rather than producing a
+  400 from the core guard; `QuestionFormModel.NormalizedCustomTypeKey()` is the single source of that
+  rule for all three save paths, the third being the ↑/↓ reordering in the dialog editor, which rebuilds
+  the whole `UpdateQuestionCommand` and would otherwise wipe the key.
 - **Raw-JSON fallback:** if the saved JSON contains fields that `ValidationRules` does not know, or if
   it is not a valid JSON object, the editor shows a text field with the raw JSON instead of the individual
   fields (plus a warning). The input is only checked for readability and passed through unchanged – a
@@ -314,9 +323,23 @@ core-internal `SessionExpressionContextBuilder`, only without a session:
 | `Date` | `"2026-01-01"` | **`string`** (as at runtime – no comparison with `now` possible) |
 | `SingleChoice` | first option value as a JSON string | `string` |
 | `MultiChoice` | JSON array of the option values | list (`.Count`, `.Contains`) |
+| `Json` | `null` **and** `{}` – two shapes, see below | `object` / dictionary |
 
 Authoritative are the **types**, not the values: they mirror exactly the deserialization of the
 `DynamicExpressoExpressionEvaluator` (see [BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md)).
+
+**`Json` is the one type with two sample shapes, and that is measured rather than tidy** (#136). The
+engine derives the CLR type from the JSON *shape*, so a scalar answer (`"#ff0000"`) supports `==`
+against a literal while an object answer supports an indexer – and no single binding compiles both:
+under the unset default `address["city"]` fails with *"no applicable indexer exists in type Object"*,
+under an object binding `colour == "#ff0000"` fails instead. Since this check **blocks saving**, one
+shape would refuse conditions that work perfectly at runtime. `DesignerExpressionContext.Validate` with
+a `DialogDetail` therefore accepts an expression that compiles under **either**, and only reports the
+primary shape's message when both fail. A `Json` variable is also kept out of the **snippet inserter**
+(like `now`/`session`): every snippet it could offer would be a guess about a shape only the host knows.
+It stays in the identifier reference with its example (`address != null`) and a note naming the trap –
+`address["city"] == "Berlin"` compiles and is always `false`, because the indexer is typed `object`, so
+write `as string ==` or `.Equals(…)`.
 Loop collections are – as by the `LoopResolver` at runtime – **always** bound (before the first
 iteration as an empty list), so that `skills.Count > 0` is checkable; for that `GetDialogQuery` delivers the
 loop markers as reads since #40 (`DialogDetail.Loops`).
@@ -513,6 +536,16 @@ The runner shows both at the top as a banner:
   (resume). It is **not** cleaned up: the engine deliberately knows no deletion of sessions.
 - **Webhook** triggers configured on the dialog are actually delivered via HTTP (since #42, see
   [TRIGGERS.md](./TRIGGERS.md)). So before a test run against productive targets, check the URL.
+- **A `Json` question cannot be answered here** (#136), and that is a documented limit rather than a
+  gap. The designer does not know what shape a host's custom question type expects – it does not have
+  the registry, only the key – and because the run above is real, a guessed value would be worse than
+  none. So the answer area shows a note instead of a control, and the "Edit" button on a recorded JSON
+  answer is disabled. `QuestionTypeLabels.IsAnswerableInDesigner` is the single source of that decision;
+  the hard guard behind it is `AnswerInputModel.CanSubmit`, which both submit paths and both edit paths
+  already ask, so there is no reachable way to send one even if the markup were bypassed. It applies to
+  the graph run view too, which renders the same `AnswerInput` component. Such a question is played
+  through the host application, over HTTP or from an MCP client; a recorded answer is *displayed* here
+  read-only. Richer designer support is weighed in #137.
 
 ### History, iterations and editing
 
@@ -548,7 +581,7 @@ explicitly named there as "the engine does not deliver this itself".
 |---|---|---|
 | `DesignerGateway` | `Services/DesignerGateway.cs` | Shared base of both gateways: fresh DI scope per operation, `Adopt` pass-through, error mapping (`GatewayResult<T>`). |
 | `FlirtyRuntimeGateway` | `Services/FlirtyRuntimeGateway.cs` | Runs the `IFlirtyEngine` calls; extends the mapping with `DialogNotFound`/`SessionNotFound`/`AnswerValidation`. |
-| `AnswerValueCodec` | `Services/AnswerValueCodec.cs` | **Single** source of the JSON contract per `QuestionType` (encode, display, read back). |
+| `AnswerValueCodec` | `Services/AnswerValueCodec.cs` | **Single** source of the JSON contract per `QuestionType` (encode, display, read back). For `Json` the contract is "verbatim, well-formed": `Describe` **compacts** the document, it does not unwrap it – otherwise the JSON string `"12"` and the number `12` would render identically. |
 | `RunExpressionContext` | `Services/RunExpressionContext.cs` | Mirrors the core `SessionExpressionContextBuilder` onto `DialogDetail` + `ResumeDialogResult`. |
 | `DesignerTriggerLog` (+ `…Handlers`) | `Services/` | Collects the published notifications; four `INotificationHandler<T>` write into it. |
 | `AnswerInputModel`, `AnswerChoice` | `Models/` | Input state and selection option (`public`, because `[Parameter]` of the component). |
