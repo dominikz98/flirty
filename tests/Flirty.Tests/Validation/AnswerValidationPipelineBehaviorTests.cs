@@ -127,6 +127,142 @@ public sealed class AnswerValidationPipelineBehaviorTests : IDisposable
         Assert.Equal(SessionStatus.Completed, session.Status);
     }
 
+    // ---- Json and custom question types (#136) -----------------------------------------------
+
+    /// <summary>
+    /// Malformed JSON is a <b>value</b> error, so it must arrive as an
+    /// <see cref="AnswerValidationException"/> (HTTP 400) rather than as the
+    /// <see cref="InvalidOperationException"/> a misconfiguration produces (HTTP 409). The distinction
+    /// is decided here, at the layer that turns a result into an exception.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_malformed_json_is_a_validation_error_not_a_misconfiguration()
+    {
+        SeedJsonDialog();
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("json-dialog", "user-1");
+
+        await Assert.ThrowsAsync<AnswerValidationException>(
+            async () => await engine.SubmitAnswerAsync(
+                start.SessionId, start.CurrentQuestion.Id, "#ff0000"));
+
+        using var assert = new FlirtyDbContext(_options);
+        Assert.Empty(assert.DialogSessions.Include(s => s.Answers)
+            .Single(s => s.Id == start.SessionId).Answers);
+    }
+
+    /// <summary>
+    /// The full path with a host-declared type: the decorator runs inside the request scope, the host
+    /// validator refuses the value, and nothing is persisted. Without a declaration the same answer
+    /// would pass, which is what the second half asserts.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_runs_the_host_validator_of_a_custom_question_type()
+    {
+        SeedJsonDialog();
+
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddFlirty(options => options.AddQuestionType<HexColourValidator>("color", "Colour picker"))
+            .AddDbContext<FlirtyDbContext>(options => options.UseSqlite(_connection))
+            .BuildServiceProvider();
+
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("json-dialog", "user-1");
+
+        // Well-formed JSON, so the built-in check passes - only the host validator can refuse it.
+        var exception = await Assert.ThrowsAsync<AnswerValidationException>(
+            async () => await engine.SubmitAnswerAsync(
+                start.SessionId, start.CurrentQuestion.Id, "\"not-a-colour\""));
+        Assert.Contains("#rrggbb", Assert.Single(exception.Errors), StringComparison.Ordinal);
+
+        await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"#ff0000\"");
+
+        using var assert = new FlirtyDbContext(_options);
+        var answer = Assert.Single(assert.DialogSessions.Include(s => s.Answers)
+            .Single(s => s.Id == start.SessionId).Answers);
+        Assert.Equal("\"#ff0000\"", answer.Value);
+    }
+
+    /// <summary>
+    /// The degradation path end-to-end: a second consumer of the same database that never declared the
+    /// type reads the same question and validates it as plain JSON. No throw, no 500 – that is what
+    /// makes a published dialog (ADR 0005) survive a host that dropped a registration.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_without_the_declaration_falls_back_to_the_json_check()
+    {
+        SeedJsonDialog();
+
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IFlirtyEngine>();
+
+        var start = await engine.StartDialogAsync("json-dialog", "user-1");
+
+        // Refused by the host validator above; accepted here, because nothing declares "color".
+        await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"not-a-colour\"");
+
+        using var assert = new FlirtyDbContext(_options);
+        Assert.Single(assert.DialogSessions.Include(s => s.Answers)
+            .Single(s => s.Id == start.SessionId).Answers);
+    }
+
+    /// <summary>Test double: the worked example of the guides, in miniature.</summary>
+    private sealed class HexColourValidator : IQuestionTypeValidator
+    {
+        public AnswerValidationResult Validate(Question question, string value)
+        {
+            var text = value.Trim('"');
+            return text.Length == 7 && text[0] == '#'
+                && text[1..].All(Uri.IsHexDigit)
+                    ? AnswerValidationResult.Valid
+                    : AnswerValidationResult.Invalid(
+                        $"The value '{text}' is not a colour in the form #rrggbb.");
+        }
+    }
+
+    private Guid SeedJsonDialog()
+    {
+        var dialogId = Guid.NewGuid();
+        var questionId = Guid.NewGuid();
+
+        using var seed = new FlirtyDbContext(_options);
+        seed.Dialogs.Add(new Dialog
+        {
+            Id = dialogId,
+            Key = "json-dialog",
+            Name = "JSON dialog",
+            Version = 1,
+            IsPublished = true,
+            StartQuestionId = questionId,
+            CreatedAt = DateTimeOffset.UnixEpoch,
+            UpdatedAt = DateTimeOffset.UnixEpoch,
+            Questions =
+            {
+                new Question
+                {
+                    Id = questionId,
+                    DialogId = dialogId,
+                    Key = "colour",
+                    Text = "Which colour?",
+                    Type = QuestionType.Json,
+                    Order = 0,
+                    IsRequired = true,
+                    CustomTypeKey = "color",
+                },
+            },
+        });
+        seed.SaveChanges();
+        return dialogId;
+    }
+
     /// <summary>
     /// <c>AddFlirty()</c> registers the <see cref="IAnswerValidator"/> and the closed
     /// <c>AnswerValidationPipelineBehavior</c> for <see cref="SubmitAnswerCommand"/>.

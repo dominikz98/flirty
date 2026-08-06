@@ -85,6 +85,7 @@ internal sealed class CreateDialogVersionCommandHandler
                 Order = question.Order,
                 IsRequired = question.IsRequired,
                 ValidationRules = question.ValidationRules,
+                CustomTypeKey = question.CustomTypeKey,
             };
 
             questionIdMap[question.Id] = questionCopy.Id;

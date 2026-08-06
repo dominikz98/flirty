@@ -23,4 +23,13 @@ public enum QuestionType
 
     /// <summary>A yes/no input (true/false).</summary>
     Boolean = 5,
+
+    /// <summary>
+    /// An arbitrary JSON document. The engine only checks that the value is well-formed JSON, which
+    /// makes this the one open-shaped built-in type: a host declares its own question types on top of
+    /// it with <c>AddQuestionType</c> and names one on a question via
+    /// <see cref="Question.CustomTypeKey"/>. A <c>Json</c> question without such a key is a valid
+    /// question in its own right.
+    /// </summary>
+    Json = 6,
 }

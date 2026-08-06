@@ -169,6 +169,74 @@ public sealed class AnswerValidatorTests
         => Assert.False(_validator.Validate(
             NewQuestion(QuestionType.MultiChoice, null, "a", "b"), "\"a\"").IsValid);
 
+    // ---- Json --------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("{\"street\":\"Main\",\"city\":\"Berlin\"}")]
+    [InlineData("[1,2,3]")]
+    [InlineData("\"#ff0000\"")]
+    [InlineData("42")]
+    [InlineData("true")]
+    [InlineData("null")]
+    public void Json_accepts_any_well_formed_document(string value)
+        => Assert.True(_validator.Validate(NewQuestion(QuestionType.Json), value).IsValid);
+
+    [Theory]
+    [InlineData("#ff0000")]
+    [InlineData("{\"street\":}")]
+    [InlineData("{ not json")]
+    [InlineData("")]
+    public void Json_rejects_a_malformed_document(string value)
+    {
+        var result = _validator.Validate(NewQuestion(QuestionType.Json), value);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("is not valid JSON", Assert.Single(result.Errors), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The parser's own message describes a parser state (byte offsets, resource strings), not the
+    /// author's mistake – it must not reach the caller. Same reason the expression sandbox stopped
+    /// forwarding the DynamicExpresso wording (#97).
+    /// </summary>
+    [Fact]
+    public void Json_does_not_forward_the_parser_message()
+        => Assert.DoesNotContain(
+            "LineNumber",
+            Assert.Single(_validator.Validate(NewQuestion(QuestionType.Json), "{ not json").Errors),
+            StringComparison.Ordinal);
+
+    /// <summary>
+    /// The rules are type-scoped, so none of them applies to <see cref="QuestionType.Json"/> – exactly
+    /// as <c>Min</c> does not apply to a FreeText question. A two-character document therefore passes
+    /// a <c>minLength</c> of 50.
+    /// </summary>
+    [Fact]
+    public void Json_ignores_the_FreeText_rules()
+        => Assert.True(_validator.Validate(
+            NewQuestion(QuestionType.Json, "{\"minLength\":50,\"pattern\":\"^z\"}"), "{}").IsValid);
+
+    /// <summary>
+    /// The counterpart of the test above, and the asymmetry that reads like a bug if it is not pinned:
+    /// the rules are <b>parsed</b> before the type switch, so a broken rules document is a
+    /// misconfiguration for a Json question too – even though none of its fields would be read.
+    /// </summary>
+    [Fact]
+    public void Json_with_broken_ValidationRules_still_throws()
+        => Assert.Throws<InvalidOperationException>(
+            () => _validator.Validate(NewQuestion(QuestionType.Json, "{ not json"), "{}"));
+
+    /// <summary>The custom type key alone changes nothing here – the built-in validator ignores it.</summary>
+    [Fact]
+    public void Json_with_a_custom_type_key_is_validated_as_plain_json()
+    {
+        var question = NewQuestion(QuestionType.Json);
+        question.CustomTypeKey = "color";
+
+        Assert.True(_validator.Validate(question, "\"#ff0000\"").IsValid);
+        Assert.False(_validator.Validate(question, "#ff0000").IsValid);
+    }
+
     // ---- Misconfiguration / arguments --------------------------------------------------------
 
     [Fact]

@@ -34,6 +34,10 @@ public interface IAnswerValidator
 - A pure, **stateless** service (default `AnswerValidator`, registered as a singleton – analogous to the
   `IExpressionEvaluator`). No DB access: it receives the already-loaded `Question` (incl. options
   and `ValidationRules`) and the raw JSON answer value.
+  **Unless the host declared a custom question type** (`o.AddQuestionType(...)`, see below): then a
+  scoped `CustomQuestionTypeAnswerValidator` decorates it and the `IAnswerValidator` registration
+  becomes `Scoped`, so a host validator can be resolved out of the request scope. Without a
+  declaration nothing about the lifetime changes – the decorator is registered only on one.
 - Returns a structured `AnswerValidationResult` (`IsValid` + `Errors`) instead of throwing –
   consistent with the `ExpressionValidationResult` of the expression path.
 - Throws `InvalidOperationException` on a **misconfiguration** of the question (unknown type, invalid
@@ -56,6 +60,7 @@ the same for a choice).
 | `Date` | parseable as an ISO-8601 date (`DateTimeOffset`/`DateOnly`, invariant) |
 | `SingleChoice` | the value matches exactly one `AnswerOption.Value` of the question |
 | `MultiChoice` | a JSON array of strings; every entry a known `AnswerOption.Value` |
+| `Json` | the value is a **well-formed JSON document** – object, array, string, number, boolean or `null`. That is the whole built-in contract; none of the `ValidationRules` applies. Semantics on top of it come from a host-declared custom type (see below) |
 
 ## `ValidationRules` (JSON schema)
 
@@ -78,6 +83,66 @@ inapplicable rules are ignored.
 You do not have to write the JSON by hand: the **question editor** of the Blazor designer maintains the rules
 type-dependently via input fields and translates the `pattern` already on save (see
 [DESIGNER.md → Validation rules](./DESIGNER.md#validation-rules)).
+
+## Custom question types declared by the host (#136)
+
+`QuestionType` is a closed enum inside the published package, so a consumer cannot append to it. The
+extension path therefore does not widen the enum: a host declares its own types on top of the one
+open-shaped built-in type `Json`, and a question selects one by carrying its key in
+`Question.CustomTypeKey`. Rationale and the discarded alternatives:
+[ADR 0011](./adr/0011-custom-question-types-on-an-open-base-type.md).
+
+```csharp
+services.AddFlirty(o => o
+    .UseSqlite(connectionString)
+    // With a validator: the generic overload registers it as scoped.
+    .AddQuestionType<ColorAnswerValidator>("color", "Colour picker", sample: "\"#ff0000\"")
+    // Without one: JSON well-formedness is then the whole check.
+    .AddQuestionType("address", "Postal address", sample: """{"street":"","city":""}"""));
+```
+
+```csharp
+public sealed class ColorAnswerValidator : IQuestionTypeValidator
+{
+    // Resolved from the REQUEST scope, so scoped dependencies work - including FlirtyDbContext.
+    public ColorAnswerValidator(IHttpClientFactory clients) { … }
+
+    public AnswerValidationResult Validate(Question question, string value)
+        => IsHexColour(value)
+            ? AnswerValidationResult.Valid
+            : AnswerValidationResult.Invalid($"'{value}' is not a colour in the form #rrggbb.");
+}
+```
+
+A question is then authored as `Type = Json, CustomTypeKey = "color"` – over HTTP, over MCP
+(`flirty_question_create`) or in the designer. Four rules hold, and each of them is a decision rather
+than an implementation detail:
+
+- **Structure before semantics.** The built-in `Json` check runs first; a custom validator is never
+  handed a value that is not well-formed JSON.
+- **An unknown key degrades, it does not throw.** If the question names a type this host did not
+  declare, the answer is validated as plain JSON and **one warning** is logged. That is deliberate: a
+  published dialog version is immutable ([ADR 0005](./adr/0005-immutable-published-dialog-version.md)),
+  so a throw would be an error nobody could repair. It also lets two consumers of one database declare
+  different subsets.
+- **A type declared without a validator is legitimate**, not half-finished: it names a shape for
+  clients (display name, sample) and leaves the checking at well-formed JSON. It logs nothing.
+- **The key is compared ordinally** and may contain only `[a-z0-9-]`. An empty, malformed or duplicate
+  key throws at **declaration** time, not at the first submitted answer.
+
+`CustomTypeKey` is refused on any type other than `Json` (400, on create and update). Whether the key
+is *declared* is deliberately not checked there – see the degradation rule above.
+
+**Reading a JSON answer in a branching condition** needs no configuration: the expression engine
+derives the CLR type from the JSON shape, so an object binds as a dictionary and an array as a list.
+Mind the one sharp edge, which is C# semantics rather than a Flirty rule – see
+[BRANCHING-EXPRESSIONS.md](./BRANCHING-EXPRESSIONS.md#json-answers-136):
+
+```csharp
+address["city"] == "Berlin"             // FALSE - the indexer is object, so this compares references
+address["city"] as string == "Berlin"   // correct
+address["city"].Equals("Berlin")        // correct, and reads better
+```
 
 ## `AnswerValidationPipelineBehavior`
 
@@ -118,7 +183,10 @@ second query).
 | Situation | Behavior |
 |---|---|
 | Value does not fit the type / unknown choice / rule violation | `AnswerValidationException` (from the pipeline, before the handler) |
-| Question misconfigured (invalid `ValidationRules` JSON / regex pattern / type) | `InvalidOperationException` |
+| Value of a `Json` question is not well-formed JSON | `AnswerValidationException` – a **value** error (HTTP 400), not a misconfiguration |
+| Custom question type refuses the value | `AnswerValidationException` with the host validator's own errors |
+| `CustomTypeKey` names a type this host did not declare | **no** error: validated as plain JSON, one log warning |
+| Question misconfigured (invalid `ValidationRules` JSON / regex pattern / type) | `InvalidOperationException` (in the WebAPI: HTTP **409**) |
 | Session/pinned dialog/question not resolvable | no validation → canonical handler error |
 | `null`/empty `Value` | `ValidationException` (DataAnnotations, before the semantic validation) |
 
@@ -132,4 +200,9 @@ dotnet test tests/Flirty.Tests
 rules, membership, tolerant fallback, misconfiguration).
 `tests/Flirty.Tests/Validation/AnswerValidationPipelineBehaviorTests.cs` drives the behavior end-to-end
 through the full pipeline via `IFlirtyEngine` against SQLite: an invalid answer → `AnswerValidationException`
-without persistence/invalidation, a valid answer runs through, plus the DI registration.
+without persistence/invalidation, a valid answer runs through, plus the DI registration. Since #136 it
+also drives a host-declared type end-to-end, including the degradation when the declaration is absent.
+`tests/Flirty.Tests/Validation/CustomQuestionTypeAnswerValidatorTests.cs` covers the decorator in
+isolation (dispatch, the order, the single warning on an unknown key, the case-sensitive lookup), and
+the lifetime promises – "stays a singleton without a declaration", "resolved from the request scope" –
+are pinned in `tests/Flirty.Tests/DependencyInjection/FlirtyServiceCollectionExtensionsTests.cs`.

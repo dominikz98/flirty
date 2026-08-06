@@ -38,7 +38,7 @@ ones that cross aggregate boundaries (explicit configuration happens in the DbCo
 
 | Enum | Values (ordinal) |
 |---|---|
-| `QuestionType` | SingleChoice(0), MultiChoice(1), FreeText(2), Number(3), Date(4), Boolean(5) |
+| `QuestionType` | SingleChoice(0), MultiChoice(1), FreeText(2), Number(3), Date(4), Boolean(5), Json(6) |
 | `TriggerScope` | OnDialogStarted(0), AfterAnswer(1), AfterQuestion(2), OnDialogCompleted(3) |
 | `TriggerKind` | InProcess(0), Webhook(1) |
 | `LayoutElementKind` | Question(0) |
@@ -49,7 +49,7 @@ ones that cross aggregate boundaries (explicit configuration happens in the DbCo
 | Entity | Properties | Navigations |
 |---|---|---|
 | `Dialog` | `Id`, `Key`, `Name`, `Description?`, `Version`, `IsPublished`, `StartQuestionId?`, `CreatedAt`, `UpdatedAt` | `Questions`, `Transitions`, `Loops`, `Triggers`, `Layout` |
-| `Question` | `Id`, `DialogId`, `Key`, `Text`, `Type`, `Order`, `IsRequired`, `ValidationRules?` (JSON) | `Dialog`, `Options` |
+| `Question` | `Id`, `DialogId`, `Key`, `Text`, `Type`, `CustomTypeKey?`, `Order`, `IsRequired`, `ValidationRules?` (JSON) | `Dialog`, `Options` |
 | `AnswerOption` | `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order` | `Question` |
 | `Transition` | `Id`, `DialogId`, `FromQuestionId`, `Expression?`, `TargetQuestionId`, `Priority`, `IsDefault` | `Dialog` |
 | `LoopDefinition` | `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId` | `Dialog` |
@@ -105,6 +105,15 @@ provider choice (SQLite/PostgreSQL/SQL Server) and the migrations per provider a
   The schema of `TriggerDefinition.Config` has been described since #42 by the public type
   `Flirty.Domain.TriggerConfig` (camelCase fields `url`/`name`; `url` is mandatory for `Kind = Webhook` and
   an absolute http/https address) – see [TRIGGERS.md](./TRIGGERS.md#trigger-definitions-on-the-dialog-42).
+- **`Question.CustomTypeKey` is a bounded text column without an index** (#136). It names a question
+  type the *host* declared with `o.AddQuestionType(...)` and is deliberately **not** a foreign key: that
+  registry lives in host code, not in the database. So an unknown key is neither a dangling reference
+  nor an error – the answer is then validated as plain JSON. It is capped at
+  `PersistenceConstants.KeyMaxLength` like the other business keys, and carries no index of its own,
+  because nothing queries by it (the lookup is the in-memory registry) and a unique index over a
+  nullable column would behave differently on SQL Server than on SQLite/PostgreSQL. Only ever set
+  together with `QuestionType.Json`, enforced by the admin commands – see
+  [ADR 0011](./adr/0011-custom-question-types-on-an-open-base-type.md).
 - **Scalar `Guid` references without a foreign key** – the references listed above under *Deliberately
   without a navigation* stay plain columns (no relationship, no shadow FK).
 - **Cascading delete** – within both aggregates (`Dialog` → Questions/Options/Transitions/

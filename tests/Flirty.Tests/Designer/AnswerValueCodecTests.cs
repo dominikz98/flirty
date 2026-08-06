@@ -212,8 +212,8 @@ public sealed class AnswerValueCodecTests
         var question = NewQuestion(type, options);
 
         return new QuestionDetail(
-            question.Id, question.DialogId, question.Key, question.Text, question.Type, question.Order,
-            question.IsRequired, question.ValidationRules,
+            question.Id, question.DialogId, question.Key, question.Text, question.Type,
+            question.CustomTypeKey, question.Order, question.IsRequired, question.ValidationRules,
             [.. question.Options.Select(option => new AnswerOptionDetail(
                 option.Id, option.QuestionId, option.Key, option.Label, option.Value, option.Order))]);
     }

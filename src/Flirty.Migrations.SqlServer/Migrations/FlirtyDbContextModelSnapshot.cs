@@ -193,6 +193,10 @@ namespace Flirty.Migrations.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CustomTypeKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uniqueidentifier");
 

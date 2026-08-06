@@ -357,7 +357,9 @@ public sealed class QuestionFormModelTests
     /// <param name="validationRules">The stored rules as JSON.</param>
     /// <returns>The question view.</returns>
     private static QuestionDetail Question(QuestionType type, string? validationRules)
-        => new(Guid.NewGuid(), Guid.NewGuid(), "firstname", "What is your name?", type, 0, true, validationRules, []);
+        => new(
+            Guid.NewGuid(), Guid.NewGuid(), "firstname", "What is your name?", type, null, 0, true,
+            validationRules, []);
 
     private static DialogDetail Dialog(params QuestionDetail[] questions)
         => new(

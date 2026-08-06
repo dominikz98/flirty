@@ -41,6 +41,7 @@ public sealed class AnswerValidator : IAnswerValidator
             QuestionType.Date => ValidateDate(value),
             QuestionType.SingleChoice => ValidateSingleChoice(question, value),
             QuestionType.MultiChoice => ValidateMultiChoice(question, value),
+            QuestionType.Json => ValidateJson(value),
             _ => throw new InvalidOperationException(
                 $"Unknown question type '{question.Type}' of question '{question.Id}'."),
         };
@@ -116,6 +117,30 @@ public sealed class AnswerValidator : IAnswerValidator
             : AnswerValidationResult.Invalid(
                 $"The selection(s) {string.Join(", ", unknown.Select(u => $"'{Describe(u)}'"))} "
                 + $"are not valid options of question '{question.Key}'.");
+    }
+
+    /// <summary>
+    /// Checks well-formedness, and nothing else – that is the whole contract of
+    /// <see cref="QuestionType.Json"/>. Every <see cref="ValidationRules"/> field is FreeText- or
+    /// Number-scoped, so none of them applies here, exactly as <c>Min</c> does not apply to a
+    /// FreeText question. Semantics on top of this come from a host-declared custom question type.
+    /// </summary>
+    private static AnswerValidationResult ValidateJson(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return AnswerValidationResult.Valid;
+        }
+        catch (JsonException)
+        {
+            // The library's own message carries byte offsets and resource strings; it describes a
+            // parser state, not the author's mistake. Own message instead - the same reason the
+            // expression sandbox stopped forwarding the DynamicExpresso wording (#97).
+            return AnswerValidationResult.Invalid(
+                $"The value '{Describe(value)}' is not valid JSON "
+                + "(a JSON document is expected; a text value must be quoted).");
+        }
     }
 
     // ---- Rules --------------------------------------------------------------------------------

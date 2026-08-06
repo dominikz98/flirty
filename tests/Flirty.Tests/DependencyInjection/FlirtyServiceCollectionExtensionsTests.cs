@@ -4,6 +4,7 @@ using Flirty.Persistence;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Flirty.Tests.Runtime;
+using Flirty.Validation;
 using Mediator;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -336,6 +337,192 @@ public sealed class FlirtyServiceCollectionExtensionsTests
         var start = await engine.StartDialogAsync("branching", "user-1");
         var afterRole = await engine.SubmitAnswerAsync(start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
         await engine.SubmitAnswerAsync(start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
+    }
+
+    // ---- Custom question types (#136) --------------------------------------------------------
+
+    /// <summary>
+    /// The lifetime change is <b>opt-in</b>: a host that declares no custom question type must keep the
+    /// plain singleton. Asserted on the implementation type as well, because a refactor that swapped in
+    /// a factory would keep the lifetime and still break the promise.
+    /// </summary>
+    [Fact]
+    public void Without_a_custom_question_type_the_answer_validator_stays_a_singleton()
+    {
+        var services = new ServiceCollection();
+
+        services.AddFlirty();
+
+        var descriptor = Assert.Single(
+            services, service => service.ServiceType == typeof(IAnswerValidator));
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        Assert.Equal(typeof(AnswerValidator), descriptor.ImplementationType);
+    }
+
+    /// <summary>The registry is always resolvable, so a client can be told "none declared".</summary>
+    [Fact]
+    public void Without_a_custom_question_type_the_registry_resolves_empty()
+    {
+        using var provider = new ServiceCollection().AddLogging().AddFlirty().BuildServiceProvider();
+
+        Assert.Empty(provider.GetRequiredService<FlirtyQuestionTypeRegistry>().Types);
+    }
+
+    [Fact]
+    public void AddQuestionType_makes_the_answer_validator_a_scoped_decorator()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging().AddFlirty(options =>
+            options.AddQuestionType<ProbeQuestionTypeValidator>("color", "Colour picker", "\"#ff0000\""));
+
+        var descriptor = Assert.Single(
+            services, service => service.ServiceType == typeof(IAnswerValidator));
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+
+        var validatorDescriptor = Assert.Single(
+            services, service => service.ServiceType == typeof(ProbeQuestionTypeValidator));
+        Assert.Equal(ServiceLifetime.Scoped, validatorDescriptor.Lifetime);
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        Assert.IsType<CustomQuestionTypeAnswerValidator>(
+            scope.ServiceProvider.GetRequiredService<IAnswerValidator>());
+    }
+
+    /// <summary>
+    /// The whole point of the decorator taking the <see cref="IServiceProvider"/> rather than an
+    /// <c>IServiceScopeFactory</c>: a host validator must see the <b>same</b> scoped instances the
+    /// handler sees. A second scope would hand it a different <c>FlirtyDbContext</c>.
+    /// </summary>
+    [Fact]
+    public void A_host_validator_is_resolved_from_the_request_scope()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging().AddScoped<ScopeProbe>();
+        services.AddFlirty(options =>
+            options.AddQuestionType<ProbeQuestionTypeValidator>("probe", "Probe"));
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        var question = new Question
+        {
+            Id = Guid.NewGuid(),
+            DialogId = Guid.NewGuid(),
+            Key = "q",
+            Text = "Question?",
+            Type = QuestionType.Json,
+            CustomTypeKey = "probe",
+        };
+
+        scope.ServiceProvider.GetRequiredService<IAnswerValidator>().Validate(question, "{}");
+
+        Assert.Same(
+            scope.ServiceProvider.GetRequiredService<ScopeProbe>(),
+            ProbeQuestionTypeValidator.LastSeenProbe);
+    }
+
+    /// <summary>Catches a singleton that starts depending on the now-scoped validator.</summary>
+    [Fact]
+    public void AddQuestionType_keeps_the_container_scope_valid()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging().AddScoped<ScopeProbe>();
+        services.AddFlirty(options => options
+            .UseSqlite("Data Source=:memory:")
+            .AddQuestionType<ProbeQuestionTypeValidator>("probe", "Probe"));
+
+        using var provider = services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+
+        using var scope = provider.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAnswerValidator>());
+    }
+
+    /// <summary>
+    /// A bad declaration must fail where it is written, not at the first submitted answer – by then the
+    /// dialog may be published and unrepairable.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Color")]
+    [InlineData("col_or")]
+    [InlineData("col or")]
+    [InlineData("cölor")]
+    public void AddQuestionType_rejects_an_unusable_key(string key)
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new ServiceCollection().AddFlirty(options => options.AddQuestionType(key, "Display")));
+
+        Assert.Equal("key", exception.ParamName);
+    }
+
+    [Fact]
+    public void AddQuestionType_rejects_a_duplicate_key()
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new ServiceCollection().AddFlirty(options => options
+                .AddQuestionType("color", "Colour picker")
+                .AddQuestionType("color", "Something else")));
+
+        Assert.Equal("key", exception.ParamName);
+    }
+
+    /// <summary>A malformed sample would teach every client a malformed shape.</summary>
+    [Fact]
+    public void AddQuestionType_rejects_a_sample_that_is_not_json()
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new ServiceCollection().AddFlirty(options =>
+                options.AddQuestionType("color", "Colour picker", sample: "#ff0000")));
+
+        Assert.Equal("sample", exception.ParamName);
+    }
+
+    [Fact]
+    public void AddQuestionType_gathers_the_declarations_into_the_registry()
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddFlirty(options => options
+                .AddQuestionType("zip", "Postal code")
+                .AddQuestionType<ProbeQuestionTypeValidator>("color", "Colour picker", "\"#ff0000\""))
+            .BuildServiceProvider();
+
+        var types = provider.GetRequiredService<FlirtyQuestionTypeRegistry>().Types;
+
+        // Ordered by key, so a client sees a stable list.
+        Assert.Collection(
+            types,
+            type =>
+            {
+                Assert.Equal("color", type.Key);
+                Assert.Equal("Colour picker", type.DisplayName);
+                Assert.Equal(typeof(ProbeQuestionTypeValidator), type.ValidatorType);
+                Assert.Equal("\"#ff0000\"", type.SampleValue);
+            },
+            type =>
+            {
+                Assert.Equal("zip", type.Key);
+                Assert.Null(type.ValidatorType);
+                Assert.Null(type.SampleValue);
+            });
+    }
+
+    /// <summary>Scoped marker, used to prove which scope the host validator was resolved from.</summary>
+    private sealed class ScopeProbe;
+
+    /// <summary>Test double: records the scoped dependency it was constructed with.</summary>
+    private sealed class ProbeQuestionTypeValidator : IQuestionTypeValidator
+    {
+        public ProbeQuestionTypeValidator(ScopeProbe probe) => LastSeenProbe = probe;
+
+        public static ScopeProbe? LastSeenProbe { get; private set; }
+
+        public AnswerValidationResult Validate(Question question, string value)
+            => AnswerValidationResult.Valid;
     }
 
     /// <summary>Test double for <see cref="IExpressionEvaluator"/>; resolved only to check the DI replacement.</summary>

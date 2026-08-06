@@ -188,6 +188,10 @@ namespace Flirty.Migrations.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CustomTypeKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("DialogId")
                         .HasColumnType("TEXT");
 

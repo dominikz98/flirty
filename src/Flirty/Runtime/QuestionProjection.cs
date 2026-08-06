@@ -33,6 +33,7 @@ internal static class QuestionProjection
             .Select(option => new AnswerOptionView(option.Id, option.Key, option.Label, option.Value))
             .ToList();
 
-        return new QuestionView(question.Id, question.Key, question.Text, question.Type, options);
+        return new QuestionView(
+            question.Id, question.Key, question.Text, question.Type, question.CustomTypeKey, options);
     }
 }

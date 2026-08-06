@@ -6,6 +6,7 @@ using Flirty.Runtime;
 using Flirty.Validation;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -96,6 +97,13 @@ public static class FlirtyServiceCollectionExtensions
         services.AddSingleton<IReadOnlyList<FlirtyWebhookRegistration>>(Array.Empty<FlirtyWebhookRegistration>());
         services.AddHttpClient(WebhookNotificationHandler.HttpClientName).AddStandardResilienceHandler();
 
+        // Issue #136: custom question types. Like the webhook list, the registry is registered EMPTY
+        // here and replaced by the options overload - so it is always resolvable and a client asking
+        // which types exist gets an empty list rather than a resolution failure. The decorator that
+        // uses it is registered only on an actual declaration; without one, nothing about the
+        // IAnswerValidator registration above changes.
+        services.AddSingleton(FlirtyQuestionTypeRegistry.Empty);
+
         return services;
     }
 
@@ -149,6 +157,40 @@ public static class FlirtyServiceCollectionExtensions
         // with the targets actually gathered via o.AddWebhook(...). The built-in
         // WebhookNotificationHandler (auto-registered) consumes exactly this list.
         services.Replace(ServiceDescriptor.Singleton<IReadOnlyList<FlirtyWebhookRegistration>>(options.Webhooks.AsReadOnly()));
+
+        // Custom question types (#136), gated by absence: the DECORATOR is what turns IAnswerValidator
+        // scoped, and a host that does not use the feature must not pay a lifetime change it never
+        // asked for. So without a declaration this whole block is skipped and the singleton set in
+        // AddFlirty() stands.
+        if (options.QuestionTypes.Count > 0)
+        {
+            services.Replace(
+                ServiceDescriptor.Singleton(new FlirtyQuestionTypeRegistry(options.QuestionTypes)));
+
+            // The concrete type, not the interface: several declarations may implement
+            // IQuestionTypeValidator, and it is the registry - not the container - that maps a key to
+            // one of them. TryAdd, so a host that registered its validator itself (own factory or
+            // lifetime) keeps that registration.
+            foreach (var validatorType in options.QuestionTypes.Values
+                         .Select(questionType => questionType.ValidatorType)
+                         .OfType<Type>()
+                         .Distinct())
+            {
+                services.TryAddScoped(validatorType);
+            }
+
+            // The built-in validator stays a singleton (it is stateless); only the IAnswerValidator
+            // FACADE becomes scoped, which is what lets the decorator resolve a host validator out of
+            // the request scope. Its only in-package consumer, AnswerValidationPipelineBehavior, is
+            // already scoped.
+            services.TryAddSingleton<AnswerValidator>();
+            services.Replace(ServiceDescriptor.Scoped<IAnswerValidator>(provider =>
+                new CustomQuestionTypeAnswerValidator(
+                    provider.GetRequiredService<AnswerValidator>(),
+                    provider.GetRequiredService<FlirtyQuestionTypeRegistry>(),
+                    provider,
+                    provider.GetRequiredService<ILogger<CustomQuestionTypeAnswerValidator>>())));
+        }
 
         if (options.MigrationsEnabled)
         {

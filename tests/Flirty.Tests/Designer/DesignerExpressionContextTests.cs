@@ -217,7 +217,8 @@ public sealed class DesignerExpressionContextTests
             : [new AnswerOptionDetail(Guid.NewGuid(), questionId, optionValue, optionValue, optionValue, 0)];
 
         return new QuestionDetail(
-            questionId, dialogId ?? Guid.NewGuid(), key, $"Frage {key}?", type, 0, false, null, options);
+            questionId, dialogId ?? Guid.NewGuid(), key, $"Frage {key}?", type, null, 0, false, null,
+            options);
     }
 
     /// <summary>Hand-written test double: an engine that throws while checking (no mocking framework).</summary>

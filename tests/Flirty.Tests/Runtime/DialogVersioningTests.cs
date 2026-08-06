@@ -98,6 +98,8 @@ public sealed class DialogVersioningTests : IDisposable
         Assert.All(question.Options, option => Assert.Equal(question.Id, option.QuestionId));
         Assert.Equal(["dev", "pm"], question.Options.Select(option => option.Value));
 
+        Assert.Null(question.CustomTypeKey);
+
         Assert.Single(copy.Transitions);
         Assert.Single(copy.Loops);
         var trigger = Assert.Single(copy.Triggers);
@@ -554,6 +556,38 @@ public sealed class DialogVersioningTests : IDisposable
         using var arrange = CreateContext();
         arrange.Dialogs.Add(dialog);
         arrange.SaveChanges();
+    }
+
+    /// <summary>
+    /// The clone assigns every question a new id and copies its columns by hand – there is no compiler
+    /// help for a forgotten one, which is why <c>CustomTypeKey</c> gets its own check. Without it, the
+    /// only way to change a productive dialog would silently drop every custom question type.
+    /// </summary>
+    [Fact]
+    public async Task CreateDialogVersion_clones_the_custom_type_key()
+    {
+        var dialogId = Guid.NewGuid();
+        var dialog = TestDialogFactory.BuildFullDialog(dialogId, out _);
+        dialog.Questions.Add(new Question
+        {
+            Id = Guid.NewGuid(),
+            DialogId = dialogId,
+            Key = "colour",
+            Text = "Which colour?",
+            Type = QuestionType.Json,
+            Order = 1,
+            IsRequired = false,
+            CustomTypeKey = "color",
+        });
+        Seed(dialog);
+
+        using var act = CreateContext();
+        var copy = await new CreateDialogVersionCommandHandler(new DialogAdminStore(act))
+            .Handle(new CreateDialogVersionCommand(dialogId), default);
+
+        var clone = Assert.Single(copy.Questions, question => question.Key == "colour");
+        Assert.Equal("color", clone.CustomTypeKey);
+        Assert.Equal(QuestionType.Json, clone.Type);
     }
 
     private void SeedSession(Guid dialogId, SessionStatus status)

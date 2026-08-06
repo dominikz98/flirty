@@ -446,7 +446,7 @@ public sealed class GraphLayoutTests
         ids = (a, b, c, d);
 
         QuestionDetail Question(Guid id, string key, int order)
-            => new(id, dialogId, key, $"Frage {key}", QuestionType.FreeText, order, false, null, []);
+            => new(id, dialogId, key, $"Frage {key}", QuestionType.FreeText, null, order, false, null, []);
 
         TransitionDetail Edge(Guid from, Guid target)
             => new(Guid.NewGuid(), dialogId, from, target, null, 0, true);
