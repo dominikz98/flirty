@@ -45,6 +45,9 @@ coverage*.info
 # Flirty designer: local connection profiles (can contain secrets in the connection string, #37)
 connection-profiles.json
 
+# Flirty designer: local question-type descriptors (names a host's internals, #137)
+question-types.json
+
 # OS
 .DS_Store
 Thumbs.db

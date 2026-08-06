@@ -50,6 +50,16 @@ appears 98 times across 15 files in `src`. Path B exists for a type that is genu
    `customTypeKey` on the question view; **which control to show is the host's business**. Worked
    examples: `src/Flirty.Samples.Web/ColourAnswerValidator.cs` (scalar) and `AddressAnswerValidator.cs`
    (composite), with the matching `customTypes` map in `wwwroot/app.js`.
+5. **Optional, for the Blazor designer** (#137): mirror the declaration as data in
+   `question-types.json` in the designer's ContentRoot, so it shows the display name instead of the raw
+   key, offers the type in the dropdowns and the canvas palette, and prefills the sample in the test
+   runner:
+   ```json
+   { "questionTypes": [ { "key": "color", "displayName": "Colour picker", "sample": "\"#ff0000\"" } ] }
+   ```
+   Read once at startup. It buys **cosmetics and a prefill, never your validator** – that is code in
+   your process, so a designer test run checks well-formed JSON and says so beside the input field.
+   Details: `docs/DESIGNER.md` § *Host-declared question types*, ADR 0012.
 
 Four rules that hold, each a decision rather than an implementation detail:
 
@@ -61,9 +71,10 @@ Four rules that hold, each a decision rather than an implementation detail:
 - **A type without a validator is legitimate**, not half-finished: it names a shape for clients and
   leaves the checking at well-formed JSON.
 - **The lifetime changes only when you declare something.** With at least one declaration
-  `IAnswerValidator` becomes scoped (a decorator); without, it stays the plain singleton.
+  `IAnswerValidator` becomes scoped (a decorator); without, it stays the plain singleton. That applies to
+  the designer too, as soon as it has a descriptor file.
 
-Reference: `docs/VALIDATION.md` § *Custom question types declared by the host*, ADR 0011.
+Reference: `docs/VALIDATION.md` § *Custom question types declared by the host*, ADR 0011 and ADR 0012.
 
 ### Path B – a new built-in `QuestionType` (expensive, measure before starting)
 
@@ -120,12 +131,15 @@ invalid, lenient fallback, misconfiguration). `AnswerValidationPipelineBehaviorT
 For path A: `CustomQuestionTypeAnswerValidatorTests.cs` (dispatch, ordering, the single warning on an
 unknown key) and `FlirtyServiceCollectionExtensionsTests.cs` (the lifetime promises – "stays a singleton
 without a declaration", "resolved from the request scope"). A host's own validator is tested like any
-other service; the sample's two live in `tests/Flirty.Tests/Samples/WebSampleTests.cs`.
+other service; the sample's two live in `tests/Flirty.Tests/Samples/WebSampleTests.cs`. For the designer
+descriptors (#137): `Designer/QuestionTypeDescriptorFileTests.cs`, `Designer/DesignerQuestionTypesTests.cs`
+and `Designer/DesignerAppQuestionTypesTests.cs`.
 
 ## Definition of Done
 
 English XML docs · `docs/VALIDATION.md` (type table or rule table) updated · tests green. If the domain
-model/schema changes, additionally run the `flirty-ef-migration` skill. For **path B** additionally: the
+model/schema changes, additionally run the `flirty-ef-migration` skill. For **path A**, if the type should
+be visible in the designer, the descriptor entry from step 5. For **path B** additionally: the
 designer, sample and MCP-prose sites listed above, and the golden test
 `QuestionTypeLabelsTests.Every_question_type_has_a_label_of_its_own` staying green – it is the one guard
 that turns the cheapest silent omission into a failure.

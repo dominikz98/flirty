@@ -1,6 +1,7 @@
 using Flirty.Designer.Models;
 using Flirty.Domain;
 using Flirty.Runtime.Admin;
+using Flirty.Validation;
 
 namespace Flirty.Designer.Services;
 
@@ -40,8 +41,13 @@ internal static class DialogGraphBuilder
 
     /// <summary>Builds the drawing model.</summary>
     /// <param name="detail">The dialog including its graph (from <c>GetDialogQuery</c>).</param>
+    /// <param name="registry">
+    /// The host-declared custom question types (#137), if the caller has them. Only affects the node's
+    /// type label and its screen-reader description; without it a custom type reads as its raw key, as
+    /// it did after #136.
+    /// </param>
     /// <returns>The finished model.</returns>
-    public static DialogGraphModel Build(DialogDetail detail)
+    public static DialogGraphModel Build(DialogDetail detail, FlirtyQuestionTypeRegistry? registry = null)
     {
         ArgumentNullException.ThrowIfNull(detail);
 
@@ -63,7 +69,7 @@ internal static class DialogGraphBuilder
                 + "the questions cannot be determined."));
         }
 
-        var nodes = BuildNodes(detail, layout, insights, warnings, dialogWarnings);
+        var nodes = BuildNodes(detail, layout, insights, warnings, dialogWarnings, registry);
         var edges = BuildEdges(detail, layout, warnings, questions);
         var loops = BuildLoops(insights, layout);
 
@@ -101,7 +107,8 @@ internal static class DialogGraphBuilder
         GraphLayoutResult layout,
         IReadOnlyList<LoopInsight> insights,
         List<GraphWarning> warnings,
-        List<GraphWarning> dialogWarnings)
+        List<GraphWarning> dialogWarnings,
+        FlirtyQuestionTypeRegistry? registry)
     {
         var questions = detail.Questions.ToDictionary(question => question.Id);
         var outgoingCount = detail.Transitions
@@ -150,7 +157,7 @@ internal static class DialogGraphBuilder
                 question.Key,
                 Shorten(question.Text, NodeTextLength),
                 question.Text,
-                QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey),
+                QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey, registry),
                 question.IsRequired,
                 question.Options.Count,
                 QuestionTypeLabels.UsesOptions(question.Type),
@@ -167,6 +174,7 @@ internal static class DialogGraphBuilder
                 nodeWarnings,
                 DescribeNode(
                     question,
+                    registry,
                     isStart,
                     isTerminal,
                     !position.IsReachable,
@@ -191,6 +199,7 @@ internal static class DialogGraphBuilder
     /// </summary>
     private static string DescribeNode(
         QuestionDetail question,
+        FlirtyQuestionTypeRegistry? registry,
         bool isStart,
         bool isTerminal,
         bool isUnreachable,
@@ -202,7 +211,7 @@ internal static class DialogGraphBuilder
         var parts = new List<string>
         {
             $"Question {question.Key}",
-            QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey),
+            QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey, registry),
             question.IsRequired ? "required" : "optional",
         };
 

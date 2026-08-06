@@ -5,9 +5,11 @@
 @using Flirty.Domain
 @using Flirty.Runtime
 @using Flirty.Runtime.Admin
+@using Flirty.Validation
 @inject FlirtyAdminGateway Admin
 @inject FlirtyRuntimeGateway Runtime
 @inject DesignerTriggerLog TriggerLog
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <PageTitle>Test run · @(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
 
@@ -141,6 +143,7 @@ else
                                 {
                                     <AnswerInput Type="question.Type"
                                                  Options="AnswerChoice.From(question.Options)"
+                                                 CustomTypeKey="@question.CustomTypeKey"
                                                  Input="editing.Input"
                                                  OnSubmit="SaveEditAsync"
                                                  SubmitLabel="Save"
@@ -155,13 +158,10 @@ else
                                 }
                                 else
                                 {
-                                    @* Disabled rather than opening a form that can only say no: a JSON
-                                       answer is not editable here (AnswerInputModel.CanSubmit). *@
-                                    <button class="btn"
-                                            disabled="@(_busy || !QuestionTypeLabels.IsAnswerableInDesigner(question.Type))"
-                                            title="@(QuestionTypeLabels.IsAnswerableInDesigner(question.Type)
-                                                ? null
-                                                : "A JSON answer cannot be edited in the designer.")"
+                                    @* Every recorded answer is editable since #137 - a JSON one through
+                                       the raw-JSON field, which is the same control the open question
+                                       uses. AnswerInputModel.CanSubmit stays the hard guard behind it. *@
+                                    <button class="btn" disabled="@_busy"
                                             @onclick="() => StartEdit(entry, question)">Edit</button>
                                 }
                             </li>
@@ -184,12 +184,13 @@ else
                     <span class="mono">@current.Key</span>
                     @current.Text
                 </p>
-                <p class="hint">@QuestionTypeLabels.Describe(current.Type, current.CustomTypeKey)</p>
+                <p class="hint">@QuestionTypeLabels.Describe(current.Type, current.CustomTypeKey, QuestionTypes)</p>
 
                 @if (_input is not null)
                 {
                     <AnswerInput Type="current.Type"
                                  Options="AnswerChoice.From(current.Options)"
+                                 CustomTypeKey="@current.CustomTypeKey"
                                  Input="_input"
                                  OnSubmit="SubmitAsync"
                                  Disabled="_busy" />
@@ -454,7 +455,7 @@ else
 
         // The drawing model arises ONCE per loaded dialog. Computed from the markup, the
         // whole layout would run again on every render – i.e. on every step of the run (#101).
-        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
+        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail, QuestionTypes);
     }
 
     /// <summary>
@@ -601,7 +602,9 @@ else
 
         _state = result.Value!;
         _snapshot = _detail is null ? null : RunExpressionContext.Build(_detail, _state);
-        _input = _state.CurrentQuestion is { } current ? AnswerInputModel.For(current) : null;
+        _input = _state.CurrentQuestion is { } current
+            ? AnswerInputModel.For(current, SampleFor(current.CustomTypeKey))
+            : null;
 
         // The run state arises anew after EVERY step – also after an edit that discards downstream
         // answers: the path is derived from the answer sequence and thereby shrinks along by
@@ -610,6 +613,20 @@ else
             ? null
             : GraphRunAnalyzer.Build(_detail, _state, TriggerLog.Entries, _freshFrom);
     }
+
+    /// <summary>
+    /// The example answer a host-declared type carries (#137), used to prefill the raw-JSON field of a
+    /// freshly opened question.
+    /// </summary>
+    /// <remarks>
+    /// Only for the <b>open</b> question: editing a recorded answer starts from that answer, and
+    /// overwriting it with a sample would discard what the run actually stored.
+    /// </remarks>
+    private string? SampleFor(string? customTypeKey)
+        => !string.IsNullOrWhiteSpace(customTypeKey)
+            && QuestionTypes.TryGet(customTypeKey, out var declared)
+                ? declared?.SampleValue
+                : null;
 
     // ---- Graph view (#104) ---------------------------------------------------------------------------
 
@@ -709,7 +726,7 @@ else
                 _error = result.Error;
             }
 
-            _graph = DialogGraphBuilder.Build(_detail);
+            _graph = DialogGraphBuilder.Build(_detail, QuestionTypes);
         }
         finally
         {

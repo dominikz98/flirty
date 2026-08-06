@@ -41,12 +41,24 @@ public sealed class AnswerInputModel
 
     /// <summary>Creates an empty input state for a newly to be answered question.</summary>
     /// <param name="question">The currently open question.</param>
+    /// <param name="sample">
+    /// The example answer of the question's host-declared custom type (#137), if the designer knows one.
+    /// It prefills the raw-JSON field, which is the whole practical difference between "answerable" and
+    /// "usable" for a composite type – and it is only ever a starting text the author overwrites.
+    /// </param>
     /// <returns>The empty input state.</returns>
-    public static AnswerInputModel For(QuestionView question)
+    public static AnswerInputModel For(QuestionView question, string? sample = null)
     {
         ArgumentNullException.ThrowIfNull(question);
 
-        return new AnswerInputModel(question.Type);
+        return new AnswerInputModel(question.Type)
+        {
+            // Only for Json: for every other type the control derives its own display from Text, and a
+            // sample would be a value the author never typed.
+            Text = question.Type == QuestionType.Json && !string.IsNullOrWhiteSpace(sample)
+                ? sample
+                : string.Empty,
+        };
     }
 
     /// <summary>
@@ -82,15 +94,21 @@ public sealed class AnswerInputModel
     /// shows exactly the messages a host app would get too.
     /// </summary>
     /// <remarks>
-    /// The exception is <see cref="QuestionType.Json"/>, which is never submittable from the designer –
-    /// see <see cref="QuestionTypeLabels.IsAnswerableInDesigner"/> for why. This is the <b>hard</b> guard:
-    /// both submit paths and both edit paths of the test runner already ask it, so there is no reachable
-    /// way to send such an answer even if the markup were bypassed.
+    /// <para>
+    /// This is the <b>hard</b> guard: both submit paths and both edit paths of the test runner ask it, so
+    /// the markup cannot be bypassed into sending something the runner refuses to show.
+    /// </para>
+    /// <para>
+    /// <see cref="QuestionType.Json"/> deliberately needs text and nothing more – <b>not</b> well-formed
+    /// JSON (#137). Gating on well-formedness would make the designer the author of that message, while
+    /// the point of a test run is that the answer is refused by the same
+    /// <c>AnswerValidator</c> a host would use. The editor shows well-formedness as advice beside the
+    /// field; the verdict stays with the engine.
+    /// </para>
     /// </remarks>
     public bool CanSubmit
         => Type switch
         {
-            QuestionType.Json => false,
             QuestionType.MultiChoice => Selected.Count > 0,
             _ => !string.IsNullOrWhiteSpace(Text),
         };

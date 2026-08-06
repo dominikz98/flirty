@@ -24,6 +24,7 @@ here.
 | [0009](./0009-mcp-as-its-own-opt-in-package.md) | MCP server as its own opt-in package | Accepted | #126 |
 | [0010](./0010-mcp-database-targets-by-route.md) | MCP database targets declared by the host, selected by the route | Accepted | #129 |
 | [0011](./0011-custom-question-types-on-an-open-base-type.md) | Custom question types on one open base type, with the seam in DI | Accepted | #136 |
+| [0012](./0012-designer-question-type-descriptors-at-startup.md) | Designer question-type descriptors at startup; the semantic delta stays open | Accepted | #137 |
 
 The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
 (a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
@@ -57,6 +58,15 @@ at 98 call sites rather than the three its skill claimed, the enum is deliberate
 It is also the second ADR after 0009 to be decided by a **dependency measurement** – there the cost of
 adding one, here the cost of a licence change under one, which is why JSON Schema validation is a
 discarded alternative rather than a feature.
+0012 lifts the designer limit 0011 recorded as a consequence, and does it by *using* 0011 rather than
+extending it: the designer declares descriptors through the very `AddQuestionType` seam a host uses, so it
+reads the same registry instead of a parallel model. It is the first ADR whose context section had to
+correct its **own issue**, because that issue assumed a JSON-Schema stage 0011 had already discarded – and
+the correction sharpened the result, since without a schema the missing piece is exactly one thing (the
+host's validator) and is *empty* for a `Json` question with no key. That is why 0012 answers "does a test
+run validate identically?" with a split verdict rather than a flat no, and why the delta is a sentence on
+screen instead of a mechanism: the route that would close it needs two new public endpoints and a
+per-profile registry, and would still need this file as its fallback.
 
 ## Format
 

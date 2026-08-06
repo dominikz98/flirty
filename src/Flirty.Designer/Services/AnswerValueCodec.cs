@@ -121,9 +121,8 @@ internal static class AnswerValueCodec
             return (string.Empty, TryReadStringArray(value, out var items) ? items : []);
         }
 
-        // Verbatim, so that Encode(Decode(x)) == x holds for a JSON answer. The designer offers no
-        // input control for one (see QuestionTypeLabels.IsAnswerableInDesigner), but the round trip is
-        // the property a future editor would build on.
+        // Verbatim, so that Encode(Decode(x)) == x holds for a JSON answer. Since #137 the runner has a
+        // raw-JSON field, and this round trip is what lets it edit a recorded answer without rewriting it.
         if (type == QuestionType.Json)
         {
             return (value, []);
@@ -131,6 +130,37 @@ internal static class AnswerValueCodec
 
         var text = TryReadJsonString(value, out var single) ? single : value.Trim();
         return (type == QuestionType.Boolean ? (IsTrue(text) ? "true" : "false") : text, []);
+    }
+
+    /// <summary>
+    /// Indicates whether the text is a well-formed JSON document – the check the engine's
+    /// <c>AnswerValidator</c> applies to a <see cref="QuestionType.Json"/> answer.
+    /// </summary>
+    /// <param name="text">The text as typed into the runner's raw-JSON field.</param>
+    /// <returns><see langword="true"/> if <see cref="JsonDocument"/> can parse it.</returns>
+    /// <remarks>
+    /// Purely <b>advisory</b> (#137): it drives the status line beside the input field so an author sees
+    /// a stray comma before submitting, and it gates nothing. The refusal itself has to come from the
+    /// engine, otherwise a test run would answer with a message a host application never produces. Blank
+    /// text counts as not well-formed here, which matches the field being empty rather than holding
+    /// <c>null</c>.
+    /// </remarks>
+    public static bool IsWellFormedJson(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -41,6 +41,9 @@ src/
 │                               test runner (#43) and Playwright E2E of the UI (#46). Plus from EPIC 11
 │                               the graph canvas (SVG): reading (#101), layout persistence (#102),
 │                               editing by gesture (#103) and the test run in the graph (#104).
+│                               Plus #137: an optional question-types.json in the ContentRoot, declared
+│                               at startup through the real o.AddQuestionType(...), so a host-declared
+│                               type shows its display name and a Json question is answerable.
 │                               Composition in
 │                               `DesignerApp.cs` (Program.cs only calls ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
@@ -163,6 +166,20 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   JSON Schema validation was deliberately **not** added: the only viable library stopped being freely
   licensed at 9.0.0, and the obligation would flow to every consumer. Reason: ADR
   `docs/adr/0011-custom-question-types-on-an-open-base-type.md`.
+- **The designer learns those types by becoming a host, and the validation gap stays open on purpose**
+  (#137). An optional `question-types.json` in the ContentRoot is read at startup and declared through
+  the **real** `o.AddQuestionType(key, displayName, sample)`, so everything downstream reads the ordinary
+  `FlirtyQuestionTypeRegistry` rather than a designer-private model – no core code, no schema change, no
+  new public API. The declarations carry **no validator**, because a validator is code in the host
+  process; the core stays the authority on validity (the designer calls `AddQuestionType` and catches its
+  `ArgumentException` per entry, so a bad entry is skipped and reported on `/question-types` instead of
+  taking the app down in `ConfigureServices`). Consequence, stated on screen beside the input control and
+  not only in a guide: a designer test run checks **well-formed JSON and no more**, for a declared key as
+  much as for an unknown one – and for a `Json` question **without** a key there is no delta at all, so
+  the run validates identically to production. `IsAnswerableInDesigner` is gone; `AnswerInputModel.CanSubmit`
+  is the single hard guard and asks only for text, because a malformed value has to reach the engine so
+  the refusal is the engine's. Reason: ADR
+  `docs/adr/0012-designer-question-type-descriptors-at-startup.md`.
 
 ## Central entry points (with paths)
 
@@ -175,7 +192,11 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   the `internal` decorator `CustomQuestionTypeAnswerValidator.cs`; the authoring guard in
   `src/Flirty/Runtime/Admin/QuestionValidation.cs`. The MCP counterpart is
   `Tools/FlirtyQuestionTypeTools.cs` (`flirty_question_type_list`), the worked examples are
-  `src/Flirty.Samples.Web/{Colour,Address}AnswerValidator.cs`.
+  `src/Flirty.Samples.Web/{Colour,Address}AnswerValidator.cs`. The **designer** side (#137) is
+  `Services/QuestionTypeDescriptorFile.cs` + `Services/DesignerQuestionTypes.cs` (read the optional
+  `question-types.json`, declare it via the same `AddQuestionType`, catch the `ArgumentException` per
+  entry) and `Models/QuestionTypeLabels.cs` (`Describe`/`Choices`/`ChoiceValue`/`TryResolveChoice`, each
+  taking the registry **optionally** so the no-descriptor arm is the unchanged #136 code).
 - **Runtime facade:** `IFlirtyEngine` (`src/Flirty/Runtime/IFlirtyEngine.cs`) → `StartDialogAsync`,
   `StartDialogVersionAsync`, `SubmitAnswerAsync`, `ResumeDialogAsync`, `EditAnswerAsync`. Behind it,
   commands/queries in `src/Flirty/Runtime/` (`StartDialogCommand.cs`, `SubmitAnswerCommand.cs`, …),
@@ -291,7 +312,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Getting Started (Web sample / chat UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0011 |
+| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0012 |
 
 ## Status & open work
 
@@ -1220,7 +1241,9 @@ the designer, samples/docs/skill. **One schema change** (`Question.CustomTypeKey
   guessed value would be worse than none. `QuestionTypeLabels.IsAnswerableInDesigner` is the single
   source; the hard guard is `AnswerInputModel.CanSubmit`, which every submit and edit path already asks,
   so it covers the graph run view for free. Authoring stays complete: `CustomTypeKey` is a plain text
-  field in both surfaces. Richer support is #137.
+  field in both surfaces. Richer support is #137. **Overtaken by #137** (see below): the input control
+  exists, `IsAnswerableInDesigner` was deleted, and `CanSubmit` is now the only guard – what remains of
+  the limit is that the designer never runs the host's validator, which the runner states on screen.
 
 Two defects found on the way, neither of which any existing test could see. `DialogEditor.MoveQuestionAsync`
 rebuilds the whole `UpdateQuestionCommand`, so **reordering a question with ↑/↓ would have silently wiped
@@ -1236,3 +1259,55 @@ in `_ =>`, so a seventh enum member breaks nothing and merely renders as its bar
 places – which is precisely why the "three steps" claim survived unchallenged for so long. The cheap fix
 is a golden test that asserts every enum value has a label of its own; the general lesson is that when a
 codebase absorbs a change silently, the absorption is the thing to measure, not the change.
+
+**Designer support for host-declared question types (#137) done** – the follow-up to EPIC 14, deliberately
+**not** a stage of it: that EPIC made the designer *correct* about host-declared types, this makes it
+*rich*. A type now shows its **display name** in the question list, both type dropdowns, the canvas palette
+and the graph node, is offered as its own pickable entry there, and a `Json` question **is answerable** in
+the test runner. **No core code, no schema change, no new command, no new project, no new public API**;
+one new ADR (`docs/adr/0012-designer-question-type-descriptors-at-startup.md`). Suite 870 → **914** unit,
+19 → **20** E2E (the designer suite ran green three times in a row).
+
+- **The issue's tracked premise was overtaken by ADR 0011, and measuring that shaped everything.** #137
+  builds on an "EPIC 14 stage 4" that put a JSON Schema in `ValidationRules` and gave the designer an
+  `IJsonSchemaValidator`. Neither exists: EPIC 14 has four stages, and schema validation was *discarded* on
+  a licence measurement. `grep JsonSchema` over the repo finds it in `CLAUDE.md`, ADR 0011, `BACKLOG.md`
+  and `ROADMAP.md` — every hit a discarded alternative. So two acceptance criteria ("a question **with a
+  schema**", "the engine's **JSON Pointer**") were not satisfiable as worded and are read as
+  well-formedness, which is the entire built-in `Json` contract.
+- **The collapse sharpened the answer instead of weakening it.** With no schema layer, the delta between a
+  designer run and a production run is **exactly one thing** — the host's `IQuestionTypeValidator` — and it
+  is **empty** for a `Json` question without a key. That is a statement neither the issue nor ADR 0011 could
+  make, and it is why the ADR answers "does a test run validate identically?" with a split verdict rather
+  than a flat no.
+- **Route: the designer becomes a host.** An optional `question-types.json` beside `connection-profiles.json`
+  is read in `ConfigureServices` and declared through the real `o.AddQuestionType(...)` — so the designer
+  reads the ordinary `FlirtyQuestionTypeRegistry`, not a parallel model, and the whole feature is one file
+  plus two small services. The issue's route C (an HTTP twin of `flirty_question_type_list`) was discarded
+  on a second measured point: **it would not have closed the delta either.** A *list* endpoint returns
+  descriptors — exactly what a file returns. Closing it needs a second `/validate` endpoint plus a
+  per-profile registry (the core registry is a startup singleton with an `internal` ctor, while the profile
+  is per circuit), and *still* needs the file as a fallback.
+- **Two invariants were kept structural rather than promised.** `Describe`/`Choices` take the registry as an
+  **optional** parameter, so the no-descriptor arm is literally the #136 code — "without descriptors the
+  designer behaves exactly as before" cannot regress through a new branch, and a test pins each behaviour
+  twice. And the core stays the authority on descriptor validity: `DesignerQuestionTypes.Declare` calls
+  `AddQuestionType` and catches its `ArgumentException` per entry instead of re-implementing the charset,
+  sample and duplicate rules, which would be a second truth free to drift.
+- **The submit button stays enabled on malformed JSON, and that is the design.** Gating on well-formedness
+  would make the designer the author of that message; the point of a test run is that the `AnswerValidator`
+  answers exactly as it would for a host application. The status line beside the field is advice.
+  `IsAnswerableInDesigner` was **deleted** rather than left returning `true` — a constantly-true predicate is
+  the enumerating-instead-of-deriving shape #118 named as a bug.
+
+**Two defects the work surfaced, neither visible to any existing test.** In Razor, a `string` component
+parameter written `CustomTypeKey="question.CustomTypeKey"` is a **literal, not an expression** — so the
+delta note rendered the source text at the user, on all three call sites. It compiles, no analyzer objects,
+and only the browser test caught it. And `CLAUDE.md` recorded EPIC 14 as `17 → 18 E2E` when that EPIC had
+added **two** tests; `main` measured 19. A count in prose compiles.
+
+**Mnemonic:** a premise a ticket inherits from an earlier ticket is the one nobody re-measures. #137 named
+"EPIC 14 stage 4" three times and built its central table on it; the stage never existed, because the EPIC
+had *discarded* that work and recorded the discard properly in four places. The check that would have
+caught it costs one `grep` — and running it did not shrink the ticket, it made the deliverable sharper,
+because what remained was a delta small enough to state in one sentence on screen.

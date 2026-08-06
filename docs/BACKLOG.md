@@ -456,7 +456,8 @@ No input control for a `Json` question and no answering it in the test runner �
 because a test run writes a real session and the designer does not know the host's registry. What it
 does get is complete authoring: `CustomTypeKey` as a plain text field in both surfaces. Along the way
 the measurement that no single expression sample shape works for a JSON answer, so the save check
-accepts either. Richer designer support is #137.
+accepts either. Richer designer support is #137 – **done**, see the follow-up section at the end of this
+file: the limit above is lifted except for the validation itself.
 
 ### Samples, docs and the skill
 `type:feature` `type:docs` `area:samples`
@@ -464,3 +465,38 @@ The web sample declares **two** types of different shape – scalar `color` and 
 plays them through the chat UI, which picks its control from the `customTypeKey`. That is what shows the
 value stays opaque to the engine. Plus the guides, and the rewrite of the skill this EPIC measured as
 materially incomplete: two paths, the host path first.
+
+---
+
+## Follow-up: designer support for host-declared question types (#137) `type:feature` `area:api` `area:designer`
+
+Not a stage of EPIC 14 and deliberately so: that EPIC closed on five stages, and its designer stage made
+the designer **correct** about host-declared types without making it **rich** about them. This is the
+richness — display names instead of raw keys, and a `Json` question that can be answered in the test
+runner at all. ADR 0012.
+
+**The issue's own premise had been overtaken, and measuring that shaped the result.** #137 was written
+expecting an "EPIC 14 stage 4" that put a JSON Schema in `ValidationRules` and gave the designer an
+`IJsonSchemaValidator`. Neither exists — schema validation was dropped on the licence measurement above,
+and `grep JsonSchema` finds it only as a discarded alternative. So the split the issue assumed
+("structure the designer can check, semantics it cannot") is not there, and its acceptance criteria
+"a question **with a schema**" and "the engine's **JSON Pointer**" are not satisfiable as worded. They
+are read as well-formedness, which is the whole built-in `Json` contract.
+
+The collapse sharpened the outcome instead of weakening it: **the delta is exactly the host's
+`IQuestionTypeValidator`, and for a `Json` question without a key it is empty** — there a designer test
+run validates *identically* to production. That split verdict is what the ADR records, and the runner
+states it beside the input control rather than only in a guide.
+
+**Route chosen: the designer becomes a host.** An optional `question-types.json` in the ContentRoot is
+read at startup and declared through the real `o.AddQuestionType(...)`, so the designer reads the ordinary
+`FlirtyQuestionTypeRegistry`. No core code, no schema change, no new public API, no new project. The
+issue's route C (an HTTP twin of `flirty_question_type_list`) was discarded on a second measured point:
+**it would not have closed the delta either** — a list endpoint returns descriptors, exactly what a file
+returns. Closing it needs a second `/validate` endpoint plus a per-profile registry, and still needs the
+file as a fallback.
+
+Two defects the work surfaced, neither visible to any existing test. A `string` component parameter
+written `CustomTypeKey="question.CustomTypeKey"` is a **literal**, not an expression — the delta note
+rendered the source text at the user, and only the browser test could see it. And `CLAUDE.md` recorded
+EPIC 14 as `17 → 18 E2E` when it had in fact added two tests; measured, `main` carried 19.

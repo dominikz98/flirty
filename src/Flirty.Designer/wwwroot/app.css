@@ -1084,6 +1084,27 @@ button.chip {
     font-size: 0.82rem;
 }
 
+/* ---- Raw-JSON answer field (#137) ---- */
+
+/* The answer row is a flex line built for buttons and one-line fields. A JSON document is neither, so
+   the textarea, its well-formedness status and the delta note each take a full row of their own.
+
+   Global rather than scoped, and with a deliberately heavy selector: AnswerInput is shared by the test
+   runner and the graph run inspector, while the width cap it fights lives in the RUNNER's scoped sheet
+   as "::deep .answer-input .input" - which compiles to [b-…] .answer-input .input, specificity (0,3,0).
+   The extra element and class here make (0,3,1). Same shape of fix as #118's canvas reading width. */
+.answer-input textarea.input.answer-json {
+    flex: 1 1 100%;
+    max-width: 46rem;
+    resize: vertical;
+}
+
+.answer-input .expr-status,
+.answer-input .answer-note {
+    flex: 1 1 100%;
+    margin: 0;
+}
+
 .graph-edge-link.is-taken {
     border-color: #14663a;
     font-weight: 600;

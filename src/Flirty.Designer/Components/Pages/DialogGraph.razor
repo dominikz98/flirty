@@ -6,9 +6,11 @@
 @using Mediator
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
+@using Flirty.Validation
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <PageTitle>@(_model?.Dialog.Name ?? "Graph") · Graph · Flirty Designer</PageTitle>
 
@@ -366,7 +368,7 @@ else
         // The loaded dialog is kept: a changed position can thereby be computed in locally,
         // without querying the whole graph again.
         _detail = result.Value!;
-        _model = DialogGraphBuilder.Build(_detail);
+        _model = DialogGraphBuilder.Build(_detail, QuestionTypes);
         _unmarkedBackJumps = [.. LoopAnalyzer.UnmarkedBackJumps(_detail).Select(transition => transition.Id)];
         ReconcileSelection();
     }
@@ -381,7 +383,7 @@ else
         }
 
         _detail = _detail with { Layout = layout };
-        _model = DialogGraphBuilder.Build(_detail);
+        _model = DialogGraphBuilder.Build(_detail, QuestionTypes);
     }
 
     /// <summary>
@@ -492,18 +494,19 @@ else
     /// Without a layout row the auto-layout places the question, which is the more
     /// comprehensible result for the keyboard path.
     /// </remarks>
-    /// <param name="type">The chosen question type.</param>
-    private async Task AddQuestionAsync(QuestionType type)
+    /// <param name="choiceValue">The chosen entry's <c>QuestionTypeChoice.Value</c>.</param>
+    private async Task AddQuestionAsync(string choiceValue)
     {
-        if (_detail is null)
+        if (_detail is null
+            || !QuestionTypeLabels.TryResolveChoice(choiceValue, out var type, out var customTypeKey))
         {
             return;
         }
 
-        var key = QuestionFormModel.SuggestKey(type, _detail);
+        var key = QuestionFormModel.SuggestKey(type, _detail, customTypeKey);
 
         var created = await RunGestureAsync(
-            (sender, token) => sender.Send(NewQuestion(type, key), token),
+            (sender, token) => sender.Send(NewQuestion(type, key, customTypeKey), token),
             $"Question \"{key}\" created.");
 
         // After the reload the new question is in the model – found via its key, which is unique
@@ -520,25 +523,28 @@ else
     /// <remarks>
     /// The question type comes as a <b>string</b> from the DOM attribute and is resolved here: Blazor's
     /// JSInterop brings no string-to-enum converter, so a <c>QuestionType</c> parameter would fail
-    /// on deserialization. An unknown value is discarded, not guessed.
+    /// on deserialization. An unknown value is discarded, not guessed. Since #137 that string is a
+    /// <c>QuestionTypeChoice.Value</c>, which may also name a host-declared type – the same value the
+    /// click path passes, so both resolve identically.
     /// </remarks>
-    /// <param name="type">The name of the question type.</param>
+    /// <param name="type">The <c>QuestionTypeChoice.Value</c> of the dragged palette entry.</param>
     /// <param name="x">The horizontal canvas coordinate in px.</param>
     /// <param name="y">The vertical canvas coordinate in px.</param>
     [JSInvokable]
     public async Task CreateQuestionAtAsync(string type, int x, int y)
     {
-        if (_detail is null || !Enum.TryParse<QuestionType>(type, out var questionType))
+        if (_detail is null
+            || !QuestionTypeLabels.TryResolveChoice(type, out var questionType, out var customTypeKey))
         {
             return;
         }
 
-        var key = QuestionFormModel.SuggestKey(questionType, _detail);
+        var key = QuestionFormModel.SuggestKey(questionType, _detail, customTypeKey);
 
         _ = await RunGestureAsync(
             async (sender, token) =>
             {
-                var question = await sender.Send(NewQuestion(questionType, key), token);
+                var question = await sender.Send(NewQuestion(questionType, key, customTypeKey), token);
 
                 // The layout row needs the Guid of the new question – so the order is mandatory.
                 // Both commands run in ONE gateway call (one DI scope, one error path), but
@@ -841,8 +847,8 @@ else
                 token),
             $"Trigger \"{TriggerLabels.Describe(draft.Scope)}\" created.");
 
-    private CreateQuestionCommand NewQuestion(QuestionType type, string key)
-        => new(Id, key, "New question", type, GraphEditing.NextOrder(_detail!), false, null);
+    private CreateQuestionCommand NewQuestion(QuestionType type, string key, string? customTypeKey = null)
+        => new(Id, key, "New question", type, GraphEditing.NextOrder(_detail!), false, null, customTypeKey);
 
     private SetDialogLayoutCommand Position(Guid questionId, int x, int y)
         => new(Id, [new DialogLayoutEntry(LayoutElementKind.Question, questionId, x, y)]);

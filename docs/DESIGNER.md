@@ -48,7 +48,8 @@ On the **Connections** page (`/connections`) profiles can be:
 Profiles are stored as **plaintext JSON** in `connection-profiles.json` in the designer's ContentRoot
 (storage outside the Flirty database, because the profiles are what first establish the connection to it).
 The file can contain **secrets** (passwords in connection strings) and is therefore excluded via
-`.gitignore`. For a local developer tool this is deliberately kept simple – if
+`.gitignore`. The same holds for `question-types.json` beside it (#137), which names a host's internals
+rather than secrets, but is local configuration all the same. For a local developer tool this is deliberately kept simple – if
 the designer is operated in a shared environment, a more secure store (user secrets, KeyVault
 or similar) should be provided.
 
@@ -82,11 +83,14 @@ The entire composition lives in `src/Flirty.Designer/DesignerApp.cs`
 both. The reason for the extraction is the Playwright E2E (#46), which hosts the same setup in-process –
 the same pattern as `WebSampleApp` in `Flirty.Samples.Web`.
 
-The designer calls **`AddFlirty()` without a provider** (engine/admin/mediator, but no fixed
-`FlirtyDbContext`). Instead the context is created per active profile via the factory:
+The designer calls **`AddFlirty` without a provider** (engine/admin/mediator, but no fixed
+`FlirtyDbContext`). Instead the context is created per active profile via the factory. The options
+overload is used only to declare the question-type descriptors (#137) – without a `Use*` call it
+registers no `DbContext`, so the providerless setup is unchanged:
 
 ```csharp
-builder.Services.AddFlirty();                                   // Engine without a hard-wired provider
+// Engine without a hard-wired provider; the lambda only declares question-type descriptors (#137).
+builder.Services.AddFlirty(o => DesignerQuestionTypes.Declare(o, descriptors));
 
 builder.Services.AddSingleton<IConnectionProfileStore>(sp => new JsonConnectionProfileStore(
     Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath, "connection-profiles.json")));
@@ -255,10 +259,12 @@ input fields and uses it directly as the serialization type – the schema is **
 - **If no rules are set**, `null` is saved – no empty `{}` in the column.
 - **`Json` has no configurable rules** and says so: the engine only checks well-formedness, and a
   host-declared custom type adds its check in the host's own `IQuestionTypeValidator`, which the designer
-  cannot see. What it *can* author is the **custom type key**: a plain text field, shown only while the
+  cannot run. What it *can* author is the **custom type key**: a plain text field, shown only while the
   type is `Json`, in the question editor and in the graph inspector alike. It is deliberately **not**
-  checked against a registry – the designer has none, and an unknown key is not an error but degrades to
-  the plain JSON check (#136). Switching the type away from `Json` drops the key rather than producing a
+  checked against a registry – an unknown key is not an error but degrades to the plain JSON check
+  (#136), and since #137 a *declared* key is simply offered as its own entry in the type dropdown, which
+  fills the field for you (see [Host-declared question types](#host-declared-question-types-137)).
+  Switching the type away from `Json` drops the key rather than producing a
   400 from the core guard; `QuestionFormModel.NormalizedCustomTypeKey()` is the single source of that
   rule for all three save paths, the third being the ↑/↓ reordering in the dialog editor, which rebuilds
   the whole `UpdateQuestionCommand` and would otherwise wipe the key.
@@ -284,6 +290,87 @@ pure display text for the host UI.
   entry question is reconciled, if the chosen question fell away on the server side.
 - `DeleteQuestionCommand` removes referencing transitions along with it and resets an entry question
   pointing at it; the UI hints at this, and "Publish" then locks again afterwards.
+
+## Host-declared question types (#137)
+
+A host defines its own question type with `o.AddQuestionType(...)` and an `IQuestionTypeValidator`
+([VALIDATION.md](./VALIDATION.md), [ADR 0011](./adr/0011-custom-question-types-on-an-open-base-type.md)).
+The designer is a separate process and cannot see that container, so it is **told** the descriptors –
+key, display name, example answer – through an optional file, and then knows those types the way a host
+knows them. Decision and discarded routes:
+[ADR 0012](./adr/0012-designer-question-type-descriptors-at-startup.md).
+
+### The descriptor file
+
+`question-types.json` in the designer's ContentRoot, beside `connection-profiles.json` and gitignored for
+the same reason (it names a host's internals). Optional – **its absence is the normal case**, and without
+it everything below simply falls back to the raw key.
+
+```json
+{
+  "questionTypes": [
+    { "key": "color", "displayName": "Colour picker", "sample": "\"#ff0000\"" },
+    { "key": "address", "displayName": "Postal address",
+      "sample": "{\"street\":\"Main 1\",\"zip\":\"10115\",\"city\":\"Berlin\"}" }
+  ]
+}
+```
+
+Read **once at startup** by `DesignerApp.ConfigureServices`, which is what makes the mechanism small:
+the entries go through the real `o.AddQuestionType(key, displayName, sample)`, so everything downstream
+reads the ordinary `FlirtyQuestionTypeRegistry` instead of a designer-private model. The declarations
+carry **no validator** – that is code and stays in the host.
+
+Three rules are worth knowing, and each is a decision:
+
+- **The core owns validity, not the designer.** The key charset, the sample's JSON and uniqueness are
+  checked by `AddQuestionType`; `DesignerQuestionTypes.Declare` merely catches its `ArgumentException` per
+  entry. There is deliberately no second copy of those rules here to drift out of step.
+- **A bad entry is skipped, never thrown.** The call site is `ConfigureServices` – an exception there is a
+  designer that will not start, over a display name. The remaining entries load.
+- **What was skipped is on screen.** The read-only page **Question types** (`/question-types`, in the nav)
+  shows the file path, the declared types and every problem. Without it a typo would be silent, and a
+  silently dropped entry looks exactly like one that was never written.
+
+Since a parser reads a hand-written file here rather than one the UI writes (unlike the connection
+profiles), comments and trailing commas are accepted and the property names are read case-insensitively.
+
+### What a descriptor buys – and what it does not
+
+| | Without a descriptor | With one |
+|---|---|---|
+| Question list, editors, palette, graph node | `Custom type "color" (Json)` | `Colour picker (color)` |
+| Type dropdown / canvas palette | plain `Json`, key typed by hand | own entry, fills the key for you |
+| Test runner prefill | empty field | the declared `sample` |
+| **Host-side semantic validation** | **not applied** | **not applied** |
+
+The last row is the point. `QuestionTypeLabels` is the single source of the first two: `Describe` resolves
+a key against the registry and otherwise returns the #136 text unchanged, and `Choices` returns the seven
+enum values plus one entry per declared type. Both take the registry as an **optional** parameter, so the
+no-descriptor arm is literally the code that shipped with #136 – the invariant cannot regress through a
+new branch. A pick is read back by `TryResolveChoice`, which is registry-free on purpose: a value is
+parsed by its shape, so it still resolves if the file changed between render and postback.
+
+The canvas needed no JavaScript change for this. The palette's `data-question-type` already carried a
+string that C# resolved, and it now carries the same `QuestionTypeChoice.Value` the click path passes –
+drag and click travel one resolution. A question created by gesture takes its key from the custom type
+(`color`, `color2`, …) instead of the generic `json`; `-` becomes `_`, because the declaration charset
+allows a hyphen and an expression identifier does not.
+
+### The delta, and where it is stated
+
+A designer test run **does not** run the host's validator, and cannot: it is code in another process. So:
+
+- **`Json` with a declared key** → well-formedness is checked, the type's own semantics are not. Stated
+  beside the input control, by display name.
+- **`Json` with an unknown key** → the same, plus the fact that no descriptor exists, with a pointer to
+  the Question types page.
+- **`Json` with no key at all** → **no note**, because there is no delta: well-formedness *is* the whole
+  engine contract for that question, and the run validates identically to production.
+
+The note deliberately also appears in the resolvable case. Showing it only for unknown keys would tell an
+author that a known type is fully checked here – the false impression EPIC 14 refused to create by
+offering no control at all.
 
 ## Branching editor (#40)
 
@@ -536,16 +623,20 @@ The runner shows both at the top as a banner:
   (resume). It is **not** cleaned up: the engine deliberately knows no deletion of sessions.
 - **Webhook** triggers configured on the dialog are actually delivered via HTTP (since #42, see
   [TRIGGERS.md](./TRIGGERS.md)). So before a test run against productive targets, check the URL.
-- **A `Json` question cannot be answered here** (#136), and that is a documented limit rather than a
-  gap. The designer does not know what shape a host's custom question type expects – it does not have
-  the registry, only the key – and because the run above is real, a guessed value would be worse than
-  none. So the answer area shows a note instead of a control, and the "Edit" button on a recorded JSON
-  answer is disabled. `QuestionTypeLabels.IsAnswerableInDesigner` is the single source of that decision;
-  the hard guard behind it is `AnswerInputModel.CanSubmit`, which both submit paths and both edit paths
-  already ask, so there is no reachable way to send one even if the markup were bypassed. It applies to
-  the graph run view too, which renders the same `AnswerInput` component. Such a question is played
-  through the host application, over HTTP or from an MCP client; a recorded answer is *displayed* here
-  read-only. Richer designer support is weighed in #137.
+- **A `Json` question is answered through a raw JSON field** (#137; until then it could not be answered
+  here at all). A textarea, not a generated form: the designer knows a custom type's *name*, never its
+  shape. Beside it a status line reports **well-formedness while typing** – and it is advice, not a gate.
+  The submit button stays enabled on malformed input on purpose, so the refusal comes from the engine's
+  own `AnswerValidator` and reads exactly as it would in a host application. `AnswerInputModel.CanSubmit`
+  is the single hard guard and now only asks for text; there is no longer a type the runner refuses.
+  Editing a recorded JSON answer uses the same control, in the history and in the graph run view alike.
+- **What the run does *not* check is written beside the field.** An `IQuestionTypeValidator` is code in
+  the host process, so a designer run verifies well-formed JSON and nothing more. The note appears for
+  **every** question carrying a `CustomTypeKey` – including one the designer *can* resolve, because a
+  descriptor buys a display name and a sample, never the validation. A plain `Json` question **without**
+  a key gets no note, and that is not an omission: there, well-formedness is the entire engine contract,
+  so a test run validates identically to production. Rationale:
+  [ADR 0012](./adr/0012-designer-question-type-descriptors-at-startup.md).
 
 ### History, iterations and editing
 
@@ -581,11 +672,11 @@ explicitly named there as "the engine does not deliver this itself".
 |---|---|---|
 | `DesignerGateway` | `Services/DesignerGateway.cs` | Shared base of both gateways: fresh DI scope per operation, `Adopt` pass-through, error mapping (`GatewayResult<T>`). |
 | `FlirtyRuntimeGateway` | `Services/FlirtyRuntimeGateway.cs` | Runs the `IFlirtyEngine` calls; extends the mapping with `DialogNotFound`/`SessionNotFound`/`AnswerValidation`. |
-| `AnswerValueCodec` | `Services/AnswerValueCodec.cs` | **Single** source of the JSON contract per `QuestionType` (encode, display, read back). For `Json` the contract is "verbatim, well-formed": `Describe` **compacts** the document, it does not unwrap it – otherwise the JSON string `"12"` and the number `12` would render identically. |
+| `AnswerValueCodec` | `Services/AnswerValueCodec.cs` | **Single** source of the JSON contract per `QuestionType` (encode, display, read back). For `Json` the contract is "verbatim, well-formed": `Describe` **compacts** the document, it does not unwrap it – otherwise the JSON string `"12"` and the number `12` would render identically. `IsWellFormedJson` (#137) feeds the runner's status line and is advisory only. |
 | `RunExpressionContext` | `Services/RunExpressionContext.cs` | Mirrors the core `SessionExpressionContextBuilder` onto `DialogDetail` + `ResumeDialogResult`. |
 | `DesignerTriggerLog` (+ `…Handlers`) | `Services/` | Collects the published notifications; four `INotificationHandler<T>` write into it. |
-| `AnswerInputModel`, `AnswerChoice` | `Models/` | Input state and selection option (`public`, because `[Parameter]` of the component). |
-| `AnswerInput` | `Components/AnswerInput.razor` | Input field per question type – shared by the current question and the edit mode. |
+| `AnswerInputModel`, `AnswerChoice` | `Models/` | Input state and selection option (`public`, because `[Parameter]` of the component). `CanSubmit` is the hard guard on what may be sent; `For(question, sample)` prefills the raw-JSON field (#137). |
+| `AnswerInput` | `Components/AnswerInput.razor` | Input field per question type – shared by the current question and the edit mode. For `Json` a raw textarea plus an advisory well-formedness line and the delta note (#137). |
 | Page `DialogTestRunner.razor` | `Components/Pages/` | The page (`/dialogs/{dialogId}/test`). |
 
 Two traps that surfaced during the build and hold when extending:
@@ -1120,7 +1211,11 @@ designer; internals via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/AnswerValueCodecTests` – the encoding of the answer values (#43), checked against the **real**
   `AnswerValidator`: the JSON form per question type, invariant number literals despite a decimal comma, the
   passing-through of unreadable inputs to the engine, the display (label instead of raw value) and the
-  reversibility of `Decode`/`Encode` for the edit mode.
+  reversibility of `Decode`/`Encode` for the edit mode – the property the raw-JSON editor rests on since
+  #137. Plus `IsWellFormedJson`, which has to agree with the engine's check including its scalar roots.
+- `Designer/AnswerInputModelTests` – the hard submit guard and the sample prefill (#137). The sharp case
+  is that a **malformed** JSON answer is submittable: gating it here would make the designer the author of
+  a message that has to come from the engine.
 - `Designer/RunExpressionContextTests` – the live bindings of the run (#43), as a core probe compared at **every**
   step of a real run against the core `SessionExpressionContextBuilder` (no
   drift of the mirrored computation), on top of that the collected collection and the semantics of the
@@ -1160,9 +1255,26 @@ designer; internals via `InternalsVisibleTo("Flirty.Tests")`):
 - `Designer/GraphEditingTests` – the computation rules of the gestures (#103), which previously lay privately in the `@code` block:
   `NextOrder`, `NextPriority` **per source question** and `Reorder` (position index → `Priority`,
   including the repair of duplicate values).
+- `Designer/QuestionTypeLabelsTests` – the labels and the authorable type list. Every behaviour is pinned
+  **twice** (#137): once with a registry, once without – the second half *is* the acceptance criterion
+  "without descriptors the designer behaves exactly as after #136", and `Choices` is compared against
+  `Enum.GetValues` rather than a literal list so a future `QuestionType` is covered. On top of that the
+  round trip `Choices` → `TryResolveChoice`, without which a pick could silently author another type.
+- `Designer/QuestionTypeDescriptorFileTests` – the parse half of the descriptors (#137). The property
+  under test throughout is that reading **never throws**: missing file, empty file, broken JSON, missing
+  array, null entry.
+- `Designer/DesignerQuestionTypesTests` – the declaration half (#137), driven against the **real**
+  `FlirtyOptions`, so the core stays the authority on validity instead of a designer-side copy of the
+  rules. One unusable entry per guard (charset, blank name, malformed sample, duplicate) must not cost
+  the others.
+- `Designer/DesignerAppQuestionTypesTests` – the composition (#137), driven through the real
+  `DesignerApp.ConfigureServices` rather than a mirror: descriptors land in the **core** registry, a
+  broken entry or file is reported and the app still starts – and without a file `IAnswerValidator` is
+  still the plain **singleton** (the EPIC 14 invariant; the decorator is what turns it scoped).
 - `Designer/DesignerTestHost` – no test, but the shared DI stack (mirror of `DesignerApp`)
   and the SQLite temp database for the gateway tests. If `DesignerApp.ConfigureServices` changes, that
-  is the one place to bring along.
+  is the one place to bring along. Its `AddFlirty()` deliberately stays parameterless – the
+  descriptor path has its own test above, and the gateway tests are not about it.
 
 On top of that, in the core come the counterparts: `Domain/TriggerConfigTests` (the schema itself) and
 `Runtime/DialogTriggerDispatchTests` – the end-to-end proof that a webhook trigger configured in the designer
@@ -1181,7 +1293,9 @@ smoke test, **#105** completes the coverage.
 
 - `DesignerAppFixture` hosts `DesignerApp` in-process on a free Kestrel port and creates beforehand an
   **active** connection profile against a freshly migrated SQLite temp database (profile file and DB
-  lie in a temp ContentRoot, not in the repo).
+  lie in a temp ContentRoot, not in the repo). Since #137 it also writes a `question-types.json` there,
+  declaring `color` – as a **file**, not as a container registration, because the file is the mechanism
+  under test.
 - `DesignerE2ETests.Create_and_save_a_dialog_with_branching_and_a_loop` – the acceptance criterion
   of the issue: create a dialog → three questions → answer options in the question editor → entry question → three
   transitions → condition `more == "yes"` including **live validation** → mark a loop over the
@@ -1225,6 +1339,19 @@ smoke test, **#105** completes the coverage.
   (the collection key is pre-filled with `choice_list`) and create a trigger at exactly
   one question – the chip afterwards hangs there and not on all. At the end reload and
   list parity in "Loops" and "Triggers".
+- `DesignerE2ETests.A_custom_question_type_survives_reordering_and_shows_its_display_name` – the
+  authoring path through the forms (#136/#137). The middle step is why it exists: ↑/↓ rebuilds the whole
+  `UpdateQuestionCommand`, so a forgotten `CustomTypeKey` would **silently wipe** the custom type, and no
+  unit test can see it because the code sits in a Razor `@code` block. The ending is the EPIC 14
+  invariant in the same flow – rewriting the key to an **undeclared** one falls back to
+  `Custom type "postcode"`, right after the declared one rendered as `Colour picker (color)`.
+- `DesignerE2ETests.A_custom_question_type_is_authored_on_the_canvas_and_answered_in_the_test_runner` –
+  the acceptance criterion of #137. The palette entry proves a host type is authorable without ever
+  widening `QuestionType`: not an enum member, yet the same gesture and the same
+  `CreateQuestionCommand`. Then the run: the field is **prefilled from the sample**, the delta note names
+  the declared type, a **malformed** value comes back with the *engine's* message (the reason this step is
+  worth a browser – neither side alone can show it), the corrected one lands in the history, and the
+  graph view carries it too.
 
 A few points that save time when extending the suite:
 

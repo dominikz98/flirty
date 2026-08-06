@@ -12,23 +12,27 @@
     created here.
 *@
 @using Flirty.Domain
+@using Flirty.Validation
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <aside class="graph-palette" aria-label="Create new question">
     <h2>Building blocks</h2>
 
     <ul class="graph-palette-list">
-        @foreach (var type in Types)
+        @foreach (var choice in QuestionTypeLabels.Choices(QuestionTypes))
         {
-            var current = type;
+            var current = choice;
             <li>
-                @* data-question-type is read by the JS module while dragging; the click runs through Blazor. *@
+                @* data-question-type is read by the JS module while dragging; the click runs through Blazor.
+                   Both paths carry the same choice VALUE, so a host-declared type (#137) travels through
+                   the drag exactly as through the click - the JS module needed no change for it. *@
                 <button type="button"
                         class="graph-palette-item"
-                        data-question-type="@current"
+                        data-question-type="@current.Value"
                         disabled="@Disabled"
-                        title="@QuestionTypeLabels.Describe(current)"
-                        @onclick="() => Add.InvokeAsync(current)">
-                    @QuestionTypeLabels.Describe(current)
+                        title="@current.Label"
+                        @onclick="() => Add.InvokeAsync(current.Value)">
+                    @current.Label
                 </button>
             </li>
         }
@@ -41,18 +45,22 @@
 </aside>
 
 @code {
-    /// <summary>
-    /// The offered question types. Read from the enum rather than enumerated: a new
-    /// <see cref="QuestionType"/> (skill <c>flirty-question-type</c>) then appears here by itself
-    /// instead of silently missing.
-    /// </summary>
-    private static readonly QuestionType[] Types = Enum.GetValues<QuestionType>();
+    // The offered types come from QuestionTypeLabels.Choices: the enum values (so a new QuestionType
+    // appears here by itself instead of silently missing) plus one entry per host-declared type (#137).
 
     /// <summary>Whether the entries are locked – on a published dialog or during a running gesture.</summary>
     [Parameter]
     public bool Disabled { get; set; }
 
-    /// <summary>Raised when an entry is activated (the pointerless path).</summary>
+    /// <summary>
+    /// Raised with the <c>QuestionTypeChoice.Value</c> of the activated entry (the pointerless path).
+    /// </summary>
+    /// <remarks>
+    /// A string rather than the choice record, and that is not laziness: the drag path receives the very
+    /// same value out of a DOM attribute, so both resolve through one
+    /// <c>QuestionTypeLabels.TryResolveChoice</c>. It also keeps the record <c>internal</c> – an internal
+    /// type on a <c>[Parameter]</c> would be CS0053.
+    /// </remarks>
     [Parameter]
-    public EventCallback<QuestionType> Add { get; set; }
+    public EventCallback<string> Add { get; set; }
 }
