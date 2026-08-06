@@ -930,8 +930,8 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
-    /// A host-declared custom question type in the designer (#136): authorable, and <b>not</b> answerable
-    /// in the test runner.
+    /// A host-declared custom question type in the designer: authorable (#136), and named by its
+    /// <b>display name</b> wherever a question is described (#137).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -946,9 +946,15 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     /// <c>GetDialogQuery</c>, so it can only read the custom type's name if the column really came back
     /// from the database.
     /// </para>
+    /// <para>
+    /// Answering such a question is the <b>other</b> test
+    /// (<see cref="A_custom_question_type_is_authored_on_the_canvas_and_answered_in_the_test_runner"/>).
+    /// Kept apart on purpose: this one authors through the forms and is about the column surviving a
+    /// rewrite, that one authors by gesture and is about the run.
+    /// </para>
     /// </remarks>
     [SkippableFact]
-    public async Task A_custom_question_type_survives_reordering_and_is_not_answerable_in_the_test_runner()
+    public async Task A_custom_question_type_survives_reordering_and_shows_its_display_name()
     {
         await using var session = await PlaywrightSession.LaunchAsync();
         var page = await ArrangeDialogAsync(session);
@@ -970,53 +976,164 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
         // fizzles, the field still holds the typed text while the server never saw it - the save then
         // succeeds with an empty key and a banner-based check would stop right there. The intro line is
         // re-rendered from the reloaded question, so it can only name the custom type if it was stored.
+        // The descriptor is declared by the fixture, so the designer resolves the key to its display
+        // name (#137) - the raw key was all it could show after #136.
+        var declared = $"{DesignerAppFixture.ColourTypeName} ({DesignerAppFixture.ColourTypeKey})";
+
         await InteractWhenReadyAsync(
             async () =>
             {
-                await page.Locator("#customTypeKey").FillAsync("color");
+                await page.Locator("#customTypeKey").FillAsync(DesignerAppFixture.ColourTypeKey);
                 await page.GetByRole(AriaRole.Button, new() { Name = "Save" }).First.ClickAsync();
             },
-            () => Assertions.Expect(page.Locator("p.intro"))
-                .ToContainTextAsync("Custom type \"color\"", QuickContains));
+            () => Assertions.Expect(page.Locator("p.intro")).ToContainTextAsync(declared, QuickContains));
 
         await page.Locator("p.back a").ClickAsync();
         await page.WaitForURLAsync(DialogUrl);
-        await Assertions.Expect(colourRow).ToContainTextAsync("Custom type \"color\"", SlowContains);
+        await Assertions.Expect(colourRow).ToContainTextAsync(declared, SlowContains);
 
         // The silent-loss path: move the question up, then back down.
         await colourRow.GetByRole(AriaRole.Button, new() { Name = "↑" }).ClickAsync();
-        await Assertions.Expect(colourRow).ToContainTextAsync("Custom type \"color\"", SlowContains);
+        await Assertions.Expect(colourRow).ToContainTextAsync(declared, SlowContains);
 
         await page.ReloadAsync();
         await Assertions.Expect(
             Section(page, "Questions").Locator("tbody tr").Filter(new() { HasText = "Which colour?" }))
-            .ToContainTextAsync("Custom type \"color\"", SlowContains);
+            .ToContainTextAsync(declared, SlowContains);
 
-        // Make it the entry question, so the run opens on it directly - a freshly created question is
-        // in no transition and would otherwise be unreachable.
-        var colourStartBadge = Section(page, "Questions").Locator("tbody tr")
-            .Filter(new() { HasText = "Which colour?" }).Locator(".badge-start");
+        // The EPIC 14 invariant, in the same flow: a key the designer has NO descriptor for still renders
+        // as the key. Checked here rather than in its own test because it is one field edit away, and
+        // because the contrast with the line above is the whole statement.
+        await InteractWhenReadyAsync(
+            () => Section(page, "Questions").Locator("tbody tr")
+                .Filter(new() { HasText = "Which colour?" })
+                .GetByRole(AriaRole.Button, new() { Name = "Edit" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator("#customTypeKey")).ToBeVisibleAsync(QuickVisible));
+
         await InteractWhenReadyAsync(
             async () =>
             {
-                await page.Locator("#startQuestion")
-                    .SelectOptionAsync(new SelectOptionValue { Label = "colour — Which colour?" });
-                await Section(page, "Metadata").GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
+                await page.Locator("#customTypeKey").FillAsync("postcode");
+                await page.GetByRole(AriaRole.Button, new() { Name = "Save" }).First.ClickAsync();
             },
-            () => Assertions.Expect(colourStartBadge).ToBeVisibleAsync(QuickVisible));
+            () => Assertions.Expect(page.Locator("p.intro"))
+                .ToContainTextAsync("Custom type \"postcode\"", QuickContains));
+    }
 
-        // The documented limit: the runner offers a note instead of a control, and no way to submit.
+    /// <summary>
+    /// The acceptance criterion of #137: author a host-declared question type <b>on the canvas</b> and
+    /// answer it in the test runner.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The palette entry is the proof that a host type is authorable without ever widening
+    /// <c>QuestionType</c> (ADR 0011): it is not an enum member, yet it travels the same gesture and the
+    /// same <c>CreateQuestionCommand</c> as a built-in one, and the node then names it. Every check hangs
+    /// on a server-produced quantity - node count, the card's type label, <c>is-start</c>, the stored
+    /// value in the history - because a discarded gesture is silent (the JS <c>send()</c> drops a second
+    /// message without a word).
+    /// </para>
+    /// <para>
+    /// The middle step is the one worth the browser: a <b>malformed</b> value is submitted first, and the
+    /// message that comes back is the engine's own. That is what the raw-JSON field is for - the designer
+    /// advises, the <c>AnswerValidator</c> decides - and it cannot be shown by a unit test of either side.
+    /// </para>
+    /// <para>
+    /// The delta note is asserted while the field is on screen: what the designer does <b>not</b> check
+    /// has to be visible where the answer is given, not only in a guide.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task A_custom_question_type_is_authored_on_the_canvas_and_answered_in_the_test_runner()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeEmptyDialogAsync(session);
+
+        var declared = $"{DesignerAppFixture.ColourTypeName} ({DesignerAppFixture.ColourTypeKey})";
+
+        // The precondition, and the page that makes it inspectable: the descriptor file was read and
+        // declared. Without this surface a typo in that file would be silent - the shape #118 called a
+        // bug - so it is checked here rather than trusted.
+        await page.GotoAsync($"{_fixture.BaseUrl}/question-types");
+        var declaredRow = page.Locator(".data-table tbody tr")
+            .Filter(new() { HasText = DesignerAppFixture.ColourTypeKey });
+        await Assertions.Expect(declaredRow).ToContainTextAsync(DesignerAppFixture.ColourTypeName, SlowContains);
+        await Assertions.Expect(declaredRow).ToContainTextAsync(DesignerAppFixture.ColourTypeSample, SlowContains);
+        await Assertions.Expect(page.Locator(".banner.err")).ToHaveCountAsync(0, SlowCount);
+
+        await page.GoBackAsync();
+        await page.WaitForURLAsync(DialogUrl);
+
+        await page.GetByRole(AriaRole.Link, new() { Name = "View graph" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/graph$"));
+        await page.WaitForSelectorAsync("svg[data-canvas-ready='true']", new() { Timeout = 30_000 });
+
+        // The palette offers the host type beside the seven built-ins - the whole point of Choices().
+        var paletteEntry = page.Locator(".graph-palette")
+            .GetByRole(AriaRole.Button, new() { Name = declared, Exact = true });
+        await Assertions.Expect(paletteEntry).ToBeEnabledAsync(new() { Timeout = 15_000 });
+
+        // The click path (not the drag): it appends without a position, which is all this test needs, and
+        // it is the keyboard/screen-reader path too.
+        await InteractWhenReadyAsync(
+            () => paletteEntry.ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-node")).ToHaveCountAsync(1, QuickCount));
+
+        // The card reads the label out of the reloaded graph, so it can only say this if BOTH the type and
+        // the custom type key reached the database through one gesture.
+        await Assertions.Expect(page.Locator(".graph-node")).ToContainTextAsync(declared, SlowContains);
+
+        // Entry question on the canvas (the affordance #105 retrofitted) - a freshly created question sits
+        // in no transition and would otherwise be unreachable in a run.
+        var inspector = page.Locator(".graph-inspector");
+        await InteractWhenReadyAsync(
+            () => page.Locator(".graph-node .graph-node-card").First.ClickAsync(),
+            () => Assertions.Expect(inspector).ToContainTextAsync("Set as entry question", QuickContains));
+
+        await InteractWhenReadyAsync(
+            () => inspector.GetByRole(AriaRole.Button, new() { Name = "Set as entry question" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-node.is-start")).ToHaveCountAsync(1, QuickCount));
+
+        await page.Locator("p.back a").ClickAsync();
+        await page.WaitForURLAsync(DialogUrl);
         await page.GetByRole(AriaRole.Button, new() { Name = "Test run" }).ClickAsync();
         await page.WaitForURLAsync(new Regex("/test$"));
 
         await InteractWhenReadyAsync(
             () => page.GetByRole(AriaRole.Button, new() { Name = "Start run", Exact = true }).ClickAsync(),
-            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Which colour?", QuickContains));
+            () => Assertions.Expect(JsonAnswerField(page)).ToBeVisibleAsync(QuickVisible));
 
-        await Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Custom type \"color\"", SlowContains);
+        // Prefilled from the descriptor's sample - the practical difference between "answerable" and
+        // "usable" for a shape the author would otherwise have to know by heart.
+        await Assertions.Expect(JsonAnswerField(page))
+            .ToHaveValueAsync(DesignerAppFixture.ColourTypeSample, SlowValue);
+
+        // The delta is on screen, right beside the control, and it names the declared type: a descriptor
+        // buys the name, never the host's validation.
         await Assertions.Expect(CurrentStep(page).Locator(".answer-note")).ToHaveCountAsync(1, SlowCount);
-        await Assertions.Expect(CurrentStep(page).Locator(".answer-input input"))
-            .ToHaveCountAsync(0, SlowCount);
+        await Assertions.Expect(CurrentStep(page).Locator(".answer-note"))
+            .ToContainTextAsync(DesignerAppFixture.ColourTypeName, SlowContains);
+
+        // 1) A malformed value. The button stays enabled on purpose, and the refusal is the ENGINE's -
+        //    AnswerValidator's own wording, which no host application would see differently.
+        await AnswerJsonAsync(page, "{oops");
+        await Assertions.Expect(page.Locator(".banner.err")).ToContainTextAsync("is not valid JSON", SlowContains);
+
+        // Still open, and the typed value is still there to be corrected.
+        await Assertions.Expect(JsonAnswerField(page)).ToBeVisibleAsync(new() { Timeout = 15_000 });
+
+        // 2) A valid value. Stored, and visible in the history as the raw document.
+        await AnswerJsonAsync(page, "\"#00ff00\"");
+        await Assertions.Expect(page.Locator(".transcript")).ToContainTextAsync("\"#00ff00\"", SlowContains);
+        await Assertions.Expect(page.Locator(".transcript li")).ToHaveCountAsync(1, SlowCount);
+
+        // The same run in the graph view (#104): the node carries the answer, so the value survived into
+        // the other representation rather than only into the list.
+        await InteractWhenReadyAsync(
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Graph", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(page.Locator(".graph-node.is-visited")).ToHaveCountAsync(1, QuickCount));
+
+        await Assertions.Expect(page.Locator(".graph-node")).ToContainTextAsync("#00ff00", SlowContains);
     }
 
     /// <summary>
@@ -1253,6 +1370,20 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     private static async Task AnswerTextAsync(IPage page, string text)
     {
         await CurrentStep(page).Locator(".answer-input input.input").FillAsync(text);
+        await CurrentStep(page).GetByRole(AriaRole.Button, new() { Name = "Answer" }).ClickAsync();
+    }
+
+    /// <summary>The raw-JSON field of a <c>Json</c> question (#137) – a textarea, not an input.</summary>
+    private static ILocator JsonAnswerField(IPage page)
+        => CurrentStep(page).Locator(".answer-input textarea.answer-json");
+
+    /// <summary>
+    /// Types a raw JSON answer and submits it. Deliberately no Enter shortcut: in this control Enter
+    /// inserts a line break, which is what makes a multi-line document editable at all.
+    /// </summary>
+    private static async Task AnswerJsonAsync(IPage page, string json)
+    {
+        await JsonAnswerField(page).FillAsync(json);
         await CurrentStep(page).GetByRole(AriaRole.Button, new() { Name = "Answer" }).ClickAsync();
     }
 

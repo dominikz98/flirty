@@ -126,7 +126,13 @@ than an implementation detail:
   so a throw would be an error nobody could repair. It also lets two consumers of one database declare
   different subsets.
 - **A type declared without a validator is legitimate**, not half-finished: it names a shape for
-  clients (display name, sample) and leaves the checking at well-formed JSON. It logs nothing.
+  clients (display name, sample) and leaves the checking at well-formed JSON. It logs nothing. Since
+  #137 the Blazor designer is the standing example of that overload: it declares descriptors read from
+  its own `question-types.json` so it can show a display name and prefill a sample, and it cannot
+  declare validators, because a validator is code in the host process. That is why a designer test run
+  checks well-formedness and no more, and says so on screen
+  ([DESIGNER.md](./DESIGNER.md#host-declared-question-types-137),
+  [ADR 0012](./adr/0012-designer-question-type-descriptors-at-startup.md)).
 - **The key is compared ordinally** and may contain only `[a-z0-9-]`. An empty, malformed or duplicate
   key throws at **declaration** time, not at the first submitted answer.
 

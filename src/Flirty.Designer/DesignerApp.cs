@@ -1,5 +1,6 @@
 using System.Globalization;
 using Flirty.Designer.Components;
+using Flirty.Designer.Models;
 using Flirty.Designer.Services;
 using Flirty.Persistence;
 using Flirty.Runtime;
@@ -17,6 +18,15 @@ public static class DesignerApp
 {
     /// <summary>File name of the local profile store (relative to the ContentRoot).</summary>
     public const string ConnectionProfilesFileName = "connection-profiles.json";
+
+    /// <summary>
+    /// File name of the local question-type descriptor file (relative to the ContentRoot), #137.
+    /// </summary>
+    /// <remarks>
+    /// Optional. Its absence is the normal case and leaves the designer behaving exactly as it did after
+    /// #136: a host-declared type then shows its raw key instead of a display name.
+    /// </remarks>
+    public const string QuestionTypesFileName = "question-types.json";
 
     /// <summary>
     /// Culture in which the designer formats numbers, dates and times. Fixed on purpose: without it the
@@ -46,9 +56,24 @@ public static class DesignerApp
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        // Flirty engine WITHOUT a hard-wired provider (parameterless AddFlirty): the FlirtyDbContext is
-        // instead created per active connection profile via the designer factory (multi-DB, issue #37).
-        builder.Services.AddFlirty();
+        // Flirty engine WITHOUT a hard-wired provider: the FlirtyDbContext is instead created per active
+        // connection profile via the designer factory (multi-DB, issue #37). The options overload is used
+        // only to declare the question-type descriptors (#137) - without a Use* call it registers no
+        // DbContext, so the providerless setup is unchanged.
+        //
+        // Reading the descriptors here rather than in a service is what makes the CORE registry the
+        // designer's single source: o.AddQuestionType(...) is evaluated once at startup, exactly as in a
+        // host (ADR 0012). The declarations carry no validator - that is code and stays in the host - so
+        // the semantic delta stays open and the test runner states it.
+        var questionTypesPath = Path.Combine(builder.Environment.ContentRootPath, QuestionTypesFileName);
+        var (descriptors, problems) = QuestionTypeDescriptorFile.Read(questionTypesPath);
+        var declarationProblems = new List<string>(problems);
+
+        builder.Services.AddFlirty(options =>
+            declarationProblems.AddRange(DesignerQuestionTypes.Declare(options, descriptors)));
+
+        builder.Services.AddSingleton(new DesignerQuestionTypeSource(
+            questionTypesPath, File.Exists(questionTypesPath), declarationProblems));
 
         // Connection-profile management: store (persisted as JSON in the ContentRoot), active profile (per
         // circuit), factory (IDbContextFactory against the active profile) and the test/migrate operations.

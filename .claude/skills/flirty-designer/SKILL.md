@@ -27,8 +27,10 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
   same setup in-process (pattern like `WebSampleApp`). New services/middleware belong there, not in
   `Program.cs`. Contents: `AddRazorComponents().AddInteractiveServerComponents()` +
   `MapRazorComponents<App>().AddInteractiveServerRenderMode()` → **Blazor Web App, server-interactive**,
-  since #37 **`AddFlirty()` (parameterless)**; the `FlirtyDbContext` is created per active connection
-  profile via `FlirtyDesignerDbContextFactory : IDbContextFactory<FlirtyDbContext>`.
+  since #37 **`AddFlirty` without a provider**; the `FlirtyDbContext` is created per active connection
+  profile via `FlirtyDesignerDbContextFactory : IDbContextFactory<FlirtyDbContext>`. Since #137 the
+  options overload is used, but **only** to declare question-type descriptors – without a `Use*` call it
+  registers no `DbContext`, so the providerless setup is unchanged.
 - **Connection profiles (#37):** `Models/ConnectionProfile.cs`, `Services/IConnectionProfileStore` +
   `JsonConnectionProfileStore` (JSON in the ContentRoot, gitignored), `ActiveConnectionProfile` (scoped,
   with `Activate`/`Adopt`), `ConnectionProfileOperations` (test-connection/migrate),
@@ -41,7 +43,8 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
   `h1 .badge`) live **globally** in `wwwroot/app.css`; `*.razor.css` contains only page-specific bits.
 - **Question editor (#39):** `Models/QuestionFormModel.cs` (metadata + rule JSON ⇄ input fields, with a
   raw-JSON fallback), `Models/AnswerOptionFormModel.cs`, `Models/QuestionTypeLabels.cs` (type-name
-  labels, `UsesOptions`), page `Components/Pages/QuestionEditor.razor`
+  labels, `UsesOptions`, and since #137 `Choices`/`ChoiceValue`/`TryResolveChoice`), page
+  `Components/Pages/QuestionEditor.razor`
   (`/dialogs/{dialogId:guid}/questions/{questionId:guid}`) and the "Questions" section in
   `DialogEditor.razor` (list, inline create, ↑/↓, delete).
 - **Branching editor (#40):** `Models/TransitionFormModel.cs`, `Models/ExpressionVariable.cs`,
@@ -71,6 +74,14 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
   `Services/DesignerTriggerLog.cs` + `DesignerTriggerLogHandlers.cs`, `Models/AnswerInputModel.cs` +
   `Models/AnswerChoice.cs`, `Components/AnswerInput.razor` and the page
   `Components/Pages/DialogTestRunner.razor` (`/dialogs/{dialogId}/test`), linked from the `DialogEditor`.
+- **Host-declared question types (#137):** `Models/QuestionTypeDescriptor.cs`,
+  `Models/DesignerQuestionTypeSource.cs`, `Models/QuestionTypeChoice.cs`,
+  `Services/QuestionTypeDescriptorFile.cs` (parse, never throws) and `Services/DesignerQuestionTypes.cs`
+  (declare via the real `o.AddQuestionType`, catch its `ArgumentException` per entry), read in
+  `DesignerApp` from the optional `question-types.json`; read-only page
+  `Components/Pages/QuestionTypes.razor` (`/question-types`). **No core code.** The delta it does *not*
+  close – the host's `IQuestionTypeValidator` – is stated in `AnswerInput.razor` beside the field.
+  ADR 0012.
 - **Graph view (#101):** the reading page `Components/Pages/DialogGraph.razor`
   (`/dialogs/{id}/graph`) with collocated `DialogGraph.razor.js` (pan/zoom – the **first JSInterop** in
   the designer), the components `Components/GraphNodeCard.razor` and `Components/GraphInspector.razor`,
@@ -442,13 +453,27 @@ description: Build or extend the Blazor designer (Flirty.Designer) – dialog/qu
   questions therefore stay **fundamentally** ambiguous – that is reported, not guessed. Giving the domain
   a column for it would be a schema change and runtime write load for a pure display concern; whoever
   really needs it justifies it in an ADR.
+- **A `string` component parameter needs `@`, or it is a literal** (#137). `Foo="bar.Baz"` on a
+  `[Parameter] public string? Foo` passes the six characters `bar.Baz`, not the property – Blazor infers
+  the expression only for non-string parameter types. It compiles, no analyzer objects, and the wrong
+  value renders at the user. Only a browser test caught it; three call sites were affected at once,
+  because the mistake is copy-pasted with the markup.
+- **What the designer cannot check, it says on screen** (#137). It runs the real engine, so it validates
+  exactly what the engine validates – and nothing a host declares in *its* process. Where that gap
+  exists, the note stands beside the control, and it stands there **even when the designer can resolve
+  the type**: a descriptor buys a display name and a sample, never the validation. A note only for the
+  unresolvable case would claim the resolvable one is fully checked. Conversely, do not gate input on a
+  check the engine also performs – the refusal has to be the engine's message, or the test run stops
+  showing what a host application shows.
 
 ## Definition of Done
 
 Feature works in the server-interactive designer via the admin commands (through `FlirtyAdminGateway`) ·
 expressions are validated on save · service tests in `tests/Flirty.Tests/Designer/` ·
 extend `docs/DESIGNER.md` for the respective feature · if the change touches a flow of the designer E2E,
-update `tests/Flirty.E2E/DesignerE2ETests` too.
+update `tests/Flirty.E2E/DesignerE2ETests` too. Rules that live in a Razor `@code` block are **not**
+testable – move them into `Models/` or `Services/` first (the reason `GraphEditing`, `GraphWarningList`
+and `QuestionTypeLabels.Choices` exist).
 
 ## Verification
 

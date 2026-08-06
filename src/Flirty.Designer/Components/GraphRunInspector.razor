@@ -67,6 +67,7 @@
                         {
                             <AnswerInput Type="question.Type"
                                          Options="AnswerChoice.From(question.Options)"
+                                         CustomTypeKey="@question.CustomTypeKey"
                                          Input="EditInput"
                                          OnSubmit="SaveEdit"
                                          SubmitLabel="Save"
@@ -83,12 +84,9 @@
                         }
                         else
                         {
-                            @* Same limit as in the list view: a JSON answer is not editable here. *@
-                            <button class="btn"
-                                    disabled="@(Busy || !QuestionTypeLabels.IsAnswerableInDesigner(question.Type))"
-                                    title="@(QuestionTypeLabels.IsAnswerableInDesigner(question.Type)
-                                        ? null
-                                        : "A JSON answer cannot be edited in the designer.")"
+                            @* Like the list view: every recorded answer is editable since #137, a JSON
+                               one through the raw-JSON field of the shared AnswerInput. *@
+                            <button class="btn" disabled="@Busy"
                                     @onclick="() => StartEdit.InvokeAsync(entry.Sequence)">Edit</button>
                         }
                     </li>

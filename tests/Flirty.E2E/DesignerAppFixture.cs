@@ -17,6 +17,19 @@ namespace Flirty.E2E;
 /// </summary>
 public sealed class DesignerAppFixture : IAsyncLifetime
 {
+    /// <summary>The custom question type the fixture declares (#137).</summary>
+    /// <remarks>
+    /// Mirrors what the web sample's host declares via <c>o.AddQuestionType&lt;ColourAnswerValidator&gt;</c>
+    /// – minus the validator, which is exactly the delta the designer cannot close and states on screen.
+    /// </remarks>
+    public const string ColourTypeKey = "color";
+
+    /// <summary>The display name the designer must show instead of <see cref="ColourTypeKey"/>.</summary>
+    public const string ColourTypeName = "Colour picker";
+
+    /// <summary>The sample answer that prefills the runner's raw-JSON field.</summary>
+    public const string ColourTypeSample = "\"#ff0000\"";
+
     private WebApplication? _app;
     private string? _contentRoot;
     private string? _databasePath;
@@ -57,6 +70,23 @@ public sealed class DesignerAppFixture : IAsyncLifetime
         store.Save(profile);
         store.SetDefault(profile.Id);
 
+        // Declare one custom question type (#137). Written as a file rather than injected into the
+        // container, because the file IS the mechanism under test: DesignerApp reads it during
+        // ConfigureServices and declares it on the core registry.
+        await File.WriteAllTextAsync(
+            Path.Combine(_contentRoot, DesignerApp.QuestionTypesFileName),
+            $$"""
+              {
+                "questionTypes": [
+                  {
+                    "key": "{{ColourTypeKey}}",
+                    "displayName": "{{ColourTypeName}}",
+                    "sample": "\"#ff0000\""
+                  }
+                ]
+              }
+              """);
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             // Both settings are functionally mandatory, not cosmetic:
@@ -93,8 +123,8 @@ public sealed class DesignerAppFixture : IAsyncLifetime
         {
             // Best effort: the SQLite file (incl. -shm/-wal) can still be locked for a moment.
             try { Directory.Delete(_contentRoot, recursive: true); }
-            catch (IOException) { /* egal – liegt im Temp-Verzeichnis */ }
-            catch (UnauthorizedAccessException) { /* dito */ }
+            catch (IOException) { /* never mind - it is in the temp directory */ }
+            catch (UnauthorizedAccessException) { /* likewise */ }
         }
     }
 

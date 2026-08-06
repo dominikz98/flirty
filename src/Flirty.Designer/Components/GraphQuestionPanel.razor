@@ -11,6 +11,8 @@
 *@
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
+@using Flirty.Validation
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <h2>Question</h2>
 <p class="graph-inspector-key mono">@Node.Key</p>
@@ -44,11 +46,12 @@
 
 <div class="field">
     <label for="inspectorType">Answer type</label>
+    @{ var typeChoice = QuestionTypeLabels.ChoiceValue(_form.Type, _form.CustomTypeKey, QuestionTypes); }
     <select id="inspectorType" class="input" disabled="@Locked"
-            value="@_form.Type" @onchange="OnTypeChanged">
-        @foreach (var type in Enum.GetValues<QuestionType>())
+            value="@typeChoice" @onchange="OnTypeChanged">
+        @foreach (var choice in QuestionTypeLabels.Choices(QuestionTypes))
         {
-            <option value="@type" selected="@(type == _form.Type)">@QuestionTypeLabels.Describe(type)</option>
+            <option value="@choice.Value" selected="@(choice.Value == typeChoice)">@choice.Label</option>
         }
     </select>
     @if (QuestionTypeLabels.UsesOptions(_form.Type) && Node.OptionCount == 0)
@@ -440,16 +443,13 @@ else
 
     private void OnTypeChanged(ChangeEventArgs args)
     {
-        if (Enum.TryParse<QuestionType>(args.Value?.ToString(), out var type))
+        // A host-declared type (#137) is not an enum member, so the pick carries the key with it. A
+        // built-in one clears the key, so the field does not keep displaying a value that
+        // NormalizedCustomTypeKey is about to drop anyway.
+        if (QuestionTypeLabels.TryResolveChoice(args.Value?.ToString(), out var type, out var key))
         {
             _form.Type = type;
-
-            // Cleared as the type leaves Json, so the field does not keep displaying a value that
-            // NormalizedCustomTypeKey is about to drop anyway.
-            if (type != QuestionType.Json)
-            {
-                _form.CustomTypeKey = null;
-            }
+            _form.CustomTypeKey = key;
         }
     }
 

@@ -1,0 +1,106 @@
+@page "/question-types"
+@using Flirty.Validation
+@inject DesignerQuestionTypeSource Source
+@inject FlirtyQuestionTypeRegistry Registry
+
+<PageTitle>Question types · Flirty Designer</PageTitle>
+
+<h1>Question types</h1>
+
+<p class="intro">
+    Host-declared custom question types (#136) that this designer knows about. They give a type its
+    display name and an example answer; a question selects one by carrying its key in
+    <code>CustomTypeKey</code> on the built-in type <code>Json</code>.
+</p>
+
+@* The delta is stated here as well as beside the input control, because this page is where someone
+   lands who wonders why a type "does not work" - the honest answer is that the designer never runs the
+   host's validation, no matter how complete this list is. *@
+<p class="hint">
+    <strong>What the designer does not have is the validation.</strong> An
+    <code>IQuestionTypeValidator</code> is code and lives in the host process, so a test run here checks
+    only that the answer is <strong>well-formed JSON</strong> — exactly what the engine checks for a
+    <code>Json</code> question without a key. Declaring a type below buys a display name and a sample,
+    not the host's semantic check.
+</p>
+
+<h2>Descriptor file</h2>
+
+<p class="mono">@Source.FilePath</p>
+
+@if (!Source.FileExists)
+{
+    <p class="empty">
+        No descriptor file. That is not an error: without one the designer shows a custom type by its raw
+        key, and everything else works unchanged.
+    </p>
+}
+
+@if (Source.Problems.Count > 0)
+{
+    <div class="banner err">
+        <p>
+            <strong>@Source.Problems.Count</strong>
+            @(Source.Problems.Count == 1 ? "entry was" : "entries were") skipped. The designer keeps
+            running, and the remaining entries below were declared.
+        </p>
+        <ul>
+            @foreach (var problem in Source.Problems)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+<h2>Declared types</h2>
+
+@if (Registry.Types.Count == 0)
+{
+    <p class="empty">No custom question type declared.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Display name</th>
+                <th>Sample answer</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var type in Registry.Types)
+            {
+                <tr>
+                    <td class="mono">@type.Key</td>
+                    <td>@type.DisplayName</td>
+                    <td class="mono">@(type.SampleValue ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2>How to declare one</h2>
+
+<p>
+    Create <code>@DesignerApp.QuestionTypesFileName</code> next to
+    <code>@DesignerApp.ConnectionProfilesFileName</code> in the designer's content root and restart. Keys
+    use lowercase ASCII letters, digits and <code>-</code>; a sample must be valid JSON. The file is
+    read once at startup and mirrors what the host passes to <code>o.AddQuestionType(...)</code>.
+</p>
+
+<pre class="mono">@ExampleFile</pre>
+
+@code {
+    private const string ExampleFile = """
+        {
+          "questionTypes": [
+            { "key": "color", "displayName": "Colour picker", "sample": "\"#ff0000\"" },
+            { "key": "address", "displayName": "Postal address",
+              "sample": "{\"street\":\"Main 1\",\"zip\":\"10115\",\"city\":\"Berlin\"}" }
+          ]
+        }
+        """;
+}

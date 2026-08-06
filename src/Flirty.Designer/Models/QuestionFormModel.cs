@@ -152,8 +152,15 @@ internal sealed class QuestionFormModel
     /// </remarks>
     /// <param name="type">The question type that determines the stem.</param>
     /// <param name="detail">The dialog including its graph, against which collisions are checked.</param>
+    /// <param name="customTypeKey">
+    /// The host-declared type's key (#137), if the gesture created one – a better stem than the generic
+    /// <c>json</c>. Its <c>-</c> becomes <c>_</c>: the declaration charset allows a hyphen, an expression
+    /// identifier does not, and without the swap
+    /// <see cref="DesignerExpressionContext.IsBindable"/> would reject every candidate and the loop would
+    /// fall through to an unusable stem.
+    /// </param>
     /// <returns>A free, referenceable key – never empty.</returns>
-    public static string SuggestKey(QuestionType type, DialogDetail detail)
+    public static string SuggestKey(QuestionType type, DialogDetail detail, string? customTypeKey = null)
     {
         ArgumentNullException.ThrowIfNull(detail);
 
@@ -164,6 +171,8 @@ internal sealed class QuestionFormModel
             QuestionType.Number => "number",
             QuestionType.Date => "date",
             QuestionType.Boolean => "yesno",
+            QuestionType.Json when !string.IsNullOrWhiteSpace(customTypeKey)
+                => customTypeKey.Trim().Replace('-', '_'),
             QuestionType.Json => "json",
             _ => "text",
         };

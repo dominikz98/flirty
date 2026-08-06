@@ -222,8 +222,8 @@ public sealed class AnswerValueCodecTests
         => Assert.Equal("{ not json", AnswerValueCodec.Describe(NewDetail(QuestionType.Json), "{ not json"));
 
     /// <summary>
-    /// <c>Encode(Decode(x)) == x</c> for a JSON answer. The designer offers no input control for one, but
-    /// this is the property a future editor would be built on.
+    /// <c>Encode(Decode(x)) == x</c> for a JSON answer – the property the runner's raw-JSON editor rests
+    /// on since #137: opening a recorded answer for editing must not rewrite it.
     /// </summary>
     [Theory]
     [InlineData("{\"city\":\"Berlin\"}")]
@@ -236,6 +236,35 @@ public sealed class AnswerValueCodecTests
         Assert.Empty(selected);
         Assert.Equal(value, AnswerValueCodec.Encode(QuestionType.Json, text));
     }
+
+    /// <summary>
+    /// The status line beside the raw-JSON field (#137). Advisory only – it must agree with the engine's
+    /// own well-formedness check, which is why every scalar root counts as valid: the built-in
+    /// <c>Json</c> contract is "a well-formed document", not "an object".
+    /// </summary>
+    [Theory]
+    [InlineData("{\"city\":\"Berlin\"}", true)]
+    [InlineData("[1,2,3]", true)]
+    [InlineData("\"#ff0000\"", true)]
+    [InlineData("12", true)]
+    [InlineData("true", true)]
+    [InlineData("null", true)]
+    [InlineData("{oops", false)]
+    [InlineData("#ff0000", false)]
+    [InlineData("{\"a\":1},", false)]
+    public void IsWellFormedJson_agrees_with_the_engines_check(string text, bool expected)
+        => Assert.Equal(expected, AnswerValueCodec.IsWellFormedJson(text));
+
+    /// <summary>
+    /// Blank counts as not well-formed: the field is empty, and saying "✓ well-formed" over an empty box
+    /// would be nonsense. It is also unreachable as a submit, because <c>CanSubmit</c> needs text.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void IsWellFormedJson_rejects_blank_text(string? text)
+        => Assert.False(AnswerValueCodec.IsWellFormedJson(text));
 
     private static Question NewQuestion(QuestionType type, params (string Value, string Label)[] options)
     {

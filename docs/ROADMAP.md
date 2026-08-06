@@ -223,3 +223,14 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 > release carries a paid EULA that would flow transitively to every consumer of a published package – so
 > structure stays in the custom type's own validator, recorded as a discarded alternative in ADR 0011.
 > And a misconfiguration is a **409**, not the 500 the issue named twice.
+>
+> **Follow-up `#137` done, and it lifts half of the designer limit above.** A host-declared type now
+> shows its **display name** everywhere and is offered as its own entry in the dropdowns and the canvas
+> palette, and a `Json` question **is answerable** in the test runner through a raw JSON field. The
+> designer learns the types by becoming a host itself: an optional `question-types.json` is declared
+> through the real `o.AddQuestionType(...)` at startup (ADR 0012). What is **not** lifted is the
+> validation – an `IQuestionTypeValidator` is code in the host process, so a designer run checks
+> well-formed JSON and says so beside the field. The one case with no delta is a `Json` question
+> *without* a key: there the run validates identically to production. Deliberately no core code, no
+> schema change and no new public API; the issue's own route C was discarded because a list endpoint
+> would not have closed the delta either.

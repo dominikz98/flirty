@@ -5,8 +5,10 @@
 @using Mediator
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
+@using Flirty.Validation
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <PageTitle>@(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
 
@@ -169,7 +171,7 @@ else
                                 }
                             </td>
                             <td>@question.Text</td>
-                            <td>@QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey)</td>
+                            <td>@QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey, QuestionTypes)</td>
                             <td>@(question.IsRequired ? "yes" : "no")</td>
                             <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
                             <td class="row-actions">
@@ -228,14 +230,20 @@ else
                     <ValidationMessage For="() => _newQuestion.Text" />
                 </div>
 
+                @* A raw select rather than InputSelect: the list holds host-declared types (#137) too,
+                   and those are not enum members - picking one has to write the type AND the custom type
+                   key. The selection is DERIVED from both fields via ChoiceValue, so an undeclared key
+                   falls back to the plain Json entry instead of the two drifting apart. *@
                 <div class="field">
                     <label for="questionType">Type</label>
-                    <InputSelect id="questionType" class="input" @bind-Value="_newQuestion.Type">
-                        @foreach (var type in Enum.GetValues<QuestionType>())
+                    <select id="questionType" class="input"
+                            value="@QuestionTypeLabels.ChoiceValue(_newQuestion.Type, _newQuestion.CustomTypeKey, QuestionTypes)"
+                            @onchange="args => ChooseNewQuestionType(args.Value as string)">
+                        @foreach (var choice in QuestionTypeLabels.Choices(QuestionTypes))
                         {
-                            <option value="@type">@QuestionTypeLabels.Describe(type)</option>
+                            <option value="@choice.Value">@choice.Label</option>
                         }
-                    </InputSelect>
+                    </select>
                 </div>
 
                 <div class="field check">
@@ -935,7 +943,7 @@ else
         // The graph is not drawn here, but built: it is the only place that knows all
         // warning kinds – reachability arises only from the layout starting at the
         // entry question. Once per load, never per render.
-        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail);
+        _graph = _detail is null ? null : DialogGraphBuilder.Build(_detail, QuestionTypes);
 
         // Running sessions lock deletion (DeleteDialogCommand) – the count belongs in the
         // deletion section, so that it is visible before the click and not only as an error message.
@@ -1103,6 +1111,22 @@ else
 
     private void StartCreateQuestion() => _newQuestion = new QuestionFormModel();
 
+    /// <summary>
+    /// Applies a pick from the type dropdown. A host-declared type (#137) sets <c>Json</c> plus its key;
+    /// a built-in one clears the key, so switching away cannot leave a stale one behind (the core would
+    /// answer that with a 400).
+    /// </summary>
+    private void ChooseNewQuestionType(string? choiceValue)
+    {
+        if (_newQuestion is null || !QuestionTypeLabels.TryResolveChoice(choiceValue, out var type, out var key))
+        {
+            return;
+        }
+
+        _newQuestion.Type = type;
+        _newQuestion.CustomTypeKey = key;
+    }
+
     private void OpenQuestion(QuestionDetail question)
         => Navigation.NavigateTo($"dialogs/{Id}/questions/{question.Id}");
 
@@ -1122,7 +1146,9 @@ else
 
         var created = await RunAsync<QuestionDetail>(
             (sender, token) => sender.Send(
-                new CreateQuestionCommand(Id, model.Key, model.Text, model.Type, order, model.IsRequired, null),
+                new CreateQuestionCommand(
+                    Id, model.Key, model.Text, model.Type, order, model.IsRequired, null,
+                    model.NormalizedCustomTypeKey()),
                 token),
             $"Question \"{model.Key}\" created.",
             resetForm: false);

@@ -5,8 +5,10 @@
 @using Mediator
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
+@using Flirty.Validation
 @inject FlirtyAdminGateway Admin
 @inject NavigationManager Navigation
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <PageTitle>@(_question?.Key ?? "Question") · Flirty Designer</PageTitle>
 
@@ -38,7 +40,7 @@ else
     <p class="intro">
         Position @(_position + 1) of @_detail.Questions.Count in the dialog
         <a href="@($"dialogs/{DialogId}")">@_detail.Dialog.Name</a> ·
-        Type @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey)
+        Type @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey, QuestionTypes)
     </p>
 
     @if (_detail.Dialog.IsPublished)
@@ -81,14 +83,19 @@ else
                 <ValidationMessage For="() => _form.Text" />
             </div>
 
+            @* A raw select rather than InputSelect: the list holds host-declared types (#137) too, and
+               those are not enum members. The selection is DERIVED from type + key, so the dropdown and
+               the key field below cannot drift apart. *@
             <div class="field">
                 <label for="type">Type</label>
-                <InputSelect id="type" class="input" @bind-Value="_form.Type">
-                    @foreach (var type in Enum.GetValues<QuestionType>())
+                <select id="type" class="input"
+                        value="@QuestionTypeLabels.ChoiceValue(_form.Type, _form.CustomTypeKey, QuestionTypes)"
+                        @onchange="args => ChooseType(args.Value as string)">
+                    @foreach (var choice in QuestionTypeLabels.Choices(QuestionTypes))
                     {
-                        <option value="@type">@QuestionTypeLabels.Describe(type)</option>
+                        <option value="@choice.Value">@choice.Label</option>
                     }
-                </InputSelect>
+                </select>
                 <span class="hint">The type determines how the answer is parsed and validated.</span>
             </div>
 
@@ -101,9 +108,17 @@ else
                     <InputText id="customTypeKey" class="input mono" @bind-Value="_form.CustomTypeKey" />
                     <span class="hint">
                         Optional. The key the host declared the type under
-                        (<code>o.AddQuestionType("color", …)</code>). The designer does not know the host's
-                        registry and therefore does not check the key – an unknown one is not an error, the
-                        answer is then validated as JSON only. Leave empty for a plain JSON question.
+                        (<code>o.AddQuestionType("color", …)</code>). The key is deliberately
+                        <strong>not</strong> checked – an unknown one is not an error, the answer is then
+                        validated as JSON only. Leave empty for a plain JSON question.
+                        @if (QuestionTypes.Types.Count > 0)
+                        {
+                            <text>
+                                The types this designer knows are listed under
+                                <a href="question-types">Question types</a>; picking one above fills this
+                                field for you.
+                            </text>
+                        }
                     </span>
                 </div>
             }
@@ -208,7 +223,7 @@ else
             {
                 <div class="banner warn">
                     The engine does not evaluate answer options for
-                    @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey) – but it passes
+                    @QuestionTypeLabels.Describe(_question.Type, _question.CustomTypeKey, QuestionTypes) – but it passes
                     them to the host's validator, which may read them. Only delete them if the host does not.
                 </div>
             }
@@ -432,6 +447,22 @@ else
         {
             _form = QuestionFormModel.From(_question);
         }
+    }
+
+    /// <summary>
+    /// Applies a pick from the type dropdown. A host-declared type (#137) sets <c>Json</c> plus its key;
+    /// a built-in one clears the key, so what the form shows is what gets saved – the key field is hidden
+    /// for every other type, and <c>NormalizedCustomTypeKey</c> would drop it anyway.
+    /// </summary>
+    private void ChooseType(string? choiceValue)
+    {
+        if (!QuestionTypeLabels.TryResolveChoice(choiceValue, out var type, out var key))
+        {
+            return;
+        }
+
+        _form.Type = type;
+        _form.CustomTypeKey = key;
     }
 
     /// <summary>

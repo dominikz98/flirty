@@ -2,20 +2,12 @@
    the current question AND by editing an earlier answer, hence a component. *@
 @using Flirty.Domain
 @using Flirty.Designer.Models
+@using Flirty.Designer.Services
+@using Flirty.Validation
+@inject FlirtyQuestionTypeRegistry QuestionTypes
 
 <div class="answer-input">
-    @* First branch on purpose: it also covers the graph run view, which renders this same component at
-       the selected node. A documented limit rather than a gap - see QuestionTypeLabels. *@
-    @if (!QuestionTypeLabels.IsAnswerableInDesigner(Type))
-    {
-        <p class="hint answer-note">
-            A <strong>JSON</strong> question cannot be answered here. The designer does not know the shape
-            the host expects – and a test run writes a real session and delivers real webhooks, so it does
-            not guess a value. Answer it through the host application, the HTTP API or an MCP client; a
-            recorded answer is displayed here read-only.
-        </p>
-    }
-    else if (Type == QuestionType.SingleChoice)
+    @if (Type == QuestionType.SingleChoice)
     {
         @foreach (var option in Options)
         {
@@ -62,6 +54,40 @@
             @SubmitLabel
         </button>
     }
+    else if (Type == QuestionType.Json)
+    {
+        @* A raw JSON field rather than a form generated from the type (#137). The designer knows a custom
+           type's NAME, never its shape - and even a JSON Schema, which this engine deliberately does not
+           carry (ADR 0011), expresses far more than a form can render. A textarea is truthful about what
+           is known; no @onkeydown, because Enter has to insert a line here. *@
+        <textarea class="input mono answer-json" rows="6" disabled="@Disabled"
+                  aria-label="Answer as JSON"
+                  value="@Input.Text"
+                  @oninput="args => Input.Text = args.Value?.ToString() ?? string.Empty"></textarea>
+
+        @if (AnswerValueCodec.IsWellFormedJson(Input.Text))
+        {
+            <p class="expr-status ok">✓ Well-formed JSON.</p>
+        }
+        else
+        {
+            @* Advisory, and the button stays enabled on purpose: the refusal has to come from the engine,
+               so that a test run shows the message a host application would show. *@
+            <p class="expr-status err">
+                ✗ Not well-formed JSON yet. You can still submit – the engine has the final say.
+            </p>
+        }
+
+        @if (DeltaNote is { } note)
+        {
+            <p class="hint answer-note">@note</p>
+        }
+
+        <button type="button" class="btn btn-primary" disabled="@(Disabled || !Input.CanSubmit)"
+                @onclick="OnSubmit">
+            @SubmitLabel
+        </button>
+    }
     else
     {
         @* Raw <input> with @oninput instead of InputText: the submit button should become active while
@@ -86,6 +112,13 @@
     /// <summary>The answer options (only relevant for single/multiple choice).</summary>
     [Parameter]
     public IReadOnlyList<AnswerChoice> Options { get; set; } = [];
+
+    /// <summary>
+    /// The question's <see cref="Question.CustomTypeKey"/> (only relevant for
+    /// <see cref="QuestionType.Json"/>). Drives the note that states what this run does <b>not</b> check.
+    /// </summary>
+    [Parameter]
+    public string? CustomTypeKey { get; set; }
 
     /// <summary>The input state that is bound to.</summary>
     [Parameter]
@@ -112,6 +145,42 @@
             QuestionType.Date => "date",
             _ => "text",
         };
+
+    /// <summary>
+    /// What this test run does <b>not</b> check, in words – or <see langword="null"/> when there is
+    /// nothing to state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The three cases are the whole point of #137's honesty requirement, and the important one is the
+    /// middle: a note appears <b>even when the key resolves</b>. A descriptor buys a display name and a
+    /// sample, never the host's <c>IQuestionTypeValidator</c> – that is code in another process. Showing
+    /// the note only for unknown keys would tell an author that a known type is fully checked here, which
+    /// is exactly the false impression EPIC 14 refused to create.
+    /// </para>
+    /// <para>
+    /// A plain <c>Json</c> question without a key gets <b>no</b> note, and that is not an omission: for
+    /// it, well-formedness is the entire engine contract, so this run validates identically to production.
+    /// </para>
+    /// </remarks>
+    private string? DeltaNote
+    {
+        get
+        {
+            if (Type != QuestionType.Json || string.IsNullOrWhiteSpace(CustomTypeKey))
+            {
+                return null;
+            }
+
+            return QuestionTypes.TryGet(CustomTypeKey, out var declared) && declared is not null
+                ? $"Checked here: well-formed JSON. Not checked here: whatever \"{declared.DisplayName}\" "
+                  + "means – that validation is code in the host application and does not run in the "
+                  + "designer."
+                : $"Unknown custom type \"{CustomTypeKey}\": this designer has no descriptor for it, so "
+                  + "the answer is checked for well-formed JSON only. The host's own validation does not "
+                  + "run here either way.";
+        }
+    }
 
     private Task ChooseYesAsync() => ChooseAsync("true");
 
