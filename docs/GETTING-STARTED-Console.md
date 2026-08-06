@@ -110,7 +110,9 @@ In the sample, `ConsoleDialogRunner` encapsulates this loop and separates input/
 > types is not. In the sample, `AnswerEncoder` handles the conversion per `QuestionType`: free text and
 > choice are **quoted** (`Dev` → `"Dev"`), `MultiChoice` becomes a JSON array, `Number` an
 > **invariant** numeric literal (decimal point, no comma) and `Boolean` becomes `true`/`false` (also from
-> "yes"/"y"/"1"). If the value does not match the type or the question's `ValidationRules`,
+> "yes"/"y"/"1"). `Json` is **passed through unchanged** – there the typed input already *is* the
+> document, so quoting it would produce a JSON string containing JSON. If the value does not match the
+> type or the question's `ValidationRules`,
 > `SubmitAnswerAsync` throws an `AnswerValidationException` – see [VALIDATION.md](./VALIDATION.md).
 
 ## 4. A custom `INotificationHandler` (in-process back channel)

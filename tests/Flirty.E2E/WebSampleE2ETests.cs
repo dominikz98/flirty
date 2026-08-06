@@ -58,6 +58,10 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await FillAndSendAsync(page, "Blazor");
         await ChooseAsync(page, "No");
 
+        // The two host-declared custom question types, each rendered by a control this UI picks from the
+        // question's customTypeKey - the engine knows nothing about controls.
+        await AnswerCustomTypesAsync(page);
+
         // Final question (Boolean) -> dialog completed.
         await ChooseAsync(page, "Yes");
 
@@ -66,7 +70,12 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         // The iteration badges prove that the loop really collected: both loop questions (entry skill
         // and breaking question more) carry their own index per run.
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(
-            ["role", "language", "skill #1", "more #1", "skill #2", "more #2", "summary"], SlowText);
+            ["role", "language", "skill #1", "more #1", "skill #2", "more #2", "colour", "address", "summary"],
+            SlowText);
+
+        // The composite answer is displayed by the host's own describe(), not as "[object Object]".
+        await Assertions.Expect(Bubble(page, "address")).ToContainTextAsync("Berlin", SlowContains);
+        await Assertions.Expect(Bubble(page, "colour")).ToContainTextAsync("#ff8800", SlowContains);
         await Assertions.Expect(page.Locator("#skillsList li")).ToHaveTextAsync(["EF Core", "Blazor"], SlowText);
 
         // In-process handler and outbound→inbound webhook round-trip become visible in the panel (polling).
@@ -205,15 +214,17 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await ChooseAsync(page, "Yes");
         await FillAndSendAsync(page, "Blazor");
         await ChooseAsync(page, "No");
+        await AnswerCustomTypesAsync(page);
         await ChooseAsync(page, "Yes");
         await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
 
         await EditAsync(page, "skill #2");
         await SaveEditAsync(page, "Rust");
 
-        // Only the answers given after the second iteration are discarded (more #2, summary).
+        // Only the answers given after the second iteration are discarded
+        // (more #2, colour, address, summary).
         await Assertions.Expect(page.Locator("#statusLine"))
-            .ToContainTextAsync("2 downstream answer(s) discarded", SlowContains);
+            .ToContainTextAsync("4 downstream answer(s) discarded", SlowContains);
         await Assertions.Expect(AnsweredKeys(page)).ToHaveTextAsync(
             ["role", "language", "skill #1", "more #1", "skill #2"], SlowText);
 
@@ -240,6 +251,7 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
 
         await FillAndSendAsync(page, "EF Core");
         await ChooseAsync(page, "No");
+        await AnswerCustomTypesAsync(page);
         await ChooseAsync(page, "Yes");
         await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
 
@@ -252,6 +264,57 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
         await Assertions.Expect(Bubble(page, "summary")).ToContainTextAsync("Yes", SlowContains);
         await Assertions.Expect(Bubble(page, "summary")).Not.ToContainTextAsync("No", SlowContains);
         await Assertions.Expect(page.Locator(".msg--system")).ToContainTextAsync("completed", SlowContains);
+    }
+
+    /// <summary>
+    /// The composite custom question type from the browser: a structurally incomplete address is refused
+    /// by the <b>host's</b> validator, and the corrected one goes through and survives a reload.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the sharpest test of EPIC 14 in the browser, because every claim it makes is
+    /// server-produced. The chat UI deliberately does <b>no</b> client-side check – so the 400 in the
+    /// status line can only come from the engine plus the host validator, and the readable bubble after
+    /// the reload can only come from the stored value being an intact JSON object.
+    /// </para>
+    /// <para>
+    /// The colour type's <i>refusal</i> is not tested here on purpose: an <c>input[type=color]</c> cannot
+    /// emit a malformed value, so faking one would be testing the test. That half lives in
+    /// <c>WebSampleTests</c> against the HTTP surface.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task An_incomplete_address_is_refused_by_the_host_and_the_corrected_one_survives_a_reload()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDevBranchAsync(session);
+
+        await FillAndSendAsync(page, "EF Core");
+        await ChooseAsync(page, "No");
+
+        await InputArea(page).Locator("input[type=color]").FillAsync("#00aa55");
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
+
+        // City left empty on purpose - the UI submits it anyway, the engine is the authority.
+        await AddressFieldAsync(page, "street").FillAsync("Main 1");
+        await AddressFieldAsync(page, "zip").FillAsync("10115");
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
+
+        await Assertions.Expect(page.Locator("#statusLine")).ToContainTextAsync("400", SlowContains);
+        await Assertions.Expect(page.Locator("#statusLine")).ToContainTextAsync("city", SlowContains);
+        // By count, not by Not.ToContainText: that overload matches a single element and would trip the
+        // strict-mode check against the five answer bubbles already on screen.
+        await Assertions.Expect(Bubble(page, "address")).ToHaveCountAsync(0, SlowCount);
+
+        await AddressFieldAsync(page, "city").FillAsync("Berlin");
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
+        await Assertions.Expect(CurrentPromptKey(page)).ToHaveTextAsync("summary", SlowText);
+
+        await page.ReloadAsync();
+
+        // Resume rebuilds the history from the stored values: readable, and not "[object Object]".
+        await Assertions.Expect(Bubble(page, "address")).ToContainTextAsync("Berlin", SlowContains);
+        await Assertions.Expect(Bubble(page, "colour")).ToContainTextAsync("#00aa55", SlowContains);
     }
 
     // ---- Flow helpers --------------------------------------------------------------------------------
@@ -303,6 +366,28 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     /// </summary>
     private static Task ChooseAsync(IPage page, string label)
         => InputArea(page).GetByRole(AriaRole.Button, new() { Name = label, Exact = true }).ClickAsync();
+
+    /// <summary>
+    /// Answers the two host-declared custom question types (#136) that sit between the loop exit and the
+    /// final question: the scalar <c>color</c> and the composite <c>address</c>.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="colour">The colour to pick, in the form <c>#rrggbb</c>.</param>
+    private static async Task AnswerCustomTypesAsync(IPage page, string colour = "#ff8800")
+    {
+        // A colour input renders as a swatch, so it is filled rather than typed into.
+        await InputArea(page).Locator("input[type=color]").FillAsync(colour);
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
+
+        await AddressFieldAsync(page, "street").FillAsync("Main 1");
+        await AddressFieldAsync(page, "zip").FillAsync("10115");
+        await AddressFieldAsync(page, "city").FillAsync("Berlin");
+        await InputArea(page).GetByRole(AriaRole.Button, new() { Name = "Send", Exact = true }).ClickAsync();
+    }
+
+    /// <summary>One sub-input of the composite address control.</summary>
+    private static ILocator AddressFieldAsync(IPage page, string field)
+        => InputArea(page).Locator($"input.subfield[data-field={field}]");
 
     /// <summary>Opens the edit form via the pencil on the answer bubble.</summary>
     /// <param name="page">The page.</param>

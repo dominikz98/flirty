@@ -134,6 +134,7 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 | **M5 – visual graph designer** | EPIC 11 canvas (`#100`–`#105`) | largely sequential, `#104` independent of `#103` |
 | **M6 – English repository** | EPIC 12 language switch (`#113`–`#117`) | `#113` first, `#117` last, `#114`–`#116` in parallel |
 | **M7 – MCP server** | EPIC 13 MCP server (`#126`–`#130`) | `#126` first, `#130` last, `#127`/`#128` in parallel |
+| **M8 – custom question types** | EPIC 14 host-declared question types (`#136`) | core first, then HTTP/MCP ∥ designer, samples last |
 
 > **Status M3: complete** – `#37`–`#43` are implemented (see [DESIGNER.md](./DESIGNER.md)).
 >
@@ -198,3 +199,27 @@ Needs the domain (`#17`) + repository (`#21`) + Mediator (`#14`) + evaluator (`#
 > server is **its own package** (inside `Flirty.AspNetCore` the MCP SDK would become a hard dependency of
 > an already published package), and the database target is **host-declared per route** rather than held
 > per session (revision `2026-07-28` removed the session from the wire).
+
+> **Status M8: complete** – a host can define its **own question type** without forking the engine:
+> `o.AddQuestionType(...)` plus an `IQuestionTypeValidator`, authorable over HTTP, MCP and the designer
+> (see [VALIDATION.md](./VALIDATION.md#custom-question-types-declared-by-the-host-136) and
+> [ADR 0011](./adr/0011-custom-question-types-on-an-open-base-type.md)). One schema change
+> (`Question.CustomTypeKey`), confined to the first stage.
+>
+> The **order** follows one dependency and one deliberate isolation. The core goes first because
+> everything else hangs off the column and the registry, and because it is the only part that touches
+> the schema. The two remote surfaces and the designer are independent of each other – one widens the
+> wire, the other stops the designer from mistaking the new type for text. Samples and docs go last, for
+> the reason `#130` recorded: a closing stage is where the backlog, the roadmap and the milestone table
+> get picked up, because those describe the whole and no per-stage DoD owns them.
+>
+> **The measurement that shaped it**: the enum is *not* widened per type. `QuestionType.<Member>` stands
+> 98 times across 15 files in `src`, so the built-in path costs three steps in the core and twelve files
+> everywhere else – an extension point has to be cheaper than that, not more expensive. Hence one
+> open-shaped built-in (`Json`) that every host type hangs off.
+>
+> Two premises of the issue were overturned by measuring, and neither became an ADR of its own. **JSON
+> Schema validation was dropped**: `JsonSchema.Net` is MIT only up to 8.0.5, and from 9.0.0 its binary
+> release carries a paid EULA that would flow transitively to every consumer of a published package – so
+> structure stays in the custom type's own validator, recorded as a discarded alternative in ADR 0011.
+> And a misconfiguration is a **409**, not the 500 the issue named twice.

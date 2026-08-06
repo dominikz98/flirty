@@ -3,7 +3,9 @@
 // Chat UI of the web sample: consumes exclusively the HTTP endpoints of Flirty.AspNetCore
 // (POST/GET /flirty/sessions ...) and demonstrates resume, edit, branching, loop over list and triggers.
 
-const QuestionType = { SingleChoice: 0, MultiChoice: 1, FreeText: 2, Number: 3, Date: 4, Boolean: 5 };
+// Hand-maintained copy of the core enum: the HTTP surface serializes it as the ordinal (there is no
+// JsonStringEnumConverter registered), so a new member has to be added here too.
+const QuestionType = { SingleChoice: 0, MultiChoice: 1, FreeText: 2, Number: 3, Date: 4, Boolean: 5, Json: 6 };
 const SessionStatus = { InProgress: 0, Completed: 1, Abandoned: 2 };
 const DIALOG_KEY = "web-onboarding";
 
@@ -21,7 +23,7 @@ const dom = {
 const state = {
     userKey: null,
     sessionId: null,
-    questionsById: new Map(), // questionId -> { key, text, type, options }
+    questionsById: new Map(), // questionId -> { key, text, type, customTypeKey, options }
     busy: false,              // while an answer request is running: accept no further input
 };
 
@@ -44,6 +46,54 @@ async function http(method, url, body) {
     return text ? JSON.parse(text) : null;
 }
 
+// ---------- Host-declared question types (#136) ----------
+//
+// The engine stores an opaque JSON value and tells this UI only the question's customTypeKey. Which
+// control to show is therefore the HOST's business, and this map is this host's answer - the mirror of
+// the AddQuestionType calls in WebSampleApp.cs. The two sides share a key, not a schema.
+//
+// "color" is a scalar type (the value is a JSON string), "address" a composite one (a JSON object of
+// several fields answered as one answer). Neither validates here: the engine is the authority, so the
+// address form deliberately submits an incomplete address and lets the server refuse it.
+
+const customTypes = {
+    color: {
+        render(value, submit, submitLabel) {
+            const field = document.createElement("input");
+            field.type = "color";
+            field.className = "field";
+            field.value = typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#ff0000";
+            return [field, button(submitLabel, () => submit(field.value))];
+        },
+        describe(parsed) {
+            return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+        },
+    },
+    address: {
+        render(value, submit, submitLabel) {
+            const stored = value && typeof value === "object" ? value : {};
+            // Deliberately NOT class "field": that selector already identifies the single edit input of
+            // the other types, and three more of them would make it ambiguous.
+            const fields = ["street", "zip", "city"].map(name => {
+                const input = document.createElement("input");
+                input.className = "subfield";
+                input.dataset.field = name;
+                input.placeholder = name;
+                input.value = stored[name] ?? "";
+                return input;
+            });
+            const send = () => submit(Object.fromEntries(
+                fields.map(input => [input.dataset.field, input.value.trim()])));
+            return [...fields, button(submitLabel, send)];
+        },
+        describe(parsed) {
+            return parsed && typeof parsed === "object"
+                ? [parsed.street, parsed.zip, parsed.city].filter(Boolean).join(", ")
+                : JSON.stringify(parsed);
+        },
+    },
+};
+
 // ---------- Answer value encoding (raw JSON text per question type) ----------
 
 function encodeAnswer(type, rawInput) {
@@ -56,6 +106,10 @@ function encodeAnswer(type, rawInput) {
         }
         case QuestionType.MultiChoice:
             return JSON.stringify(Array.isArray(rawInput) ? rawInput : [rawInput]);
+        case QuestionType.Json:
+            // Whatever the control produced IS the document - a string for "color", an object for
+            // "address". One uniform arm, because the shape is the custom type's business.
+            return JSON.stringify(rawInput);
         default: // SingleChoice, FreeText, Date -> JSON string
             return JSON.stringify(String(rawInput));
     }
@@ -69,6 +123,12 @@ function decodeForDisplay(question, rawValue) {
         const opt = question.options.find(o => o.value === parsed);
         if (opt) return opt.label;
     }
+    // Before the String() below: a JSON object would otherwise render as "[object Object]". Json is the
+    // first type whose answer can be one, so this branch is what makes it readable at all.
+    if (question && question.type === QuestionType.Json) {
+        const custom = customTypes[question.customTypeKey];
+        return custom ? custom.describe(parsed) : JSON.stringify(parsed);
+    }
     if (Array.isArray(parsed)) return parsed.join(", ");
     return String(parsed);
 }
@@ -76,9 +136,12 @@ function decodeForDisplay(question, rawValue) {
 // The stored value as text for an input field – unlike decodeForDisplay WITHOUT translation
 // into the display form (label instead of value, "Yes" instead of true). Only this way can the result be
 // sent back through encodeAnswer unchanged.
-function decodeRaw(rawValue) {
+function decodeRaw(rawValue, question) {
     let parsed = rawValue;
     try { parsed = JSON.parse(rawValue); } catch { /* value stays raw */ }
+    // For Json the PARSED value is handed on, not a string: the custom control consumes the document
+    // (an object for "address"), and String() would turn it into "[object Object]".
+    if (question && question.type === QuestionType.Json) return parsed;
     return Array.isArray(parsed) ? parsed.join(", ") : String(parsed);
 }
 
@@ -146,6 +209,20 @@ function renderAnswerControls(question, { rawValue, submitLabel, onSubmit, leadi
         }
     } else if (question.type === QuestionType.Boolean) {
         controls.push(button("Yes", () => onSubmit(true)), button("No", () => onSubmit(false)));
+    } else if (question.type === QuestionType.Json) {
+        const custom = customTypes[question.customTypeKey];
+        if (custom) {
+            controls.push(...custom.render(rawValue, onSubmit, submitLabel));
+        } else {
+            // The JS mirror of the engine's own degradation: an unknown key is not an error there
+            // either. Without this branch it would be a TypeError instead of a message.
+            const note = document.createElement("span");
+            note.className = "hint";
+            note.textContent = question.customTypeKey
+                ? `This UI has no control for the question type "${question.customTypeKey}".`
+                : "This UI has no control for a plain JSON question.";
+            controls.push(note);
+        }
     } else {
         field = document.createElement("input");
         field.className = "field";
@@ -201,7 +278,10 @@ async function loadDialogMeta() {
     const detail = await http("GET", `/flirty/admin/dialogs/${meta.id}`);
     state.questionsById.clear();
     for (const q of detail.questions) {
-        state.questionsById.set(q.id, { key: q.key, text: q.text, type: q.type, options: q.options });
+        // customTypeKey travels along: it is what picks the control for a Json question.
+        state.questionsById.set(q.id, {
+            key: q.key, text: q.text, type: q.type, customTypeKey: q.customTypeKey, options: q.options,
+        });
     }
 }
 
@@ -248,6 +328,16 @@ async function submitAnswer(question, rawInput) {
     } catch (err) {
         setBusy(false);
         setStatus("Error: " + err.message);
+
+        // Put the control back, prefilled with the attempted value, so a refused answer can be
+        // CORRECTED. Without this the input area stays empty after a 400 and the only way on is a
+        // reload. Latent until #136: every control before it produced a value the engine accepts, so a
+        // refusal was unreachable from this UI - the composite address is the first that can be wrong.
+        renderAnswerControls(question, {
+            rawValue: rawInput,
+            submitLabel: "Send",
+            onSubmit: value => submitAnswer(question, value),
+        });
     }
 }
 
@@ -263,7 +353,7 @@ function startEditing(answer, question, label) {
     renderAnswerControls(question || { type, options: [] }, {
         // The stored value is prefilled, not its display form. For a choice the question is omitted
         // anyway: there the click on the option stores its value directly.
-        rawValue: decodeRaw(answer.value),
+        rawValue: decodeRaw(answer.value, question),
         submitLabel: "Save",
         leading: [info],
         trailing: [cancel],

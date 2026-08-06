@@ -58,6 +58,18 @@ public static class WebSampleApp
                 // inbound receiver (visible in the trigger panel of the chat UI).
                 options.AddWebhook(TriggerScope.OnDialogCompleted, baseUrl + WebhookReceiverPath);
             }
+
+            // Two host-declared question types (#136), deliberately of different SHAPE rather than of
+            // different validation route: "color" is a scalar (a JSON string), "address" is composite (a
+            // JSON object of several fields). Both hang off QuestionType.Json and both bring their rules
+            // as code, which is where a custom type owns them. The pair is what shows that one extension
+            // point carries both, and that the stored value stays opaque to the engine.
+            options.AddQuestionType<ColourAnswerValidator>(
+                DemoDialog.ColourTypeKey, "Colour picker", sample: "\"#ff0000\"");
+            options.AddQuestionType<AddressAnswerValidator>(
+                DemoDialog.AddressTypeKey,
+                "Postal address",
+                sample: """{"street":"Main 1","zip":"10115","city":"Berlin"}""");
         });
 
         // MCP server over the same engine: an MCP client can configure dialogs where the chat UI only

@@ -135,6 +135,23 @@ body {
     font-size: 0.9rem;
 }
 
+/* The sub-inputs of a composite custom question type (the "address" example, #136). Deliberately its
+   own class rather than .field: that one identifies the single input of every other type, and three
+   more of them would make every selector on it ambiguous - in the E2E suite as well. */
+.subfield {
+    flex: 1;
+    min-width: 90px;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+/* A colour picker needs no growing width, and browsers render it as a swatch. */
+.field[type="color"] { flex: 0 0 auto; min-width: 3.5rem; padding: 0.2rem; }
+
 .side { display: flex; flex-direction: column; gap: 1rem; }
 
 .card {
