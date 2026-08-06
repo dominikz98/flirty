@@ -184,7 +184,7 @@ else
                     <span class="mono">@current.Key</span>
                     @current.Text
                 </p>
-                <p class="hint">@QuestionTypeLabels.Describe(current.Type)</p>
+                <p class="hint">@QuestionTypeLabels.Describe(current.Type, current.CustomTypeKey)</p>
 
                 @if (_input is not null)
                 {

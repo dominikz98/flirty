@@ -169,7 +169,7 @@ else
                                 }
                             </td>
                             <td>@question.Text</td>
-                            <td>@QuestionTypeLabels.Describe(question.Type)</td>
+                            <td>@QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey)</td>
                             <td>@(question.IsRequired ? "yes" : "no")</td>
                             <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
                             <td class="row-actions">
