@@ -26,6 +26,7 @@ Order = rough MVP prioritization. Architecture reference: [ARCHITECTURE.md](./AR
 - **M5 – Visual graph designer**: EPIC 11
 - **M6 – English repository**: EPIC 12
 - **M7 – MCP server**: EPIC 13
+- **M8 – Custom question types**: EPIC 14
 
 > **Definition of Done (all issues):** code + XML docs (the build breaks on missing public-API docs, CS1591=Error) + green tests + the relevant `docs/` guide updated.
 
@@ -403,3 +404,63 @@ publish lock against the layout exception, derive a version, play the draft thro
 two loop iterations, correct one, resume, finish – plus the HTTP-vs-MCP error-parity theory over all six
 engine exceptions, the guide, the skill and the context sync. Deliberately **no** `tests/Flirty.E2E`
 coverage: MCP has no browser surface.
+
+---
+
+## EPIC 14 – Custom question types declared by the host `type:epic` `area:core` `area:api` `area:designer` `area:samples`
+
+An embedding application can define its **own question type** – with its own validation logic, authorable
+over HTTP, MCP and the designer – without forking the engine. `QuestionType` is a closed `public enum`
+inside a published NuGet package, so before this a host had three bad options: fork, replace
+`IAnswerValidator` wholesale and reimplement all six built-in types, or disguise the type as `FreeText`
+and guess the control from the question key.
+
+**The measurement that shaped the whole EPIC**: the skill `flirty-question-type` promised that a new
+question type is three steps. Counted, `QuestionType.<Member>` appears **98 times across 15 files** in
+`src` – the three steps are what the *core* costs, the other twelve files are what a type costs to
+become usable. An extension point has to be **cheaper** than the built-in path, so the enum is not
+widened per type: one open-shaped built-in (`QuestionType.Json = 6`) is added and host-declared types
+hang off it via `Question.CustomTypeKey`. ADR 0011.
+
+Two premises of the issue text were overturned by measuring, and both are recorded rather than edited
+away:
+
+- **"A JSON Schema in `ValidationRules`" → dropped.** The amendment scoped it in on the premise that
+  `JsonSchema.Net` is MIT. It is, up to 8.0.5; from 9.0.0 the binary release carries the Open Source
+  Maintenance Fee EULA with `requireLicenseAcceptance=true` and a fee above roughly US$10k revenue –
+  which would flow transitively to **every** consumer of `Flirty`. Freezing on 8.0.5, adding a fourth
+  opt-in package, or passing the fee on are each more expensive than the feature. Structure stays where
+  the original text put it: in the custom type's own validator. Recorded as a discarded alternative in
+  ADR 0011.
+- **"A misconfiguration is a 500" → it is a 409.** `FlirtyExceptionEndpointFilter` maps
+  `InvalidOperationException` to `409 Conflict`, and the MCP filter agrees.
+
+### Core: the open base type, the registry and the DI decorator
+`type:feature` `area:core`
+`QuestionType.Json`, the `Question.CustomTypeKey` column (the repo's first `AddColumn`, in all three
+provider sets), `o.AddQuestionType(...)` with `IQuestionTypeValidator`, and the scoped
+`CustomQuestionTypeAnswerValidator` that decorates `IAnswerValidator` – registered **only** on an actual
+declaration, so a host that does not use the feature keeps the plain singleton. An unknown key
+**degrades** to the plain JSON check plus one warning, because a published dialog cannot be repaired
+(ADR 0005). ADR 0011.
+
+### HTTP and MCP: the key on the wire, and a way to discover the types
+`type:feature` `area:api`
+`CustomTypeKey` through the DTOs, both route groups and the two MCP question tools, plus the new
+read-only `flirty_question_type_list` in its own tool class – it has no `MapXxxEndpoints` counterpart
+because its source is the host's registry rather than a route. Surface 36 → 37 tools.
+
+### Designer: JSON questions read-only, custom types fully authorable
+`type:feature` `area:designer`
+No input control for a `Json` question and no answering it in the test runner – a **documented limit**,
+because a test run writes a real session and the designer does not know the host's registry. What it
+does get is complete authoring: `CustomTypeKey` as a plain text field in both surfaces. Along the way
+the measurement that no single expression sample shape works for a JSON answer, so the save check
+accepts either. Richer designer support is #137.
+
+### Samples, docs and the skill
+`type:feature` `type:docs` `area:samples`
+The web sample declares **two** types of different shape – scalar `color` and composite `address` – and
+plays them through the chat UI, which picks its control from the `customTypeKey`. That is what shows the
+value stays opaque to the engine. Plus the guides, and the rewrite of the skill this EPIC measured as
+materially incomplete: two paths, the host path first.

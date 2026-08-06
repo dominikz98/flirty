@@ -294,8 +294,60 @@ public sealed class QuestionFormModelTests
     [InlineData(QuestionType.Boolean, "yesno")]
     [InlineData(QuestionType.SingleChoice, "choice")]
     [InlineData(QuestionType.MultiChoice, "multi")]
+    [InlineData(QuestionType.Json, "json")]
     public void SuggestKey_uses_one_stem_per_question_type(QuestionType type, string expected)
         => Assert.Equal(expected, QuestionFormModel.SuggestKey(type, Dialog()));
+
+    /// <summary>
+    /// Every type needs a stem of its own, or two of them silently share one and a canvas gesture starts
+    /// numbering an unrelated key (<c>text2</c> for a JSON question).
+    /// </summary>
+    [Fact]
+    public void SuggestKey_gives_every_question_type_its_own_stem()
+    {
+        var stems = Enum.GetValues<QuestionType>()
+            .Select(type => QuestionFormModel.SuggestKey(type, Dialog()))
+            .ToList();
+
+        Assert.Equal(stems.Count, stems.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    // ---- Custom question types (#136) --------------------------------------------------------------
+
+    /// <summary>
+    /// The single source of "what gets saved": switching the type away from <c>Json</c> drops the key
+    /// silently rather than letting the core guard answer with a 400.
+    /// </summary>
+    [Fact]
+    public void NormalizedCustomTypeKey_drops_the_key_when_the_type_is_not_json()
+    {
+        var model = new QuestionFormModel { Type = QuestionType.FreeText, CustomTypeKey = "color" };
+
+        Assert.Null(model.NormalizedCustomTypeKey());
+    }
+
+    [Theory]
+    [InlineData("color", "color")]
+    [InlineData("  color  ", "color")]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void NormalizedCustomTypeKey_trims_and_blanks_out(string? key, string? expected)
+    {
+        var model = new QuestionFormModel { Type = QuestionType.Json, CustomTypeKey = key };
+
+        Assert.Equal(expected, model.NormalizedCustomTypeKey());
+    }
+
+    [Fact]
+    public void From_reads_the_custom_type_key()
+    {
+        var question = new QuestionDetail(
+            Guid.NewGuid(), Guid.NewGuid(), "colour", "Which colour?", QuestionType.Json, "color",
+            0, true, null, []);
+
+        Assert.Equal("color", QuestionFormModel.From(question).CustomTypeKey);
+    }
 
     [Fact]
     public void SuggestKey_appends_a_number_when_the_key_is_taken()
@@ -357,7 +409,9 @@ public sealed class QuestionFormModelTests
     /// <param name="validationRules">The stored rules as JSON.</param>
     /// <returns>The question view.</returns>
     private static QuestionDetail Question(QuestionType type, string? validationRules)
-        => new(Guid.NewGuid(), Guid.NewGuid(), "firstname", "What is your name?", type, 0, true, validationRules, []);
+        => new(
+            Guid.NewGuid(), Guid.NewGuid(), "firstname", "What is your name?", type, null, 0, true,
+            validationRules, []);
 
     private static DialogDetail Dialog(params QuestionDetail[] questions)
         => new(

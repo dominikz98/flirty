@@ -216,8 +216,14 @@
     /// </summary>
     private DialogDetail? _contextFor;
 
+    // Json is excluded alongside Context, and for the same reason: no snippet can be composed without
+    // knowing the shape. Without this, OperatorsFor would return an empty list while OnBuilderVariableChanged
+    // falls back to "==", so the inserter would emit exactly the guessed expression this stage refuses.
+    // Both kinds stay in the reference table below, with their example and note.
     private IReadOnlyList<ExpressionVariable> BuilderVariables =>
-        [.. _variables.Where(variable => variable.IsUsable && variable.Kind != ExpressionValueKind.Context)];
+        [.. _variables.Where(variable =>
+            variable.IsUsable
+            && variable.Kind is not (ExpressionValueKind.Context or ExpressionValueKind.Json))];
 
     private ExpressionVariable? SelectedVariable =>
         BuilderVariables.FirstOrDefault(variable => variable.Name == _builderVariable);
@@ -267,9 +273,11 @@
     {
         var normalized = string.IsNullOrWhiteSpace(_expression) ? null : _expression!.Trim();
 
-        _validation = _context is null
+        // Over the dialog rather than the prebuilt context: a JSON answer has no single sample shape, so
+        // the check has to accept an expression that compiles under any of them.
+        _validation = _contextFor is null
             ? null
-            : DesignerExpressionContext.Validate(Evaluator, normalized, _context);
+            : DesignerExpressionContext.Validate(Evaluator, normalized, _contextFor);
     }
 
     private void OnBuilderVariableChanged()

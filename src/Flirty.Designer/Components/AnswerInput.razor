@@ -1,9 +1,21 @@
 @* Input field for an answer in the test runner (#43) – the control that fits each question type. Used by
    the current question AND by editing an earlier answer, hence a component. *@
 @using Flirty.Domain
+@using Flirty.Designer.Models
 
 <div class="answer-input">
-    @if (Type == QuestionType.SingleChoice)
+    @* First branch on purpose: it also covers the graph run view, which renders this same component at
+       the selected node. A documented limit rather than a gap - see QuestionTypeLabels. *@
+    @if (!QuestionTypeLabels.IsAnswerableInDesigner(Type))
+    {
+        <p class="hint answer-note">
+            A <strong>JSON</strong> question cannot be answered here. The designer does not know the shape
+            the host expects – and a test run writes a real session and delivers real webhooks, so it does
+            not guess a value. Answer it through the host application, the HTTP API or an MCP client; a
+            recorded answer is displayed here read-only.
+        </p>
+    }
+    else if (Type == QuestionType.SingleChoice)
     {
         @foreach (var option in Options)
         {

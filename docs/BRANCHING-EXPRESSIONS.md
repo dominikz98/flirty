@@ -65,6 +65,27 @@ var context = new ExpressionContext(
     iterationIndex: null);
 ```
 
+### Json answers (#136)
+
+The CLR type an answer binds to is derived from the **JSON shape**, not from the question type. So a
+`Json` question needed no evaluator change at all: an object binds as `Dictionary<string, object?>`, an
+array as `List<object?>`, and a JSON string/number/boolean as that type. A host-declared custom question
+type is a `Json` question, so the same holds for it – a colour stored as `"#ff0000"` binds as a `string`,
+a composite address as a dictionary.
+
+**One sharp edge, measured and pinned by a test.** A dictionary indexer is statically `object`, so:
+
+```csharp
+address["city"] == "Berlin"             // FALSE - object == object is a REFERENCE comparison
+address["city"] as string == "Berlin"   // correct
+address["city"].Equals("Berlin")        // correct, and reads better for a non-C# author
+```
+
+The first line compiles cleanly and silently evaluates to `false`. That is ordinary C# semantics rather
+than a Flirty rule, which is exactly why nothing warns about it – the designer's live check accepts it
+too, because it *is* a valid expression. When a branch on a JSON field never fires, this is the first
+thing to look at.
+
 ## Example expressions
 
 The default engine evaluates expressions like these (cf. ARCHITECTURE §10):

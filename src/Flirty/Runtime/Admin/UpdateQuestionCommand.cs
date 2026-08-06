@@ -17,6 +17,10 @@ namespace Flirty.Runtime.Admin;
 /// <param name="Order">The order index of the question within the dialog.</param>
 /// <param name="IsRequired">Indicates whether an answer is required.</param>
 /// <param name="ValidationRules">Optional validation rules as JSON.</param>
+/// <param name="CustomTypeKey">
+/// Optional key of a host-declared custom question type. Only allowed together with
+/// <see cref="QuestionType.Json"/>; on any other type the command is rejected.
+/// </param>
 public sealed record UpdateQuestionCommand(
     Guid DialogId,
     Guid QuestionId,
@@ -25,7 +29,13 @@ public sealed record UpdateQuestionCommand(
     QuestionType Type,
     int Order,
     bool IsRequired,
-    string? ValidationRules) : ICommand<QuestionDetail>;
+    string? ValidationRules,
+    string? CustomTypeKey = null) : ICommand<QuestionDetail>, IValidatableObject
+{
+    /// <inheritdoc />
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        => QuestionValidation.Validate(Type, CustomTypeKey);
+}
 
 /// <summary>Handler for <see cref="UpdateQuestionCommand"/>.</summary>
 internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuestionCommand, QuestionDetail>
@@ -73,6 +83,7 @@ internal sealed class UpdateQuestionCommandHandler : ICommandHandler<UpdateQuest
         question.Order = command.Order;
         question.IsRequired = command.IsRequired;
         question.ValidationRules = command.ValidationRules;
+        question.CustomTypeKey = command.CustomTypeKey;
 
         await _store.SaveChangesAsync(cancellationToken);
 

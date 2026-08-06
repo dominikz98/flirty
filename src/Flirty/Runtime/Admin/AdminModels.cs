@@ -60,6 +60,10 @@ public sealed record DialogDetail(
 /// <param name="Key">The business, stable key of the question.</param>
 /// <param name="Text">The displayed question text.</param>
 /// <param name="Type">The answer type of the question.</param>
+/// <param name="CustomTypeKey">
+/// The key of the host-declared custom question type, or <see langword="null"/>. Only ever set
+/// together with <see cref="QuestionType.Json"/>.
+/// </param>
 /// <param name="Order">The order index of the question within the dialog.</param>
 /// <param name="IsRequired">Indicates whether an answer is required.</param>
 /// <param name="ValidationRules">Optional validation rules as JSON.</param>
@@ -70,6 +74,7 @@ public sealed record QuestionDetail(
     string Key,
     string Text,
     QuestionType Type,
+    string? CustomTypeKey,
     int Order,
     bool IsRequired,
     string? ValidationRules,

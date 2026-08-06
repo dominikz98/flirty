@@ -18,7 +18,8 @@ public class DomainModelTests
         Assert.Equal(3, (int)QuestionType.Number);
         Assert.Equal(4, (int)QuestionType.Date);
         Assert.Equal(5, (int)QuestionType.Boolean);
-        Assert.Equal(6, Enum.GetValues<QuestionType>().Length);
+        Assert.Equal(6, (int)QuestionType.Json);
+        Assert.Equal(7, Enum.GetValues<QuestionType>().Length);
     }
 
     [Fact]

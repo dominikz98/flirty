@@ -86,7 +86,7 @@ internal static class FlirtyMcpInstructions
 
         - validationRules on a question, type-scoped, every field optional. FreeText:
           {"minLength":3,"maxLength":50,"pattern":"^[a-z]+$"} - pattern is a .NET regular expression
-          matched partially, so anchor it for a full match. Number: {"min":0,"max":10}. The other four
+          matched partially, so anchor it for a full match. Number: {"min":0,"max":10}. The other five
           types have no rules. Omitting the argument on an update clears whatever was stored.
         - config on a trigger: {"url":"https://host.example/hook","name":"order-created"}. url is required
           for kind Webhook and must be an absolute http or https address; name is optional and is
@@ -97,7 +97,10 @@ internal static class FlirtyMcpInstructions
           its label. MultiChoice: a JSON array of strings, ["a","b"]. Number: a bare number with a dot as
           the decimal separator, 42 or 3.14. Boolean: bare true or false - the quoted "true" also passes
           validation but is stored as a string, and a branching condition comparing it to a boolean then
-          stops matching, so send the bare literal.
+          stops matching, so send the bare literal. Json: any well-formed JSON document, so the value is
+          whatever shape the question expects - an object, an array or a bare scalar. If the question
+          carries a customTypeKey, flirty_question_type_list reports a sample answer for that key; an
+          unknown key is not an error but means only well-formedness is checked.
 
         Errors arrive as isError with {"status","title","detail"} in structuredContent: 404 for an unknown
         element, 400 for an invalid request or answer, 409 for a conflict (published dialog, duplicate key,

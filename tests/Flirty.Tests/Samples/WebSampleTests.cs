@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Flirty.AspNetCore.Dtos;
 using Flirty.Domain;
 using Flirty.Persistence;
@@ -48,9 +49,20 @@ public sealed class WebSampleTests
         Assert.Equal(DemoDialog.SkillKey, afterMoreYes.NextQuestion!.Key);
         var afterSkill1 = await SubmitAsync(client, start.SessionId, afterMoreYes.NextQuestion.Id, "\"Blazor\"");
         var afterMoreNo = await SubmitAsync(client, start.SessionId, afterSkill1.NextQuestion!.Id, "\"no\"");
-        Assert.Equal(DemoDialog.SummaryKey, afterMoreNo.NextQuestion!.Key);
+        Assert.Equal(DemoDialog.ColourKey, afterMoreNo.NextQuestion!.Key);
 
-        var afterSummary = await SubmitAsync(client, start.SessionId, afterMoreNo.NextQuestion.Id, "true");
+        // The two host-declared custom question types (#136): a scalar one and a composite one, both
+        // QuestionType.Json, both checked by the host's own IQuestionTypeValidator.
+        var afterColour = await SubmitAsync(
+            client, start.SessionId, afterMoreNo.NextQuestion.Id, "\"#ff8800\"");
+        Assert.Equal(DemoDialog.AddressKey, afterColour.NextQuestion!.Key);
+
+        var afterAddress = await SubmitAsync(
+            client, start.SessionId, afterColour.NextQuestion.Id,
+            """{"street":"Main 1","zip":"10115","city":"Berlin"}""");
+        Assert.Equal(DemoDialog.SummaryKey, afterAddress.NextQuestion!.Key);
+
+        var afterSummary = await SubmitAsync(client, start.SessionId, afterAddress.NextQuestion.Id, "true");
         Assert.True(afterSummary.IsCompleted);
         Assert.Null(afterSummary.NextQuestion);
 
@@ -182,6 +194,96 @@ public sealed class WebSampleTests
             "/flirty/sessions", new { dialogKey = DemoDialog.DialogKey, externalUserKey = userKey });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<StartSessionResponse>())!;
+    }
+
+    /// <summary>
+    /// The scalar host-declared type end to end: a well-formed JSON string that is not a colour passes
+    /// the engine's own check and is refused by the <b>host's</b> validator – which is the whole point of
+    /// the extension path. A wrong format cannot be produced by the browser's colour picker, so this
+    /// lives here rather than in the E2E suite.
+    /// </summary>
+    [Fact]
+    public async Task A_colour_answer_of_the_wrong_format_is_refused_by_the_host_validator()
+    {
+        await using var host = await WebSampleTestHost.StartAsync();
+        var client = host.Client;
+
+        var (sessionId, colourQuestionId) = await WalkToColourAsync(client);
+
+        var response = await client.PostAsJsonAsync(
+            $"/flirty/sessions/{sessionId}/answers",
+            new { questionId = colourQuestionId, value = "\"not-a-colour\"" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("#rrggbb", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // Malformed JSON is refused one layer earlier, by the engine itself - also a 400, not a 500.
+        var malformed = await client.PostAsJsonAsync(
+            $"/flirty/sessions/{sessionId}/answers",
+            new { questionId = colourQuestionId, value = "#ff0000" });
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+    }
+
+    /// <summary>
+    /// The composite type: a missing required field is refused with one error naming it, and the value
+    /// then stored stays an opaque JSON object that the runtime hands back unchanged.
+    /// </summary>
+    [Fact]
+    public async Task An_address_answer_needs_its_required_fields_and_round_trips_as_an_object()
+    {
+        await using var host = await WebSampleTestHost.StartAsync();
+        var client = host.Client;
+
+        var (sessionId, colourQuestionId) = await WalkToColourAsync(client);
+        var afterColour = await SubmitAsync(client, sessionId, colourQuestionId, "\"#ff8800\"");
+        var addressId = afterColour.NextQuestion!.Id;
+
+        var incomplete = await client.PostAsJsonAsync(
+            $"/flirty/sessions/{sessionId}/answers",
+            new { questionId = addressId, value = """{"street":"Main 1","zip":"10115"}""" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, incomplete.StatusCode);
+        Assert.Contains("'city'", await incomplete.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        await SubmitAsync(
+            client, sessionId, addressId, """{"street":"Main 1","zip":"10115","city":"Berlin"}""");
+
+        var state = await client.GetFromJsonAsync<SessionStateResponse>($"/flirty/sessions/{sessionId}");
+        var stored = Assert.Single(state!.Answers, answer => answer.QuestionKey == DemoDialog.AddressKey);
+        Assert.Contains("\"city\"", stored.Value, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The runtime question payload carries <c>customTypeKey</c> – without it the chat UI could not pick
+    /// a control, and the whole custom type would be invisible to a client.
+    /// </summary>
+    [Fact]
+    public async Task The_open_question_reports_its_custom_type_key()
+    {
+        await using var host = await WebSampleTestHost.StartAsync();
+        var client = host.Client;
+
+        var (sessionId, _) = await WalkToColourAsync(client);
+
+        var state = await client.GetFromJsonAsync<JsonElement>($"/flirty/sessions/{sessionId}");
+        var current = state.GetProperty("currentQuestion");
+
+        Assert.Equal(DemoDialog.ColourKey, current.GetProperty("key").GetString());
+        Assert.Equal(DemoDialog.ColourTypeKey, current.GetProperty("customTypeKey").GetString());
+    }
+
+    /// <summary>Walks the dev branch and one loop iteration up to the colour question.</summary>
+    private static async Task<(Guid SessionId, Guid ColourQuestionId)> WalkToColourAsync(HttpClient client)
+    {
+        var start = await StartAsync(client, $"custom-types-{Guid.NewGuid():N}");
+        var afterRole = await SubmitAsync(client, start.SessionId, start.CurrentQuestion.Id, "\"dev\"");
+        var afterLanguage = await SubmitAsync(client, start.SessionId, afterRole.NextQuestion!.Id, "\"C#\"");
+        var afterSkill = await SubmitAsync(
+            client, start.SessionId, afterLanguage.NextQuestion!.Id, "\"EF Core\"");
+        var afterMore = await SubmitAsync(client, start.SessionId, afterSkill.NextQuestion!.Id, "\"no\"");
+
+        Assert.Equal(DemoDialog.ColourKey, afterMore.NextQuestion!.Key);
+        return (start.SessionId, afterMore.NextQuestion.Id);
     }
 
     private static async Task<SubmitAnswerResponse> SubmitAsync(HttpClient client, Guid sessionId, Guid questionId, string rawJsonValue)

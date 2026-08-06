@@ -193,6 +193,10 @@ namespace Flirty.Migrations.PostgreSql.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CustomTypeKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<Guid>("DialogId")
                         .HasColumnType("uuid");
 

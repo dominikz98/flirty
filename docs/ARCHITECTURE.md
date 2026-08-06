@@ -87,7 +87,7 @@ other – `Flirty.Mcp` references `Flirty` only, and either can be dropped witho
 ## 5. Domain model (configuration)
 
 - **Dialog** – `Id`, `Key`, `Name`, `Description`, `Version`, `IsPublished`, `StartQuestionId`, timestamps.
-- **Question** – `Id`, `DialogId`, `Key`, `Text`, `Type` (SingleChoice, MultiChoice, FreeText, Number, Date, Boolean), `Order`, `IsRequired`, `ValidationRules` (JSON).
+- **Question** – `Id`, `DialogId`, `Key`, `Text`, `Type` (SingleChoice, MultiChoice, FreeText, Number, Date, Boolean, Json), `CustomTypeKey` (optional, only with `Json` – a question type the host declared), `Order`, `IsRequired`, `ValidationRules` (JSON).
 - **AnswerOption** – `Id`, `QuestionId`, `Key`, `Label`, `Value`, `Order`.
 - **Transition** – `Id`, `DialogId`, `FromQuestionId`, `Expression`, `TargetQuestionId`, `Priority`, `IsDefault`. Ordered list of conditional transitions per question; the first matching one wins, otherwise the default. A `TargetQuestionId` pointing at an **earlier** question forms a **loop cycle**.
 - **LoopDefinition** – `Id`, `DialogId`, `CollectionKey`, `EntryQuestionId`, `BreakingQuestionId`. Metadata/marker layer over the branching for runtime collection and designer visualization. The exit is **not** a property of its own but runs through the normal `Transition` mechanics (the breaking question's exit transition).

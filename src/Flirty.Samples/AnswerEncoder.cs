@@ -29,6 +29,10 @@ internal static class AnswerEncoder
                 ? number.ToString(CultureInfo.InvariantCulture)
                 : JsonSerializer.Serialize(trimmed),
             QuestionType.Boolean => IsAffirmative(trimmed) ? "true" : "false",
+            // Passed through: the typed input already IS the JSON document. Malformed text goes to the
+            // engine unchanged, so its own message explains the problem rather than this encoder
+            // silently sending something else - the same rule the Number arm follows.
+            QuestionType.Json => trimmed.Length == 0 ? "null" : trimmed,
             // SingleChoice, FreeText and Date are encoded as a JSON string.
             _ => JsonSerializer.Serialize(trimmed),
         };

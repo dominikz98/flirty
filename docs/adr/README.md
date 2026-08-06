@@ -23,6 +23,7 @@ here.
 | [0008](./0008-gestures-on-the-canvas.md) | Editing gestures on the canvas: existing commands, reload, lock per gesture | Accepted | #103 |
 | [0009](./0009-mcp-as-its-own-opt-in-package.md) | MCP server as its own opt-in package | Accepted | #126 |
 | [0010](./0010-mcp-database-targets-by-route.md) | MCP database targets declared by the host, selected by the route | Accepted | #129 |
+| [0011](./0011-custom-question-types-on-an-open-base-type.md) | Custom question types on one open base type, with the seam in DI | Accepted | #136 |
 
 The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
 (a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
@@ -47,6 +48,15 @@ overturns a second sentence of the same EPIC, this time not on a measurement but
 revision that makes 0009's stateless transport mandatory also removed the session the EPIC wanted to keep
 the selected database in. So the authority moves to the host, and the client names a target in the route –
 which is why 0009 is not rewritten either: nothing in it prejudged this, and its own text says so.
+0011 turns 0004's move inward: there the *evaluator* was put behind an abstraction so the host may swap
+what a condition means, here the *validator* gets a seam so a host may add what an answer means – but the
+seam is created in DI rather than in the sealed class, so the built-in types keep one owner. It leans on
+0005 twice over, and in the same direction both times: because a published dialog cannot be repaired,
+an unknown type key must **degrade** instead of throwing, and because the built-in path was *measured*
+at 98 call sites rather than the three its skill claimed, the enum is deliberately not widened again.
+It is also the second ADR after 0009 to be decided by a **dependency measurement** – there the cost of
+adding one, here the cost of a licence change under one, which is why JSON Schema validation is a
+discarded alternative rather than a feature.
 
 ## Format
 

@@ -53,7 +53,8 @@ public sealed class LoopFormModelTests
     }
 
     private static QuestionDetail Question(string key)
-        => new(Guid.NewGuid(), Guid.NewGuid(), key, "Question", QuestionType.FreeText, 0, true, null, []);
+        => new(
+            Guid.NewGuid(), Guid.NewGuid(), key, "Question", QuestionType.FreeText, null, 0, true, null, []);
 
     private static LoopDetail Loop(string collectionKey)
         => new(Guid.NewGuid(), Guid.NewGuid(), collectionKey, Guid.NewGuid(), Guid.NewGuid());

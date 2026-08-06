@@ -176,6 +176,79 @@ public sealed class DesignerExpressionContextTests
         Assert.Contains("could not be checked", result.Error);
     }
 
+    // ---- Json answers (#136) ---------------------------------------------------------------------
+
+    /// <summary>
+    /// A JSON question binds with its own kind rather than falling into the text default – which would
+    /// make the editor suggest a string comparison for a value that may well be a dictionary.
+    /// </summary>
+    [Fact]
+    public void A_json_question_binds_with_the_json_kind_and_its_own_note()
+    {
+        var dialog = Dialog(Question("address", QuestionType.Json, null));
+
+        var variable = DesignerExpressionContext.Describe(dialog)
+            .Single(candidate => candidate.Name == "address");
+
+        Assert.Equal(ExpressionValueKind.Json, variable.Kind);
+        Assert.True(variable.IsUsable);
+        Assert.Equal("address != null", variable.Example);
+        Assert.Contains("raw JSON", variable.Note!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// No operator is offered, because every one of them would be a guess about a shape only the host
+    /// knows. Together with the <c>ExpressionField</c> filter this is what keeps the snippet inserter
+    /// from emitting <c>address == ""</c>.
+    /// </summary>
+    [Fact]
+    public void No_operator_is_offered_for_a_json_variable()
+        => Assert.Empty(DesignerExpressionContext.OperatorsFor(ExpressionValueKind.Json));
+
+    /// <summary>
+    /// <b>Measured, and it overturned the obvious design.</b> The engine derives the CLR type from the
+    /// JSON shape, so a scalar answer supports <c>==</c> against a literal and an object answer supports
+    /// an indexer – and <i>no single</i> sample binding compiles both: bind the unset default and the
+    /// indexer fails ("no applicable indexer exists in type Object"), bind an object and the scalar
+    /// comparison fails. Since this check <b>blocks saving</b>, a single binding would refuse conditions
+    /// that work perfectly at runtime. So the dialog-level overload accepts an expression that compiles
+    /// under either, and each of these lines is one that a single-shape check would have rejected.
+    /// </summary>
+    [Theory]
+    [InlineData("address != null")]
+    [InlineData("address == null")]
+    [InlineData("address[\"city\"] as string == \"Berlin\"")]
+    [InlineData("address[\"city\"].Equals(\"Berlin\")")]
+    [InlineData("address == \"#ff0000\"")]
+    public void A_condition_on_a_json_question_validates(string expression)
+    {
+        var dialog = Dialog(Question("address", QuestionType.Json, null));
+
+        var result = DesignerExpressionContext.Validate(Evaluator, expression, dialog);
+
+        Assert.True(result.IsValid, result.Error);
+    }
+
+    /// <summary>
+    /// The leniency is scoped to JSON questions: nonsense stays refused, and the reported message is the
+    /// one from the primary shape rather than the retry's.
+    /// </summary>
+    [Fact]
+    public void A_broken_condition_on_a_json_question_is_still_refused()
+    {
+        var dialog = Dialog(Question("address", QuestionType.Json, null));
+
+        var result = DesignerExpressionContext.Validate(Evaluator, "address >>> 3", dialog);
+
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.Error);
+    }
+
+    /// <summary>Without a JSON question the dialog overload is exactly the single-context check.</summary>
+    [Fact]
+    public void Without_a_json_question_the_dialog_overload_refuses_an_unknown_identifier()
+        => Assert.False(DesignerExpressionContext.Validate(Evaluator, "nope == 1", Dialog()).IsValid);
+
     // ---- Test data --------------------------------------------------------------------------------
 
     /// <summary>
@@ -217,7 +290,8 @@ public sealed class DesignerExpressionContextTests
             : [new AnswerOptionDetail(Guid.NewGuid(), questionId, optionValue, optionValue, optionValue, 0)];
 
         return new QuestionDetail(
-            questionId, dialogId ?? Guid.NewGuid(), key, $"Frage {key}?", type, 0, false, null, options);
+            questionId, dialogId ?? Guid.NewGuid(), key, $"Frage {key}?", type, null, 0, false, null,
+            options);
     }
 
     /// <summary>Hand-written test double: an engine that throws while checking (no mocking framework).</summary>

@@ -324,7 +324,10 @@ else
         }
 
         var expression = _form.NormalizedExpression();
-        var validation = DesignerExpressionContext.Validate(Evaluator, expression, _context);
+
+        // Over the dialog, not the prebuilt context: a JSON answer has no single sample shape, and this
+        // check BLOCKS the save - see DesignerExpressionContext.Build(detail, jsonAsObject).
+        var validation = DesignerExpressionContext.Validate(Evaluator, expression, _detail!);
 
         if (!validation.IsValid)
         {

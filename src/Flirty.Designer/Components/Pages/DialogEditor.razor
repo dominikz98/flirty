@@ -169,7 +169,7 @@ else
                                 }
                             </td>
                             <td>@question.Text</td>
-                            <td>@QuestionTypeLabels.Describe(question.Type)</td>
+                            <td>@QuestionTypeLabels.Describe(question.Type, question.CustomTypeKey)</td>
                             <td>@(question.IsRequired ? "yes" : "no")</td>
                             <td>@(QuestionTypeLabels.UsesOptions(question.Type) ? question.Options.Count.ToString() : "—")</td>
                             <td class="row-actions">
@@ -1167,9 +1167,12 @@ else
                 foreach (var (question, index) in changed)
                 {
                     _ = await sender.Send(
+                        // CustomTypeKey travels along like ValidationRules: an update overwrites every
+                        // field, so leaving it out here would make reordering a question silently wipe
+                        // its custom type.
                         new UpdateQuestionCommand(
                             Id, question.Id, question.Key, question.Text, question.Type, index,
-                            question.IsRequired, question.ValidationRules),
+                            question.IsRequired, question.ValidationRules, question.CustomTypeKey),
                         token);
                 }
 

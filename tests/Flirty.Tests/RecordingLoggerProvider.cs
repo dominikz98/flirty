@@ -1,12 +1,14 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace Flirty.Tests.Mcp;
+namespace Flirty.Tests;
 
 /// <summary>
-/// Minimal recording <see cref="ILoggerProvider"/>: keeps every entry so a test can assert that the
-/// catch-all branch of <c>FlirtyMcpExceptionFilter</c> logged the swallowed exception server-side. Hand-made,
-/// as every other test double in this suite.
+/// Minimal recording <see cref="ILoggerProvider"/>: keeps every entry so a test can assert what a
+/// component logged server-side – the catch-all branch of <c>FlirtyMcpExceptionFilter</c> swallowing an
+/// exception, or <c>CustomQuestionTypeAnswerValidator</c> degrading on an undeclared question type key.
+/// Hand-made, as every other test double in this suite. It lives in the root namespace rather than
+/// beside one of its callers because it belongs to neither.
 /// </summary>
 internal sealed class RecordingLoggerProvider : ILoggerProvider
 {

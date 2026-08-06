@@ -930,6 +930,96 @@ public sealed class DesignerE2ETests : IClassFixture<DesignerAppFixture>
     }
 
     /// <summary>
+    /// A host-declared custom question type in the designer (#136): authorable, and <b>not</b> answerable
+    /// in the test runner.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The middle step is the reason this test exists. Reordering with ↑/↓ rebuilds the whole
+    /// <c>UpdateQuestionCommand</c> field by field, so a forgotten <c>CustomTypeKey</c> would <b>silently
+    /// wipe</b> the custom type – no error, no warning, and no unit test can see it because the code sits
+    /// in a Razor <c>@code</c> block. It is the same trap the surrounding comment already names for
+    /// <c>ValidationRules</c>.
+    /// </para>
+    /// <para>
+    /// Every assertion hangs on a server-produced quantity: the type cell is rendered from the reloaded
+    /// <c>GetDialogQuery</c>, so it can only read the custom type's name if the column really came back
+    /// from the database.
+    /// </para>
+    /// </remarks>
+    [SkippableFact]
+    public async Task A_custom_question_type_survives_reordering_and_is_not_answerable_in_the_test_runner()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await ArrangeDialogAsync(session);
+
+        await CreateQuestionAsync(page, "colour", "Which colour?", "Json");
+
+        var questions = Section(page, "Questions");
+        var colourRow = questions.Locator("tbody tr").Filter(new() { HasText = "Which colour?" });
+
+        // Before the key: the plain JSON label. Rendered server-side from the reloaded graph.
+        await Assertions.Expect(colourRow).ToContainTextAsync("JSON or custom type", SlowContains);
+
+        await InteractWhenReadyAsync(
+            () => colourRow.GetByRole(AriaRole.Button, new() { Name = "Edit" }).ClickAsync(),
+            () => Assertions.Expect(page.Locator("#customTypeKey")).ToBeVisibleAsync(QuickVisible));
+
+        // Filling and saving is idempotent, so the readiness wrapper may repeat it. The verification
+        // hangs on the KEY, not on the success banner: if the first interaction after a page change
+        // fizzles, the field still holds the typed text while the server never saw it - the save then
+        // succeeds with an empty key and a banner-based check would stop right there. The intro line is
+        // re-rendered from the reloaded question, so it can only name the custom type if it was stored.
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await page.Locator("#customTypeKey").FillAsync("color");
+                await page.GetByRole(AriaRole.Button, new() { Name = "Save" }).First.ClickAsync();
+            },
+            () => Assertions.Expect(page.Locator("p.intro"))
+                .ToContainTextAsync("Custom type \"color\"", QuickContains));
+
+        await page.Locator("p.back a").ClickAsync();
+        await page.WaitForURLAsync(DialogUrl);
+        await Assertions.Expect(colourRow).ToContainTextAsync("Custom type \"color\"", SlowContains);
+
+        // The silent-loss path: move the question up, then back down.
+        await colourRow.GetByRole(AriaRole.Button, new() { Name = "↑" }).ClickAsync();
+        await Assertions.Expect(colourRow).ToContainTextAsync("Custom type \"color\"", SlowContains);
+
+        await page.ReloadAsync();
+        await Assertions.Expect(
+            Section(page, "Questions").Locator("tbody tr").Filter(new() { HasText = "Which colour?" }))
+            .ToContainTextAsync("Custom type \"color\"", SlowContains);
+
+        // Make it the entry question, so the run opens on it directly - a freshly created question is
+        // in no transition and would otherwise be unreachable.
+        var colourStartBadge = Section(page, "Questions").Locator("tbody tr")
+            .Filter(new() { HasText = "Which colour?" }).Locator(".badge-start");
+        await InteractWhenReadyAsync(
+            async () =>
+            {
+                await page.Locator("#startQuestion")
+                    .SelectOptionAsync(new SelectOptionValue { Label = "colour — Which colour?" });
+                await Section(page, "Metadata").GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
+            },
+            () => Assertions.Expect(colourStartBadge).ToBeVisibleAsync(QuickVisible));
+
+        // The documented limit: the runner offers a note instead of a control, and no way to submit.
+        await page.GetByRole(AriaRole.Button, new() { Name = "Test run" }).ClickAsync();
+        await page.WaitForURLAsync(new Regex("/test$"));
+
+        await InteractWhenReadyAsync(
+            () => page.GetByRole(AriaRole.Button, new() { Name = "Start run", Exact = true }).ClickAsync(),
+            () => Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Which colour?", QuickContains));
+
+        await Assertions.Expect(CurrentStep(page)).ToContainTextAsync("Custom type \"color\"", SlowContains);
+        await Assertions.Expect(CurrentStep(page).Locator(".answer-note")).ToHaveCountAsync(1, SlowCount);
+        await Assertions.Expect(CurrentStep(page).Locator(".answer-input input"))
+            .ToHaveCountAsync(0, SlowCount);
+    }
+
+    /// <summary>
     /// Creates a dialog <b>without</b> questions – the starting point for the canvas gestures that
     /// create their questions themselves.
     /// </summary>

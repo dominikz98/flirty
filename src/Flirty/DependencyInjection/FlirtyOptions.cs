@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,13 @@ public sealed class FlirtyOptions
 
     /// <summary>The outbound webhooks gathered via <see cref="AddWebhook(string, string)"/>.</summary>
     internal List<FlirtyWebhookRegistration> Webhooks { get; } = [];
+
+    /// <summary>
+    /// The custom question types gathered via <see cref="AddQuestionType(string, string, string)"/>,
+    /// keyed ordinally – see <see cref="FlirtyQuestionTypeRegistry"/> for why not case-insensitively.
+    /// </summary>
+    internal Dictionary<string, FlirtyQuestionType> QuestionTypes { get; } =
+        new(StringComparer.Ordinal);
 
     /// <summary>
     /// Enables auto-migration: registers the
@@ -167,5 +176,96 @@ public sealed class FlirtyOptions
 
         Webhooks.Add(new FlirtyWebhookRegistration(scope.ToString(), url, scope, expression));
         return this;
+    }
+
+    /// <summary>
+    /// Declares a custom question type <b>with</b> its own validator. The validator type is registered
+    /// as <see cref="ServiceLifetime.Scoped"/> and resolved from the request scope, so it may take
+    /// scoped dependencies – including the same <see cref="Flirty.Persistence.FlirtyDbContext"/> the
+    /// handler uses.
+    /// </summary>
+    /// <typeparam name="TValidator">The <see cref="IQuestionTypeValidator"/> implementation.</typeparam>
+    /// <param name="key">The key the type is stored under, see the other overload.</param>
+    /// <param name="displayName">A human-readable name for clients.</param>
+    /// <param name="sample">An optional example answer as JSON.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="key"/> is empty, uses characters outside <c>[a-z0-9-]</c> or is already declared;
+    /// or <paramref name="sample"/> is not valid JSON.
+    /// </exception>
+    public FlirtyOptions AddQuestionType<TValidator>(
+        string key, string displayName, string? sample = null)
+        where TValidator : class, IQuestionTypeValidator
+        => AddQuestionType(key, displayName, typeof(TValidator), sample);
+
+    /// <summary>
+    /// Declares a custom question type <b>without</b> a validator: the answer is then checked for
+    /// well-formed JSON only. That is a legitimate declaration rather than a half-finished one – it
+    /// names a shape for clients (via <paramref name="displayName"/> and <paramref name="sample"/>)
+    /// without claiming semantics the host does not check.
+    /// </summary>
+    /// <param name="key">
+    /// The key the type is stored under (in <see cref="Flirty.Domain.Question.CustomTypeKey"/>) and
+    /// looked up by. Lowercase ASCII letters, digits and <c>-</c> only, compared ordinally.
+    /// </param>
+    /// <param name="displayName">A human-readable name for clients.</param>
+    /// <param name="sample">An optional example answer as JSON.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="key"/> is empty, uses characters outside <c>[a-z0-9-]</c> or is already declared;
+    /// or <paramref name="sample"/> is not valid JSON.
+    /// </exception>
+    public FlirtyOptions AddQuestionType(string key, string displayName, string? sample = null)
+        => AddQuestionType(key, displayName, validatorType: null, sample);
+
+    private FlirtyOptions AddQuestionType(
+        string key, string displayName, Type? validatorType, string? sample)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+        if (!IsQuestionTypeKey(key))
+        {
+            throw new ArgumentException(
+                $"The custom question type key '{key}' is not usable. Use lowercase ASCII letters, "
+                + "digits and '-' only: the key is stored in the Question.CustomTypeKey column and "
+                + "looked up ordinally, so a casing difference between the declaration and a question "
+                + "would silently degrade that question to a plain JSON check.",
+                nameof(key));
+        }
+
+        if (sample is not null && !IsJson(sample))
+        {
+            throw new ArgumentException(
+                $"The sample value of the custom question type '{key}' is not valid JSON. It is handed "
+                + "to clients as an example answer, so a malformed one would teach them a malformed "
+                + "shape.",
+                nameof(sample));
+        }
+
+        if (!QuestionTypes.TryAdd(key, new FlirtyQuestionType(key, displayName, validatorType, sample)))
+        {
+            throw new ArgumentException(
+                $"The custom question type '{key}' is already declared.", nameof(key));
+        }
+
+        return this;
+    }
+
+    private static bool IsQuestionTypeKey(string key)
+        => key.All(character =>
+            char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character is '-');
+
+    private static bool IsJson(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

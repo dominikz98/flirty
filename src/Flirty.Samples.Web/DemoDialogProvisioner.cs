@@ -66,7 +66,16 @@ public static class DemoDialogProvisioner
         await CreateOptionAsync(client, dialogId, moreId, "yes", "Yes", "yes", 0, cancellationToken);
         await CreateOptionAsync(client, dialogId, moreId, "no", "No", "no", 1, cancellationToken);
 
-        var summaryId = await CreateQuestionAsync(client, dialogId, DemoDialog.SummaryKey, "Does everything look right?", QuestionType.Boolean, 5, cancellationToken);
+        // The two host-declared custom types (#136). Both are QuestionType.Json and pick their type by
+        // key; the engine checks well-formedness, the host's own validator checks the rest.
+        var colourId = await CreateQuestionAsync(
+            client, dialogId, DemoDialog.ColourKey, "Pick your favourite colour.", QuestionType.Json, 5,
+            cancellationToken, DemoDialog.ColourTypeKey);
+        var addressId = await CreateQuestionAsync(
+            client, dialogId, DemoDialog.AddressKey, "Where should we send your welcome package?",
+            QuestionType.Json, 6, cancellationToken, DemoDialog.AddressTypeKey);
+
+        var summaryId = await CreateQuestionAsync(client, dialogId, DemoDialog.SummaryKey, "Does everything look right?", QuestionType.Boolean, 7, cancellationToken);
 
         // 3) Set the entry question.
         await PutAsync(client, $"/flirty/admin/dialogs/{dialogId}",
@@ -80,7 +89,9 @@ public static class DemoDialogProvisioner
         await CreateTransitionAsync(client, dialogId, productId, skillId, null, 0, true, cancellationToken);              // -> loop entry
         await CreateTransitionAsync(client, dialogId, skillId, moreId, null, 0, true, cancellationToken);                 // entry -> breaking
         await CreateTransitionAsync(client, dialogId, moreId, skillId, "more == \"yes\"", 0, false, cancellationToken);   // loop-back
-        await CreateTransitionAsync(client, dialogId, moreId, summaryId, null, 1, true, cancellationToken);               // exit -> final question
+        await CreateTransitionAsync(client, dialogId, moreId, colourId, null, 1, true, cancellationToken);                // exit -> colour
+        await CreateTransitionAsync(client, dialogId, colourId, addressId, null, 0, true, cancellationToken);             // colour -> address
+        await CreateTransitionAsync(client, dialogId, addressId, summaryId, null, 0, true, cancellationToken);            // address -> final question
 
         // 5) Attach the loop marker (NOT possible via admin CRUD -> directly through the DbContext).
         using (var scope = services.CreateScope())
@@ -105,11 +116,14 @@ public static class DemoDialogProvisioner
     }
 
     private static async Task<Guid> CreateQuestionAsync(
-        HttpClient client, Guid dialogId, string key, string text, QuestionType type, int order, CancellationToken cancellationToken)
+        HttpClient client, Guid dialogId, string key, string text, QuestionType type, int order,
+        CancellationToken cancellationToken, string? customTypeKey = null)
     {
         var question = await PostAsync<CreateQuestionRequest, QuestionResponse>(
             client, $"/flirty/admin/dialogs/{dialogId}/questions",
-            new CreateQuestionRequest(key, text, type, order, IsRequired: true, ValidationRules: null),
+            new CreateQuestionRequest(
+                key, text, type, order, IsRequired: true, ValidationRules: null,
+                CustomTypeKey: customTypeKey),
             cancellationToken);
         return question.Id;
     }

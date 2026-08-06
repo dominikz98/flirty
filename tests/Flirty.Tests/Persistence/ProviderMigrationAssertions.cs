@@ -26,7 +26,22 @@ internal static class ProviderMigrationAssertions
             // Applies the provider-specific InitialCreate migration -> the schema comes into being.
             context.Database.Migrate();
 
-            context.Dialogs.Add(TestDialogFactory.BuildFullDialog(dialogId, out _));
+            var dialog = TestDialogFactory.BuildFullDialog(dialogId, out _);
+
+            // Added here rather than in the factory: only this test needs the column, and the factory
+            // is shared by a dozen others that would then all carry an unrelated custom type.
+            dialog.Questions.Add(new Flirty.Domain.Question
+            {
+                Id = Guid.NewGuid(),
+                DialogId = dialogId,
+                Key = "colour",
+                Text = "Which colour?",
+                Type = Flirty.Domain.QuestionType.Json,
+                Order = 1,
+                CustomTypeKey = "color",
+            });
+
+            context.Dialogs.Add(dialog);
             context.SaveChanges();
         }
 
@@ -41,8 +56,12 @@ internal static class ProviderMigrationAssertions
                 .Single(dialog => dialog.Id == dialogId);
 
             Assert.Equal("onboarding", loaded.Key);
-            var question = Assert.Single(loaded.Questions);
+            var question = Assert.Single(loaded.Questions, candidate => candidate.Key == "role");
             Assert.Equal(2, question.Options.Count);
+            Assert.Null(question.CustomTypeKey);
+
+            var custom = Assert.Single(loaded.Questions, candidate => candidate.Key == "colour");
+            Assert.Equal("color", custom.CustomTypeKey);
             Assert.Single(loaded.Transitions);
             Assert.Single(loaded.Loops);
             Assert.Single(loaded.Triggers);
@@ -62,6 +81,9 @@ internal static class ProviderMigrationAssertions
             var applied = context.Database.GetAppliedMigrations().ToArray();
             Assert.Contains(applied, migration => migration.EndsWith("InitialCreate", StringComparison.Ordinal));
             Assert.Contains(applied, migration => migration.EndsWith("AddDialogLayout", StringComparison.Ordinal));
+            Assert.Contains(
+                applied,
+                migration => migration.EndsWith("AddQuestionCustomTypeKey", StringComparison.Ordinal));
         }
     }
 }

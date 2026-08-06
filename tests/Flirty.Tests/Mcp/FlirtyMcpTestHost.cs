@@ -106,13 +106,19 @@ internal sealed class FlirtyMcpTestHost : IAsyncDisposable
     /// <c>__EFMigrationsHistory</c> row, so every migration would still count as pending and applying them
     /// would then fail on tables that already exist.
     /// </param>
+    /// <param name="configureFlirty">
+    /// Extra configuration of the <b>engine</b> options, applied after the provider choice. The only way
+    /// to declare a custom question type in a test host, because <c>AddQuestionType</c> lives on
+    /// <c>FlirtyOptions</c> and not on the MCP options.
+    /// </param>
     /// <returns>The started, usable test host.</returns>
     public static async Task<FlirtyMcpTestHost> StartAsync(
         Action<FlirtyDbContext>? seed = null,
         bool includeThrowingTools = false,
         Action<FlirtyMcpOptions>? configureMcp = null,
         IReadOnlyList<string>? targets = null,
-        bool prepareTargets = true)
+        bool prepareTargets = true,
+        Action<FlirtyOptions>? configureFlirty = null)
     {
         var connectionString = $"Data Source=FlirtyMcpTest-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
         var keepAlive = new List<SqliteConnection>();
@@ -132,7 +138,11 @@ internal sealed class FlirtyMcpTestHost : IAsyncDisposable
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddLogging(logging => logging.AddProvider(logs));
-        builder.Services.AddFlirty(options => options.UseSqlite(connectionString));
+        builder.Services.AddFlirty(options =>
+        {
+            options.UseSqlite(connectionString);
+            configureFlirty?.Invoke(options);
+        });
 
         var mcpBuilder = builder.Services.AddFlirtyMcp(options =>
         {

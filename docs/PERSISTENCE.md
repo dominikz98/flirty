@@ -52,9 +52,14 @@ src/
 └─ Flirty.Migrations.SqlServer    Migrations + SqlServerDesignTimeDbContextFactory
 ```
 
-Each set contains the same state, migration for migration with identical names: `InitialCreate` (#19) and
+Each set contains the same state, migration for migration with identical names: `InitialCreate` (#19),
 `AddDialogLayout` (#102, table `DialogLayout` for the designer's canvas positions – see
-[ADR 0007](./adr/0007-layout-as-its-own-table.md)).
+[ADR 0007](./adr/0007-layout-as-its-own-table.md)) and `AddQuestionCustomTypeKey` (#136, the nullable
+column `Question.CustomTypeKey` for host-declared question types – see
+[ADR 0011](./adr/0011-custom-question-types-on-an-open-base-type.md)). The last one is the repo's first
+`AddColumn` rather than a `CreateTable`; because the column is nullable it needs no default and no data
+migration. Note that the **timestamp prefixes differ per provider** (the sets are generated minutes
+apart) – only the migration *name* has to match.
 
 Each migrations project references `Flirty` (which brings the context + providers transitively) and
 `Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`). An `internal sealed`

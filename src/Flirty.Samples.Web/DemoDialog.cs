@@ -28,9 +28,29 @@ public static class DemoDialog
     /// <summary>Breaking question of the loop (SingleChoice yes/no).</summary>
     public const string MoreKey = "more";
 
+    /// <summary>Question of the host-declared custom type <c>color</c> (Json, scalar).</summary>
+    public const string ColourKey = "colour";
+
+    /// <summary>Question of the host-declared custom type <c>address</c> (Json, composite).</summary>
+    public const string AddressKey = "address";
+
     /// <summary>Final question after the loop (Boolean, terminal).</summary>
     public const string SummaryKey = "summary";
 
     /// <summary>Key under which the skills collected per iteration live in the expression context.</summary>
     public const string CollectionKey = "skills";
+
+    /// <summary>
+    /// Registry key of the scalar custom question type – a colour as a JSON string, checked in code by
+    /// <see cref="ColourAnswerValidator"/>.
+    /// </summary>
+    public const string ColourTypeKey = "color";
+
+    /// <summary>
+    /// Registry key of the composite custom question type – a JSON object of several fields, checked in
+    /// code by <see cref="AddressAnswerValidator"/>. Deliberately equal to
+    /// <see cref="AddressKey"/>: the question key and the registry key are independent, and having them
+    /// coincide once shows that nothing couples them.
+    /// </summary>
+    public const string AddressTypeKey = "address";
 }

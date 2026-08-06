@@ -62,6 +62,13 @@ internal sealed class QuestionFormModel
     /// <summary>The answer type of the question.</summary>
     public QuestionType Type { get; set; } = QuestionType.FreeText;
 
+    /// <summary>
+    /// The key of a host-declared custom question type; only meaningful with
+    /// <see cref="QuestionType.Json"/>. The designer deliberately does not check it against a registry –
+    /// it does not have one, and an unknown key is not an error but degrades to the plain JSON check.
+    /// </summary>
+    public string? CustomTypeKey { get; set; }
+
     /// <summary>Indicates whether an answer to the question is required.</summary>
     public bool IsRequired { get; set; }
 
@@ -101,12 +108,28 @@ internal sealed class QuestionFormModel
             Key = question.Key,
             Text = question.Text,
             Type = question.Type,
+            CustomTypeKey = question.CustomTypeKey,
             IsRequired = question.IsRequired,
         };
 
         model.ReadValidationRules(question.ValidationRules);
         return model;
     }
+
+    /// <summary>
+    /// The custom type key as it should be saved: trimmed, and dropped entirely when the type is not
+    /// <see cref="QuestionType.Json"/>.
+    /// </summary>
+    /// <returns>The key to store, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// The single source of that rule for every save path, so switching the type away from
+    /// <c>Json</c> silently drops the key rather than producing a 400 from the core guard – the same
+    /// shape as "only take the rules that apply to the type" in <see cref="TryBuildValidationRules"/>.
+    /// </remarks>
+    public string? NormalizedCustomTypeKey()
+        => Type != QuestionType.Json || string.IsNullOrWhiteSpace(CustomTypeKey)
+            ? null
+            : CustomTypeKey.Trim();
 
     /// <summary>
     /// Suggests a free key for a question created <b>by gesture</b>: a stem based on the question type
@@ -141,6 +164,7 @@ internal sealed class QuestionFormModel
             QuestionType.Number => "number",
             QuestionType.Date => "date",
             QuestionType.Boolean => "yesno",
+            QuestionType.Json => "json",
             _ => "text",
         };
 

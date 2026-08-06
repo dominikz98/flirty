@@ -76,7 +76,8 @@ public sealed record StartDialogCommand(
 public sealed record StartDialogResult(Guid SessionId, bool IsResumed, QuestionView CurrentQuestion);
 
 public sealed record QuestionView(
-    Guid Id, string Key, string Text, QuestionType Type, IReadOnlyList<AnswerOptionView> Options);
+    Guid Id, string Key, string Text, QuestionType Type, string? CustomTypeKey,
+    IReadOnlyList<AnswerOptionView> Options);
 
 public sealed record AnswerOptionView(Guid Id, string Key, string Label, string Value);
 ```

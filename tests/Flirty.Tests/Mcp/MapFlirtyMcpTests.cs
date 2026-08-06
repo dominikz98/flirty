@@ -1,4 +1,5 @@
 using Flirty.Mcp;
+using Flirty.Mcp.Tools;
 using Flirty.Runtime.Admin;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -292,7 +293,10 @@ public sealed class MapFlirtyMcpTests
 
         var tools = (await host.Mcp.ListToolsAsync()).Select(tool => tool.Name).ToList();
 
-        Assert.Equal(27, tools.Count);
+        // 27 configuration tools plus flirty_question_type_list (#136), which is an authoring tool:
+        // it explains the customTypeKey parameter of flirty_question_create/_update.
+        Assert.Equal(28, tools.Count);
+        Assert.Contains(FlirtyToolNames.QuestionTypeList, tools, StringComparer.Ordinal);
         Assert.DoesNotContain(tools, name => name.StartsWith("flirty_session_", StringComparison.Ordinal));
     }
 

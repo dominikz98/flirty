@@ -634,7 +634,7 @@ else
             (sender, token) => sender.Send(
                 new UpdateQuestionCommand(
                     Id, edit.QuestionId, edit.Key, edit.Text, edit.Type, current.Order, edit.IsRequired,
-                    current.ValidationRules),
+                    current.ValidationRules, edit.CustomTypeKey),
                 token),
             $"Question \"{edit.Key}\" saved.");
     }

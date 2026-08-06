@@ -86,3 +86,27 @@ internal sealed record FlirtyPendingMigrations(IReadOnlyList<string> Pending);
 /// database was already up to date.
 /// </param>
 internal sealed record FlirtyMigrationsApplied(IReadOnlyList<string> Applied);
+
+/// <summary>
+/// One custom question type the host declared, as seen by a client. A deliberate projection of
+/// <see cref="Flirty.Validation.FlirtyQuestionType"/> rather than the record itself: that one carries the
+/// CLR <c>Type</c> of the registered validator, which is a server-side implementation detail and has no
+/// business on the wire. Note that <c>internal</c> is no protection here – <c>System.Text.Json</c>
+/// ignores accessibility, and every wrapper in this file reaches the client in full – so the guarantee is
+/// this projection having no such member, checked against the serialized text by a test.
+/// </summary>
+/// <param name="Key">The key to pass as <c>customTypeKey</c> when authoring a question.</param>
+/// <param name="DisplayName">The human-readable name the host gave the type.</param>
+/// <param name="Sample">
+/// An example answer as JSON, or <see langword="null"/> when the host declared none.
+/// </param>
+internal sealed record FlirtyQuestionTypeInfo(string Key, string DisplayName, string? Sample);
+
+/// <summary>The declared custom question types, returned by <c>flirty_question_type_list</c>.</summary>
+/// <param name="QuestionTypes">The declared types, ordered by key. Empty when the host declared none.</param>
+/// <param name="Note">
+/// A hint when <paramref name="QuestionTypes"/> is empty, so an empty list is not mistaken for a failure
+/// or a permission problem; <see langword="null"/> otherwise.
+/// </param>
+internal sealed record FlirtyQuestionTypeList(
+    IReadOnlyList<FlirtyQuestionTypeInfo> QuestionTypes, string? Note);

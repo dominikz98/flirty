@@ -318,4 +318,65 @@ public sealed class DynamicExpressoExpressionEvaluatorTests
     {
         Assert.Throws<ArgumentNullException>(() => Evaluator.Validate("age > 18", null!));
     }
+
+    // ---- Json answers (#136) -----------------------------------------------------------------
+
+    /// <summary>
+    /// The evaluator derives the CLR type from the JSON <b>shape</b>, so an object answer arrives as a
+    /// dictionary and a field of it is readable – with no evaluator change for
+    /// <see cref="QuestionType.Json"/>. This is the acceptance criterion of EPIC 14 that could not be
+    /// assumed: the indexer yields <c>object</c>, so a naive <c>==</c> against a string literal would be
+    /// a reference comparison and silently false. It is pinned here for both outcomes.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"street\":\"Main\",\"city\":\"Berlin\"}", true)]
+    [InlineData("{\"street\":\"Main\",\"city\":\"Hamburg\"}", false)]
+    public void A_json_object_answer_binds_as_a_dictionary_and_a_field_is_readable(
+        string answer, bool expected)
+    {
+        var context = Context(new Dictionary<string, string?> { ["address"] = answer });
+
+        Assert.Equal(expected, Evaluator.Evaluate("address[\"city\"] as string == \"Berlin\"", context));
+    }
+
+    /// <summary>
+    /// <b>The trap a dialog author walks into, pinned deliberately.</b> The indexer of a dictionary
+    /// answer is statically <c>object</c>, so <c>address["city"] == "Berlin"</c> compiles cleanly and
+    /// evaluates to <see langword="false"/> – it is a <b>reference</b> comparison, and the string comes
+    /// out of a freshly parsed document. This is ordinary C# semantics rather than a defect, which is
+    /// exactly why it is silent: nothing can warn about it. The cast is not a workaround but the
+    /// correct spelling, and the guides say so.
+    /// </summary>
+    [Fact]
+    public void A_field_comparison_without_a_cast_is_a_reference_comparison()
+    {
+        var context = Context(new Dictionary<string, string?>
+        {
+            ["address"] = "{\"city\":\"Berlin\"}",
+        });
+
+        Assert.False(Evaluator.Evaluate("address[\"city\"] == \"Berlin\"", context));
+        Assert.True(Evaluator.Evaluate("address[\"city\"] as string == \"Berlin\"", context));
+
+        // Equals() is the other correct spelling, and reads better for a non-C# author.
+        Assert.True(Evaluator.Evaluate("address[\"city\"].Equals(\"Berlin\")", context));
+    }
+
+    /// <summary>A JSON string answer binds as a string – the shape decides, not the question type.</summary>
+    [Fact]
+    public void A_json_string_answer_binds_as_a_string()
+    {
+        var context = Context(new Dictionary<string, string?> { ["colour"] = "\"#ff0000\"" });
+
+        Assert.True(Evaluator.Evaluate("colour == \"#ff0000\"", context));
+    }
+
+    /// <summary>A JSON array answer binds as a list, so its count is checkable.</summary>
+    [Fact]
+    public void A_json_array_answer_binds_as_a_list()
+    {
+        var context = Context(new Dictionary<string, string?> { ["tags"] = "[\"a\",\"b\"]" });
+
+        Assert.True(Evaluator.Evaluate("tags.Count == 2", context));
+    }
 }

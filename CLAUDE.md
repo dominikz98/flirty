@@ -24,11 +24,13 @@ src/
 │                               Validation, Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 complete (#126–#130): host, 36 tools in ten tool
+│                               EPIC 13 complete (#126–#130): host, 37 tools in eleven tool
 │                               classes – 27 configuration + the 5 flirty_session_* of FlirtySessionTools,
 │                               each class mirroring one MapXxxEndpoints counterpart, plus the 4
 │                               flirty_db_* of the two database classes, which mirror the designer's
-│                               ConnectionProfileOperations because the engine has no command for them.
+│                               ConnectionProfileOperations because the engine has no command for them,
+│                               plus flirty_question_type_list (#136) in FlirtyQuestionTypeTools, whose
+│                               source is the host's AddQuestionType registry rather than a route.
 │                               Plus Tools/FlirtyToolNames.cs as the name checklist, ServerInstructions
 │                               and two call-tool filters: the error mapping (mirrors
 │                               FlirtyExceptionEndpointFilter) and, inside it, the target resolution.
@@ -147,12 +149,33 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
   **reload** (the warnings arise graph-wide); gestures are **not idempotent** and therefore locked in
   two stages (JS `send()` on the promise of `invokeMethodAsync` + early exit in
   `RunGestureAsync`). Reason: ADR `docs/adr/0008-gestures-on-the-canvas.md`.
+- **A host declares its own question types; the enum is not widened per type** (#136). `QuestionType`
+  is closed and ships in a published package, so a consumer cannot append to it – and the built-in path
+  was *measured* at 98 `QuestionType.<Member>` sites across 15 files, i.e. three steps in the core and
+  twelve files everywhere else. So there is **one** open-shaped built-in, `QuestionType.Json = 6`, and
+  every host type hangs off it via the nullable column `Question.CustomTypeKey` (set ⇒ `Type == Json`,
+  enforced on create and update). The seam is a **DI decorator**, not a hook in the `sealed`
+  `AnswerValidator`: `CustomQuestionTypeAnswerValidator` is registered **only** when at least one type
+  is declared, so without the feature `IAnswerValidator` stays exactly the singleton it was; with it,
+  it becomes scoped and a host validator resolves from the **request scope**. Two rules are load-bearing:
+  the built-in JSON check runs **before** any host validator, and an **unknown key degrades** (validate
+  as plain JSON, one warning) rather than throwing – a published dialog cannot be repaired (ADR 0005).
+  JSON Schema validation was deliberately **not** added: the only viable library stopped being freely
+  licensed at 9.0.0, and the obligation would flow to every consumer. Reason: ADR
+  `docs/adr/0011-custom-question-types-on-an-open-base-type.md`.
 
 ## Central entry points (with paths)
 
 - **DI:** `AddFlirty()`, `AddFlirty(Action<FlirtyOptions>)`, `AddFlirtyHandler<TNotification, THandler>()`
   in `src/Flirty/DependencyInjection/FlirtyServiceCollectionExtensions.cs` (namespace deliberately
-  `Microsoft.Extensions.DependencyInjection`). Options in `FlirtyOptions.cs`.
+  `Microsoft.Extensions.DependencyInjection`). Options in `FlirtyOptions.cs` – `ApplyMigrations()`, the
+  three `Use*` providers, `UseExpressionEvaluator<T>()`, `AddWebhook(...)` and `AddQuestionType(...)`.
+- **Custom question types (#136):** `IQuestionTypeValidator`, `FlirtyQuestionType` and the (public,
+  because `Flirty.Mcp` reads it) `FlirtyQuestionTypeRegistry` in `src/Flirty/Validation/`, together with
+  the `internal` decorator `CustomQuestionTypeAnswerValidator.cs`; the authoring guard in
+  `src/Flirty/Runtime/Admin/QuestionValidation.cs`. The MCP counterpart is
+  `Tools/FlirtyQuestionTypeTools.cs` (`flirty_question_type_list`), the worked examples are
+  `src/Flirty.Samples.Web/{Colour,Address}AnswerValidator.cs`.
 - **Runtime facade:** `IFlirtyEngine` (`src/Flirty/Runtime/IFlirtyEngine.cs`) → `StartDialogAsync`,
   `StartDialogVersionAsync`, `SubmitAnswerAsync`, `ResumeDialogAsync`, `EditAnswerAsync`. Behind it,
   commands/queries in `src/Flirty/Runtime/` (`StartDialogCommand.cs`, `SubmitAnswerCommand.cs`, …),
@@ -268,7 +291,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Getting Started (Web sample / chat UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0010 |
+| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0011 |
 
 ## Status & open work
 
@@ -1150,3 +1173,66 @@ invisible to every test in the repo because a count in prose compiles.
 honest, because each issue's own guide is in its diff – but the backlog, the roadmap and the milestone
 table describe the *whole*, so they are the one thing a stage-shaped process structurally cannot keep
 current. Look there first, not at the guide you just edited.
+
+**Custom question types declared by the host (EPIC 14, #136) done** – and thereby **M8**. An embedding
+application can define its own question type, with its own validation logic, authorable over HTTP, MCP
+and the designer, without forking the engine. Four stages on one branch: core, the two remote surfaces,
+the designer, samples/docs/skill. **One schema change** (`Question.CustomTypeKey`, the repo's first
+`AddColumn`), **one new ADR (0011)**, no new project, no new command. Surface 36 → **37** tools in
+**eleven** classes. Suite 766 → **870** unit + 17 → **18** E2E.
+
+- **The enum is deliberately not widened, and that is a measurement rather than a preference.** The skill
+  `flirty-question-type` promised a new type is three steps; counted, `QuestionType.<Member>` stands
+  **98 times across 15 files** in `src`. The three steps are what the *core* costs, the other twelve
+  files are what a type costs to become *usable* – so the built-in path is expensive, and an extension
+  point has to be **cheaper** than it. Hence one open-shaped built-in, `QuestionType.Json = 6`, with
+  every host type hanging off it. `Json` **without** a key is a feature in its own right, which is what
+  made the first stage shippable and testable before a single custom type existed. Had it been called
+  `Custom`, a missing registration would have had to throw – on a published dialog, unrepairable.
+- **The seam is created in DI, not in the sealed class**, and the gate is what makes it free. The
+  decorator is registered only on an actual declaration, so a host that ignores the feature keeps the
+  plain singleton – asserted on the lifetime **and** the implementation type, because a refactor to a
+  factory would keep the former and break the promise. With a declaration `IAnswerValidator` becomes
+  scoped and a host validator resolves out of the **request scope** (an `IServiceScopeFactory` would
+  have opened a second one and handed it a different `DbContext` – pinned by `ReferenceEquals` on a
+  scoped probe).
+- **JSON Schema validation was scoped in by an amendment and is dropped again, on a measurement.** The
+  amendment's premise was "JsonSchema.Net (MIT)". True up to **8.0.5**; from **9.0.0** the *binary*
+  release carries the OSMF EULA with `requireLicenseAcceptance=true` and a fee above roughly US$10k
+  revenue – which, from a published package, flows to **every** consumer including one that never
+  authors a `Json` question. Freezing on 8.0.5, adding a fourth opt-in package, or passing the fee on
+  are each more expensive than the feature, so structure stays where the original issue text put it: in
+  the custom type's own validator. Recorded as a discarded alternative in ADR 0011.
+- **Two facts in the issue were wrong and each cost a cycle.** A misconfiguration is **409**, not the
+  500 it names twice (`FlirtyExceptionEndpointFilter.cs:68`). And `src/Flirty.Samples.Web/AnswerEncoder.cs`
+  does not exist – the C# encoder is the *console* sample's; the web sample's is JavaScript.
+- **The acceptance criterion "an expression reads a field out of it" needed measuring, and the answer is
+  a trap.** `address["city"] == "Berlin"` compiles cleanly and is **always false**: the indexer is
+  statically `object`, so it is a reference comparison. Ordinary C# semantics, which is exactly why
+  nothing can warn about it – the designer's live check accepts it too, because it *is* valid. The
+  correct spellings are `as string ==` and `.Equals(…)`; all three are pinned by a test and stated in
+  `BRANCHING-EXPRESSIONS.md`. Worse, the designer needed **two** sample shapes: bound as unset, the
+  indexer does not compile; bound as an object, a scalar comparison does not. Since that check *blocks
+  saving*, one shape would refuse conditions that work at runtime – so `Validate` now takes the
+  `DialogDetail` and accepts an expression that compiles under either.
+- **The designer gets no input control for `Json`, and that is a documented limit.** A test run writes a
+  real session and delivers real webhooks, and the designer does not know the host's registry – a
+  guessed value would be worse than none. `QuestionTypeLabels.IsAnswerableInDesigner` is the single
+  source; the hard guard is `AnswerInputModel.CanSubmit`, which every submit and edit path already asks,
+  so it covers the graph run view for free. Authoring stays complete: `CustomTypeKey` is a plain text
+  field in both surfaces. Richer support is #137.
+
+Two defects found on the way, neither of which any existing test could see. `DialogEditor.MoveQuestionAsync`
+rebuilds the whole `UpdateQuestionCommand`, so **reordering a question with ↑/↓ would have silently wiped
+its custom type** – the same trap the surrounding comment already named for `ValidationRules`. And in the
+chat UI, `submitAnswer` clears the input line before sending and never restored it on a `400`, so **a
+refused answer could not be corrected without a page reload**. That one had been latent forever: every
+control before this stage produced a value the engine accepts, so a refusal was unreachable from that UI.
+The composite `address` type is the first that can be wrong, and the E2E test written for it surfaced the
+gap immediately.
+
+**Mnemonic:** a fallback arm is how a cost stays invisible. Nine of the designer's switch statements end
+in `_ =>`, so a seventh enum member breaks nothing and merely renders as its bare technical name in nine
+places – which is precisely why the "three steps" claim survived unchallenged for so long. The cheap fix
+is a golden test that asserts every enum value has a label of its own; the general lesson is that when a
+codebase absorbs a change silently, the absorption is the thing to measure, not the change.

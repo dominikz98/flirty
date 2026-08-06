@@ -56,6 +56,7 @@ internal static class AdminProjection
             question.Key,
             question.Text,
             question.Type,
+            question.CustomTypeKey,
             question.Order,
             question.IsRequired,
             question.ValidationRules,

@@ -33,6 +33,16 @@ public sealed class Question
     /// </summary>
     public string? ValidationRules { get; set; }
 
+    /// <summary>
+    /// Optional key of a host-declared custom question type, only meaningful together with
+    /// <see cref="QuestionType.Json"/> (the admin commands refuse it on any other type). The key is
+    /// resolved against the types the host declared with <c>AddQuestionType</c>; it is deliberately
+    /// <b>not</b> a foreign key, because that registry lives in host code rather than in the database.
+    /// An unknown key is therefore not a dangling reference and not an error: the answer is then
+    /// validated as plain JSON.
+    /// </summary>
+    public string? CustomTypeKey { get; set; }
+
     /// <summary>The dialog this question belongs to.</summary>
     public Dialog Dialog { get; set; } = null!;
 

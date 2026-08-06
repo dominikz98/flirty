@@ -139,7 +139,9 @@ public sealed class GraphEditingTests
             []);
 
     private static QuestionDetail Question(string key, int order, Guid? id = null)
-        => new(id ?? Guid.NewGuid(), DialogId, key, $"Frage {key}", QuestionType.FreeText, order, false, null, []);
+        => new(
+            id ?? Guid.NewGuid(), DialogId, key, $"Frage {key}", QuestionType.FreeText, null, order,
+            false, null, []);
 
     private static TransitionDetail Transition(Guid from, Guid target, int priority)
         => new(Guid.NewGuid(), DialogId, from, target, null, priority, false);

@@ -11,6 +11,7 @@
 *@
 @using Flirty.Domain
 @using Flirty.Runtime.Admin
+@using Flirty.Designer.Models
 @using Flirty.Designer.Services
 
 <aside class="graph-inspector" aria-label="Details of the selected element of the test run">
@@ -82,7 +83,12 @@
                         }
                         else
                         {
-                            <button class="btn" disabled="@Busy"
+                            @* Same limit as in the list view: a JSON answer is not editable here. *@
+                            <button class="btn"
+                                    disabled="@(Busy || !QuestionTypeLabels.IsAnswerableInDesigner(question.Type))"
+                                    title="@(QuestionTypeLabels.IsAnswerableInDesigner(question.Type)
+                                        ? null
+                                        : "A JSON answer cannot be edited in the designer.")"
                                     @onclick="() => StartEdit.InvokeAsync(entry.Sequence)">Edit</button>
                         }
                     </li>

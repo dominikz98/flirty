@@ -83,7 +83,9 @@ role (SingleChoice: dev|pm)                     ← branching (entry question)
 language|product → skill (FreeText)             ← loop entry (CollectionKey "skills")
 skill            → more  (SingleChoice: yes|no) ← breaking question
    ├─ more=="yes" → skill  (loop-back, Priority 0)
-   └─ default     → summary (exit, Priority 1)
+   └─ default     → colour (exit, Priority 1)
+colour  (Json, custom type "color")             ← host-declared, scalar
+address (Json, custom type "address")           ← host-declared, composite
 summary (Boolean, terminal)                     → completion → trigger
 ```
 
@@ -104,7 +106,8 @@ HTTP endpoints and holds no server state:
   reconstructed via `GET /flirty/sessions/{id}` (resume after reload); without a stored session a new one is
   started via `POST /flirty/sessions`.
 - **Answers:** `POST /flirty/sessions/{id}/answers` with the `value` as **raw JSON text** per question type
-  (SingleChoice/FreeText → JSON string, Boolean → `true`/`false`).
+  (SingleChoice/FreeText → JSON string, Boolean → `true`/`false`, `Json` → whatever document the
+  control produced).
 - **Edit:** `PUT /flirty/sessions/{id}/answers/{questionId}` (for loop answers with `iterationIndex`);
   the number of discarded downstream answers is shown.
 - **Loop/Branching:** arise from the rendered `currentQuestion` flow; the collected `skills` are shown
@@ -126,6 +129,43 @@ HTTP endpoints and holds no server state:
 > server did not yet know the last answer, discarded one answer too few on the edit and rejected the
 > trailing submit with `409` ("is not the currently open question"). The data stayed
 > consistent – but the display was not plausible. This was noticed via an E2E test reacting to it (#97).
+
+## 3b. Two host-declared question types (#136)
+
+The sample declares its own question types, which is the extension path an embedding app has instead of
+editing the engine's enum:
+
+```csharp
+options.AddQuestionType<ColourAnswerValidator>("color", "Colour picker", sample: "\"#ff0000\"");
+options.AddQuestionType<AddressAnswerValidator>("address", "Postal address", sample: …);
+```
+
+Both are questions of type `Json` carrying their key in `CustomTypeKey`. They differ in **shape**, and
+that is the point of having two: `color` is scalar (the answer is a JSON string), `address` is composite
+(a JSON object of several fields, answered as one answer). One extension point carries both, and the
+engine stores either as an opaque document.
+
+**The engine knows nothing about controls.** It reports the question's `customTypeKey`, and `app.js`
+maps that key to a renderer in its own `customTypes` table – `<input type="color">` for one, three
+sub-inputs for the other. The two sides share a **key, not a schema**; an unknown key renders a note
+instead of throwing, mirroring the engine's own degradation.
+
+**The refusal is deliberately reachable from the browser.** The address form does *no* client-side
+check, so leaving the city empty produces a real `400` from `AddressAnswerValidator` – the engine is the
+authority, and a second implementation in JavaScript would be a second truth. The colour type's
+refusal is *not* browser-testable (`input[type=color]` cannot emit a malformed value), so that half is
+covered in `tests/Flirty.Tests/Samples/WebSampleTests.cs` against the HTTP surface.
+
+> **Re-provisioning an existing database.** The provisioner skips when `web-onboarding` already exists,
+> and a published version is immutable – so an older `flirty-sample.db` keeps the old graph without the
+> two questions. Delete `flirty-sample.db*` and restart. The E2E fixture uses a fresh temp database, so
+> CI is unaffected.
+
+> **A refused answer must stay correctable.** `submitAnswer` clears the input line before sending (to
+> prevent a double submit), and on a `400` it now **re-renders the control prefilled with the attempted
+> value**. Without that the input area stayed empty and the only way on was a reload. The gap was latent
+> until this stage: every control before these two produced a value the engine accepts, so a refusal was
+> unreachable from this UI.
 
 ## 4. Triggers: handler + webhook receiver
 

@@ -29,6 +29,13 @@ internal sealed class QuestionConfiguration : IEntityTypeConfiguration<Question>
         // ValidationRules carries application-side serialized JSON -> unbounded text column,
         // deliberately without MaxLength (thus it never ends up in an index).
 
+        // CustomTypeKey is a business key like Key and therefore bounded, so it stays indexable on
+        // every provider. It deliberately gets no index of its own: nothing queries by it - the
+        // lookup happens against the in-memory registry the host declared - and a unique index over
+        // a nullable column would behave differently on SQL Server than on SQLite/PostgreSQL.
+        builder.Property(question => question.CustomTypeKey)
+            .HasMaxLength(PersistenceConstants.KeyMaxLength);
+
         builder.HasMany(question => question.Options)
             .WithOne(option => option.Question)
             .HasForeignKey(option => option.QuestionId)

@@ -50,7 +50,28 @@ internal static class DesignerExpressionContext
     /// </summary>
     /// <param name="detail">The dialog including its graph (from <c>GetDialogQuery</c>).</param>
     /// <returns>The context against which condition expressions are validated.</returns>
-    public static ExpressionContext Build(DialogDetail detail)
+    public static ExpressionContext Build(DialogDetail detail) => Build(detail, jsonAsObject: false);
+
+    /// <summary>
+    /// Builds the sample context, optionally binding every <see cref="QuestionType.Json"/> answer as an
+    /// empty JSON <b>object</b> instead of the unset default.
+    /// </summary>
+    /// <param name="detail">The dialog graph.</param>
+    /// <param name="jsonAsObject">
+    /// <see langword="true"/> to bind JSON answers as an empty object (which makes
+    /// <c>address["city"]</c> compile), <see langword="false"/> for the unset default (which makes a
+    /// scalar comparison compile).
+    /// </param>
+    /// <returns>The sample context.</returns>
+    /// <remarks>
+    /// Two shapes exist because <b>no single one is permissive enough</b>, and that was measured rather
+    /// than assumed: the engine derives the CLR type from the JSON shape, so an object answer supports an
+    /// indexer and a scalar one supports <c>==</c> against a literal – and each binding rejects the
+    /// other's expression at compile time. Since the check <b>blocks saving</b>, a single shape would
+    /// refuse conditions that work perfectly at runtime. The <c>Validate</c> overload taking a
+    /// <see cref="DialogDetail"/> therefore accepts an expression that compiles under <i>either</i>.
+    /// </remarks>
+    public static ExpressionContext Build(DialogDetail detail, bool jsonAsObject)
     {
         ArgumentNullException.ThrowIfNull(detail);
 
@@ -63,7 +84,9 @@ internal static class DesignerExpressionContext
         var answers = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var question in detail.Questions.Where(question => IsBindable(question.Key)))
         {
-            answers[question.Key] = SampleJson(question);
+            answers[question.Key] = jsonAsObject && question.Type == QuestionType.Json
+                ? "{}"
+                : SampleJson(question);
         }
 
         var session = new DialogSession
@@ -141,7 +164,7 @@ internal static class DesignerExpressionContext
     /// </summary>
     /// <param name="evaluator">The expression engine (singleton from <c>AddFlirty()</c>).</param>
     /// <param name="expression">The expression to check; <see langword="null"/>/empty counts as valid.</param>
-    /// <param name="context">The sample context from <see cref="Build"/>.</param>
+    /// <param name="context">The sample context from <see cref="Build(DialogDetail)"/>.</param>
     /// <returns>The check result.</returns>
     public static ExpressionValidationResult Validate(
         IExpressionEvaluator evaluator, string? expression, ExpressionContext context)
@@ -160,6 +183,36 @@ internal static class DesignerExpressionContext
         }
     }
 
+    /// <summary>
+    /// Validates an expression against the dialog, accepting it if it compiles under <b>any</b> answer
+    /// shape a <see cref="QuestionType.Json"/> question may take.
+    /// </summary>
+    /// <param name="evaluator">The expression engine.</param>
+    /// <param name="expression">The expression to check; <see langword="null"/>/empty counts as valid.</param>
+    /// <param name="detail">The dialog graph the sample context is built from.</param>
+    /// <returns>The check result.</returns>
+    /// <remarks>
+    /// Without a JSON question this is exactly the single-context check. With one it retries against the
+    /// object binding, because the designer cannot know the shape and a single binding would <b>block
+    /// saving</b> a condition that works at runtime – see <see cref="Build(DialogDetail, bool)"/>. The
+    /// first result's message is the one reported, since it is the shape the reference table describes.
+    /// </remarks>
+    public static ExpressionValidationResult Validate(
+        IExpressionEvaluator evaluator, string? expression, DialogDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+
+        var result = Validate(evaluator, expression, Build(detail));
+        if (result.IsValid || !detail.Questions.Any(question => question.Type == QuestionType.Json))
+        {
+            return result;
+        }
+
+        return Validate(evaluator, expression, Build(detail, jsonAsObject: true)).IsValid
+            ? ExpressionValidationResult.Valid
+            : result;
+    }
+
     /// <summary>Returns the operators offered in the building-block inserter for the value kind.</summary>
     /// <param name="kind">The value kind of the chosen variable.</param>
     /// <returns>The matching operators.</returns>
@@ -169,6 +222,9 @@ internal static class DesignerExpressionContext
             ExpressionValueKind.Number => ["==", "!=", ">", ">=", "<", "<="],
             ExpressionValueKind.Boolean => ["==", "!="],
             ExpressionValueKind.List => [CountGreaterOperator, CountEqualsOperator, ContainsOperator],
+            // No operator is safe to offer: the shape is the host's business, so any snippet would be a
+            // guess. The variable stays in the reference table with its note.
+            ExpressionValueKind.Json => [],
             _ => ["==", "!=", ContainsOperator],
         };
 
@@ -224,10 +280,24 @@ internal static class DesignerExpressionContext
             QuestionType.Number => AnswerValueCodec.Encode(question.Type, "0"),
             QuestionType.Boolean => AnswerValueCodec.Encode(question.Type, "true"),
             QuestionType.MultiChoice => AnswerValueCodec.Encode(question.Type, null, [SampleText(question)]),
+            // The JSON null literal, which binds with the declared type object. NOT an invented shape:
+            // it is literally the runtime's own binding for "this answer has no value yet", which is the
+            // truth in a sample context. Any concrete shape would be a guess, and because this check
+            // BLOCKS saving, a wrong guess would refuse a condition that works at runtime - whereas the
+            // permissive binding only costs an early warning. See NoteFor for what the author is told.
+            QuestionType.Json => AnswerValueCodec.Encode(question.Type, null),
             _ => AnswerValueCodec.Encode(question.Type, SampleText(question)),
         };
 
-    /// <summary>The sample value of a string-valued question – unescaped, for example expressions.</summary>
+    /// <summary>
+    /// The sample value of a string-valued question – unescaped, for example expressions.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately without a <see cref="QuestionType.Json"/> arm: both callers
+    /// (<see cref="SampleJson"/> and <see cref="ExampleFor"/>) handle that type explicitly, so an arm
+    /// here would be unreachable – and a dead arm returning "Text" is worse than none, because the next
+    /// reader would take it for the answer.
+    /// </remarks>
     private static string SampleText(QuestionDetail question)
         => question.Type switch
         {
@@ -281,9 +351,17 @@ internal static class DesignerExpressionContext
             return "Shadowed by the loop collection of the same name – rename the key.";
         }
 
-        return question.Type == QuestionType.Date
-            ? "Date answers are strings (no comparison with now possible)."
-            : null;
+        return question.Type switch
+        {
+            QuestionType.Date => "Date answers are strings (no comparison with now possible).",
+            QuestionType.Json =>
+                "The value is raw JSON: a string, number or boolean binds as that type, an object as a "
+                + "dictionary, an array as a list. The designer does not know which, so it checks the "
+                + "expression against an unset value – a shape error only shows at runtime. Read a field "
+                + "with key[\"field\"], and compare it with 'as string' or .Equals(…): the indexer is "
+                + "typed as object, so a plain == compares references and is always false.",
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -305,6 +383,7 @@ internal static class DesignerExpressionContext
             QuestionType.Number => ExpressionValueKind.Number,
             QuestionType.Boolean => ExpressionValueKind.Boolean,
             QuestionType.MultiChoice => ExpressionValueKind.List,
+            QuestionType.Json => ExpressionValueKind.Json,
             _ => ExpressionValueKind.Text,
         };
 
@@ -316,6 +395,7 @@ internal static class DesignerExpressionContext
             QuestionType.Date => "Date (text)",
             QuestionType.SingleChoice => "Choice (text)",
             QuestionType.MultiChoice => "Multiple choice (list)",
+            QuestionType.Json => "JSON (shape unknown)",
             _ => "Text",
         };
 
@@ -325,6 +405,10 @@ internal static class DesignerExpressionContext
             ExpressionValueKind.Number => $"{name} > 0",
             ExpressionValueKind.Boolean => $"{name} == true",
             ExpressionValueKind.List => $"{name}.Count > 0",
+            // Shape-independent on purpose: it compiles against the unset sample value and asks the one
+            // question that is answerable without knowing the document ("was this answered?"). Anything
+            // with a literal on the right would be a guess.
+            ExpressionValueKind.Json => $"{name} != null",
             _ => $"{name} == {TextLiteral(SampleText(question))}",
         };
 
