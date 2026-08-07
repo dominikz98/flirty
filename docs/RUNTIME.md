@@ -23,6 +23,11 @@ All engine operations are **Mediator commands/queries** and run through the base
 `IFlirtyEngine` is registered by `AddFlirty()` as `ServiceLifetime.Scoped` (same lifetime
 as the Mediator and `IDialogStore`).
 
+Every delivered `QuestionView` – its `Text` and each option `Label` – passes through the
+`PlaceholderRenderer` at the single projection seam these five operations share, which fills any
+`{{key}}` markers with live host data at delivery time. It is **gated by absence**: with no placeholder
+declared a dialog is delivered byte-for-byte as before. See [PLACEHOLDERS.md](./PLACEHOLDERS.md).
+
 ## IFlirtyEngine facade
 
 ```csharp

@@ -3,6 +3,7 @@
 @page "/dialogs/{DialogId:guid}/test"
 @rendermode InteractiveServer
 @using Flirty.Domain
+@using Flirty.Placeholders
 @using Flirty.Runtime
 @using Flirty.Runtime.Admin
 @using Flirty.Validation
@@ -10,6 +11,7 @@
 @inject FlirtyRuntimeGateway Runtime
 @inject DesignerTriggerLog TriggerLog
 @inject FlirtyQuestionTypeRegistry QuestionTypes
+@inject FlirtyPlaceholderRegistry Placeholders
 
 <PageTitle>Test run · @(_detail?.Dialog.Name ?? "Dialog") · Flirty Designer</PageTitle>
 
@@ -176,20 +178,33 @@ else
             {
                 <h2>Current question</h2>
 
-                @* Deliberately WITHOUT an iteration badge: the iterationIndex of the context means the last
+                @* The engine already replaced any {{key}} whose host declared a filler; the designer has
+                   none, so it previews the DECLARED SAMPLE here (PlaceholderPreview) and says so below.
+                   The option labels are previewed the same way; the stored VALUE is untouched, so a
+                   submitted answer is exactly what production would submit.
+
+                   Deliberately WITHOUT an iteration badge: the iterationIndex of the context means the last
                    answer given to this question, not the upcoming one – read as "current iteration"
                    it would be misleading. The exact indices are in the history, the raw value
                    below in the expression context. *@
                 <p class="question-text">
                     <span class="mono">@current.Key</span>
-                    @current.Text
+                    @PlaceholderPreview.Fill(current.Text, Placeholders)
                 </p>
                 <p class="hint">@QuestionTypeLabels.Describe(current.Type, current.CustomTypeKey, QuestionTypes)</p>
+
+                @if (HasPlaceholder(current))
+                {
+                    <p class="hint">
+                        ⚠ Placeholders are previewed with their <strong>sample</strong> values, not live
+                        data — the designer runs no host filler. <a href="placeholders">See placeholders</a>.
+                    </p>
+                }
 
                 @if (_input is not null)
                 {
                     <AnswerInput Type="current.Type"
-                                 Options="AnswerChoice.From(current.Options)"
+                                 Options="AnswerChoice.From(PreviewOptions(current))"
                                  CustomTypeKey="@current.CustomTypeKey"
                                  Input="_input"
                                  OnSubmit="SubmitAsync"
@@ -740,4 +755,17 @@ else
 
     private string QuestionLabel(Guid questionId)
         => QuestionOf(questionId)?.Key ?? $"unknown ({questionId})";
+
+    /// <summary>Whether the open question's text or any option label carries a placeholder marker.</summary>
+    private bool HasPlaceholder(QuestionView question)
+        => PlaceholderPreview.ContainsMarker(question.Text)
+            || question.Options.Any(option => PlaceholderPreview.ContainsMarker(option.Label));
+
+    /// <summary>
+    /// The open question's options with their labels previewed from the declared samples. The
+    /// <see cref="AnswerOptionView.Value"/> is untouched, so the submitted answer is exactly production's.
+    /// </summary>
+    private IReadOnlyList<AnswerOptionView> PreviewOptions(QuestionView question)
+        => [.. question.Options.Select(option =>
+            option with { Label = PlaceholderPreview.Fill(option.Label, Placeholders) })];
 }

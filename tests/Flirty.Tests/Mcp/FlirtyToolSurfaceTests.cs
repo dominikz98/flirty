@@ -28,7 +28,7 @@ namespace Flirty.Tests.Mcp;
 /// </para>
 /// <para>
 /// Every test here runs against <see cref="StartFullSurfaceAsync"/> rather than the default host, because
-/// since #129 one tool is registered conditionally. A default host would serve 36 of the 37 and the golden
+/// since #129 one tool is registered conditionally. A default host would serve 37 of the 38 and the golden
 /// list would have to subtract one – which is precisely the shape of hiding this checklist exists to
 /// prevent. The gate itself is asserted where it belongs, in <see cref="FlirtyDatabaseToolsTests"/>.
 /// </para>
@@ -44,11 +44,11 @@ public sealed class FlirtyToolSurfaceTests
 
     /// <summary>
     /// The 27 admin tools of EPIC 13 stages 1 and 2, the 5 session tools of stage 3, the 4 database tools
-    /// of stage 4 and <c>flirty_question_type_list</c> from #136 are registered, and nothing else. The
-    /// list is ordinal-sorted so a diff on it reads by area.
+    /// of stage 4, <c>flirty_question_type_list</c> from #136 and <c>flirty_placeholder_list</c> from #140
+    /// are registered, and nothing else. The list is ordinal-sorted so a diff on it reads by area.
     /// </summary>
     [Fact]
-    public async Task ListTools_returns_the_thirty_seven_tools()
+    public async Task ListTools_returns_the_thirty_eight_tools()
     {
         await using var host = await StartFullSurfaceAsync();
 
@@ -113,7 +113,7 @@ public sealed class FlirtyToolSurfaceTests
 
     /// <summary>Every tool name follows the <c>flirty_&lt;area&gt;_&lt;action&gt;</c> shape.</summary>
     /// <remarks>
-    /// Redundant for the 36 names the golden list pins, and kept anyway: it is the only guard left when a
+    /// Redundant for the 37 names the golden list pins, and kept anyway: it is the only guard left when a
     /// later stage adds a tool and updates the literal list to match a badly shaped name.
     /// </remarks>
     [Fact]
@@ -271,7 +271,7 @@ public sealed class FlirtyToolSurfaceTests
 
     /// <summary>
     /// The annotation matrix, tool by tool. <c>openWorld</c> separates the two halves of the surface: it is
-    /// <see langword="false"/> for the 28 configuration and 4 database tools, which touch only their own
+    /// <see langword="false"/> for the 29 configuration and 4 database tools, which touch only their own
     /// database, and <see langword="true"/> for the four session tools that write – running a dialog
     /// publishes engine notifications, and the core delivers those to whatever url a webhook trigger names.
     /// </summary>
@@ -298,6 +298,7 @@ public sealed class FlirtyToolSurfaceTests
             { FlirtyToolNames.QuestionUpdate, false, false, true, false },
             { FlirtyToolNames.QuestionDelete, false, true, false, false },
             { FlirtyToolNames.QuestionTypeList, true, false, true, false },
+            { FlirtyToolNames.PlaceholderList, true, false, true, false },
             { FlirtyToolNames.OptionCreate, false, false, false, false },
             { FlirtyToolNames.OptionUpdate, false, false, true, false },
             { FlirtyToolNames.OptionDelete, false, true, false, false },
@@ -351,6 +352,7 @@ public sealed class FlirtyToolSurfaceTests
             "flirty_option_create",
             "flirty_option_delete",
             "flirty_option_update",
+            "flirty_placeholder_list",
             "flirty_question_create",
             "flirty_question_delete",
             "flirty_question_type_list",

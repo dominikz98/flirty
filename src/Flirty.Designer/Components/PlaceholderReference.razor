@@ -1,0 +1,57 @@
+@* Insert/reference affordance for message placeholders (#140): lists the declared placeholders as
+   clickable chips that append their {{key}} marker to the bound text. Modeled on ExpressionField's
+   identifier reference.
+
+   Renders NOTHING when no placeholder is declared, so a designer without placeholders.json is byte for
+   byte what it was before - gated by absence, the same stance as the core renderer. That is why the three
+   text editors can embed it unconditionally: it costs a host that does not use the feature exactly one
+   registry read and no UI.
+
+   Deliberately an APPEND, not a cursor-position insert: a cursor insert would need JSInterop for a value
+   the author can just as well place by hand, and append keeps the effect a server-produced fact a test
+   can assert on. *@
+@using Flirty.Placeholders
+@inject FlirtyPlaceholderRegistry Registry
+
+@if (Registry.Placeholders.Count > 0)
+{
+    <div class="field placeholder-reference">
+        <span class="hint">
+            Insert a placeholder — replaced with live data when the message is delivered. An unknown or
+            filler-less marker is left as written.
+        </span>
+        <div class="actions">
+            @foreach (var placeholder in Registry.Placeholders)
+            {
+                <button type="button" class="btn" disabled="@Disabled"
+                        title="@placeholder.DisplayName"
+                        @onclick="() => InsertAsync(placeholder.Key)">
+                    @Marker(placeholder.Key)
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>The edited text the marker is appended to; bindable via <c>@bind-Value</c>.</summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>Reports the text after a marker was appended.</summary>
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    /// <summary>Whether the chips are locked (published dialog or running gesture).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private static string Marker(string key) => "{{" + key + "}}";
+
+    private async Task InsertAsync(string key)
+    {
+        var updated = (Value ?? string.Empty) + Marker(key);
+        Value = updated;
+        await ValueChanged.InvokeAsync(updated);
+    }
+}

@@ -1,6 +1,7 @@
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Microsoft.Data.Sqlite;
@@ -71,7 +72,8 @@ public sealed class LoopRuntimeTests : IDisposable
     {
         using var context = CreateContext();
         var handler = new SubmitAnswerCommandHandler(
-            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(),
+            PlaceholderRenderer.Disabled);
         return await handler.Handle(new SubmitAnswerCommand(sessionId, questionId, value), default);
     }
 
@@ -80,7 +82,8 @@ public sealed class LoopRuntimeTests : IDisposable
     {
         using var context = CreateContext();
         var handler = new EditAnswerCommandHandler(
-            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(),
+            PlaceholderRenderer.Disabled);
         return await handler.Handle(new EditAnswerCommand(sessionId, questionId, value, iterationIndex), default);
     }
 

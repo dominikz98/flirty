@@ -25,6 +25,7 @@ here.
 | [0010](./0010-mcp-database-targets-by-route.md) | MCP database targets declared by the host, selected by the route | Accepted | #129 |
 | [0011](./0011-custom-question-types-on-an-open-base-type.md) | Custom question types on one open base type, with the seam in DI | Accepted | #136 |
 | [0012](./0012-designer-question-type-descriptors-at-startup.md) | Designer question-type descriptors at startup; the semantic delta stays open | Accepted | #137 |
+| [0013](./0013-message-placeholders-at-the-projection-seam.md) | Message placeholders filled at the single projection seam | Accepted | #140 |
 
 The ADRs lean on one another: 0002 forces all handlers to live in the core – which secures 0003
 (a thin, replaceable web layer) technically. 0004 hangs on the designer's ability to
@@ -67,6 +68,16 @@ host's validator) and is *empty* for a `Json` question with no key. That is why 
 run validate identically?" with a split verdict rather than a flat no, and why the delta is a sentence on
 screen instead of a mechanism: the route that would close it needs two new public endpoints and a
 per-profile registry, and would still need this file as its fallback.
+0013 borrows the seam-in-DI move of 0011 for a different job: there a *validator* said what an answer
+means, here a *filler* says what a `{{key}}` marker resolves to at delivery – both registered via an
+`o.Add…` option and both resolved from the request scope, so a filler shares the handler's `FlirtyDbContext`.
+It leans on 0005 in the same way 0011 did: because a published dialog cannot be repaired, an unknown or
+broken marker must **degrade** to its raw text rather than throw. And it reuses 0012 whole for the designer
+side – the designer declares placeholders through the very (filler-less) `AddPlaceholder` seam a host uses
+and previews the declared sample, because it runs no host code. What makes it its own decision rather than
+a footnote to those is the seam it turns async: the one projection where a delivered text is produced was
+`static` and sync, and had to become session-aware to reach a filler – which is exactly why a pipeline
+behavior (the nearby alternative) does not fit, since the text does not yet exist when a behavior runs.
 
 ## Format
 

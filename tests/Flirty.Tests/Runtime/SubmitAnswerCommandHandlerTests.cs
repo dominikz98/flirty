@@ -1,6 +1,7 @@
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Mediator;
@@ -44,10 +45,12 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static SubmitAnswerCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(),
+            PlaceholderRenderer.Disabled);
 
     private static SubmitAnswerCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
-        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher);
+        => new(new DialogStore(context), new DynamicExpressoExpressionEvaluator(), publisher,
+            PlaceholderRenderer.Disabled);
 
     /// <summary>Creates the branching dialog together with a running session on the entry question.</summary>
     private (Guid SessionId, BranchingDialogIds Ids) SeedBranchingSession(string externalUserKey = "user-1")
@@ -295,7 +298,8 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     [Fact]
     public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(
-            () => new SubmitAnswerCommandHandler(null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher()));
+            () => new SubmitAnswerCommandHandler(
+                null!, new DynamicExpressoExpressionEvaluator(), new SpyPublisher(), PlaceholderRenderer.Disabled));
 
     /// <summary>The constructor rejects a <c>null</c> evaluator.</summary>
     [Fact]
@@ -303,7 +307,8 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
-            () => new SubmitAnswerCommandHandler(new DialogStore(context), null!, new SpyPublisher()));
+            () => new SubmitAnswerCommandHandler(
+                new DialogStore(context), null!, new SpyPublisher(), PlaceholderRenderer.Disabled));
     }
 
     /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
@@ -313,7 +318,17 @@ public sealed class SubmitAnswerCommandHandlerTests : IDisposable
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
             () => new SubmitAnswerCommandHandler(
-                new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!));
+                new DialogStore(context), new DynamicExpressoExpressionEvaluator(), null!, PlaceholderRenderer.Disabled));
+    }
+
+    /// <summary>The constructor rejects a <c>null</c> renderer.</summary>
+    [Fact]
+    public void Constructor_throws_on_a_null_renderer()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new SubmitAnswerCommandHandler(
+                new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(), null!));
     }
 
     // ---- Trigger notifications --------------------------------------------------------------

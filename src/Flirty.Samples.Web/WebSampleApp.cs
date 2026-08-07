@@ -70,6 +70,15 @@ public static class WebSampleApp
                 DemoDialog.AddressTypeKey,
                 "Postal address",
                 sample: """{"street":"Main 1","zip":"10115","city":"Berlin"}""");
+
+            // Two message placeholders (#140): the demo dialog greets by name ({{user-name}}) in its entry
+            // question and stamps the delivery date ({{today}}) in its final one. Each is host code that
+            // returns a live value on demand - resolved from the request scope, so a filler may take scoped
+            // dependencies. The sample keeps them self-contained; a real host would look the name up.
+            options.AddPlaceholder<UserNamePlaceholderFiller>(
+                DemoDialog.UserNamePlaceholderKey, "User name", sample: "Alex");
+            options.AddPlaceholder<TodayPlaceholderFiller>(
+                DemoDialog.TodayPlaceholderKey, "Today's date", sample: "2026-08-07");
         });
 
         // MCP server over the same engine: an MCP client can configure dialogs where the chat UI only
