@@ -1,0 +1,105 @@
+@page "/placeholders"
+@using Flirty.Placeholders
+@inject DesignerPlaceholderSource Source
+@inject FlirtyPlaceholderRegistry Registry
+
+<PageTitle>Placeholders · Flirty Designer</PageTitle>
+
+<h1>Placeholders</h1>
+
+<p class="intro">
+    Host-declared message placeholders (#140) that this designer knows about. A question text or an
+    answer-option label references one with the marker <code>{{key}}</code>; at delivery time the host
+    replaces it with a live value.
+</p>
+
+@* The delta is stated here as well as beside the input control, because this page is where someone lands
+   who wonders why a marker "shows the wrong text" - the honest answer is that the designer never runs the
+   host's filler, no matter how complete this list is. *@
+<p class="hint">
+    <strong>What the designer does not have is the live value.</strong> A filler
+    (<code>IPlaceholderFiller</code>) is code and lives in the host process, so a test run here previews the
+    declared <strong>sample</strong> value, not the real one — and says so on screen. Declaring a
+    placeholder below buys a display name and a sample, not the host's live data.
+</p>
+
+<h2>Descriptor file</h2>
+
+<p class="mono">@Source.FilePath</p>
+
+@if (!Source.FileExists)
+{
+    <p class="empty">
+        No descriptor file. That is not an error: without one the designer shows a marker by its raw key,
+        and everything else works unchanged.
+    </p>
+}
+
+@if (Source.Problems.Count > 0)
+{
+    <div class="banner err">
+        <p>
+            <strong>@Source.Problems.Count</strong>
+            @(Source.Problems.Count == 1 ? "entry was" : "entries were") skipped. The designer keeps
+            running, and the remaining entries below were declared.
+        </p>
+        <ul>
+            @foreach (var problem in Source.Problems)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+<h2>Declared placeholders</h2>
+
+@if (Registry.Placeholders.Count == 0)
+{
+    <p class="empty">No placeholder declared.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Marker</th>
+                <th>Display name</th>
+                <th>Sample value</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var placeholder in Registry.Placeholders)
+            {
+                <tr>
+                    <td class="mono">@($"{{{{{placeholder.Key}}}}}")</td>
+                    <td>@placeholder.DisplayName</td>
+                    <td class="mono">@(placeholder.Sample ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2>How to declare one</h2>
+
+<p>
+    Create <code>@DesignerApp.PlaceholdersFileName</code> next to
+    <code>@DesignerApp.QuestionTypesFileName</code> in the designer's content root and restart. Keys use
+    lowercase ASCII letters, digits and <code>-</code>; the sample is any plain text. The file is read once
+    at startup and mirrors what the host passes to <code>o.AddPlaceholder(...)</code> — minus the filler,
+    which is code and stays in the host.
+</p>
+
+<pre class="mono">@ExampleFile</pre>
+
+@code {
+    private const string ExampleFile = """
+        {
+          "placeholders": [
+            { "key": "user-name", "displayName": "User name", "sample": "Alice" },
+            { "key": "today", "displayName": "Today's date", "sample": "2026-08-07" }
+          ]
+        }
+        """;
+}

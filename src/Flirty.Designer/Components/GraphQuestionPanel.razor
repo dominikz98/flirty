@@ -44,6 +44,8 @@
               value="@_form.Text" @oninput="OnTextInput"></textarea>
 </div>
 
+<PlaceholderReference Value="_form.Text" ValueChanged="OnPlaceholderInsert" Disabled="Locked" />
+
 <div class="field">
     <label for="inspectorType">Answer type</label>
     @{ var typeChoice = QuestionTypeLabels.ChoiceValue(_form.Type, _form.CustomTypeKey, QuestionTypes); }
@@ -440,6 +442,10 @@ else
     private void OnKeyInput(ChangeEventArgs args) => _form.Key = args.Value?.ToString() ?? string.Empty;
 
     private void OnTextInput(ChangeEventArgs args) => _form.Text = args.Value?.ToString() ?? string.Empty;
+
+    // The placeholder chip appends a {{key}} marker; the raw <textarea> re-renders from _form.Text after
+    // this callback, so the appended marker shows up without a round trip through @oninput.
+    private void OnPlaceholderInsert(string? value) => _form.Text = value ?? string.Empty;
 
     private void OnTypeChanged(ChangeEventArgs args)
     {

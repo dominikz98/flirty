@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Flirty.Domain;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Mediator;
 
 namespace Flirty.Runtime;
@@ -23,14 +24,22 @@ public sealed record ResumeDialogQuery(
 internal sealed class ResumeDialogQueryHandler : IQueryHandler<ResumeDialogQuery, ResumeDialogResult>
 {
     private readonly IDialogStore _store;
+    private readonly PlaceholderRenderer _renderer;
 
-    /// <summary>Creates the handler over the given <see cref="IDialogStore"/>.</summary>
+    /// <summary>
+    /// Creates the handler over the given <see cref="IDialogStore"/> and <see cref="PlaceholderRenderer"/>.
+    /// </summary>
     /// <param name="store">The repository for dialogs and sessions.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="store"/> is <see langword="null"/>.</exception>
-    public ResumeDialogQueryHandler(IDialogStore store)
+    /// <param name="renderer">The renderer that fills message placeholders in the delivered question.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="store"/> or <paramref name="renderer"/> is <see langword="null"/>.
+    /// </exception>
+    public ResumeDialogQueryHandler(IDialogStore store, PlaceholderRenderer renderer)
     {
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(renderer);
         _store = store;
+        _renderer = renderer;
     }
 
     /// <inheritdoc />
@@ -58,7 +67,7 @@ internal sealed class ResumeDialogQueryHandler : IQueryHandler<ResumeDialogQuery
         var answers = SessionAnswerProjection.Project(dialog, session);
 
         var currentQuestion = session.CurrentQuestionId is Guid questionId
-            ? QuestionProjection.ResolveQuestion(dialog, questionId)
+            ? await _renderer.RenderAsync(dialog, session, questionId, cancellationToken)
             : null;
 
         return new ResumeDialogResult(session.Id, session.Status, currentQuestion, answers);

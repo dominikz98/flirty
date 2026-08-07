@@ -107,6 +107,29 @@ public sealed class WebSampleE2ETests : IClassFixture<WebSampleAppFixture>
     }
 
     /// <summary>
+    /// A message placeholder (#140) is filled in the delivered prompt: the entry question text is
+    /// <c>"Hi {{user-name}}! What is your role?"</c>, and by the time it reaches the chat UI the marker
+    /// has been replaced by the host filler with a live value – no raw <c>{{</c> survives to the browser.
+    /// </summary>
+    /// <remarks>
+    /// The exact name is the browser's generated <c>externalUserKey</c> and is not asserted; what is
+    /// server-produced and checkable is that the marker is gone and the greeting is there.
+    /// </remarks>
+    [SkippableFact]
+    public async Task A_message_placeholder_is_filled_in_the_delivered_prompt()
+    {
+        await using var session = await PlaywrightSession.LaunchAsync();
+        var page = await session.NewPageAsync();
+        await page.GotoAsync(_fixture.BaseUrl);
+
+        // Exactly one bot bubble is on screen: the open entry question.
+        var prompt = page.Locator(".msg--bot");
+        await Assertions.Expect(prompt).ToContainTextAsync("What is your role?", SlowContains);
+        await Assertions.Expect(prompt).ToContainTextAsync("Hi ", SlowContains);
+        await Assertions.Expect(prompt).Not.ToContainTextAsync("{{", SlowContains);
+    }
+
+    /// <summary>
     /// Reload <b>in the middle of the loop</b>: after reloading, the complete history comes from the
     /// server via <c>GET /flirty/sessions/{id}</c> – including the iteration assignment of the already
     /// collected answers and the open question.

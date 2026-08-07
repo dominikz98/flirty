@@ -293,10 +293,12 @@ public sealed class MapFlirtyMcpTests
 
         var tools = (await host.Mcp.ListToolsAsync()).Select(tool => tool.Name).ToList();
 
-        // 27 configuration tools plus flirty_question_type_list (#136), which is an authoring tool:
-        // it explains the customTypeKey parameter of flirty_question_create/_update.
-        Assert.Equal(28, tools.Count);
+        // 27 configuration tools plus the two authoring list tools flirty_question_type_list (#136) and
+        // flirty_placeholder_list (#140), which explain the customTypeKey parameter and the {{key}} markers
+        // of flirty_question_create/_update.
+        Assert.Equal(29, tools.Count);
         Assert.Contains(FlirtyToolNames.QuestionTypeList, tools, StringComparer.Ordinal);
+        Assert.Contains(FlirtyToolNames.PlaceholderList, tools, StringComparer.Ordinal);
         Assert.DoesNotContain(tools, name => name.StartsWith("flirty_session_", StringComparison.Ordinal));
     }
 

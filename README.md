@@ -172,6 +172,7 @@ resume after a reload, editing individual answers as well as fired triggers and 
 - Branching / expressions: [`docs/BRANCHING-EXPRESSIONS.md`](https://github.com/dominikz98/flirty/blob/main/docs/BRANCHING-EXPRESSIONS.md)
 - Loops: [`docs/LOOPS.md`](https://github.com/dominikz98/flirty/blob/main/docs/LOOPS.md)
 - Triggers (notifications + webhooks): [`docs/TRIGGERS.md`](https://github.com/dominikz98/flirty/blob/main/docs/TRIGGERS.md)
+- Message placeholders (`{{key}}` filled at delivery): [`docs/PLACEHOLDERS.md`](https://github.com/dominikz98/flirty/blob/main/docs/PLACEHOLDERS.md)
 - Answer validation: [`docs/VALIDATION.md`](https://github.com/dominikz98/flirty/blob/main/docs/VALIDATION.md)
 - MCP server (tools for an MCP client): [`docs/MCP.md`](https://github.com/dominikz98/flirty/blob/main/docs/MCP.md)
 

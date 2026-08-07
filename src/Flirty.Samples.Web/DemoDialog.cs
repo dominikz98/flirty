@@ -53,4 +53,16 @@ public static class DemoDialog
     /// coincide once shows that nothing couples them.
     /// </summary>
     public const string AddressTypeKey = "address";
+
+    /// <summary>
+    /// Registry key of the message placeholder that greets the user by name (#140), resolved in code by
+    /// <see cref="UserNamePlaceholderFiller"/> and referenced by the entry question text.
+    /// </summary>
+    public const string UserNamePlaceholderKey = "user-name";
+
+    /// <summary>
+    /// Registry key of the message placeholder that fills the delivery date (#140), resolved in code by
+    /// <see cref="TodayPlaceholderFiller"/> and referenced by the final question text.
+    /// </summary>
+    public const string TodayPlaceholderKey = "today";
 }

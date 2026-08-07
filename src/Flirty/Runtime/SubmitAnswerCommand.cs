@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Mediator;
 
 namespace Flirty.Runtime;
@@ -37,26 +38,31 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
     private readonly IDialogStore _store;
     private readonly IExpressionEvaluator _evaluator;
     private readonly IPublisher _publisher;
+    private readonly PlaceholderRenderer _renderer;
 
     /// <summary>
     /// Creates the handler over the given <see cref="IDialogStore"/>,
-    /// <see cref="IExpressionEvaluator"/> and <see cref="IPublisher"/>.
+    /// <see cref="IExpressionEvaluator"/>, <see cref="IPublisher"/> and <see cref="PlaceholderRenderer"/>.
     /// </summary>
     /// <param name="store">The repository for dialogs and sessions.</param>
     /// <param name="evaluator">The engine for evaluating the transition condition expressions.</param>
     /// <param name="publisher">The Mediator publisher for the in-process trigger notifications.</param>
+    /// <param name="renderer">The renderer that fills message placeholders in the delivered question.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/>, <paramref name="evaluator"/> or <paramref name="publisher"/> is
-    /// <see langword="null"/>.
+    /// <paramref name="store"/>, <paramref name="evaluator"/>, <paramref name="publisher"/> or
+    /// <paramref name="renderer"/> is <see langword="null"/>.
     /// </exception>
-    public SubmitAnswerCommandHandler(IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher)
+    public SubmitAnswerCommandHandler(
+        IDialogStore store, IExpressionEvaluator evaluator, IPublisher publisher, PlaceholderRenderer renderer)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(evaluator);
         ArgumentNullException.ThrowIfNull(publisher);
+        ArgumentNullException.ThrowIfNull(renderer);
         _store = store;
         _evaluator = evaluator;
         _publisher = publisher;
+        _renderer = renderer;
     }
 
     /// <inheritdoc />
@@ -134,7 +140,8 @@ internal sealed class SubmitAnswerCommandHandler : ICommandHandler<SubmitAnswerC
             cancellationToken);
 
         return new SubmitAnswerResult(
-            session.Id, IsCompleted: false, QuestionProjection.ResolveQuestion(dialog, target));
+            session.Id, IsCompleted: false,
+            await _renderer.RenderAsync(dialog, session, target, cancellationToken));
     }
 
     /// <summary>

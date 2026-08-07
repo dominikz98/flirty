@@ -54,7 +54,9 @@ public static class DemoDialogProvisioner
         var dialogId = dialog.Id;
 
         // 2) Create the questions (+ options).
-        var roleId = await CreateQuestionAsync(client, dialogId, DemoDialog.RoleKey, "What is your role?", QuestionType.SingleChoice, 0, cancellationToken);
+        // The entry question greets by name with the {{user-name}} placeholder (#140); the host's
+        // UserNamePlaceholderFiller replaces it with a live value at delivery time.
+        var roleId = await CreateQuestionAsync(client, dialogId, DemoDialog.RoleKey, "Hi {{user-name}}! What is your role?", QuestionType.SingleChoice, 0, cancellationToken);
         await CreateOptionAsync(client, dialogId, roleId, "dev", "Developer", "dev", 0, cancellationToken);
         await CreateOptionAsync(client, dialogId, roleId, "pm", "Product Manager", "pm", 1, cancellationToken);
 
@@ -75,7 +77,8 @@ public static class DemoDialogProvisioner
             client, dialogId, DemoDialog.AddressKey, "Where should we send your welcome package?",
             QuestionType.Json, 6, cancellationToken, DemoDialog.AddressTypeKey);
 
-        var summaryId = await CreateQuestionAsync(client, dialogId, DemoDialog.SummaryKey, "Does everything look right?", QuestionType.Boolean, 7, cancellationToken);
+        // The final question stamps the delivery date with the {{today}} placeholder (#140).
+        var summaryId = await CreateQuestionAsync(client, dialogId, DemoDialog.SummaryKey, "Thanks, {{user-name}}! Does everything look right (today is {{today}})?", QuestionType.Boolean, 7, cancellationToken);
 
         // 3) Set the entry question.
         await PutAsync(client, $"/flirty/admin/dialogs/{dialogId}",

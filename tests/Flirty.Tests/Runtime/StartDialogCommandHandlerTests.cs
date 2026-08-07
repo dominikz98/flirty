@@ -1,5 +1,6 @@
 using Flirty.Domain;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Mediator;
@@ -42,10 +43,10 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static StartDialogCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context), new SpyPublisher());
+        => new(new DialogStore(context), new SpyPublisher(), PlaceholderRenderer.Disabled);
 
     private static StartDialogCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
-        => new(new DialogStore(context), publisher);
+        => new(new DialogStore(context), publisher, PlaceholderRenderer.Disabled);
 
     // ---- Fresh start ------------------------------------------------------------------------
 
@@ -219,7 +220,8 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
     public void Constructor_throws_on_a_null_store()
-        => Assert.Throws<ArgumentNullException>(() => new StartDialogCommandHandler(null!, new SpyPublisher()));
+        => Assert.Throws<ArgumentNullException>(
+            () => new StartDialogCommandHandler(null!, new SpyPublisher(), PlaceholderRenderer.Disabled));
 
     /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
@@ -227,7 +229,16 @@ public sealed class StartDialogCommandHandlerTests : IDisposable
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
-            () => new StartDialogCommandHandler(new DialogStore(context), null!));
+            () => new StartDialogCommandHandler(new DialogStore(context), null!, PlaceholderRenderer.Disabled));
+    }
+
+    /// <summary>The constructor rejects a <c>null</c> renderer.</summary>
+    [Fact]
+    public void Constructor_throws_on_a_null_renderer()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new StartDialogCommandHandler(new DialogStore(context), new SpyPublisher(), null!));
     }
 
     // ---- Trigger notifications --------------------------------------------------------------

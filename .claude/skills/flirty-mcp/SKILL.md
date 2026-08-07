@@ -77,6 +77,13 @@ HTTP twin owns the same commands – a new class only when a new endpoint group 
 
 6. **`docs/MCP.md`** – the tool table of its area, and § Conventions if the tool needs an exception to one.
 
+**Registry-sourced tools** are the exception to "every tool mirrors a command": `flirty_question_type_list`
+(#136) and `flirty_placeholder_list` (#140) have **no** command and no `MapXxxEndpoints` counterpart – they
+read a host registry (`FlirtyQuestionTypeRegistry`, `FlirtyPlaceholderRegistry`) that `AddFlirty` built.
+Each is its own `[McpServerToolType]` class, `Admin` surface, and returns a **projection** that drops the
+server-side CLR type (validator/filler). Copy `FlirtyPlaceholderTools.cs` as the template; see the
+`flirty-placeholder` skill.
+
 ## Do not
 
 - **Do not reference `Flirty.AspNetCore`.** The two web packages sit *beside* each other; `Flirty.Mcp`

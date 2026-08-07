@@ -1,6 +1,7 @@
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Flirty.Tests.Runtime;
@@ -509,6 +510,128 @@ public sealed class FlirtyServiceCollectionExtensionsTests
                 Assert.Null(type.ValidatorType);
                 Assert.Null(type.SampleValue);
             });
+    }
+
+    // ---- Message placeholders (#140) ---------------------------------------------------------
+
+    /// <summary>The registry is always resolvable, so a client can be told "none declared".</summary>
+    [Fact]
+    public void Without_a_placeholder_the_registry_resolves_empty()
+    {
+        using var provider = new ServiceCollection().AddLogging().AddFlirty().BuildServiceProvider();
+
+        Assert.Empty(provider.GetRequiredService<FlirtyPlaceholderRegistry>().Placeholders);
+    }
+
+    /// <summary>
+    /// The renderer is <see cref="ServiceLifetime.Scoped"/> from the start, and declaring a placeholder
+    /// does <b>not</b> move it – the "no lifetime change" promise of gating by absence (unlike the
+    /// question-type decorator, which does swap the validator lifetime).
+    /// </summary>
+    [Fact]
+    public void The_placeholder_renderer_is_scoped_with_or_without_a_declaration()
+    {
+        var without = new ServiceCollection().AddLogging().AddFlirty();
+        var with = new ServiceCollection().AddLogging().AddFlirty(
+            options => options.AddPlaceholder<ProbePlaceholderFiller>("user-name", "User name"));
+
+        foreach (var services in new[] { without, with })
+        {
+            var descriptor = Assert.Single(
+                services, service => service.ServiceType == typeof(PlaceholderRenderer));
+            Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+        }
+    }
+
+    /// <summary>A declared filler is resolvable from the request scope (registered <see cref="ServiceLifetime.Scoped"/>).</summary>
+    [Fact]
+    public void AddPlaceholder_registers_the_filler_type_as_scoped()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging().AddFlirty(
+            options => options.AddPlaceholder<ProbePlaceholderFiller>("user-name", "User name"));
+
+        var descriptor = Assert.Single(
+            services, service => service.ServiceType == typeof(ProbePlaceholderFiller));
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
+    [Fact]
+    public void AddPlaceholder_gathers_the_declarations_into_the_registry()
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddFlirty(options => options
+                .AddPlaceholder("today", "Today's date", "2026-08-07")
+                .AddPlaceholder<ProbePlaceholderFiller>("user-name", "User name"))
+            .BuildServiceProvider();
+
+        var placeholders = provider.GetRequiredService<FlirtyPlaceholderRegistry>().Placeholders;
+
+        // Ordered by key, so a client sees a stable list.
+        Assert.Collection(
+            placeholders,
+            placeholder =>
+            {
+                Assert.Equal("today", placeholder.Key);
+                Assert.Null(placeholder.FillerType);
+                Assert.Equal("2026-08-07", placeholder.Sample);
+            },
+            placeholder =>
+            {
+                Assert.Equal("user-name", placeholder.Key);
+                Assert.Equal(typeof(ProbePlaceholderFiller), placeholder.FillerType);
+            });
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("User-Name")]
+    [InlineData("user_name")]
+    [InlineData("user name")]
+    [InlineData("übung")]
+    public void AddPlaceholder_rejects_an_unusable_key(string key)
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new ServiceCollection().AddFlirty(options => options.AddPlaceholder(key, "Display")));
+
+        Assert.Equal("key", exception.ParamName);
+    }
+
+    [Fact]
+    public void AddPlaceholder_rejects_a_duplicate_key()
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new ServiceCollection().AddFlirty(options => options
+                .AddPlaceholder("user-name", "User name")
+                .AddPlaceholder<ProbePlaceholderFiller>("user-name", "Again")));
+
+        Assert.Equal("key", exception.ParamName);
+    }
+
+    /// <summary>
+    /// Unlike a custom question-type sample, a placeholder sample is a plain value substituted into a
+    /// message – not a JSON answer document – so any string is accepted.
+    /// </summary>
+    [Fact]
+    public void AddPlaceholder_accepts_a_non_json_sample()
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddFlirty(options => options.AddPlaceholder("user-name", "User name", "Alice"))
+            .BuildServiceProvider();
+
+        var placeholder = Assert.Single(provider.GetRequiredService<FlirtyPlaceholderRegistry>().Placeholders);
+        Assert.Equal("Alice", placeholder.Sample);
+    }
+
+    /// <summary>Test double filler; proves the DI registration and nothing else.</summary>
+    private sealed class ProbePlaceholderFiller : IPlaceholderFiller
+    {
+        public ValueTask<string?> FillAsync(PlaceholderContext context, CancellationToken cancellationToken)
+            => new("x");
     }
 
     /// <summary>Scoped marker, used to prove which scope the host validator was resolved from.</summary>
