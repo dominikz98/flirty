@@ -2,6 +2,7 @@ using Flirty.Designer.Services;
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Runtime.Admin;
 using Flirty.Tests.Persistence;
@@ -195,7 +196,7 @@ public sealed class RunExpressionContextTests : IDisposable
     private ResumeDialogResult LoadState(Guid sessionId)
     {
         using var context = CreateContext();
-        return new ResumeDialogQueryHandler(new DialogStore(context))
+        return new ResumeDialogQueryHandler(new DialogStore(context), PlaceholderRenderer.Disabled)
             .Handle(new ResumeDialogQuery(sessionId), default)
             .AsTask()
             .GetAwaiter()
@@ -253,7 +254,8 @@ public sealed class RunExpressionContextTests : IDisposable
     {
         using var context = CreateContext();
         var handler = new SubmitAnswerCommandHandler(
-            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher());
+            new DialogStore(context), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(),
+            PlaceholderRenderer.Disabled);
 
         _ = await handler.Handle(new SubmitAnswerCommand(sessionId, questionId, value), default);
     }

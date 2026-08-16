@@ -29,6 +29,15 @@ public static class DesignerApp
     public const string QuestionTypesFileName = "question-types.json";
 
     /// <summary>
+    /// File name of the local placeholder descriptor file (relative to the ContentRoot), #140.
+    /// </summary>
+    /// <remarks>
+    /// Optional. Its absence is the normal case and leaves the designer behaving exactly as before #140: a
+    /// message marker then shows its raw <c>{{key}}</c> instead of a display name and a preview sample.
+    /// </remarks>
+    public const string PlaceholdersFileName = "placeholders.json";
+
+    /// <summary>
     /// Culture in which the designer formats numbers, dates and times. Fixed on purpose: without it the
     /// formatting follows the host's culture, and the display would then vary from machine to machine.
     /// Affects only the <b>display</b> – the answer values are encoded invariantly by
@@ -69,11 +78,25 @@ public static class DesignerApp
         var (descriptors, problems) = QuestionTypeDescriptorFile.Read(questionTypesPath);
         var declarationProblems = new List<string>(problems);
 
+        // Placeholders (#140) are read and declared the same way: an optional placeholders.json beside
+        // question-types.json, declared through the real (filler-less) o.AddPlaceholder(...) so the designer
+        // reads the ordinary core registry. The declarations carry no filler - that is host-process code -
+        // so a test run previews the sample value rather than a live one, and the runner states it.
+        var placeholdersPath = Path.Combine(builder.Environment.ContentRootPath, PlaceholdersFileName);
+        var (placeholderDescriptors, placeholderProblems) = PlaceholderDescriptorFile.Read(placeholdersPath);
+        var placeholderDeclarationProblems = new List<string>(placeholderProblems);
+
         builder.Services.AddFlirty(options =>
-            declarationProblems.AddRange(DesignerQuestionTypes.Declare(options, descriptors)));
+        {
+            declarationProblems.AddRange(DesignerQuestionTypes.Declare(options, descriptors));
+            placeholderDeclarationProblems.AddRange(
+                DesignerPlaceholders.Declare(options, placeholderDescriptors));
+        });
 
         builder.Services.AddSingleton(new DesignerQuestionTypeSource(
             questionTypesPath, File.Exists(questionTypesPath), declarationProblems));
+        builder.Services.AddSingleton(new DesignerPlaceholderSource(
+            placeholdersPath, File.Exists(placeholdersPath), placeholderDeclarationProblems));
 
         // Connection-profile management: store (persisted as JSON in the ContentRoot), active profile (per
         // circuit), factory (IDbContextFactory against the active profile) and the test/migrate operations.

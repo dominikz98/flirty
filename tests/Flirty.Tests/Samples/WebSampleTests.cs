@@ -62,6 +62,11 @@ public sealed class WebSampleTests
             """{"street":"Main 1","zip":"10115","city":"Berlin"}""");
         Assert.Equal(DemoDialog.SummaryKey, afterAddress.NextQuestion!.Key);
 
+        // The final question carries the {{user-name}} and {{today}} placeholders (#140); by the time it is
+        // delivered both markers are filled - no raw marker survives to the client.
+        Assert.DoesNotContain("{{", afterAddress.NextQuestion.Text, StringComparison.Ordinal);
+        Assert.Contains("dev-user", afterAddress.NextQuestion.Text, StringComparison.Ordinal);
+
         var afterSummary = await SubmitAsync(client, start.SessionId, afterAddress.NextQuestion.Id, "true");
         Assert.True(afterSummary.IsCompleted);
         Assert.Null(afterSummary.NextQuestion);
@@ -94,6 +99,25 @@ public sealed class WebSampleTests
         var afterRole = await SubmitAsync(client, start.SessionId, start.CurrentQuestion.Id, "\"pm\"");
 
         Assert.Equal(DemoDialog.ProductKey, afterRole.NextQuestion!.Key);
+    }
+
+    /// <summary>
+    /// A message placeholder (#140) is filled at delivery time: the entry question text
+    /// <c>"Hi {{user-name}}! …"</c> is delivered with the marker replaced by the value the host's
+    /// <see cref="UserNamePlaceholderFiller"/> produces from the session's user key. Proved over the same
+    /// HTTP surface the chat UI uses, so it covers the whole engine → endpoint → client path at once.
+    /// </summary>
+    [Fact]
+    public async Task A_message_placeholder_is_filled_at_delivery_time()
+    {
+        await using var host = await WebSampleTestHost.StartAsync();
+        var client = host.Client;
+
+        var start = await StartAsync(client, "Alex");
+
+        Assert.Equal(DemoDialog.RoleKey, start.CurrentQuestion.Key);
+        Assert.Equal("Hi Alex! What is your role?", start.CurrentQuestion.Text);
+        Assert.DoesNotContain("{{", start.CurrentQuestion.Text, StringComparison.Ordinal);
     }
 
     [Fact]

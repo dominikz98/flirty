@@ -1,5 +1,6 @@
 using Flirty.Domain;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Microsoft.Data.Sqlite;
@@ -42,7 +43,7 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static ResumeDialogQueryHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context));
+        => new(new DialogStore(context), PlaceholderRenderer.Disabled);
 
     // ---- Reading the state ------------------------------------------------------------------
 
@@ -139,7 +140,16 @@ public sealed class ResumeDialogQueryHandlerTests : IDisposable
     /// <summary>The constructor rejects a <c>null</c> store.</summary>
     [Fact]
     public void Constructor_throws_on_a_null_store()
-        => Assert.Throws<ArgumentNullException>(() => new ResumeDialogQueryHandler(null!));
+        => Assert.Throws<ArgumentNullException>(
+            () => new ResumeDialogQueryHandler(null!, PlaceholderRenderer.Disabled));
+
+    /// <summary>The constructor rejects a <c>null</c> renderer.</summary>
+    [Fact]
+    public void Constructor_throws_on_a_null_renderer()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(() => new ResumeDialogQueryHandler(new DialogStore(context), null!));
+    }
 
     // ---- Test-data helpers ------------------------------------------------------------------
 

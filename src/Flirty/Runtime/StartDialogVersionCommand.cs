@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Flirty.Domain;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Mediator;
 
 namespace Flirty.Runtime;
@@ -40,21 +41,28 @@ internal sealed class StartDialogVersionCommandHandler
 {
     private readonly IDialogStore _store;
     private readonly IPublisher _publisher;
+    private readonly PlaceholderRenderer _renderer;
 
     /// <summary>
-    /// Creates the handler over the given <see cref="IDialogStore"/> and <see cref="IPublisher"/>.
+    /// Creates the handler over the given <see cref="IDialogStore"/>, <see cref="IPublisher"/> and
+    /// <see cref="PlaceholderRenderer"/>.
     /// </summary>
     /// <param name="store">The repository for dialogs and sessions.</param>
     /// <param name="publisher">The Mediator publisher for the in-process trigger notifications.</param>
+    /// <param name="renderer">The renderer that fills message placeholders in the delivered question.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="store"/> or <paramref name="publisher"/> is <see langword="null"/>.
+    /// <paramref name="store"/>, <paramref name="publisher"/> or <paramref name="renderer"/> is
+    /// <see langword="null"/>.
     /// </exception>
-    public StartDialogVersionCommandHandler(IDialogStore store, IPublisher publisher)
+    public StartDialogVersionCommandHandler(
+        IDialogStore store, IPublisher publisher, PlaceholderRenderer renderer)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(publisher);
+        ArgumentNullException.ThrowIfNull(renderer);
         _store = store;
         _publisher = publisher;
+        _renderer = renderer;
     }
 
     /// <inheritdoc />
@@ -81,7 +89,7 @@ internal sealed class StartDialogVersionCommandHandler
         {
             return new StartDialogResult(
                 existing.Id, IsResumed: true,
-                QuestionProjection.ResolveQuestion(dialog, existing.CurrentQuestionId));
+                await _renderer.RenderAsync(dialog, existing, existing.CurrentQuestionId, cancellationToken));
         }
 
         if (dialog.StartQuestionId is null)
@@ -118,6 +126,6 @@ internal sealed class StartDialogVersionCommandHandler
 
         return new StartDialogResult(
             session.Id, IsResumed: false,
-            QuestionProjection.ResolveQuestion(dialog, session.CurrentQuestionId));
+            await _renderer.RenderAsync(dialog, session, session.CurrentQuestionId, cancellationToken));
     }
 }

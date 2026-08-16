@@ -2,6 +2,7 @@ using System.Text.Json;
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Validation;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,6 +52,13 @@ public sealed class FlirtyOptions
     /// keyed ordinally – see <see cref="FlirtyQuestionTypeRegistry"/> for why not case-insensitively.
     /// </summary>
     internal Dictionary<string, FlirtyQuestionType> QuestionTypes { get; } =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The message placeholders gathered via <see cref="AddPlaceholder{TFiller}(string, string, string)"/>,
+    /// keyed ordinally – see <see cref="FlirtyPlaceholderRegistry"/> for why not case-insensitively.
+    /// </summary>
+    internal Dictionary<string, FlirtyPlaceholder> Placeholders { get; } =
         new(StringComparer.Ordinal);
 
     /// <summary>
@@ -224,7 +232,7 @@ public sealed class FlirtyOptions
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
 
-        if (!IsQuestionTypeKey(key))
+        if (!IsDeclarationKey(key))
         {
             throw new ArgumentException(
                 $"The custom question type key '{key}' is not usable. Use lowercase ASCII letters, "
@@ -252,7 +260,71 @@ public sealed class FlirtyOptions
         return this;
     }
 
-    private static bool IsQuestionTypeKey(string key)
+    /// <summary>
+    /// Declares a message placeholder <b>with</b> a filler that produces its live value at delivery time.
+    /// A question text or an answer-option label references it with the marker <c>{{key}}</c>; the marker
+    /// is replaced by the value the filler returns. The filler type is registered as
+    /// <see cref="ServiceLifetime.Scoped"/> and resolved from the request scope, so it may take scoped
+    /// dependencies – including the same <see cref="Flirty.Persistence.FlirtyDbContext"/> the handler uses.
+    /// </summary>
+    /// <typeparam name="TFiller">The <see cref="IPlaceholderFiller"/> implementation.</typeparam>
+    /// <param name="key">The key referenced inside the <c>{{ }}</c> marker; see the other overload.</param>
+    /// <param name="displayName">A human-readable name, shown in the designer and to clients.</param>
+    /// <param name="sample">An optional example value the designer previews the marker with.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="key"/> is empty, uses characters outside <c>[a-z0-9-]</c> or is already declared.
+    /// </exception>
+    public FlirtyOptions AddPlaceholder<TFiller>(
+        string key, string displayName, string? sample = null)
+        where TFiller : class, IPlaceholderFiller
+        => AddPlaceholder(key, displayName, typeof(TFiller), sample);
+
+    /// <summary>
+    /// Declares a message placeholder <b>for display only</b>, without a filler. It names a marker for
+    /// authoring and preview – the designer uses exactly this overload, because a filler is host-process
+    /// code and the designer has none – but at delivery time a marker for a filler-less placeholder
+    /// degrades to its raw text (there is nothing to produce a value).
+    /// </summary>
+    /// <param name="key">
+    /// The key referenced inside the <c>{{ }}</c> marker. Lowercase ASCII letters, digits and <c>-</c>
+    /// only, compared ordinally.
+    /// </param>
+    /// <param name="displayName">A human-readable name, shown in the designer and to clients.</param>
+    /// <param name="sample">An optional example value the designer previews the marker with.</param>
+    /// <returns>The same <see cref="FlirtyOptions"/> instance, to allow chaining calls.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="key"/> is empty, uses characters outside <c>[a-z0-9-]</c> or is already declared.
+    /// </exception>
+    public FlirtyOptions AddPlaceholder(string key, string displayName, string? sample = null)
+        => AddPlaceholder(key, displayName, fillerType: null, sample);
+
+    private FlirtyOptions AddPlaceholder(
+        string key, string displayName, Type? fillerType, string? sample)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+        if (!IsDeclarationKey(key))
+        {
+            throw new ArgumentException(
+                $"The placeholder key '{key}' is not usable. Use lowercase ASCII letters, digits and '-' "
+                + "only: the key is written inside a {{ }} marker in a message text and looked up ordinally, "
+                + "so a casing or spacing difference would simply leave the marker unfilled.",
+                nameof(key));
+        }
+
+        // No JSON check on the sample, unlike a custom question type: a placeholder sample is a plain value
+        // substituted into a message, not a JSON answer document.
+        if (!Placeholders.TryAdd(key, new FlirtyPlaceholder(key, displayName, fillerType, sample)))
+        {
+            throw new ArgumentException($"The placeholder '{key}' is already declared.", nameof(key));
+        }
+
+        return this;
+    }
+
+    private static bool IsDeclarationKey(string key)
         => key.All(character =>
             char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character is '-');
 

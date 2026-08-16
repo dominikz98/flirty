@@ -1,5 +1,6 @@
 using Flirty.Domain;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Tests.Persistence;
 using Mediator;
@@ -43,10 +44,10 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
     private FlirtyDbContext CreateContext() => new(_options);
 
     private static StartDialogVersionCommandHandler CreateHandler(FlirtyDbContext context)
-        => new(new DialogStore(context), new SpyPublisher());
+        => new(new DialogStore(context), new SpyPublisher(), PlaceholderRenderer.Disabled);
 
     private static StartDialogVersionCommandHandler CreateHandler(FlirtyDbContext context, IPublisher publisher)
-        => new(new DialogStore(context), publisher);
+        => new(new DialogStore(context), publisher, PlaceholderRenderer.Disabled);
 
     /// <summary>
     /// Creates an <b>unpublished</b> dialog with an entry question – the case
@@ -108,7 +109,8 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
         using var act = CreateContext();
 
         await Assert.ThrowsAsync<DialogNotFoundException>(
-            async () => await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher())
+            async () => await new StartDialogCommandHandler(
+                    new DialogStore(act), new SpyPublisher(), PlaceholderRenderer.Disabled)
                 .Handle(new StartDialogCommand("onboarding", "designer-test-1"), default));
     }
 
@@ -231,7 +233,7 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
     [Fact]
     public void Constructor_throws_on_a_null_store()
         => Assert.Throws<ArgumentNullException>(
-            () => new StartDialogVersionCommandHandler(null!, new SpyPublisher()));
+            () => new StartDialogVersionCommandHandler(null!, new SpyPublisher(), PlaceholderRenderer.Disabled));
 
     /// <summary>The constructor rejects a <c>null</c> publisher.</summary>
     [Fact]
@@ -239,7 +241,16 @@ public sealed class StartDialogVersionCommandHandlerTests : IDisposable
     {
         using var context = CreateContext();
         Assert.Throws<ArgumentNullException>(
-            () => new StartDialogVersionCommandHandler(new DialogStore(context), null!));
+            () => new StartDialogVersionCommandHandler(new DialogStore(context), null!, PlaceholderRenderer.Disabled));
+    }
+
+    /// <summary>The constructor rejects a <c>null</c> renderer.</summary>
+    [Fact]
+    public void Constructor_throws_on_a_null_renderer()
+    {
+        using var context = CreateContext();
+        Assert.Throws<ArgumentNullException>(
+            () => new StartDialogVersionCommandHandler(new DialogStore(context), new SpyPublisher(), null!));
     }
 
     // ---- Trigger notifications --------------------------------------------------------------

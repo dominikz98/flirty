@@ -110,3 +110,27 @@ internal sealed record FlirtyQuestionTypeInfo(string Key, string DisplayName, st
 /// </param>
 internal sealed record FlirtyQuestionTypeList(
     IReadOnlyList<FlirtyQuestionTypeInfo> QuestionTypes, string? Note);
+
+/// <summary>
+/// One message placeholder the host declared, as seen by a client. A deliberate projection of
+/// <see cref="Flirty.Placeholders.FlirtyPlaceholder"/> rather than the record itself: that one carries the
+/// CLR <c>Type</c> of the registered filler, which is a server-side implementation detail with no business
+/// on the wire. As with <see cref="FlirtyQuestionTypeInfo"/>, <c>internal</c> is no protection –
+/// <c>System.Text.Json</c> ignores accessibility – so the guarantee is this projection having no such
+/// member, checked against the serialized text by a test.
+/// </summary>
+/// <param name="Key">The key to write inside a <c>{{ }}</c> marker in a message text.</param>
+/// <param name="DisplayName">The human-readable name the host gave the placeholder.</param>
+/// <param name="Sample">
+/// An example value, or <see langword="null"/> when the host declared none.
+/// </param>
+internal sealed record FlirtyPlaceholderInfo(string Key, string DisplayName, string? Sample);
+
+/// <summary>The declared message placeholders, returned by <c>flirty_placeholder_list</c>.</summary>
+/// <param name="Placeholders">The declared placeholders, ordered by key. Empty when the host declared none.</param>
+/// <param name="Note">
+/// A hint when <paramref name="Placeholders"/> is empty, so an empty list is not mistaken for a failure or
+/// a permission problem; <see langword="null"/> otherwise.
+/// </param>
+internal sealed record FlirtyPlaceholderList(
+    IReadOnlyList<FlirtyPlaceholderInfo> Placeholders, string? Note);

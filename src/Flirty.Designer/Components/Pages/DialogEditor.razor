@@ -230,6 +230,8 @@ else
                     <ValidationMessage For="() => _newQuestion.Text" />
                 </div>
 
+                <PlaceholderReference @bind-Value="_newQuestion.Text" />
+
                 @* A raw select rather than InputSelect: the list holds host-declared types (#137) too,
                    and those are not enum members - picking one has to write the type AND the custom type
                    key. The selection is DERIVED from both fields via ChoiceValue, so an undeclared key

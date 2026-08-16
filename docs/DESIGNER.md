@@ -372,6 +372,30 @@ The note deliberately also appears in the resolvable case. Showing it only for u
 author that a known type is fully checked here – the false impression EPIC 14 refused to create by
 offering no control at all.
 
+## Message placeholders (#140)
+
+The same #137 pattern, one level over: the designer learns host-declared **message placeholders** from an
+optional `placeholders.json` in the content root, read at startup and declared through the real
+(filler-less) `o.AddPlaceholder(...)` so everything downstream reads the ordinary core
+`FlirtyPlaceholderRegistry`. `Services/PlaceholderDescriptorFile.cs` parses (never throws),
+`Services/DesignerPlaceholders.cs` declares and catches the core's `ArgumentException` per entry (a bad
+entry is skipped and reported, not fatal), and the read-only page `/placeholders` lists the declarations
+with the same on-screen honesty as the Question types page.
+
+Two things are visible while authoring:
+
+- **The three text editors** (`QuestionEditor`, the new-question form in `DialogEditor`, and
+  `GraphQuestionPanel`) embed `Components/PlaceholderReference.razor` – clickable chips that append a
+  declared `{{key}}` marker to the text. The component renders nothing when no placeholder is declared, so
+  a designer without `placeholders.json` is byte-for-byte what it was (gated by absence).
+- **The test runner** previews the markers with the declared **sample**, via
+  `Services/PlaceholderPreview.cs`, and states beside the question that these are sample values, not live
+  data. The engine's own delivery leaves the markers raw here – the designer declares no filler, a filler
+  is host-process code – so the preview is the designer's one honest answer to a value it cannot produce.
+  The option *labels* are previewed the same way; the stored answer *value* is untouched, so a run submits
+  exactly what production would. Full guide: [PLACEHOLDERS.md](./PLACEHOLDERS.md), rationale: ADR
+  [0013](./adr/0013-message-placeholders-at-the-projection-seam.md).
+
 ## Branching editor (#40)
 
 Transitions (`Transition`) are maintained in two stages like the questions: the **list** hangs in the dialog editor,

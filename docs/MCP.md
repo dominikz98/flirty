@@ -192,6 +192,7 @@ refused until `flirty_dialog_abandon_sessions` has ended them.
 | `flirty_question_update` | `UpdateQuestionCommand` | `QuestionDetail` |
 | `flirty_question_delete` | `DeleteQuestionCommand` | `FlirtyAck` |
 | `flirty_question_type_list` | *(none – reads the host's registry)* | `FlirtyQuestionTypeList` |
+| `flirty_placeholder_list` | *(none – reads the host's registry)* | `FlirtyPlaceholderList` |
 | `flirty_option_create` | `CreateAnswerOptionCommand` | `AnswerOptionDetail` |
 | `flirty_option_update` | `UpdateAnswerOptionCommand` | `AnswerOptionDetail` |
 | `flirty_option_delete` | `DeleteAnswerOptionCommand` | `FlirtyAck` |
@@ -211,6 +212,12 @@ re-implement any of it and only names it in its description.
 For answer options the distinction that already cost this repo a bug (#47) is worth repeating: **the label
 is displayed, the value is stored.** `AnswerValidator` checks a `SingleChoice`/`MultiChoice` answer against
 the option *values*, and a branching expression compares the value.
+
+Two of the tools above read a host **registry** rather than a route: `flirty_question_type_list` (#136) and
+`flirty_placeholder_list` (#140), so a client can author a valid `customTypeKey` or a valid `{{key}}` marker
+instead of guessing. Both are authoring tools on the `Admin` surface, and both return a projection – the
+validator/filler CLR type is server-side only and never reaches the wire. See
+[PLACEHOLDERS.md](./PLACEHOLDERS.md).
 
 ### Transitions, loops and triggers
 

@@ -1,6 +1,7 @@
 using Flirty.Domain;
 using Flirty.Expressions;
 using Flirty.Persistence;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Runtime.Admin;
 using Flirty.Tests.Persistence;
@@ -382,7 +383,7 @@ public sealed class DialogVersioningTests : IDisposable
         StartDialogResult start;
         using (var act = CreateContext())
         {
-            start = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher())
+            start = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher(), PlaceholderRenderer.Disabled)
                 .Handle(new StartDialogCommand("branching", "user-1"), default);
         }
 
@@ -411,7 +412,8 @@ public sealed class DialogVersioningTests : IDisposable
         using (var act = CreateContext())
         {
             submit = await new SubmitAnswerCommandHandler(
-                    new DialogStore(act), new DynamicExpressoExpressionEvaluator(), new SpyPublisher())
+                    new DialogStore(act), new DynamicExpressoExpressionEvaluator(), new SpyPublisher(),
+                    PlaceholderRenderer.Disabled)
                 .Handle(new SubmitAnswerCommand(start.SessionId, ids.RoleQuestionId, "\"dev\""), default);
         }
 
@@ -421,7 +423,7 @@ public sealed class DialogVersioningTests : IDisposable
         ResumeDialogResult resumed;
         using (var act = CreateContext())
         {
-            resumed = await new ResumeDialogQueryHandler(new DialogStore(act))
+            resumed = await new ResumeDialogQueryHandler(new DialogStore(act), PlaceholderRenderer.Disabled)
                 .Handle(new ResumeDialogQuery(start.SessionId), default);
         }
 
@@ -432,7 +434,7 @@ public sealed class DialogVersioningTests : IDisposable
         StartDialogResult freshRun;
         using (var act = CreateContext())
         {
-            freshRun = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher())
+            freshRun = await new StartDialogCommandHandler(new DialogStore(act), new SpyPublisher(), PlaceholderRenderer.Disabled)
                 .Handle(new StartDialogCommand("branching", "user-2"), default);
         }
 

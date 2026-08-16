@@ -76,6 +76,11 @@ Four rules that hold, each a decision rather than an implementation detail:
 
 Reference: `docs/VALIDATION.md` § *Custom question types declared by the host*, ADR 0011 and ADR 0012.
 
+**Related:** a **message placeholder** (`{{key}}` in a question text or option label, filled with live host
+data at delivery time) is the same host-extension shape one field over – code registered via an `o.Add…`
+option, resolved from the request scope, gated by absence, previewed from a sample in the designer. Use the
+`flirty-placeholder` skill (`docs/PLACEHOLDERS.md`, ADR 0013) for that.
+
 ### Path B – a new built-in `QuestionType` (expensive, measure before starting)
 
 1. **Append** the value in `src/Flirty/Domain/QuestionType.cs` (the enum is `int`-persisted → do not

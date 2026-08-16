@@ -83,6 +83,8 @@ else
                 <ValidationMessage For="() => _form.Text" />
             </div>
 
+            <PlaceholderReference @bind-Value="_form.Text" />
+
             @* A raw select rather than InputSelect: the list holds host-declared types (#137) too, and
                those are not enum members. The selection is DERIVED from type + key, so the dropdown and
                the key field below cannot drift apart. *@

@@ -21,16 +21,17 @@ and not in the GitHub issues (those are only a backlog index).
 src/
 ├─ Flirty                     Core engine. PURE class library, NO ASP.NET. NuGet package.
 │                               Domain, Persistence (EF Core), Runtime (Mediator), Expressions,
-│                               Validation, Pipeline, Hosting, DependencyInjection.
+│                               Validation, Placeholders (#140), Pipeline, Hosting, DependencyInjection.
 ├─ Flirty.AspNetCore          OPTIONAL: WebAPI endpoints (thin over the Mediator commands). NuGet package.
 ├─ Flirty.Mcp                 OPTIONAL: MCP server over Streamable HTTP (MapFlirtyMcp). NuGet package.
-│                               EPIC 13 complete (#126–#130): host, 37 tools in eleven tool
+│                               EPIC 13 complete (#126–#130): host, 38 tools in twelve tool
 │                               classes – 27 configuration + the 5 flirty_session_* of FlirtySessionTools,
 │                               each class mirroring one MapXxxEndpoints counterpart, plus the 4
 │                               flirty_db_* of the two database classes, which mirror the designer's
 │                               ConnectionProfileOperations because the engine has no command for them,
-│                               plus flirty_question_type_list (#136) in FlirtyQuestionTypeTools, whose
-│                               source is the host's AddQuestionType registry rather than a route.
+│                               plus flirty_question_type_list (#136) in FlirtyQuestionTypeTools and
+│                               flirty_placeholder_list (#140) in FlirtyPlaceholderTools, whose
+│                               source is a host registry (AddQuestionType / AddPlaceholder) rather than a route.
 │                               Plus Tools/FlirtyToolNames.cs as the name checklist, ServerInstructions
 │                               and two call-tool filters: the error mapping (mirrors
 │                               FlirtyExceptionEndpointFilter) and, inside it, the target resolution.
@@ -44,7 +45,10 @@ src/
 │                               Plus #137: an optional question-types.json in the ContentRoot, declared
 │                               at startup through the real o.AddQuestionType(...), so a host-declared
 │                               type shows its display name and a Json question is answerable.
-│                               Composition in
+│                               Plus #140: an optional placeholders.json declared through the real
+│                               (filler-less) o.AddPlaceholder(...), a /placeholders page, an insert
+│                               affordance in the three text editors and a sample-based marker preview in
+│                               the test runner. Composition in
 │                               `DesignerApp.cs` (Program.cs only calls ConfigureServices/Configure).
 ├─ Flirty.Migrations.Sqlite       \
 ├─ Flirty.Migrations.PostgreSql    } EF migrations per provider. IsPackable=false, DLLs bundled into the Flirty package.
@@ -52,7 +56,8 @@ src/
    Flirty.Samples             Runnable console sample (core only, no ASP.NET).
    Flirty.Samples.Web         Runnable web sample: minimal API + static chat UI (uses
                                 Flirty.AspNetCore and Flirty.Mcp); resume/edit/branching/loop/trigger,
-                                webhook receiver, MCP server at /mcp.
+                                webhook receiver, MCP server at /mcp, two custom question types (#136) and
+                                two message-placeholder fillers ({{user-name}}/{{today}}, #140).
 tests/
 ├─ Flirty.Tests               xUnit unit/integration tests.
 └─ Flirty.E2E                 Playwright E2E of the web-sample chat UI (#45/#47) and the designer (#46).
@@ -186,7 +191,19 @@ Centralized in `Directory.Build.props`, `Directory.Build.targets`, `Directory.Pa
 - **DI:** `AddFlirty()`, `AddFlirty(Action<FlirtyOptions>)`, `AddFlirtyHandler<TNotification, THandler>()`
   in `src/Flirty/DependencyInjection/FlirtyServiceCollectionExtensions.cs` (namespace deliberately
   `Microsoft.Extensions.DependencyInjection`). Options in `FlirtyOptions.cs` – `ApplyMigrations()`, the
-  three `Use*` providers, `UseExpressionEvaluator<T>()`, `AddWebhook(...)` and `AddQuestionType(...)`.
+  three `Use*` providers, `UseExpressionEvaluator<T>()`, `AddWebhook(...)`, `AddQuestionType(...)` and
+  `AddPlaceholder(...)`.
+- **Message placeholders (#140):** `IPlaceholderFiller`, `PlaceholderContext`, `FlirtyPlaceholder` and the
+  (public, because `Flirty.Mcp` reads it) `FlirtyPlaceholderRegistry` in `src/Flirty/Placeholders/`,
+  together with the `internal` scoped `PlaceholderRenderer.cs` (the async, gated-by-absence renderer the
+  five runtime handlers call in place of `QuestionProjection.ResolveQuestion`). The MCP counterpart is
+  `Tools/FlirtyPlaceholderTools.cs` (`flirty_placeholder_list`); the worked examples are
+  `src/Flirty.Samples.Web/{UserName,Today}PlaceholderFiller.cs`. The **designer** side is
+  `Services/PlaceholderDescriptorFile.cs` + `Services/DesignerPlaceholders.cs` (read the optional
+  `placeholders.json`, declare it via the same filler-less `AddPlaceholder`, catch per entry),
+  `Services/PlaceholderPreview.cs` (the test runner's sample fill) and
+  `Components/PlaceholderReference.razor` (the insert affordance). Reason: ADR
+  `docs/adr/0013-message-placeholders-at-the-projection-seam.md`.
 - **Custom question types (#136):** `IQuestionTypeValidator`, `FlirtyQuestionType` and the (public,
   because `Flirty.Mcp` reads it) `FlirtyQuestionTypeRegistry` in `src/Flirty/Validation/`, together with
   the `internal` decorator `CustomQuestionTypeAnswerValidator.cs`; the authoring guard in
@@ -273,7 +290,7 @@ dotnet reportgenerator -reports:artifacts/coverage/unit/**/coverage.cobertura.xm
 
 Under `.claude/skills/` there are function-specific guides – check first when a task fits:
 `flirty-runtime-command`, `flirty-ef-migration`, `flirty-trigger-notification`, `flirty-question-type`,
-`flirty-nuget-package`, `flirty-designer`, `flirty-mcp`.
+`flirty-placeholder`, `flirty-nuget-package`, `flirty-designer`, `flirty-mcp`.
 
 ## Keeping context & docs in sync (important)
 
@@ -304,6 +321,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Branching / expressions | `docs/BRANCHING-EXPRESSIONS.md` |
 | Loops | `docs/LOOPS.md` |
 | Triggers (notifications + webhooks) | `docs/TRIGGERS.md` |
+| Message placeholders (`{{key}}` at delivery) | `docs/PLACEHOLDERS.md` |
 | MCP server (tools, error mapping) | `docs/MCP.md` |
 | Answer validation | `docs/VALIDATION.md` |
 | NuGet packaging | `docs/NUGET-PACKAGING.md` |
@@ -312,7 +330,7 @@ Whoever changes code pulls the affected docs along in the **same** PR. Concretel
 | Getting Started (Web sample / chat UI) | `docs/GETTING-STARTED-Sample-Web.md` |
 | Designer (Blazor) | `docs/DESIGNER.md` |
 | Backlog / roadmap | `docs/BACKLOG.md`, `docs/ROADMAP.md` |
-| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0012 |
+| Decisions (ADRs) | `docs/adr/README.md` (index + format), ADRs 0001–0013 |
 
 ## Status & open work
 
@@ -1311,3 +1329,56 @@ added **two** tests; `main` measured 19. A count in prose compiles.
 had *discarded* that work and recorded the discard properly in four places. The check that would have
 caught it costs one `grep` — and running it did not shrink the ticket, it made the deliverable sharper,
 because what remained was a delta small enough to state in one sentence on screen.
+
+**Message placeholders (#140) done.** A host can put a `{{key}}` marker in a question text or answer-option
+label and have it replaced with **live data at delivery time**, resolved in host code on demand. **One
+schema change: none** (both text columns are already unbounded), **one new ADR (0013)**, no new command, no
+new project. Surface 37 → **38** tools in **twelve** classes. Suite 914 → **980** unit, 20 → **21** E2E.
+
+- **The finding shaped the feature: there is exactly one seam.** `QuestionProjection.ResolveQuestion` is
+  the single place a delivered text is produced (`new QuestionView(` = one repo-wide hit), and all five
+  runtime operations route through it while HTTP and the MCP session tools pass `QuestionView.Text`
+  through. Replace at that seam and every delivery path is covered at once. But the seam was `static`,
+  sync and had only `(Dialog, Guid?)` — and a live-data source is I/O and needs the session. So it became
+  an `internal` **scoped, async, session-aware** `PlaceholderRenderer` the five handlers call, and a
+  **pipeline behavior** (the nearby alternative) was ruled out for a structural reason, not a taste one:
+  the text does not exist yet when a behavior runs.
+- **Gated by absence, and — unlike #136 — with no lifetime change at all.** With nothing declared the
+  renderer returns the projection untouched (no scan, no context build, no filler resolution). The
+  sharp contrast to the question-type decorator is worth keeping: that one *swaps* `IAnswerValidator` from
+  singleton to scoped on a declaration, whereas the renderer is **new** and `Scoped` from the start, so
+  declaring a placeholder moves no existing registration. "No lifetime change" is therefore structural
+  here, not a promise — asserted by a test that reads the renderer descriptor with and without a
+  declaration.
+- **The filler hangs in DI, the EPIC-14 pattern, not the webhook one.** `IPlaceholderFiller` (not a
+  `Func<>`, which cannot take scoped dependencies) is resolved from the **request scope**, so it shares
+  the handler's `FlirtyDbContext` — pinned by a `ReferenceEquals` end-to-end test. `AddPlaceholder` is
+  dictionary-semantics (unique key), and its `sample` is **plain text**, not JSON — the one deliberate
+  divergence from `AddQuestionType`, because a placeholder value is substituted into a message, not a JSON
+  answer document.
+- **Best-effort, forced by ADR 0005.** An unknown key, a throwing filler and a `null` return all degrade
+  the one marker to its raw `{{key}}` and log a warning; nothing breaks start/submit/resume/edit, and a
+  `null` return logs too (the `IPlaceholderFiller` contract says so, and a test caught the renderer not
+  doing it). Values are never persisted; recursion is one level; a key resolves at most once per delivery.
+- **`{{key}}` was chosen for a measured reason.** The branching sandbox runs raw C# through DynamicExpresso,
+  where `{ }`, `[ ]` and `$` all carry meaning, so `${}`/`{}`/`[[]]` would be a trap the moment a token is
+  reused in a condition; `{{…}}` collides with nothing (`grep {{ src/Flirty` was empty). The charset is
+  `[a-z0-9-]`, so a token like `{{User_Name}}` is simply not a marker and stays verbatim.
+- **The designer becomes a host again (the #137 route), and the delta is stated on screen.** An optional
+  `placeholders.json` is declared through the real *filler-less* `AddPlaceholder`, surfaced on
+  `/placeholders`; the three text editors get an insert-chip affordance (`PlaceholderReference`, renders
+  nothing when nothing is declared); the test runner previews the declared **sample** (`PlaceholderPreview`)
+  and says so, because it runs no filler — a filler is host-process code, exactly the ADR 0012 stance for
+  question types. The option *labels* preview the same way; the stored *value* is untouched, so a run
+  submits what production would.
+- **MCP gains one registry-sourced tool.** `flirty_placeholder_list` (Admin) is the twin of
+  `flirty_question_type_list`: no command, no route counterpart, a projection that drops the CLR filler
+  type (checked against the serialized text, because `internal` is no barrier to `System.Text.Json`). The
+  golden list and the annotation matrix grew by one literal entry, and the surface-scoping tests moved
+  from 28 to 29 admin tools; the session tools deliver filled text unchanged.
+
+**Mnemonic:** two extension points can look identical and differ where it counts. The placeholder filler is
+the question-type validator's twin — same `o.Add…` shape, same request-scope resolution, same
+degrade-don't-throw under ADR 0005 — yet the validator *changes a lifetime* and the placeholder *does not*,
+because one decorates an existing singleton and the other introduces a fresh scoped service. Copying the
+sibling's design got 90% right; the 10% that mattered was the registration it did **not** need to touch.

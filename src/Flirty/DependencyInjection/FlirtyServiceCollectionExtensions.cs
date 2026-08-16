@@ -2,6 +2,7 @@ using Flirty.Expressions;
 using Flirty.Hosting;
 using Flirty.Persistence;
 using Flirty.Pipeline;
+using Flirty.Placeholders;
 using Flirty.Runtime;
 using Flirty.Validation;
 using Mediator;
@@ -104,6 +105,15 @@ public static class FlirtyServiceCollectionExtensions
         // IAnswerValidator registration above changes.
         services.AddSingleton(FlirtyQuestionTypeRegistry.Empty);
 
+        // Issue #140: message placeholders. The registry is registered EMPTY here (mirroring the question
+        // type registry) and replaced by the options overload once at least one placeholder is declared.
+        // The PlaceholderRenderer is registered UNCONDITIONALLY and always Scoped: the five runtime handlers
+        // resolve it to produce the delivered QuestionView, and on an empty registry it returns the plain
+        // projection untouched (gated by absence). Unlike the question-type decorator this changes no other
+        // service's lifetime - there is nothing to swap, the renderer is new and scoped from the start.
+        services.AddSingleton(FlirtyPlaceholderRegistry.Empty);
+        services.AddScoped<PlaceholderRenderer>();
+
         return services;
     }
 
@@ -190,6 +200,29 @@ public static class FlirtyServiceCollectionExtensions
                     provider.GetRequiredService<FlirtyQuestionTypeRegistry>(),
                     provider,
                     provider.GetRequiredService<ILogger<CustomQuestionTypeAnswerValidator>>())));
+        }
+
+        // Message placeholders (#140), gated by absence: only an actual declaration replaces the empty
+        // registry and registers the filler types. Without one this block is skipped, the empty registry
+        // set in AddFlirty() stands, and the always-Scoped PlaceholderRenderer short-circuits to the plain
+        // projection. The renderer itself is NOT re-registered here - it reads whichever registry is live,
+        // so no lifetime changes for a host that does not use the feature.
+        if (options.Placeholders.Count > 0)
+        {
+            services.Replace(
+                ServiceDescriptor.Singleton(new FlirtyPlaceholderRegistry(options.Placeholders)));
+
+            // The concrete filler type, resolved from the request scope so it shares the handler's
+            // FlirtyDbContext. TryAdd, so a host that registered its filler itself (own factory or
+            // lifetime) keeps that registration. A filler-less declaration (FillerType is null) registers
+            // nothing - that is the designer's display-only case.
+            foreach (var fillerType in options.Placeholders.Values
+                         .Select(placeholder => placeholder.FillerType)
+                         .OfType<Type>()
+                         .Distinct())
+            {
+                services.TryAddScoped(fillerType);
+            }
         }
 
         if (options.MigrationsEnabled)
